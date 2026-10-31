@@ -657,3 +657,208 @@ def test_worker_without_a_spec_keeps_the_7_2_positional_guess(worker_config):
         detector = worker._initialize_detector()
 
     assert detector.class_role_map.to_legacy_tuple() == (0, 1)
+
+
+# =============================================================================
+# Object sidecar ``3c_Objetos_`` written by the frame loop (ADR-010)
+# =============================================================================
+
+_SIDECAR_SHA = "ab" * 32
+_RAT_ROLES = {"arena": "arena", "rat": "subject", "experimenter": "context"}
+_RAT_NAMES = {0: "arena", 1: "rat", 2: "experimenter"}
+
+
+def _read_3c(path):
+    """Read a ``3c_Objetos_`` sidecar the test expects to be valid."""
+    from zebtrack.io.object_sidecar import read_object_sidecar
+
+    df = read_object_sidecar(path)
+    assert df is not None, f"unreadable object sidecar: {path}"
+    return df
+
+
+def _golden_plugin_class():
+    from tests.helpers.prerecorded_pipeline import GoldenDeterministicPlugin
+
+    class _RatPlugin(GoldenDeterministicPlugin):
+        """The golden square as class ``rat`` + an experimenter at the crop centre.
+
+        ``blind_every`` makes every n-th call see nothing at all, so the loop
+        processes frames that have no detection.
+        """
+
+        class_names: typing.ClassVar[dict[int, str]] = _RAT_NAMES
+
+        def __init__(self, *, with_context: bool, blind_every: int = 0):
+            super().__init__()
+            self.with_context = with_context
+            self.blind_every = blind_every
+            self.calls = 0
+
+        def detect(self, frame, conf_threshold=None):
+            self.calls += 1
+            if self.blind_every and self.calls % self.blind_every == 0:
+                return []
+            found = [(*det[:6], 1) for det in super().detect(frame, conf_threshold)]
+            if self.with_context:
+                h, w = frame.shape[:2]
+                found.append((w // 2 - 10, h // 2 - 10, w // 2 + 10, h // 2 + 10, 0.8, None, 2))
+            return found
+
+    return _RatPlugin
+
+
+def _run_frame_loop(
+    tmp_path, *, interval, settings=None, with_context=False, blind_every=0, zone_dict=None
+):
+    """Drive ``_process_single_video`` in-process on the golden video."""
+    from tests.helpers.prerecorded_pipeline import (
+        ARENA_POLYGON,
+        EXPERIMENT_ID,
+        HEIGHT,
+        WIDTH,
+        _QueueStub,
+        load_pristine_settings,
+        write_golden_video,
+    )
+
+    from zebtrack.core.detection import Detector
+    from zebtrack.core.detection.class_roles import resolve_class_role_map
+
+    settings = settings or load_pristine_settings()
+    video_path = tmp_path / f"{EXPERIMENT_ID}.mp4"
+    try:
+        write_golden_video(video_path)
+    except RuntimeError as exc:  # pragma: no cover - codec-less CI image
+        pytest.skip(str(exc))
+    output_dir = tmp_path / "results"
+    zone_dict = zone_dict or {
+        "polygon": [[x, y] for x, y in ARENA_POLYGON],
+        "roi_polygons": [],
+        "roi_names": [],
+        "roi_colors": [],
+        "metadata": {"source_width": WIDTH, "source_height": HEIGHT},
+    }
+    task = {"path": str(video_path), "experiment_id": EXPERIMENT_ID, "zone_data": zone_dict}
+    config = WorkerConfig(
+        settings=settings,
+        output_base_dir=str(output_dir),
+        tasks=[task],
+        single_video_mode=True,
+        analysis_interval_frames=interval,
+        display_interval_frames=10_000,
+        zone_data=zone_dict,
+        weight_sha256=_SIDECAR_SHA,
+        class_roles=dict(_RAT_ROLES),
+        class_roles_source="weight",
+    )
+    role_map = resolve_class_role_map(
+        _RAT_NAMES, weight_entry={"class_roles": _RAT_ROLES}, weight_sha256="cd" * 32
+    )
+    plugin = _golden_plugin_class()(with_context=with_context, blind_every=blind_every)
+    detector = Detector(
+        plugin=plugin,
+        base_width=WIDTH,
+        base_height=HEIGHT,
+        settings_obj=settings,
+        class_role_map=role_map,
+    )
+    worker = _WorkerProcess(config, cast(Any, _QueueStub()), cast(Any, _QueueStub()))
+    assert worker._process_single_video(
+        index=0,
+        total_videos=1,
+        video_path=str(video_path),
+        experiment_id=EXPERIMENT_ID,
+        detector=detector,
+        video_metadata=task,
+    )
+    return output_dir, EXPERIMENT_ID
+
+
+def test_frame_loop_writes_a_heartbeat_on_every_processed_frame(tmp_path):
+    """Frames with no detection still get their heartbeat; skipped frames get none."""
+    import pandas as pd
+
+    output_dir, base = _run_frame_loop(tmp_path, interval=3, blind_every=2)
+
+    objects = _read_3c(output_dir / f"3c_Objetos_{base}.parquet")
+    trajectory = pd.read_parquet(output_dir / f"3_CoordMovimento_{base}.parquet")
+    heartbeat = objects[objects["class_id"] == -1]
+    processed = list(range(0, 120, 3))
+    assert heartbeat["frame"].tolist() == processed
+    # Every other processed frame was blind: the trajectory skips those frames.
+    assert len(trajectory) == len(processed) // 2
+    assert set(trajectory["frame"]) < set(processed)
+    # Pre-recorded: the event clock IS the trajectory's PTS timestamp.
+    assert (heartbeat["t_event_s"] == heartbeat["timestamp"]).all()
+    merged = trajectory.merge(heartbeat, on="frame", suffixes=("_traj", "_obj"))
+    assert len(merged) == len(trajectory)
+    assert (merged["timestamp_traj"] == merged["timestamp_obj"]).all()
+
+
+def test_frame_loop_records_context_observations_and_metadata(tmp_path):
+    output_dir, base = _run_frame_loop(tmp_path, interval=4, with_context=True)
+
+    objects = _read_3c(output_dir / f"3c_Objetos_{base}.parquet")
+    context = objects[objects["role"] == "context"]
+    subjects = objects[objects["role"] == "subject"]
+    processed = list(range(0, 120, 4))
+    assert context["frame"].tolist() == processed
+    assert set(context["class_name"]) == {"experimenter"}
+    assert subjects["frame"].tolist() == processed
+    assert set(subjects["class_name"]) == {"rat"}
+
+    metadata = objects.attrs["objects_metadata"]
+    assert metadata.clock == "pts"
+    assert metadata.analysis_interval_frames == 4
+    # The sha of the file the worker LOADED (config), not the map's.
+    assert metadata.weight_sha256 == _SIDECAR_SHA
+    assert metadata.class_names == _RAT_NAMES
+    assert metadata.class_roles == _RAT_ROLES
+    assert metadata.class_roles_source == "weight"
+
+
+def test_frame_loop_honours_the_kill_switch(tmp_path):
+    from tests.helpers.prerecorded_pipeline import load_pristine_settings
+
+    settings = load_pristine_settings()
+    settings.recorder.persist_object_sidecar = False
+
+    output_dir, base = _run_frame_loop(tmp_path, interval=5, settings=settings)
+
+    assert (output_dir / f"3_CoordMovimento_{base}.parquet").exists()
+    assert not (output_dir / f"3c_Objetos_{base}.parquet").exists()
+
+
+def test_frame_loop_multi_aquarium_writes_one_sidecar_per_aquarium(tmp_path):
+    left = [[40, 40], [300, 40], [300, 440], [40, 440]]
+    right = [[340, 40], [600, 40], [600, 440], [340, 440]]
+    zone_dict = {
+        "aquariums": [
+            {"id": 0, "polygon": left, "group": "G", "subject_id": "S1", "day": 1},
+            {"id": 1, "polygon": right, "group": "G", "subject_id": "S2", "day": 1},
+        ],
+        "video_width": 640,
+        "video_height": 480,
+    }
+
+    output_dir, base = _run_frame_loop(tmp_path, interval=6, with_context=True, zone_dict=zone_dict)
+
+    found = sorted(output_dir.rglob("3c_Objetos_*.parquet"))
+    assert [p.name for p in found] == [
+        f"3c_Objetos_{base}_aquarium_1.parquet",
+        f"3c_Objetos_{base}_aquarium_2.parquet",
+    ]
+    processed = list(range(0, 120, 6))
+    for aquarium_id, path in enumerate(found):
+        objects = _read_3c(path)
+        heartbeat = objects[objects["class_id"] == -1]
+        assert heartbeat["frame"].tolist() == processed
+        assert set(heartbeat["aquarium_id"]) == {aquarium_id}
+        # Each crop's experimenter sits inside that aquarium: routed there by
+        # position (no null rows, nothing from the other aquarium).
+        context = objects[objects["role"] == "context"]
+        assert context["frame"].tolist() == processed
+        assert set(context["aquarium_id"].tolist()) == {aquarium_id}
+        subjects = objects[objects["role"] == "subject"]
+        assert set(subjects["aquarium_id"].tolist()) <= {aquarium_id}

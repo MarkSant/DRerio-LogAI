@@ -111,6 +111,8 @@ class TrackingSessionRunnerMixin:
 
         cal, pixel_per_cm_ratio = self._build_calibration_context(arena_polygon, calibration_data)
 
+        from zebtrack.io.object_sidecar import CLOCK_PTS, ObjectSidecarMetadata
+
         session_recorder.start_recording(
             output_folder=results_dir,
             frame_width=frame_width,
@@ -120,6 +122,12 @@ class TrackingSessionRunnerMixin:
             base_name=experiment_id,
             pixel_per_cm_ratio=pixel_per_cm_ratio,
             calibration=cal,
+            # The cadence is only known by the frame loop, hence ``None``.
+            object_metadata=ObjectSidecarMetadata.from_role_map(
+                getattr(detector, "class_role_map", None),
+                clock=CLOCK_PTS,
+                analysis_interval_frames=None,
+            ),
         )
 
         # Captura de máscaras: a conjunção das três condições mora em
@@ -175,6 +183,13 @@ class TrackingSessionRunnerMixin:
             recorder.write_detection_data(timestamp, frame_num, detections)
             if getattr(recorder, "persist_masks", False) and hasattr(detector, "pop_track_masks"):
                 recorder.write_mask_data(frame_num, detector.pop_track_masks(detections))
+            # ``3c_Objetos_`` heartbeat on EVERY processed frame, detection or
+            # not; the event clock is the PTS (ADR-010). ``is True``: a Mock
+            # recorder's auto-attribute is not a decision to write.
+            if getattr(recorder, "persist_object_sidecar", False) is True:
+                pop = getattr(detector, "pop_class_observations", None)
+                observations = pop() if callable(pop) else []
+                recorder.write_object_data(timestamp, frame_num, timestamp, observations)
 
             if detections:
                 detected_count_increment = 1

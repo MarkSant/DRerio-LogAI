@@ -589,5 +589,132 @@ class TestVideoContextHelpers:
         assert stats["eta"] == pytest.approx(5.0)
 
 
+class _ObservingDetector:
+    """Detector double: no subject detection, one context observation."""
+
+    def __init__(self):
+        self.popped = 0
+
+    def detect(self, frame, project_type=None):
+        return [], None
+
+    def pop_class_observations(self):
+        self.popped += 1
+        return [
+            {
+                "class_id": 2,
+                "class_name": "experimenter",
+                "role": "context",
+                "bbox": (1.0, 2.0, 3.0, 4.0),
+                "confidence": 0.8,
+                "aquarium_id": None,
+            }
+        ]
+
+
+class TestInProcessObjectSidecar:
+    """``_process_tracking_frame`` feeds the ``3c_Objetos_`` sidecar (ADR-010)."""
+
+    def _recorder(self, persist):
+        recorder = Mock()
+        recorder.persist_object_sidecar = persist
+        recorder.persist_masks = False
+        return recorder
+
+    def test_processed_frame_without_detection_still_gets_its_heartbeat(
+        self, video_processing_service
+    ):
+        recorder = self._recorder(True)
+        detector = _ObservingDetector()
+
+        detections, increment, processed = video_processing_service._process_tracking_frame(
+            frame=np.zeros((4, 4, 3), dtype=np.uint8),
+            frame_num=6,
+            analysis_interval_frames=3,
+            cap=FakeCap(),
+            recorder=recorder,
+            detector=detector,
+        )
+
+        assert (detections, increment, processed) == ([], 0, True)
+        recorder.write_object_data.assert_called_once()
+        args = recorder.write_object_data.call_args.args
+        # timestamp == t_event_s == PTS (FakeCap reports 1000 ms).
+        assert args[:3] == (1.0, 6, 1.0)
+        assert [item["role"] for item in args[3]] == ["context"]
+
+    def test_skipped_frame_writes_nothing(self, video_processing_service):
+        recorder = self._recorder(True)
+        detector = _ObservingDetector()
+
+        video_processing_service._process_tracking_frame(
+            frame=np.zeros((4, 4, 3), dtype=np.uint8),
+            frame_num=7,
+            analysis_interval_frames=3,
+            cap=FakeCap(),
+            recorder=recorder,
+            detector=detector,
+        )
+
+        recorder.write_object_data.assert_not_called()
+        assert detector.popped == 0
+
+    def test_kill_switch_writes_nothing(self, video_processing_service):
+        recorder = self._recorder(False)
+        detector = _ObservingDetector()
+
+        video_processing_service._process_tracking_frame(
+            frame=np.zeros((4, 4, 3), dtype=np.uint8),
+            frame_num=0,
+            analysis_interval_frames=1,
+            cap=FakeCap(),
+            recorder=recorder,
+            detector=detector,
+        )
+
+        recorder.write_object_data.assert_not_called()
+
+    def test_setup_passes_the_object_metadata_to_the_recorder(
+        self, video_processing_service, tmp_path
+    ):
+        from zebtrack.core.detection.class_roles import resolve_class_role_map
+
+        started = {}
+
+        class _Recorder:
+            def __init__(self, settings_obj=None):
+                pass
+
+            def start_recording(self, **kwargs):
+                started.update(kwargs)
+                return True
+
+        detector = Mock()
+        detector.class_role_map = resolve_class_role_map(
+            {0: "arena", 1: "rat"}, weight_sha256="cd" * 32
+        )
+        video_processing_service.project_manager.get_zone_data = Mock(
+            return_value=ZoneData(polygon=[[0, 0], [320, 0], [320, 240], [0, 240]])
+        )
+        video_processing_service.project_manager.project_data = {}
+
+        with patch(
+            "zebtrack.core.video.tracking_session_runner.cv2.VideoCapture", return_value=FakeCap()
+        ):
+            video_processing_service._setup_tracking_session(
+                video_path=tmp_path / "v.mp4",
+                results_dir=tmp_path,
+                experiment_id="exp",
+                calibration_data=None,
+                recorder=_Recorder(),
+                detector=detector,
+            )
+
+        metadata = started["object_metadata"]
+        assert metadata.clock == "pts"
+        assert metadata.class_names == {0: "arena", 1: "rat"}
+        assert metadata.weight_sha256 == "cd" * 32
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

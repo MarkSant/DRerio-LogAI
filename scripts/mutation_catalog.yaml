@@ -1172,3 +1172,21 @@ modules:
         description: "sessao ao vivo sem metadados explicitos declara relogio pts"
         find: 'clock=CLOCK_PTS if is_video_file else CLOCK_CAPTURE'
         replace: 'clock=CLOCK_PTS'
+
+  processing_worker_object_sidecar:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+    mutations:
+      - id: heartbeat-only-with-detections
+        description: "worker so grava o 3c em frame com deteccao"
+        find: 'if capture_objects:'
+        replace: 'if capture_objects and detections:'
+      - id: aquarium-polygons-dropped
+        description: "multi-aquario roteia contexto sem os poligonos (vira null em todos)"
+        find: 'aquarium_polygons[aq.id] = polygon'
+        replace: 'pass'
+      - id: sha-of-the-map-not-the-file
+        description: "metadado weight_sha256 deixa de ser o do arquivo carregado pelo worker"
+        find: 'weight_sha256=self.config.weight_sha256 or None,'
+        replace: 'weight_sha256=None,'

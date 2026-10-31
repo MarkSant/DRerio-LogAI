@@ -37,6 +37,7 @@ from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetecto
 from zebtrack.core.detection.zone_scaler import ZoneScaler, arena_membership_rule_from_settings
 from zebtrack.core.video.shared_frame_buffer import SharedFrameBuffer
 from zebtrack.i18n import _
+from zebtrack.io.object_sidecar import CLOCK_PTS, ObjectSidecarMetadata
 from zebtrack.io.recorder import Recorder
 
 # Settings is used at runtime in WorkerConfig
@@ -1137,6 +1138,14 @@ class _WorkerProcess(multiprocessing.Process):
             )
 
         recorder = Recorder(settings_obj=self.config.settings)
+        # ``3c_Objetos_`` metadata, from the role map the detector RUNS with
+        # and the sha of the weight file this process loaded (ADR-010).
+        object_metadata = ObjectSidecarMetadata.from_role_map(
+            getattr(detector, "class_role_map", None),
+            clock=CLOCK_PTS,
+            analysis_interval_frames=self.config.analysis_interval_frames,
+            weight_sha256=self.config.weight_sha256 or None,
+        )
 
         # Initialize calibration
         calibration = None
@@ -1231,6 +1240,7 @@ class _WorkerProcess(multiprocessing.Process):
                 calibration=None,
                 calibration_by_aquarium=calibration_by_aquarium,
                 output_folders_by_aquarium=output_folders_by_aquarium,
+                object_metadata=object_metadata,
             )
 
         else:
@@ -1243,7 +1253,22 @@ class _WorkerProcess(multiprocessing.Process):
                 base_name=experiment_id,
                 pixel_per_cm_ratio=pixel_ratio,
                 calibration=calibration,
+                object_metadata=object_metadata,
             )
+
+        # Object sidecar: written on EVERY processed frame, detection or not.
+        # Multi-aquarium routes rows by position, so it needs the aquarium
+        # polygons in the same frame pixels as the observations.
+        capture_objects = recorder.persist_object_sidecar
+        aquarium_polygons: dict[int, Any] | None = None
+        if is_multi_aquarium and multi_aq_detector is not None:
+            assert isinstance(video_zone_data, MultiAquariumZoneData)
+            aquarium_polygons = {}
+            for aq in video_zone_data.aquariums:
+                polygon = multi_aq_detector.get_aquarium_polygon(aq.id)
+                if polygon is not None:
+                    aquarium_polygons[aq.id] = polygon
+        observation_source: Any = multi_aq_detector if multi_aq_detector is not None else detector
 
         if is_multi_aquarium and multi_aq_detector is not None:
             multi_aq_detector.reset_multi_aquarium_tracking()
@@ -1344,6 +1369,10 @@ class _WorkerProcess(multiprocessing.Process):
                             recorder.write_mask_data(
                                 frame_num, detector.pop_track_masks(detections)
                             )
+                    if capture_objects:
+                        self._write_object_observations(
+                            recorder, observation_source, timestamp, frame_num, aquarium_polygons
+                        )
 
                     # Display Update?
                     if frame_num % self.config.display_interval_frames == 0:
@@ -1471,6 +1500,29 @@ class _WorkerProcess(multiprocessing.Process):
                 recorder.stop_recording()
 
         return True
+
+    @staticmethod
+    def _write_object_observations(
+        recorder: Recorder,
+        source: Any,
+        timestamp: float,
+        frame_num: int,
+        aquarium_polygons: dict[int, Any] | None,
+    ) -> None:
+        """Hand one processed frame's class observations to the ``3c_`` sidecar.
+
+        Pre-recorded, the event clock is the PTS, i.e. the same ``timestamp``
+        the trajectory gets. A source without ``pop_class_observations`` still
+        yields the heartbeat.
+        """
+        pop = getattr(source, "pop_class_observations", None)
+        observations = pop() if callable(pop) else []
+        if aquarium_polygons is not None:
+            recorder.write_partitioned_object_data(
+                timestamp, frame_num, timestamp, observations, aquarium_polygons
+            )
+        else:
+            recorder.write_object_data(timestamp, frame_num, timestamp, observations)
 
     def _check_cancellation(self, *, wait_s: float = 0.005) -> bool:
         """Check for cancellation messages.
