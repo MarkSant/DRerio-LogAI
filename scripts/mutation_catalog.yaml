@@ -1523,3 +1523,138 @@ modules:
         description: "pos-analise usa o fps nominal da camera em vez do da gravacao"
         find: 'df, fps, time_warnings = self._retime_live_trajectory(df, trajectory_file)'
         replace: 'df, _fps, time_warnings = self._retime_live_trajectory(df, trajectory_file)'
+  analysis_window_cut:
+    source: src/zebtrack/analysis/behavior.py
+    tests:
+      - tests/analysis/test_behavior.py
+    mutations:
+      - id: velocity-after-the-cut
+        description: "velocidade passa a ser calculada depois do recorte e a 1a amostra da janela vira NaN"
+        find: |-
+          # Derivatives first, on the whole recording.
+                  self.calculate_velocity_timeseries()
+        replace: |-
+          # Derivatives first, on the whole recording.
+                  pass
+      - id: angular-after-the-cut
+        description: "velocidade angular passa a ser calculada so dentro da janela e perde a borda"
+        find: 'self._window_angular = angular_keep'
+        replace: 'self._window_angular = None'
+      - id: denominator-back-to-recording
+        description: "inatividade % e curvas/min voltam a dividir pela gravacao em vez de STOP - START"
+        find: 'if bounds is not None:'
+        replace: 'if False:'
+      - id: start-edge-exclusive
+        description: "a amostra exatamente no START (com ruido de arredondamento) sai da janela"
+        find: 'low = pd.to_timedelta(bounds[0], unit="s") - _WINDOW_EDGE_TOLERANCE'
+        replace: 'low = pd.to_timedelta(bounds[0], unit="s") + _WINDOW_EDGE_TOLERANCE'
+      - id: track-labels-not-cut
+        description: "rotulos de trilha deixam de acompanhar o recorte e misturam animais"
+        find: '            self._track_labels = self._track_labels[keep]'
+        replace: '            pass'
+
+  analysis_window_cut_roi:
+    source: src/zebtrack/analysis/roi.py
+    tests:
+      - tests/analysis/test_roi_analyzer.py
+    mutations:
+      - id: latency-state-read-from-the-cut
+        description: "estado no START passa a ser lido do recorte e o sujeito dentro antes do START some"
+        find: 'if self._window is not None and self._full_view is not None:'
+        replace: 'if False:'
+      - id: straddling-row-not-clipped
+        description: "a linha que atravessa o START volta a creditar o intervalo inteiro antes dele"
+        find: 'portion = np.minimum(raw_dt_s, np.maximum(clock_s - t0_s, 0.0))'
+        replace: 'portion = raw_dt_s'
+      - id: unobserved-of-whole-recording
+        description: "tempo nao observado volta a somar as lacunas da gravacao inteira"
+        find: '            self._unobserved_time_s = float(excess.sum())'
+        replace: '            pass'
+      - id: exits-of-whole-recording
+        description: "saidas voltam a contar fora da janela"
+        find: 'return _exit_counts(self._timeline(), self._rois, t0=t0, t_end=t_end)'
+        replace: 'return _exit_counts(self._timeline(), self._rois)'
+      - id: window-defaults-ignored
+        description: "metricas sem t0 explicito deixam de usar o START da janela"
+        find: 'if t0 is None and t_end is None and self._window is not None:'
+        replace: 'if False:'
+      - id: per-animal-latency-from-the-cut
+        description: "latencia por animal passa a ler o recorte e perde o estado anterior ao START"
+        find: 'timeline = full.iloc[self._full_track_positions[label]]'
+        replace: 'timeline = frame'
+
+  window_observations:
+    source: src/zebtrack/analysis/window_observations.py
+    tests:
+      - tests/analysis/test_window_observations.py
+    mutations:
+      - id: processing-clock-instead-of-event-clock
+        description: "observacao datada pelo timestamp em vez do t_event_s (relogio do evento)"
+        find: '"t_s": pd.to_numeric(heartbeats["t_event_s"], errors="coerce"),'
+        replace: '"t_s": pd.to_numeric(heartbeats["timestamp"], errors="coerce"),'
+      - id: detections-as-heartbeats
+        description: "linhas de deteccao viram batimentos e frames ganham observacoes duplicadas"
+        find: 'heartbeats = objects[(class_ids == HEARTBEAT_CLASS_ID).to_numpy(dtype=bool)]'
+        replace: 'heartbeats = objects[(class_ids != HEARTBEAT_CLASS_ID).to_numpy(dtype=bool)]'
+      - id: other-aquarium-rows-kept
+        description: "linhas de outro aquario passam a valer para este"
+        find: 'keep = owner.isna() | (owner == int(aquarium_id))'
+        replace: 'keep = owner.isna() | owner.notna()'
+      - id: shared-context-dropped
+        description: "objeto de contexto sem aquario (vale para todos) deixa de valer"
+        find: 'keep = owner.isna() | (owner == int(aquarium_id))'
+        replace: 'keep = owner.notna() & (owner == int(aquarium_id))'
+      - id: external-delivered-early
+        description: "evento externo entregue no frame ANTERIOR ao seu instante"
+        find: 'position = int(np.searchsorted(clock, float(event.t_s) - 1e-9, side="left"))'
+        replace: 'position = max(int(np.searchsorted(clock, float(event.t_s), side="right")) - 1, 0)'
+      - id: report-rule-ignored
+        description: "ROI da condicao deixa de usar a regra (e o debounce) do relatorio"
+        find: 'rule = roi_rule if roi_rule is not None else resolve_roi_rule(None, None)'
+        replace: 'rule = resolve_roi_rule(None, None)'
+      - id: trajectory-only-without-absences
+        description: "sem 3c, frames sem o sujeito somem em vez de virarem ausencia"
+        find: 'grid = np.arange(int(known_frames[0]), int(known_frames[-1]) + 1, step, dtype=np.int64)'
+        replace: 'grid = known_frames'
+      - id: context-role-without-sidecar-evaluated
+        description: "condicao sobre papel de contexto sem 3c passa a ser avaliada como ausencia"
+        find: 'if target.role == "context":'
+        replace: 'if False:'
+
+  analysis_window_service:
+    source: src/zebtrack/analysis/analysis_window_service.py
+    tests:
+      - tests/analysis/test_analysis_window_service.py
+    mutations:
+      - id: reuse-ignores-input-hashes
+        description: "artefato reaproveitado mesmo com trajetoria ou 3c alterados"
+        find: 'and existing.offline.inputs == inputs'
+        replace: 'and True'
+      - id: reuse-ignores-spec-hash
+        description: "artefato de outra regra de janela passa a ser reaproveitado"
+        find: 'same_spec = existing is not None and existing.spec_hash == digest'
+        replace: 'same_spec = existing is not None'
+      - id: offline-loses-to-online
+        description: "o START gravado ao vivo passa na frente do recalculado offline"
+        find: 'start = WindowBound.from_artifact(offline.start)'
+        replace: 'start = WindowBound.from_artifact(online.start or offline.start)'
+      - id: divergence-of-one-frame-reported
+        description: "diferenca de um frame entre online e offline vira aviso"
+        find: 'return abs(int(online.frame) - int(offline.frame)) > _DIVERGENCE_FRAMES'
+        replace: 'return abs(int(online.frame) - int(offline.frame)) > 0'
+      - id: external-events-lost-on-rewrite
+        description: "eventos externos gravados ao vivo somem quando o artefato e regravado"
+        find: 'external_events=existing.external_events if existing is not None else (),'
+        replace: 'external_events=(),'
+      - id: online-section-lost-on-rewrite
+        description: "secao online some ao recalcular o offline com a mesma regra"
+        find: 'online = existing.online if same_spec and existing is not None else OnlineWindow()'
+        replace: 'online = OnlineWindow()'
+      - id: video-entry-override-ignored
+        description: "janela propria do video deixa de valer sobre a do projeto"
+        find: 'if isinstance(video_entry, Mapping) and "analysis_window" in video_entry:'
+        replace: 'if False:'
+      - id: missing-inputs-evaluated-anyway
+        description: "condicao sem entrada (classe de contexto sem 3c) e avaliada como ausencia"
+        find: '        if missing:'
+        replace: '        if False:'
