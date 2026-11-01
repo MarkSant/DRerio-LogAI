@@ -441,6 +441,23 @@ class TabBuilder:
         if weight_hw is not None:
             weight_hw.refresh_weights_summary(scope="project")
 
+    def _on_mark_window_event(self) -> bool:
+        """Handle "Mark start/stop": a manual event for the running analysis window.
+
+        Returns:
+            Whether a live window took the mark. When none is running, the
+            status bar says so instead of the click doing nothing.
+        """
+        controller = getattr(self.gui, "controller", None)
+        coordinator = getattr(controller, "live_camera_session_coordinator", None)
+        mark = getattr(coordinator, "mark_manual_window_event", None)
+        accepted = bool(mark()) if callable(mark) else False
+        if not accepted:
+            status_var = getattr(self.gui, "status_var", None)
+            if status_var is not None:
+                status_var.set(_("No live session with an analysis window is running."))
+        return accepted
+
     def _build_live_project_widgets(self, parent):
         """Build widgets specific to live projects."""
         label = Label(
@@ -458,6 +475,15 @@ class TabBuilder:
         # Safe access to cget with defaults if needed
         self.gui._external_notice_default_bg = str(label.cget("background"))
         self.gui._external_notice_default_fg = str(label.cget("foreground"))
+
+        # v8 F5: manual START/STOP mark for an analysis window with
+        # ``External(source="manual")`` (ADR-011). Stamped at the click.
+        mark_button = ttk.Button(
+            parent,
+            text=_("Mark start/stop"),
+            command=self._on_mark_window_event,
+        )
+        mark_button.pack(anchor="w", padx=10, pady=(0, 8))
 
         self.gui.arduino_dashboard_widget = ArduinoDashboardWidget(
             parent,

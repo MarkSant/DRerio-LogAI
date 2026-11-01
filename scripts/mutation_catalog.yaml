@@ -1441,7 +1441,12 @@ modules:
     source: src/zebtrack/coordinators/live_camera_session_coordinator.py
     tests:
       - tests/test_live_batch_integration.py
+      - tests/coordinators/test_live_camera_session_coordinator.py
     mutations:
+      - id: manual-mark-dropped
+        description: "botao Mark start/stop nao chega a janela ao vivo"
+        find: 'accepted = bool(push()) if callable(push) else False'
+        replace: 'accepted = False'
       - id: triggered-session-forgotten
         description: "a sessao iniciada pelo codigo 1 deixa de ser dona do codigo 0"
         find: 'self._triggered_session_id = experiment_id if external_trigger_armed else None'

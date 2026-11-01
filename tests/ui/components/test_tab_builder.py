@@ -281,3 +281,53 @@ def test_zone_tab_without_model_service_keeps_free_text_classes(mock_app):
     assert mock_app.class_roles_context is None
     assert mock_app.overlay_class_roles is None
     assert mock_app.analysis_window_panel._class_names_provider is None
+
+
+class TestMarkWindowEventButton:
+    """v8 F5: the "Mark start/stop" button of a live project (ADR-011)."""
+
+    def test_live_tab_has_the_button_wired_to_the_coordinator(self, mock_app):
+        mock_app.project_manager.get_project_type.return_value = "live"
+        mock_app.project_manager.project_path = "/tmp/project"
+        builder = TabBuilder(mock_app)
+        with patch("zebtrack.ui.components.tab_builder.ArduinoDashboardWidget"):
+            builder.build_main_controls_tab()
+
+        buttons = [
+            widget
+            for widget in _walk(mock_app.main_controls_frame)
+            if isinstance(widget, ttk.Button) and widget.cget("text") == "Mark start/stop"
+        ]
+        assert len(buttons) == 1
+        coordinator = mock_app.controller.live_camera_session_coordinator
+        coordinator.mark_manual_window_event.return_value = True
+
+        buttons[0].invoke()
+
+        coordinator.mark_manual_window_event.assert_called_once_with()
+
+    def test_without_a_running_window_the_status_bar_says_so(self, mock_app):
+        mock_app.status_var = MagicMock()
+        builder = TabBuilder(mock_app)
+        coordinator = mock_app.controller.live_camera_session_coordinator
+        coordinator.mark_manual_window_event.return_value = False
+
+        assert builder._on_mark_window_event() is False
+        mock_app.status_var.set.assert_called_once_with(
+            "No live session with an analysis window is running."
+        )
+
+    def test_accepted_mark_leaves_the_status_bar_alone(self, mock_app):
+        mock_app.status_var = MagicMock()
+        builder = TabBuilder(mock_app)
+        coordinator = mock_app.controller.live_camera_session_coordinator
+        coordinator.mark_manual_window_event.return_value = True
+
+        assert builder._on_mark_window_event() is True
+        mock_app.status_var.set.assert_not_called()
+
+
+def _walk(widget):
+    yield widget
+    for child in widget.winfo_children():
+        yield from _walk(child)

@@ -1018,3 +1018,16 @@ class TestSessionPersistenceAndTriggers:
 
         assert res is True
         coordinator.live_calibration_coordinator.clear_last_polygon_source.assert_called_once()
+
+
+class TestManualWindowMark:
+    """v8 F5: the "Mark start/stop" button reaches the live service."""
+
+    def test_mark_is_forwarded_to_the_running_window(self, coordinator):
+        coordinator.live_camera_service.push_manual_condition_event = Mock(return_value=True)
+        assert coordinator.mark_manual_window_event() is True
+        coordinator.live_camera_service.push_manual_condition_event.assert_called_once_with()
+
+    def test_no_window_running_reports_false(self, coordinator):
+        coordinator.live_camera_service.push_manual_condition_event = Mock(return_value=False)
+        assert coordinator.mark_manual_window_event() is False

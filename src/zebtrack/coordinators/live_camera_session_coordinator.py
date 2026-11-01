@@ -2280,6 +2280,24 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         """True quando uma sessão está armada aguardando o sinal do Arduino."""
         return self._pending_trigger_context is not None
 
+    def mark_manual_window_event(self) -> bool:
+        """The "Mark start/stop" button: a manual event for the live analysis window.
+
+        Stamped with ``perf_counter`` at the click (Tk thread) and delivered to
+        the window with the first frame captured after it (ADR-011).
+
+        Returns:
+            ``False`` when no live analysis window is running.
+        """
+        push = getattr(self.live_camera_service, "push_manual_condition_event", None)
+        accepted = bool(push()) if callable(push) else False
+        log.info(
+            "live_camera_session_coordinator.analysis_window.manual_mark",
+            accepted=accepted,
+            session=self._active_live_session_id,
+        )
+        return accepted
+
     def owns_arduino_events(self) -> bool:
         """Whether the Arduino's 1/0 codes address THIS coordinator right now.
 
