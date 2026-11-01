@@ -192,15 +192,36 @@ def _write_trajectory(output_dir):
     df.to_parquet(output_dir / "3_CoordMovimento_adhoc_exp.parquet")
 
 
+def _write_ledger(output_dir, captures=(100.5, 101.0), origin=100.0):
+    """``6_FrameLedger_adhoc_exp`` with frames 1..n captured at ``captures``."""
+    from zebtrack.core.recording.frame_ledger import FrameLedger
+
+    ledger = FrameLedger(output_dir, "adhoc_exp", flush_interval_s=0.01)
+    ledger.pin_origin(origin, 1_700_000_000.0)
+    for index, t_perf in enumerate(captures, start=1):
+        ledger.record(
+            index,
+            t_perf,
+            1_700_000_000.0 + (t_perf - origin),
+            "written",
+            video_frame_index=index - 1,
+            is_analysis_frame=True,
+            queued_for_analysis=True,
+        )
+    ledger.finalize()
+
+
 class TestPostAnalysisWiring:
     """``_on_session_complete`` → ``_run_post_analysis`` → reports."""
 
-    def _run(self, tmp_path, monkeypatch, *, project_data, analysis_params):
+    def _run(self, tmp_path, monkeypatch, *, project_data, analysis_params, ledger=True):
         from unittest.mock import patch
 
         output_dir = tmp_path / "live_20260822_120000"
         output_dir.mkdir()
         _write_trajectory(output_dir)
+        if ledger:
+            _write_ledger(output_dir)
 
         host = PostAnalysisHost(
             output_dir, project_data=project_data, analysis_params=analysis_params
@@ -273,6 +294,31 @@ class TestPostAnalysisWiring:
         assert result.validation_warnings == []
         assert service.run_full_analysis_as_dto.call_args.kwargs["pixelcm_x"] == 12.0
 
+    def test_trajectory_is_retimed_on_the_capture_clock(self, tmp_path, monkeypatch):
+        """v8 F5: live ``timestamp`` is a processing clock; the ledger dates the frames."""
+        _host, service, _result = self._run(
+            tmp_path, monkeypatch, project_data={}, analysis_params={}
+        )
+
+        kwargs = service.run_full_analysis_as_dto.call_args.kwargs
+        assert list(kwargs["trajectory_df"]["timestamp"]) == pytest.approx([0.5, 1.0])
+        # the recording's own rate (1 frame / 0.5 s), not the camera's nominal 30
+        assert kwargs["fps"] == pytest.approx(2.0)
+
+    def test_missing_ledger_is_reported_and_keeps_the_nominal_fps(self, tmp_path, monkeypatch):
+        _host, service, result = self._run(
+            tmp_path,
+            monkeypatch,
+            project_data={"calibration": {"pixelcm_x": 12.0, "pixelcm_y": 12.0}},
+            analysis_params={},
+            ledger=False,
+        )
+
+        kwargs = service.run_full_analysis_as_dto.call_args.kwargs
+        assert list(kwargs["trajectory_df"]["timestamp"]) == pytest.approx([0.0, 0.1])
+        assert len(result.validation_warnings) == 1
+        assert "ledger" in result.validation_warnings[0].lower()
+
     def test_cancelled_session_skips_the_whole_post_analysis(self, tmp_path, monkeypatch):
         output_dir = tmp_path / "live_20260822_130000"
         output_dir.mkdir()
@@ -311,3 +357,109 @@ class TestPublishPostAnalysisStatus:
         host.event_bus.publish.side_effect = RuntimeError("bus down")
 
         host._publish_post_analysis_status("gerando")  # swallowed by design
+
+
+class _MultiHost(LiveAnalysisPostProcessorMixin):
+    """Live-service stand-in for the multi-aquarium recording path."""
+
+    def __init__(self, output_dir, recorder, detector):
+        self.recorder = recorder
+        self.current_output_dir = output_dir
+        self.is_capturing_for_video = True
+        self.camera = None
+        self.preview_window = None
+        self._experiment_id = "multi_exp"
+        self._session_duration_s = 0.0
+        self._multi_aq_detector = None
+        self.project_manager = MagicMock()
+        self.detector_service: Any = SimpleNamespace(detector=detector)
+
+    def _live_object_metadata(self) -> Any:
+        return None
+
+
+class TestMultiAquariumLive:
+    """v8 F5: multi-aquarium live is outside the analysis window, but two things
+    were checked here: the role map reaches the detector, and the recording bug."""
+
+    def test_role_map_reaches_the_multi_aquarium_detector(self, tmp_path, monkeypatch):
+        import numpy as np
+
+        role_map = object()
+        detector = SimpleNamespace(
+            plugin=object(),
+            zone_scaler=object(),
+            post_processor=object(),
+            base_width=640,
+            base_height=480,
+            settings=None,
+            class_role_map=role_map,
+        )
+        created = MagicMock()
+        created.return_value.detect_partitioned_optimized.return_value = {}
+        monkeypatch.setattr(
+            "zebtrack.core.detection.multi_aquarium_detector.MultiAquariumDetector", created
+        )
+        host = _MultiHost(tmp_path, MagicMock(start_time=0.0), detector)
+
+        host._run_multi_aquarium_detection(
+            np.zeros((480, 640, 3), dtype=np.uint8), 5, SimpleNamespace(aquariums=[])
+        )
+
+        assert created.call_args.kwargs["class_role_map"] is role_map
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "AUDIT §2: live multi-aquarium writes no trajectory rows. The parent "
+            "recorder's start_time stays 0 (only the per-aquarium sub-recorders "
+            "start), so the write is skipped; and when it is not, "
+            "write_partitioned_detection_data is called with invalid kwargs "
+            "(frame=, aquarium_detections=) and the TypeError falls back to a "
+            "single-detector detect. Not a small fix: stop_session also stops "
+            "only the parent recorder, never the sub-recorders. Tracked as an issue."
+        ),
+    )
+    def test_live_multi_aquarium_records_trajectory_rows(self, tmp_path, monkeypatch):
+        import numpy as np
+        import pandas as pd
+
+        from zebtrack.core.detection import AquariumData, MultiAquariumZoneData
+        from zebtrack.io.recorder import Recorder
+
+        zone_data = MultiAquariumZoneData(
+            aquariums=[
+                AquariumData(
+                    id=aq_id,
+                    polygon=[[x0, 0], [x0 + 300, 0], [x0 + 300, 480], [x0, 480]],
+                    roi_polygons=[],
+                    roi_names=[],
+                    roi_colors=[],
+                    group="G",
+                    subject_id=f"S0{aq_id + 1}",
+                    day=1,
+                )
+                for aq_id, x0 in ((0, 0), (1, 320))
+            ],
+            video_width=640,
+            video_height=480,
+        )
+        recorder = Recorder(settings_obj=None)
+        host = _MultiHost(tmp_path, recorder, SimpleNamespace())
+        host_any: Any = host
+        host_any._resolve_live_session_video_path = lambda _d: tmp_path / "multi_exp.mp4"
+        host_any._resolve_live_multi_aquarium_zone_data = lambda _p: zone_data
+        host._start_recording_after_arena()
+
+        fake = MagicMock()
+        fake.detect_partitioned_optimized.return_value = {
+            0: [(10.0, 10.0, 20.0, 20.0, 0.9, 1, 1)],
+            1: [(330.0, 10.0, 340.0, 20.0, 0.9, 1001, 1)],
+        }
+        host._multi_aq_detector = fake
+        host._run_multi_aquarium_detection(np.zeros((480, 640, 3), dtype=np.uint8), 30, zone_data)
+        recorder.stop_recording_multi_aquarium()
+
+        trajectories = sorted(tmp_path.rglob("3_CoordMovimento_*.parquet"))
+        rows = sum(len(pd.read_parquet(path)) for path in trajectories)
+        assert rows == 2

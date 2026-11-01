@@ -1501,3 +1501,25 @@ modules:
         description: "fase da janela nao chega a UI"
         find: 'root.after(0, self._publish_window_state, payload)'
         replace: 'pass'
+
+  live_post_processor_v8:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: role-map-not-passed
+        description: "MultiAquariumDetector ao vivo volta a ignorar o mapa de papeis"
+        find: 'class_role_map=getattr(detector, "class_role_map", None),'
+        replace: 'class_role_map=None,'
+      - id: live-post-analysis-not-retimed
+        description: "pos-analise ao vivo volta ao relogio de processamento"
+        find: 'retimed = retime_from_ledger(df, rows, anchor)'
+        replace: 'retimed = df'
+      - id: time-warnings-dropped
+        description: "aviso de ledger ausente nao chega ao relatorio"
+        find: 'analysis_result.validation_warnings.extend(time_warnings)'
+        replace: 'pass'
+      - id: nominal-fps-kept
+        description: "pos-analise usa o fps nominal da camera em vez do da gravacao"
+        find: 'df, fps, time_warnings = self._retime_live_trajectory(df, trajectory_file)'
+        replace: 'df, _fps, time_warnings = self._retime_live_trajectory(df, trajectory_file)'

@@ -669,6 +669,12 @@ class LiveAnalysisPostProcessorMixin:
                             )
                     return
 
+                # Live ``timestamp`` is a PROCESSING clock: re-date the trajectory
+                # with the capture instant of its 6_FrameLedger before analysing
+                # (in memory only; the Parquet is untouched), and take the fps
+                # from the recording rather than the camera's nominal value.
+                df, fps, time_warnings = self._retime_live_trajectory(df, trajectory_file)
+
                 zone_data = self.project_manager.get_zone_data()
                 arena_polygon = zone_data.polygon or []
                 arena_polygon_tuples = [(float(p[0]), float(p[1])) for p in arena_polygon]
@@ -707,6 +713,9 @@ class LiveAnalysisPostProcessorMixin:
                         if key in self._analysis_params:
                             metadata[key] = self._analysis_params[key]
 
+                # Analysis window (ADR-011): NOT applied here yet. The integrator
+                # wires F4b's window resolution in at this call (see
+                # docs/tasks/v8/changelog/F5.md, "Window hook").
                 analysis_result = analysis_service.run_full_analysis_as_dto(
                     trajectory_df=df,
                     pixelcm_x=pixelcm_x,
@@ -725,6 +734,9 @@ class LiveAnalysisPostProcessorMixin:
                     behavioral_config=params["behavioral_config"],
                     video_path=str(video_path),
                 )
+
+                # Clock warnings (no ledger, partial ledger) go into the report.
+                analysis_result.validation_warnings.extend(time_warnings)
 
                 # Escala desconhecida: o aviso precisa entrar ANTES de
                 # ``ReporterContext.from_analysis`` — ``validation_warnings`` e
@@ -879,6 +891,54 @@ class LiveAnalysisPostProcessorMixin:
 
         lines = "\n".join(f"  • {describe_session_output(path)}" for path in files)
         return _("\n💡 Files generated:\n{lines}\n").format(lines=lines)
+
+    def _retime_live_trajectory(
+        self, df: pd.DataFrame, trajectory_file: Path
+    ) -> tuple[pd.DataFrame, float, list[str]]:
+        """Re-date a live trajectory on the capture clock of its frame ledger.
+
+        Same rule as ``ReportGenerationCoordinator`` (F1): ``timestamp`` becomes
+        ``t_capture_perf - anchor.t0_perf`` through ``pipeline_frame == frame``,
+        in memory. The live post-analysis did not go through that coordinator,
+        so its reports were computed on the processing clock.
+
+        Returns:
+            The (possibly) re-timed frame, the fps to analyse it with (the
+            recording's own rate when it can be measured, else the camera's
+            nominal fps) and the clock warnings to put in the report.
+        """
+        from zebtrack.analysis.time_base import (
+            TIME_WARNINGS_ATTR,
+            resolve_time_base,
+            retime_from_ledger,
+        )
+        from zebtrack.core.recording.frame_ledger import load_anchor, load_ledger
+
+        prefix = "3_CoordMovimento_"
+        fallback_fps = float(self._actual_fps or 0.0) or 30.0
+        stem = Path(trajectory_file).stem
+        rows: list = []
+        anchor: dict = {}
+        if stem.startswith(prefix):
+            base = stem[len(prefix) :]
+            rows = load_ledger(Path(trajectory_file).parent, base)
+            anchor = load_anchor(Path(trajectory_file).parent, base) if rows else {}
+        retimed = retime_from_ledger(df, rows, anchor)
+        warnings = [str(w) for w in retimed.attrs.get(TIME_WARNINGS_ATTR, [])]
+        time_base = resolve_time_base(retimed, ledger=rows or None, fallback_fps=fallback_fps)
+        fps = (
+            float(time_base.fps_video)
+            if time_base.fps_video and time_base.fps_video > 0
+            else fallback_fps
+        )
+        log.info(
+            "live_camera_service.post_analysis.time_base",
+            source=time_base.source,
+            fps_video=time_base.fps_video,
+            ledger_rows=len(rows),
+            warnings=len(warnings),
+        )
+        return retimed, fps, warnings
 
     def _show_completion_message(
         self,
@@ -1174,6 +1234,10 @@ class LiveAnalysisPostProcessorMixin:
                     base_width=detector.base_width,
                     base_height=detector.base_height,
                     settings_obj=detector.settings,
+                    # The roles the live detector resolved (project > weight >
+                    # aliases, ADR-009). Without them the multi detector fell
+                    # back to the aliases and could track another class.
+                    class_role_map=getattr(detector, "class_role_map", None),
                 )
                 if hasattr(zone_data, "aquariums") and zone_data.aquariums:
                     h, w = frame.shape[:2]
