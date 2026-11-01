@@ -466,3 +466,41 @@ def _wait_for(predicate, timeout: float = 5.0, tick: float = 0.01) -> None:
             return
         time.sleep(tick)
     raise AssertionError("condição não atingida dentro do timeout")
+
+
+# ---------------------------------------------------------------------------
+# Pinned origin (v8 F5): the live analysis window and retime_from_ledger share t0
+# ---------------------------------------------------------------------------
+
+
+def test_pinned_origin_wins_over_row_order(tmp_path):
+    """Frame 1 is pinned by the capture thread; a racing row cannot move t0."""
+    ledger = _ledger(tmp_path, flush_interval_s=0.01)
+    ledger.pin_origin(100.0, 1_700_000_000.0)
+    ledger.record(2, 100.5, 1_700_000_000.5, "dropped_queue_full")  # appended first
+    ledger.record(1, 100.0, 1_700_000_000.0, "written", video_frame_index=0)
+
+    assert ledger.origin_perf == 100.0
+    anchor = ledger.build_anchor()
+    assert anchor["t0_perf"] == 100.0
+    assert anchor["t0_wall"] == 1_700_000_000.0
+    ledger.finalize()
+
+
+def test_origin_is_pinned_once(tmp_path):
+    ledger = _ledger(tmp_path, flush_interval_s=0.01)
+    ledger.pin_origin(100.0, 1.0)
+    ledger.pin_origin(200.0, 2.0)
+    assert ledger.origin_perf == 100.0
+    assert ledger.build_anchor()["t0_wall"] == 1.0
+    ledger.finalize()
+
+
+def test_origin_without_pin_is_the_first_timed_row(tmp_path):
+    ledger = _ledger(tmp_path, flush_interval_s=0.01)
+    assert ledger.origin_perf is None
+    ledger.record(1, None, None, "not_recording")
+    ledger.record(2, 50.0, 7.0, "not_recording")
+    assert ledger.origin_perf == 50.0
+    assert ledger.build_anchor()["t0_perf"] == 50.0
+    ledger.finalize()

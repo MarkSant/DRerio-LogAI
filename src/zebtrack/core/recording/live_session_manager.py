@@ -107,6 +107,7 @@ class LiveSessionManagerMixin:
     current_output_dir: Path | None
     analysis_completed: bool
     _analysis_lag_frames: int
+    _analysis_window_raw: Any
 
     # Cross-mixin method stubs — visible to type checkers only so they
     # don't shadow the real implementations resolved through the MRO.
@@ -119,6 +120,7 @@ class LiveSessionManagerMixin:
         def _clear_queues(self) -> None: ...
         def _on_session_complete(self, output_dir: Path, *, keep_data: bool = False) -> None: ...
         def _finalize_frame_ledger(self) -> None: ...
+        def _live_object_metadata(self) -> Any: ...
 
     def _resolve_session_detector_config(self) -> tuple[str | None, bool, str]:
         """Resolve ``(active_weight, use_openvino, source)`` for the next session.
@@ -343,6 +345,7 @@ class LiveSessionManagerMixin:
         zones_validated: bool = False,
         use_countdown: bool = False,
         countdown_duration_s: int = 0,
+        analysis_window: Any = None,
     ) -> bool:
         """Start a live camera analysis session.
 
@@ -359,6 +362,10 @@ class LiveSessionManagerMixin:
             use_external_preview: Whether to use external preview window
             use_countdown: Whether to show countdown before recording starts
             countdown_duration_s: Countdown duration in seconds
+            analysis_window: The session's analysis window (ADR-011): the
+                project's ``analysis_window`` for a live project, the dialog
+                config's for an ad hoc session; ``None`` = no window. Kept on
+                this session only — never written to the shared ``Settings``.
 
         Returns:
             True if session started successfully, False otherwise
@@ -401,6 +408,7 @@ class LiveSessionManagerMixin:
         self._live_detected_frames = 0
         self._analysis_params = analysis_config or {}
         self._use_external_preview = use_external_preview
+        self._analysis_window_raw = analysis_window
 
         # Create preview window FIRST (so we can show status updates)
         if use_external_preview and not getattr(
@@ -761,6 +769,7 @@ class LiveSessionManagerMixin:
                         zones=recorder_zones,
                         is_video_file=False,
                         base_name=self._current_base_name,
+                        object_metadata=self._live_object_metadata(),
                     )
 
                     if not recorder_started:

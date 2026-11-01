@@ -588,6 +588,88 @@ class TestAnalysisWindowSpecChanged:
         )
 
 
+class TestAnalysisWindowStateChanged:
+    """The live window's phase reaches the trigger banner through the real bus (v8 F5)."""
+
+    @staticmethod
+    def _wired(*, with_banner: bool = True) -> tuple[Any, Any]:
+        from zebtrack.ui.components.dialog_manager import DialogManager
+        from zebtrack.ui.event_bus_v2 import EventBusV2
+
+        bus = EventBusV2()
+        gui = SimpleNamespace(
+            event_bus=bus,
+            root=None,
+            status_var=MagicMock(),
+            external_trigger_notice_var=MagicMock(),
+            external_trigger_notice_label=MagicMock() if with_banner else None,
+            _external_notice_default_bg="white",
+            _external_notice_default_fg="black",
+        )
+        gui.dialog_manager = DialogManager(gui)
+        EventDispatcher(cast(Any, gui)).subscribe_zone_component_events()
+        return bus, gui
+
+    @staticmethod
+    def _publish(bus: Any, **fields: Any) -> None:
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import Event
+
+        bus.publish(
+            Event(
+                type=UIEvents.ANALYSIS_WINDOW_STATE_CHANGED,
+                data=payloads.AnalysisWindowStatePayload(**fields),
+            )
+        )
+
+    def test_waiting_turns_the_trigger_notice_into_a_start_condition_banner(self):
+        bus, gui = self._wired()
+
+        self._publish(bus, state="waiting_start")
+
+        message = gui.external_trigger_notice_var.set.call_args.args[0]
+        assert message == "Recording — waiting for the start condition of the analysis window."
+        gui.status_var.set.assert_called_once_with(message)
+        gui.external_trigger_notice_label.config.assert_called_once_with(
+            background="#FFF7ED", foreground="#92400e"
+        )
+
+    def test_open_window_shows_its_start_instant_without_highlight(self):
+        bus, gui = self._wired()
+
+        self._publish(bus, state="in_analysis", t_s=6.71, reason="persist")
+
+        message = gui.external_trigger_notice_var.set.call_args.args[0]
+        assert message == "Analysis window open since 6.7 s."
+        gui.external_trigger_notice_label.config.assert_called_once_with(
+            background="white", foreground="black"
+        )
+
+    def test_start_not_met_says_what_the_analysis_will_do(self):
+        bus, gui = self._wired()
+
+        self._publish(bus, state="start_not_met", on_start_not_met="empty")
+
+        message = gui.external_trigger_notice_var.set.call_args.args[0]
+        assert "empty" in message
+
+    def test_ad_hoc_session_without_banner_still_gets_the_status_bar(self):
+        bus, gui = self._wired(with_banner=False)
+
+        self._publish(bus, state="finished", t_s=186.0)
+
+        gui.status_var.set.assert_called_once_with("Analysis window finished at 186.0 s.")
+        gui.external_trigger_notice_var.set.assert_not_called()
+
+    def test_unknown_state_is_ignored(self):
+        bus, gui = self._wired()
+
+        self._publish(bus, state="bogus")
+
+        gui.status_var.set.assert_not_called()
+        gui.external_trigger_notice_var.set.assert_not_called()
+
+
 class TestFinishDrawingRouting:
     """O 'Finalizar Desenho' deve comitar a edição interativa (não reverter)."""
 

@@ -292,6 +292,15 @@ class LiveCameraService(
         # em ``stop_session``, depois do join das threads produtoras.
         self._frame_ledger: Any = None
 
+        # Live analysis window (ADR-011, v8 F5): the raw spec handed to
+        # ``start_session`` and the runtime built from it by the processing loop.
+        self._analysis_window_raw: Any = None
+        self._condition_runtime: Any = None
+        self._condition_roi_evaluator: Any = None
+        self._condition_end_requested: bool = False
+        self._condition_clock_warned: bool = False
+        self._arduino_outputs_swept: bool = False
+
     # ── Thread-safe properties ──────────────────────────────────────────
 
     @property

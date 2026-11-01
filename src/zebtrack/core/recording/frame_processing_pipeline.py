@@ -137,6 +137,15 @@ class FrameProcessingMixin:
     _closed_loop_event_seq: int
     # Ledger de frames (pipeline_frame ↔ video_frame_index ↔ tempo de captura).
     _frame_ledger: Any
+    # Live analysis window (ADR-011, v8 F5). ``_analysis_window_raw`` is set by
+    # ``start_session`` from the PROJECT (live project) or the dialog config (ad
+    # hoc) — never from the shared ``Settings``.
+    _analysis_window_raw: Any
+    _condition_runtime: Any
+    _condition_roi_evaluator: Any
+    _condition_end_requested: bool
+    _condition_clock_warned: bool
+    _arduino_outputs_swept: bool
 
     # Properties from facade
     camera: Camera | None
@@ -395,6 +404,11 @@ class FrameProcessingMixin:
 
                 frame_count += 1
                 self._last_captured_frame = frame_count
+                if frame_count == 1:
+                    # ``t_s = 0`` of the session, fixed BEFORE frame 1 is queued
+                    # anywhere: the live analysis window reads it while running,
+                    # ``retime_from_ledger`` reads the same value from the anchor.
+                    self._pin_capture_origin(capture_perf, current_time)
 
                 # Create single copy of frame to share between queues
                 frame_copy = frame.copy()
@@ -609,6 +623,9 @@ class FrameProcessingMixin:
         # Per-zone Arduino command loop — built once for this session (no-op
         # unless the project opted into Arduino and defined bindings).
         self._reset_arduino_zone_state()
+        # Live analysis window (no-op without a spec). After the Arduino state:
+        # it registers the inbound-event sink on the same manager.
+        self._reset_condition_runtime()
 
         while not self.exit_event.is_set():
             try:
@@ -941,19 +958,23 @@ class FrameProcessingMixin:
                     )
 
                     # Record detections
+                    # Subject + context detections of THIS frame, popped once:
+                    # the object sidecar and the analysis window both read them.
+                    class_observations: list = []
                     if self.recorder and self.recorder.start_time:
+                        # ATENÇÃO: este ``timestamp`` é o relógio de
+                        # PROCESSAMENTO — medido nesta thread, DEPOIS da
+                        # espera de fila e da inferência. NÃO use para
+                        # latência nem para datar o evento. O instante real
+                        # de captura está no ledger
+                        # (``6_FrameLedger_<base>``), coluna
+                        # ``t_capture_perf``/``t_capture_wall``, ligado por
+                        # ``pipeline_frame == frame``. O schema de
+                        # ``3_CoordMovimento`` é imutável por contrato, por
+                        # isso a correção é feita no consumo.
+                        timestamp = time.time() - self.recorder.start_time
+                        class_observations = self._pop_class_observations()
                         if detections:
-                            # ATENÇÃO: este ``timestamp`` é o relógio de
-                            # PROCESSAMENTO — medido nesta thread, DEPOIS da
-                            # espera de fila e da inferência. NÃO use para
-                            # latência nem para datar o evento. O instante real
-                            # de captura está no ledger
-                            # (``6_FrameLedger_<base>``), coluna
-                            # ``t_capture_perf``/``t_capture_wall``, ligado por
-                            # ``pipeline_frame == frame``. O schema de
-                            # ``3_CoordMovimento`` é imutável por contrato, por
-                            # isso a correção é feita no consumo.
-                            timestamp = time.time() - self.recorder.start_time
                             self.recorder.write_detection_data(timestamp, frame_number, detections)
                             # Depois da trajetória e com as MESMAS detecções: o
                             # ``track_id`` que indexa a máscara é o que acabou de
@@ -973,6 +994,13 @@ class FrameProcessingMixin:
                                 "live_camera_service.detection_skipped_empty",
                                 frame_number=frame_number,
                             )
+                        # ``3c_Objetos_`` heartbeat on EVERY analysed frame, with
+                        # or without detections: the trajectory only gets a row
+                        # when something was detected, so without this "nothing
+                        # there" and "frame not analysed" look the same.
+                        self._write_object_frame(
+                            timestamp, frame_number, capture_ts, class_observations
+                        )
                     else:
                         log.warning(
                             "live_camera_service.detection_skipped_no_recorder",
@@ -981,10 +1009,16 @@ class FrameProcessingMixin:
                             recorder_start_time=self.recorder.start_time if self.recorder else None,
                         )
 
-                    # Per-zone Arduino commands: edge-triggered enter/exit tokens
-                    # while recording. Fire-and-forget (queued), so it never
-                    # stalls this loop. No-op unless Arduino + bindings are set.
+                    # Analysis window, then per-zone Arduino commands: edge-triggered
+                    # enter/exit tokens while recording. The window steps FIRST so
+                    # the frame that confirms START already dispatches and the one
+                    # that confirms STOP sweeps instead. Fire-and-forget (queued),
+                    # so it never stalls this loop. No-op unless a window /
+                    # Arduino + bindings are set.
                     if self.recorder and self.recorder.start_time:
+                        self._step_condition_runtime(
+                            frame_number, capture_ts, detections, class_observations
+                        )
                         self._dispatch_arduino_zone_commands(
                             detections, frame_number, capture_ts, dequeue_perf
                         )
@@ -1106,6 +1140,11 @@ class FrameProcessingMixin:
                 if "frame" in locals():
                     del frame
 
+        # Close the analysis window (end-of-stream STOP if it is still open,
+        # artifact next to the trajectory) BEFORE the session-end sweep: an open
+        # window sweeps at its own STOP, so the sweep below finds it done.
+        self._finalize_condition_runtime()
+
         # Session ended (timer complete or cancel) — turn everything off on the
         # Arduino so LEDs/relays do not stay latched after recording stops.
         self._arduino_zone_session_end_sweep()
@@ -1136,6 +1175,7 @@ class FrameProcessingMixin:
         self._arduino_session_end_tokens = []
         self._arduino_missed_frames = 0
         self._arduino_inverted_ack_seen = set()
+        self._arduino_outputs_swept = False
 
         # Reset closed-loop latency state for the new session and drop any sink
         # left registered on the shared ArduinoManager by a previous session.
@@ -1286,6 +1326,11 @@ class FrameProcessingMixin:
         a re-enter on the next hit.
         """
         if not self._arduino_zone_enabled:
+            return
+        # With an analysis window, per-ROI commands run ONLY inside it: nothing
+        # before START, and the outputs were swept at STOP.
+        runtime = getattr(self, "_condition_runtime", None)
+        if runtime is not None and not runtime.window_open:
             return
         manager = self._arduino_manager()
         if manager is None or not manager.is_connected():
@@ -1480,18 +1525,385 @@ class FrameProcessingMixin:
         Emits every distinct exit token. This only clears the hardware if each
         exit token clears something in the sketch — see the conflict warning
         raised at session start when that assumption does not hold.
+
+        With an analysis window the sweep belongs to the window's STOP (see
+        :meth:`_handle_condition_update`); here it only runs if the window never
+        swept — and not at all if the window never opened, because then no
+        per-ROI command was ever sent.
         """
+        runtime = getattr(self, "_condition_runtime", None)
+        if runtime is not None and not runtime.window_opened:
+            log.info("live_camera_service.arduino_zone_commands.sweep_skipped_window_never_opened")
+            return
+        self._sweep_arduino_zone_outputs("session_end")
+
+    def _sweep_arduino_zone_outputs(self, reason: str) -> None:
+        """Enqueue every exit token, at most once per session."""
+        if getattr(self, "_arduino_outputs_swept", False):
+            return
         if not self._arduino_zone_enabled or not self._arduino_session_end_tokens:
             return
         manager = self._arduino_manager()
         if manager is None or not manager.is_connected():
             return
+        self._arduino_outputs_swept = True
         for token in self._arduino_session_end_tokens:
             manager.enqueue(token)
         log.info(
             "live_camera_service.arduino_zone_commands.session_end_sweep",
             tokens=self._arduino_session_end_tokens,
+            reason=reason,
         )
+
+    # ------------------------------------------------------------------
+    # Capture clock, object sidecar and live analysis window (ADR-011, v8 F5)
+    # ------------------------------------------------------------------
+    def _pin_capture_origin(self, t_perf: float, t_wall: float | None) -> None:
+        """Pin ``t0`` of the session on the frame ledger (capture thread, frame 1)."""
+        ledger = getattr(self, "_frame_ledger", None)
+        pin = getattr(ledger, "pin_origin", None)
+        if callable(pin):
+            pin(t_perf, t_wall)
+
+    def _capture_clock_origin(self) -> float | None:
+        """``t0_perf`` of the session (the ledger anchor), or ``None`` if unknown."""
+        ledger = getattr(self, "_frame_ledger", None)
+        origin = getattr(ledger, "origin_perf", None)
+        return float(origin) if isinstance(origin, int | float) else None
+
+    def _capture_seconds(self, capture_ts: float | None) -> float:
+        """Capture instant of a frame on the session clock (``t_capture_perf - t0``).
+
+        ``NaN`` when the frame has no capture stamp or the session has no ledger
+        anchor: an honest "unknown", never the processing clock in disguise.
+        """
+        origin = self._capture_clock_origin()
+        if capture_ts is None or origin is None:
+            return float("nan")
+        return float(capture_ts) - origin
+
+    def _pop_class_observations(self) -> list:
+        """Subject + context detections of the last ``detect()`` (one-shot).
+
+        The multi-aquarium detector, when it ran, holds this frame's
+        observations; otherwise the single detector does. Never raises.
+        """
+        source = getattr(self, "_multi_aq_detector", None) or getattr(
+            self.detector_service, "detector", None
+        )
+        pop = getattr(source, "pop_class_observations", None)
+        if not callable(pop):
+            return []
+        try:
+            observations = pop()
+        # except Exception justified: an observation hook must never take the
+        # processing thread (and with it the recording) down.
+        except Exception:
+            log.warning("live_camera_service.class_observations_failed", exc_info=True)
+            return []
+        return list(observations) if observations else []
+
+    def _live_object_metadata(self) -> Any:
+        """``3c_Objetos_`` metadata of a live recording (role map + capture clock).
+
+        ``None`` when it cannot be built: the recorder then still records, with
+        the clock inferred from the pipeline (``capture_perf`` for a camera).
+        """
+        from zebtrack.io.object_sidecar import CLOCK_CAPTURE, ObjectSidecarMetadata
+
+        detector = getattr(getattr(self, "detector_service", None), "detector", None)
+        try:
+            return ObjectSidecarMetadata.from_role_map(
+                getattr(detector, "class_role_map", None),
+                clock=CLOCK_CAPTURE,
+                analysis_interval_frames=getattr(self, "analysis_interval_frames", None),
+            )
+        # except Exception justified: metadata is an audit aid; recording goes on.
+        except Exception:
+            log.warning("live_camera_service.object_metadata_failed", exc_info=True)
+            return None
+
+    def _write_object_frame(
+        self,
+        timestamp: float,
+        frame_number: int,
+        capture_ts: float | None,
+        observations: list,
+    ) -> None:
+        """One ``3c_Objetos_`` heartbeat (+ observations) for an analysed frame.
+
+        ``timestamp`` is the trajectory's (processing clock, kept for the join);
+        ``t_event_s`` is the CAPTURE clock, the one the analysis window uses.
+        DEGRADES, never raises — the recording is the data that does not return.
+        """
+        writer = getattr(self.recorder, "write_object_data", None)
+        if not callable(writer):
+            return
+        try:
+            writer(timestamp, frame_number, self._capture_seconds(capture_ts), observations)
+        # except Exception justified: recording-boundary — sidecar I/O cannot
+        # abort the session.
+        except Exception:
+            log.warning(
+                "live_camera_service.object_sidecar_write_failed",
+                frame_number=frame_number,
+                exc_info=True,
+            )
+
+    def _reset_condition_runtime(self) -> None:
+        """Build this session's analysis-window runtime (no-op without a spec).
+
+        The spec comes from ``start_session(analysis_window=...)``: the project's
+        ``analysis_window`` (live project) or the dialog config (ad hoc), never
+        the shared ``Settings``. Multi-aquarium live is outside the window's
+        scope in v8: the session records normally and the window is skipped with
+        a warning (the analysis can still apply it offline per aquarium).
+        """
+        from zebtrack.core.recording.condition_runtime import (
+            ConditionRuntime,
+            parse_window_spec,
+            role_names_from_role_map,
+        )
+
+        self._condition_runtime = None
+        self._condition_roi_evaluator = None
+        self._condition_end_requested = False
+        self._condition_clock_warned = False
+
+        manager = self._arduino_manager()
+        if manager is not None and hasattr(manager, "set_event_sink"):
+            manager.set_event_sink(None)
+
+        spec = parse_window_spec(getattr(self, "_analysis_window_raw", None))
+        if spec is None:
+            return
+        if self._is_multi_aquarium_session():
+            log.warning("live_camera_service.analysis_window.multi_aquarium_unsupported")
+            return
+
+        detector = getattr(self.detector_service, "detector", None)
+        role_names = role_names_from_role_map(getattr(detector, "class_role_map", None))
+        runtime = ConditionRuntime(
+            spec, role_names=role_names, clock_origin=self._capture_clock_origin
+        )
+        self._condition_runtime = runtime
+        if manager is not None and hasattr(manager, "set_event_sink"):
+            manager.set_event_sink(self._on_arduino_condition_event)
+        log.info(
+            "live_camera_service.analysis_window.armed",
+            listens_arduino=runtime.listens_to("arduino"),
+            listens_manual=runtime.listens_to("manual"),
+            on_stop=spec.on_stop,
+            roles=sorted(role_names),
+        )
+        self._post_window_state(runtime)
+
+    def _is_multi_aquarium_session(self) -> bool:
+        project_manager = getattr(self, "project_manager", None)
+        getter = getattr(project_manager, "get_zone_data", None)
+        if not callable(getter):
+            return False
+        try:
+            zone_data = getter()
+        # except Exception justified: a probe; "unknown" means single-aquarium.
+        except Exception:
+            return False
+        return bool(getattr(zone_data, "aquariums", None))
+
+    def _on_arduino_condition_event(self, code: int, t_read_perf: float) -> bool:
+        """``ArduinoManager`` event sink (reader thread): hand the code to the window.
+
+        Returns ``True`` (claimed) when the window waits for Arduino events: the
+        code is then an ENGINE event and never reaches the recording
+        coordinators (it must not start or stop a session as well).
+        """
+        runtime = getattr(self, "_condition_runtime", None)
+        if runtime is None:
+            return False
+        return bool(runtime.offer_external("arduino", code, t_read_perf))
+
+    def push_manual_condition_event(self) -> bool:
+        """The operator's "Mark start/stop" press (Tk thread), stamped now.
+
+        Returns:
+            ``False`` when no analysis window is running (nothing recorded).
+        """
+        runtime = getattr(self, "_condition_runtime", None)
+        if runtime is None:
+            return False
+        runtime.push_manual()
+        return True
+
+    def _condition_subject_rois(self, detections: list) -> frozenset[str]:
+        """ROIs the subject occupies, by the SAME rule as the Arduino commands."""
+        if not detections:
+            return frozenset()
+        if self._condition_roi_evaluator is None:
+            self._condition_roi_evaluator = self._build_arduino_evaluator()
+            if self._condition_roi_evaluator is None:
+                return frozenset()  # detector ROIs not ready yet
+        boxes: list[tuple[float, float, float, float]] = []
+        for det in detections:
+            try:
+                boxes.append((float(det[0]), float(det[1]), float(det[2]), float(det[3])))
+            except (IndexError, TypeError, ValueError):
+                continue
+        return frozenset(self._condition_roi_evaluator.occupied_rois(boxes))
+
+    def _step_condition_runtime(
+        self,
+        frame_number: int,
+        capture_ts: float | None,
+        detections: list,
+        observations: list,
+    ) -> None:
+        """Feed one analysed frame to the window (processing thread).
+
+        Dated by the frame's CAPTURE instant; the trajectory ``timestamp`` is a
+        processing clock and is never used. A frame without a capture stamp is
+        skipped (warned once) rather than dated wrongly.
+        """
+        runtime = getattr(self, "_condition_runtime", None)
+        if runtime is None:
+            return
+        if capture_ts is None:
+            if not getattr(self, "_condition_clock_warned", False):
+                self._condition_clock_warned = True
+                log.warning("live_camera_service.analysis_window.frame_without_capture_stamp")
+            return
+        from zebtrack.core.recording.condition_runtime import classes_from_observations
+
+        try:
+            update = runtime.step(
+                frame=frame_number,
+                t_capture_perf=capture_ts,
+                classes=classes_from_observations(observations),
+                subject_rois=self._condition_subject_rois(detections),
+                # Wall time ELAPSED is what ``TimeReached(clock="wall")`` reads;
+                # perf_counter differences are exactly that, without wall jumps.
+                t_wall=capture_ts,
+            )
+        # except Exception justified: the window is an analysis aid; it must
+        # never stop the processing thread, which also feeds the recording.
+        except Exception:
+            log.error("live_camera_service.analysis_window.step_failed", exc_info=True)
+            return
+        self._handle_condition_update(update)
+
+    def _handle_condition_update(self, update: Any) -> None:
+        """Act on what the window decided: sweep, UI state, session end."""
+        runtime = getattr(self, "_condition_runtime", None)
+        if update.stop_confirmed:
+            self._sweep_arduino_zone_outputs("window_stop")
+        if update.phase_changed and runtime is not None:
+            self._post_window_state(runtime)
+        if update.end_session and not getattr(self, "_condition_end_requested", False):
+            self._condition_end_requested = True
+            self._request_window_session_end()
+
+    def _request_window_session_end(self) -> None:
+        """``on_stop="end_session"``: finish NOW, keeping the data (Tk thread).
+
+        Goes through ``finish_session_early`` — the "End and Save" path, with
+        ``keep_data=True`` — never ``_on_session_complete(output_dir)`` raw:
+        an early stop without ``keep_data`` falls into the 50 % heuristic,
+        which writes ``.cancelled`` and erases the project polygon.
+        """
+        finish = getattr(self, "finish_session_early", None)
+        root = getattr(self, "root", None)
+        if not callable(finish) or root is None or not hasattr(root, "after"):
+            log.warning("live_camera_service.analysis_window.end_session_unavailable")
+            return
+        log.info("live_camera_service.analysis_window.end_session_requested")
+        root.after(0, finish)
+
+    def _post_window_state(self, runtime: Any) -> None:
+        """Show the window phase: preview status + ``ANALYSIS_WINDOW_STATE_CHANGED``.
+
+        Both go through the Tk thread (``root.after``); ``EventBusV2.publish``
+        is synchronous, so publishing from the processing thread would run the
+        UI handlers there.
+        """
+        from zebtrack.core.recording.condition_runtime import WindowPhase, window_phase_message
+        from zebtrack.ui import payloads
+
+        phase = runtime.phase
+        result = runtime.result
+        event = result.stop if phase is WindowPhase.FINISHED else result.start
+        t_s = None if event is None or phase is WindowPhase.WAITING_START else event.t_s
+        reason = None if event is None or phase is WindowPhase.WAITING_START else event.reason
+        payload = payloads.AnalysisWindowStatePayload(
+            state=phase.value,
+            t_s=t_s,
+            reason=reason,
+            on_start_not_met=runtime.spec.on_start_not_met,
+            on_stop=runtime.spec.on_stop,
+            experiment_id=getattr(self, "_experiment_id", None) or None,
+        )
+        colors = {
+            WindowPhase.WAITING_START: "orange",
+            WindowPhase.IN_ANALYSIS: "red",
+            WindowPhase.FINISHED: "green",
+            WindowPhase.START_NOT_MET: "yellow",
+        }
+        self._post_preview_status(
+            window_phase_message(phase, t_s=t_s, on_start_not_met=payload.on_start_not_met),
+            color=colors[phase],
+        )
+        root = getattr(self, "root", None)
+        if root is not None and hasattr(root, "after"):
+            root.after(0, self._publish_window_state, payload)
+        else:
+            self._publish_window_state(payload)
+
+    def _publish_window_state(self, payload: Any) -> None:
+        """Publish ``ANALYSIS_WINDOW_STATE_CHANGED`` (runs on the Tk thread)."""
+        event_bus = getattr(self, "event_bus", None)
+        if event_bus is None:
+            return
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+        event_bus.publish(
+            Event(
+                type=UIEvents.ANALYSIS_WINDOW_STATE_CHANGED,
+                data=payload,
+                source="frame_processing_pipeline.analysis_window",
+            )
+        )
+
+    def _finalize_condition_runtime(self) -> None:
+        """Session end: close the window, write ``7_AnalysisWindow_`` (online part).
+
+        Runs on the processing thread after its loop, BEFORE the recorder is
+        stopped (``stop_session`` joins this thread first), so the recorder still
+        knows the output folder and base name of the trajectory.
+        """
+        manager = self._arduino_manager()
+        if manager is not None and hasattr(manager, "set_event_sink"):
+            manager.set_event_sink(None)
+        runtime = getattr(self, "_condition_runtime", None)
+        if runtime is None:
+            return
+        try:
+            self._handle_condition_update(runtime.finish())
+        # except Exception justified: session teardown must not raise.
+        except Exception:
+            log.error("live_camera_service.analysis_window.finish_failed", exc_info=True)
+
+        recorder = getattr(self, "recorder", None)
+        output_folder = getattr(recorder, "output_folder", None)
+        base_name = getattr(recorder, "base_name", "") or getattr(self, "_current_base_name", "")
+        if not output_folder or not base_name:
+            log.warning("live_camera_service.analysis_window.artifact_no_output")
+            return
+        ledger = getattr(self, "_frame_ledger", None)
+        fps = ledger.current_fps_measured() if ledger is not None else None
+        try:
+            runtime.write_artifact(output_folder, base_name, fps_video=fps)
+        # except Exception justified: optional analysis artifact; the analysis
+        # recomputes the window from the recorded inputs without it.
+        except Exception:
+            log.error("live_camera_service.analysis_window.artifact_failed", exc_info=True)
 
     def _clear_queues(self) -> None:
         """Clear all queues."""

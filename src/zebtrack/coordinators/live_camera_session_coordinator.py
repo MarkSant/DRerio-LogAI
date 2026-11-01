@@ -1248,6 +1248,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 zones_validated=True,
                 use_countdown=use_countdown,
                 countdown_duration_s=countdown_duration_s,
+                # Ad hoc: the window comes from the dialog config, never from Settings.
+                analysis_window=(wizard_data or {}).get("analysis_window"),
             )
 
             if not success:
@@ -2080,6 +2082,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             zones_validated=True,
             use_countdown=use_countdown,
             countdown_duration_s=countdown_duration_s,
+            # Ad hoc: the window comes from the dialog config, never from Settings.
+            analysis_window=config.get("analysis_window"),
         )
 
         if not success:
@@ -2628,6 +2632,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             zones_validated=True,
             use_countdown=use_countdown,
             countdown_duration_s=countdown_duration_s,
+            # Live project: the project's analysis window (ADR-011).
+            analysis_window=project_data.get("analysis_window"),
         )
 
         if not success:

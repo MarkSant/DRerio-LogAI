@@ -1450,3 +1450,49 @@ modules:
         description: "qualquer sessao da grade passa a reclamar os codigos do Arduino"
         find: 'return session_id is not None and session_id == self._triggered_session_id'
         replace: 'return session_id is not None'
+
+  live_window_pipeline:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_frame_processing_pipeline_extended.py
+    mutations:
+      - id: sweep-at-session-end-not-stop
+        description: "varredura do Arduino so no fim da sessao, em vez do STOP da janela"
+        find: 'self._sweep_arduino_zone_outputs("window_stop")'
+        replace: 'pass'
+      - id: window-dated-by-processing-clock
+        description: "janela datada pelo relogio de processamento em vez da captura"
+        find: |-
+          t_capture_perf=capture_ts,
+                          classes=classes_from_observations(observations),
+        replace: |-
+          t_capture_perf=time.perf_counter(),
+                          classes=classes_from_observations(observations),
+      - id: commands-before-start
+        description: "comandos por ROI saem antes do START da janela"
+        find: 'if runtime is not None and not runtime.window_open:'
+        replace: 'if False:'
+      - id: heartbeat-only-with-detections
+        description: "3c ao vivo so recebe batimento quando ha deteccao"
+        find: 'self._write_object_frame('
+        replace: '(lambda *a: None) if not detections else self._write_object_frame('
+      - id: t-event-on-processing-clock
+        description: "t_event_s do 3c ao vivo deixa de ser o relogio de captura"
+        find: 'return float(capture_ts) - origin'
+        replace: 'return float(time.time())'
+      - id: end-session-skips-keep-data
+        description: "FIM por condicao deixa de passar por finish_session_early"
+        find: 'root.after(0, finish)'
+        replace: 'pass'
+      - id: arduino-code-not-claimed
+        description: "codigo do Arduino que a janela espera volta aos coordenadores"
+        find: 'return bool(runtime.offer_external("arduino", code, t_read_perf))'
+        replace: 'runtime.offer_external("arduino", code, t_read_perf); return False'
+      - id: sweep-when-window-never-opened
+        description: "fim de sessao varre saidas mesmo sem a janela ter aberto"
+        find: 'if runtime is not None and not runtime.window_opened:'
+        replace: 'if False:'
+      - id: window-state-not-published
+        description: "fase da janela nao chega a UI"
+        find: 'root.after(0, self._publish_window_state, payload)'
+        replace: 'pass'

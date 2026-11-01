@@ -116,6 +116,9 @@ class FrameLedger:
         self._base: str = base_name or "session"
         self._csv_header_written = False
         self._anchor: dict[str, Any] = {}
+        # ``(t_perf, t_wall)`` of the session's FIRST captured frame, pinned by
+        # the capture thread before that frame is queued anywhere (v8 F5).
+        self._origin: tuple[float, float | None] | None = None
         self._flush_interval_s = flush_interval_s
         self._wake = threading.Event()
         self._stop = threading.Event()
@@ -220,6 +223,35 @@ class FrameLedger:
             self._rows.append(row)
             self._unflushed.append(row)
         self._wake.set()
+
+    def pin_origin(self, t_perf: float, t_wall: float | None = None) -> None:
+        """Fix ``t0_perf``/``t0_wall`` to the session's first captured frame (once).
+
+        Called by the capture thread for frame 1, BEFORE the frame is queued for
+        analysis or video. Without it ``t0`` is the first row RECORDED, which the
+        capture and video threads append in a racy order, and the live analysis
+        window (which needs ``t0`` while the session runs) could not agree with
+        ``retime_from_ledger`` (which reads it from the anchor afterwards).
+        Later calls are ignored.
+        """
+        with self._lock:
+            if self._origin is None:
+                self._origin = (float(t_perf), None if t_wall is None else float(t_wall))
+
+    @property
+    def origin_perf(self) -> float | None:
+        """``t0_perf`` of the session — what ``t_s = 0`` means live and offline.
+
+        The pinned origin when there is one, else the first timed row (the
+        anchor's historical rule); ``None`` before any frame was captured.
+        """
+        with self._lock:
+            if self._origin is not None:
+                return self._origin[0]
+            for row in self._rows:
+                if row["t_capture_perf"] is not None:
+                    return float(row["t_capture_perf"])
+        return None
 
     def set_anchor(self, **fields: Any) -> None:
         """Acrescenta campos à âncora da sessão (fps nominal, t0 do recorder…)."""
@@ -330,6 +362,7 @@ class FrameLedger:
             rows = list(self._rows)
             anchor = dict(self._anchor)
             base = self._base
+            origin = self._origin
 
         timed = [r for r in rows if r["t_capture_perf"] is not None]
         first = timed[0] if timed else None
@@ -338,8 +371,11 @@ class FrameLedger:
         fps_real_medio = _fps_from_timestamps([r["t_capture_perf"] for r in timed])
 
         anchor.setdefault("base_name", base)
-        anchor["t0_perf"] = None if first is None else first["t_capture_perf"]
-        anchor["t0_wall"] = None if first is None else first["t_capture_wall"]
+        if origin is not None:
+            anchor["t0_perf"], anchor["t0_wall"] = origin
+        else:
+            anchor["t0_perf"] = None if first is None else first["t_capture_perf"]
+            anchor["t0_wall"] = None if first is None else first["t_capture_wall"]
         anchor["fps_real_medio"] = fps_real_medio
         anchor["first_captured_index"] = None if not rows else rows[0]["pipeline_frame"]
         anchor["first_video_index"] = None if not video_rows else video_rows[0]["video_frame_index"]

@@ -730,6 +730,8 @@ class RecordingSessionCoordinator(BaseCoordinator):
                 animals_per_aquarium=1,
                 use_external_preview=False,  # Use integrated canvas in Analysis tab
                 analysis_config=analysis_config,
+                # Legacy project path: the project's analysis window (ADR-011).
+                analysis_window=project_data.get("analysis_window"),
             )
 
             if success:

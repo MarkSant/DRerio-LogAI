@@ -1160,6 +1160,12 @@ class EventDispatcher:
             self._on_analysis_window_spec_changed,
         )
 
+        # -- v8 F5: live analysis window phase (ADR-011) --
+        event_bus.subscribe(
+            UIEvents.ANALYSIS_WINDOW_STATE_CHANGED,
+            self._on_analysis_window_state_changed,
+        )
+
     def _on_class_roles_changed(self, data: payloads.EventPayload) -> None:
         """Re-resolve the zone tab's view of the weight and say when it applies.
 
@@ -1209,6 +1215,31 @@ class EventDispatcher:
             spec_hash=_payload_get(data, "spec_hash"),
         )
         self._run_on_ui_thread(lambda: gui.status_var.set(message))
+
+    def _on_analysis_window_state_changed(self, data: payloads.EventPayload) -> None:
+        """Show the live window's phase on the trigger banner and the status bar.
+
+        Published on the Tk thread by the live pipeline (``root.after``), but
+        routed through ``_run_on_ui_thread`` like every other widget write.
+        """
+        gui = self._require_gui()
+        state = str(_payload_get(data, "state", "") or "")
+        t_s = _payload_get(data, "t_s")
+        on_start_not_met = _payload_get(data, "on_start_not_met")
+        self.log.info(
+            "event_dispatcher.analysis_window_state_changed",
+            state=state,
+            t_s=t_s,
+            reason=_payload_get(data, "reason"),
+        )
+        dialog_manager = getattr(gui, "dialog_manager", None)
+        if dialog_manager is None:
+            return
+        self._run_on_ui_thread(
+            lambda: dialog_manager.show_analysis_window_state(
+                state, t_s=t_s, on_start_not_met=on_start_not_met
+            )
+        )
 
     def _on_apply_roi_settings(self, data: payloads.EventPayload) -> None:
         """Handle DETECTOR_UPDATE_PARAMETERS event.

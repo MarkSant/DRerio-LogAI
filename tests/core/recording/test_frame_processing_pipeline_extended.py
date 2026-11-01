@@ -2,12 +2,30 @@
 
 from __future__ import annotations
 
+import math
 import queue
+import threading
+import time
+from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 
+from zebtrack.core.conditions import (
+    ClassPresence,
+    ClassTarget,
+    External,
+    FrameReached,
+    Hold,
+    Persist,
+    RoiEdge,
+    TimeReached,
+    WindowSpec,
+    read_artifact,
+)
+from zebtrack.core.conditions.presets import external_trigger_preset
 from zebtrack.core.recording.frame_processing_pipeline import (
     DEFAULT_ARDUINO_EXIT_GRACE_FRAMES,
     FrameProcessingMixin,
@@ -409,3 +427,394 @@ class TestFrameProcessingPipelineExtended9:
         )
         assert meta.is_analysis_frame is True
         assert meta.queued_for_analysis is False
+
+
+# ---------------------------------------------------------------------------
+# Live analysis window, capture clock and 3c heartbeat (ADR-011, v8 F5)
+#
+# These drive the REAL ``_processing_loop`` over a scripted frame queue, so the
+# order of the calls inside the loop (trajectory -> 3c -> window -> Arduino) is
+# what is under test, not a re-implementation of it.
+# ---------------------------------------------------------------------------
+
+T0 = 500.0  # perf_counter instant of the first captured frame of the session
+
+
+class _ScriptedQueue:
+    """Frame queue that ends the loop once its items are consumed."""
+
+    def __init__(self, items, exit_event):
+        self._items = list(items)
+        self._exit_event = exit_event
+
+    def get(self, timeout=None):
+        if self._items:
+            return self._items.pop(0)
+        self._exit_event.set()
+        raise queue.Empty
+
+
+class _FakeLedger:
+    def __init__(self, origin):
+        self.origin_perf = origin
+
+    def current_fps_measured(self):
+        return 30.0
+
+
+class _FakeRecorder:
+    def __init__(self, folder):
+        self.start_time = 1.0  # truthy: recording
+        self.output_folder = str(folder)
+        self.base_name = "sessao"
+        self.trajectory: list[tuple] = []
+        self.objects: list[tuple] = []
+
+    def write_detection_data(self, timestamp, frame_number, detections):
+        self.trajectory.append((frame_number, list(detections)))
+
+    def write_object_data(self, timestamp, frame_number, t_event_s, observations):
+        self.objects.append((frame_number, t_event_s, list(observations)))
+
+
+class _FakeManager:
+    def __init__(self):
+        self.sent: list[int] = []
+        self.sink: Any = None
+
+    def is_connected(self):
+        return True
+
+    def enqueue(self, token):
+        self.sent.append(token)
+        return True
+
+    def set_event_sink(self, sink):
+        self.sink = sink
+
+    def set_latency_sink(self, sink):
+        pass
+
+
+class _FakeRoot:
+    def __init__(self):
+        self.calls: list[tuple] = []
+
+    def after(self, delay, fn, *args):
+        self.calls.append((fn, args))
+
+
+class _FakeDetector:
+    """Returns scripted detections/observations per frame number."""
+
+    def __init__(self, script):
+        self.script = script  # frame -> (detections, observations)
+        self._observations: list = []
+        self.roi_names = ["A"]
+        self.scaled_roi_polygons = [np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=np.int32)]
+        self.class_role_map = None
+        self.frames: list[int] = []
+
+    def detect(self, frame, context, conf_threshold=None):
+        current = self.frames.pop(0)
+        detections, observations = self.script.get(current, ([], []))
+        self._observations = list(observations)
+        return list(detections), None
+
+    def pop_class_observations(self):
+        out, self._observations = self._observations, []
+        return out
+
+    def pop_track_masks(self, detections):
+        return {}
+
+    def draw_overlay(self, frame, detections):
+        pass
+
+
+class _LoopHarness(FrameProcessingMixin):
+    def __init__(self, tmp_path, *, window=None, script=None, project_data=None, origin=T0):
+        self.exit_event = threading.Event()
+        self.manager = _FakeManager()
+        self.detector = _FakeDetector(script or {})
+        harness: Any = self
+        harness.controller = SimpleNamespace(arduino_manager=self.manager)
+        harness.detector_service = SimpleNamespace(detector=self.detector)
+        harness.project_manager = SimpleNamespace(
+            project_data=project_data or {},
+            get_zone_data=lambda: SimpleNamespace(aquariums=[]),
+        )
+        harness.settings = None
+        harness.recorder = _FakeRecorder(tmp_path)
+        harness.event_bus = MagicMock()
+        harness.root = _FakeRoot()
+        harness.preview_window = None
+        self._use_external_preview = True
+        self._aquarium_detection_phase = False
+        self.analysis_interval_frames = 1
+        self.display_interval_frames = 10_000
+        self._last_captured_frame = 0
+        self._analysis_lag_warning_threshold = 10_000
+        self._live_detected_frames = 0
+        self._experiment_id = "exp"
+        self._frame_ledger = _FakeLedger(origin)
+        self._analysis_window_raw = (
+            None if window is None else window.model_dump(mode="json", by_alias=True)
+        )
+        self._last: list = []
+
+    # facade bits the loop touches
+    def get_last_detections(self):
+        return self._last
+
+    def set_last_detections(self, detections):
+        self._last = detections
+
+    def _adjust_fps_dynamically(self, frame_number, processing_time):
+        return True
+
+    def _on_session_active(self):
+        pass
+
+    def finish_session_early(self):
+        return True
+
+    def run(self, frames):
+        """``frames``: list of ``(frame_number, capture_perf)``."""
+        items = [(f, np.zeros((4, 4, 3), dtype=np.uint8), capture) for f, capture in frames]
+        self.detector.frames = [f for f, _ in frames]
+        harness: Any = self
+        harness.frame_queue = _ScriptedQueue(items, self.exit_event)
+        self._processing_loop()
+
+    def published_states(self):
+        """``ANALYSIS_WINDOW_STATE_CHANGED`` states scheduled on the Tk thread."""
+        root: Any = self.root
+        return [
+            args[0].state
+            for fn, args in root.calls
+            if getattr(fn, "__name__", "") == "_publish_window_state"
+        ]
+
+    def finish_requests(self):
+        root: Any = self.root
+        return [fn for fn, _ in root.calls if getattr(fn, "__name__", "") == "finish_session_early"]
+
+    def arm(self):
+        """What the processing loop does before its first frame."""
+        self._reset_arduino_zone_state()
+        self._reset_condition_runtime()
+
+
+def _rat(conf=0.9):
+    return {"class_name": "rat", "role": "subject", "confidence": conf, "bbox": (1, 1, 3, 3)}
+
+
+def _box(cx, cy):
+    return (cx - 1, cy - 1, cx + 1, cy + 1, 0.9, 1, 0)
+
+
+class TestObjectSidecarLive:
+    def test_heartbeat_on_every_analysed_frame_even_without_detections(self, tmp_path):
+        h = _LoopHarness(tmp_path, script={2: ([_box(5, 5)], [_rat()])})
+        h.run([(1, T0 + 1.0), (2, T0 + 2.0), (3, T0 + 3.0)])
+
+        recorder: Any = h.recorder
+        assert [frame for frame, _ in recorder.trajectory] == [2]  # schema unchanged
+        assert [frame for frame, _, _ in recorder.objects] == [1, 2, 3]
+        assert recorder.objects[1][2] == [_rat()]
+
+    def test_t_event_is_the_capture_clock_from_the_ledger_anchor(self, tmp_path):
+        h = _LoopHarness(tmp_path)
+        h.run([(7, T0 + 2.5)])
+        recorder: Any = h.recorder
+        ((frame, t_event, _obs),) = recorder.objects
+        assert frame == 7
+        assert t_event == pytest.approx(2.5)
+
+    def test_unknown_capture_clock_is_nan_never_the_processing_clock(self, tmp_path):
+        h = _LoopHarness(tmp_path, origin=None)
+        h.run([(1, T0 + 1.0)])
+        recorder: Any = h.recorder
+        assert math.isnan(recorder.objects[0][1])
+
+    def test_capture_thread_pins_the_origin_on_the_ledger(self):
+        pipeline = object.__new__(FrameProcessingMixin)
+        ledger = MagicMock()
+        pipeline._frame_ledger = ledger
+        pipeline._pin_capture_origin(12.5, 1_700_000_000.0)
+        ledger.pin_origin.assert_called_once_with(12.5, 1_700_000_000.0)
+
+
+class TestAnalysisWindowLive:
+    def test_no_window_no_runtime_no_artifact(self, tmp_path):
+        h = _LoopHarness(tmp_path)
+        h.run([(1, T0 + 1.0)])
+        assert h.published_states() == []
+        assert not list(tmp_path.glob("7_AnalysisWindow_*"))
+        assert h.manager.sink is None
+
+    def test_window_dates_frames_by_capture_and_writes_the_artifact(self, tmp_path):
+        spec = WindowSpec(start=TimeReached(clock="video", at_s=2.0))
+        h = _LoopHarness(tmp_path, window=spec)
+        h.run([(1, T0 + 1.0), (2, T0 + 2.2), (3, T0 + 3.0)])
+
+        artifact = read_artifact(tmp_path / "7_AnalysisWindow_sessao.json")
+        assert artifact is not None
+        assert artifact.clock == "capture_perf"
+        assert artifact.online.start is not None
+        assert artifact.online.start.frame == 2
+        assert artifact.online.start.t_s == pytest.approx(2.2)
+        assert artifact.fps_video == pytest.approx(30.0)
+        assert h.published_states() == ["waiting_start", "in_analysis", "finished"]
+        assert h.manager.sink is None  # unregistered at session end
+
+    def test_start_never_met_is_published(self, tmp_path):
+        h = _LoopHarness(tmp_path, window=WindowSpec(start=External(source="manual")))
+        h.run([(1, T0 + 1.0)])
+        assert h.published_states() == ["waiting_start", "start_not_met"]
+
+    def test_arduino_code_is_claimed_by_a_window_that_waits_for_it(self, tmp_path):
+        h = _LoopHarness(tmp_path, window=external_trigger_preset())
+        h.arm()
+        assert h.manager.sink is not None
+        assert h.manager.sink(1, T0 + 0.5) is True  # coordinators never see it
+
+    def test_arduino_code_is_not_claimed_by_a_window_that_ignores_it(self, tmp_path):
+        h = _LoopHarness(tmp_path, window=WindowSpec(start=External(source="manual")))
+        h.arm()
+        assert h.manager.sink(0, T0 + 0.5) is False
+
+    def test_end_session_goes_through_finish_session_early_once(self, tmp_path):
+        h = _LoopHarness(tmp_path, window=external_trigger_preset())
+        h.arm()
+        h.manager.sink(1, T0 + 0.5)
+        h._step_condition_runtime(1, T0 + 1.0, [], [])
+        h.manager.sink(0, T0 + 1.5)
+        h._step_condition_runtime(2, T0 + 2.0, [], [])
+        h._step_condition_runtime(3, T0 + 3.0, [], [])
+        h._finalize_condition_runtime()
+
+        # On the Tk thread, through the keep_data path, exactly once.
+        assert len(h.finish_requests()) == 1
+
+    def test_mark_does_not_end_the_session(self, tmp_path):
+        spec = WindowSpec(
+            start=External(source="arduino", code=1), stop=External(source="arduino", code=0)
+        )
+        h = _LoopHarness(tmp_path, window=spec)
+        h.arm()
+        h.manager.sink(1, T0)
+        h._step_condition_runtime(1, T0 + 1.0, [], [])
+        h.manager.sink(0, T0 + 1.5)
+        h._step_condition_runtime(2, T0 + 2.0, [], [])
+
+        runtime: Any = h._condition_runtime
+        assert runtime.phase.value == "finished"
+        assert h.finish_requests() == []
+
+    def test_frame_without_capture_stamp_is_not_dated(self, tmp_path):
+        h = _LoopHarness(tmp_path, window=WindowSpec())
+        h.arm()
+        h._step_condition_runtime(1, None, [], [])
+        runtime: Any = h._condition_runtime
+        assert runtime.phase.value == "waiting_start"
+
+    def test_manual_press_reaches_the_window(self, tmp_path):
+        h = _LoopHarness(tmp_path, window=WindowSpec(start=External(source="manual")))
+        assert h.push_manual_condition_event() is False  # no session yet
+        h.arm()
+        assert h.push_manual_condition_event() is True
+        h._step_condition_runtime(1, time.perf_counter() + 1.0, [], [])
+        runtime: Any = h._condition_runtime
+        assert runtime.phase.value == "in_analysis"
+
+    def test_subject_rois_follow_the_arduino_rule(self, tmp_path):
+        spec = WindowSpec(start=RoiEdge(roi="A", edge="enter"))
+        h = _LoopHarness(tmp_path, window=spec)
+        h.arm()
+        h._step_condition_runtime(1, T0 + 1.0, [_box(50, 50)], [])
+        h._step_condition_runtime(2, T0 + 2.0, [_box(5, 5)], [])
+        runtime: Any = h._condition_runtime
+        assert runtime.phase.value == "in_analysis"
+        assert runtime.result.start.frame == 2
+
+    def test_classes_come_from_the_class_observations(self, tmp_path):
+        spec = WindowSpec(
+            start=Persist(
+                level=ClassPresence(target=ClassTarget.of_class("Rat")), hold=Hold(seconds=1.0)
+            )
+        )
+        h = _LoopHarness(tmp_path, window=spec)
+        h.arm()
+        h._step_condition_runtime(1, T0 + 1.0, [], [_rat()])
+        h._step_condition_runtime(2, T0 + 2.0, [], [_rat()])
+        runtime: Any = h._condition_runtime
+        assert runtime.result.start.t_s == pytest.approx(1.0)
+
+    def test_multi_aquarium_session_skips_the_window(self, tmp_path):
+        h = _LoopHarness(tmp_path, window=WindowSpec())
+        project_manager: Any = h.project_manager
+        project_manager.get_zone_data = lambda: SimpleNamespace(aquariums=[1, 2])
+        h.arm()
+        assert h._condition_runtime is None
+
+
+ZONE_PROJECT = {
+    "use_arduino": True,
+    "arduino_bindings": [{"roi": "A", "on_enter": 1, "on_exit": 2}],
+}
+
+
+class TestArduinoCommandsInsideTheWindow:
+    @staticmethod
+    def _spy(h):
+        sent_at_frame: dict[int, list[int]] = {}
+        original = h._dispatch_arduino_zone_commands
+
+        def _dispatch(detections, frame_number=None, *args):
+            original(detections, frame_number, *args)
+            sent_at_frame[frame_number] = list(h.manager.sent)
+
+        h._dispatch_arduino_zone_commands = _dispatch
+        return sent_at_frame
+
+    def test_nothing_before_start_and_sweep_at_stop(self, tmp_path):
+        spec = WindowSpec(start=FrameReached(frame=2), stop=FrameReached(frame=4))
+        script = {f: ([_box(5, 5)], [_rat()]) for f in range(1, 7)}
+        h = _LoopHarness(tmp_path, window=spec, script=script, project_data=ZONE_PROJECT)
+        sent_at_frame = self._spy(h)
+        h.run([(f, T0 + f) for f in range(1, 7)])
+
+        assert sent_at_frame[1] == []  # before START: nothing
+        assert sent_at_frame[2] == [1]  # the START frame dispatches the enter
+        # exit tokens swept AT THE STOP frame, not at the end of the session
+        assert sent_at_frame[4] == [1, 2]
+        assert h.manager.sent == [1, 2]  # nothing after STOP, no second sweep
+
+    def test_window_never_opened_sends_nothing_at_all(self, tmp_path):
+        script = {f: ([_box(5, 5)], [_rat()]) for f in range(1, 4)}
+        h = _LoopHarness(
+            tmp_path,
+            window=WindowSpec(start=External(source="manual")),
+            script=script,
+            project_data=ZONE_PROJECT,
+        )
+        h.run([(f, T0 + f) for f in range(1, 4)])
+        assert h.manager.sent == []
+
+    def test_open_window_sweeps_once_at_session_end(self, tmp_path):
+        script = {f: ([_box(5, 5)], [_rat()]) for f in range(1, 4)}
+        h = _LoopHarness(
+            tmp_path,
+            window=WindowSpec(start=FrameReached(frame=1)),
+            script=script,
+            project_data=ZONE_PROJECT,
+        )
+        h.run([(f, T0 + f) for f in range(1, 4)])
+        assert h.manager.sent == [1, 2]
+
+    def test_without_window_session_end_still_sweeps(self, tmp_path):
+        h = _LoopHarness(tmp_path, script={1: ([_box(5, 5)], [_rat()])}, project_data=ZONE_PROJECT)
+        h.run([(1, T0 + 1.0)])
+        assert h.manager.sent == [1, 2]

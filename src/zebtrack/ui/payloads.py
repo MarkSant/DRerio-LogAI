@@ -217,6 +217,31 @@ class AnalysisWindowSpecChangedPayload:
     spec_hash: str | None = None
 
 
+# -- v8 F5: live analysis window (ADR-011) ------------------------------------
+@dataclass(frozen=True)
+class AnalysisWindowStatePayload:
+    """Phase of the live analysis window changed (published on the Tk thread).
+
+    ``state`` is a ``core.recording.condition_runtime.WindowPhase`` token:
+    ``"waiting_start"``, ``"in_analysis"``, ``"finished"`` or
+    ``"start_not_met"``. ``t_s`` is the START instant while in analysis and the
+    STOP instant once finished, on the session's capture clock (seconds since
+    the first captured frame); ``None`` while waiting or when never met.
+    ``on_start_not_met`` / ``on_stop`` echo the spec so the UI can say what
+    happens next without reading the project.
+    """
+
+    state: str = "waiting_start"
+    t_s: float | None = None
+    reason: str | None = None
+    on_start_not_met: str | None = None
+    on_stop: str | None = None
+    experiment_id: str | None = None
+
+
+# -- end v8 F5 ------------------------------------------------------------------
+
+
 @dataclass(frozen=True)
 class ClassRolesChangedPayload:
     """The class roles of a weight, or of the project's weight, were saved (ADR-009).

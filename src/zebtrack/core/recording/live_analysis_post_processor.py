@@ -86,6 +86,10 @@ class LiveAnalysisPostProcessorMixin:
     ) -> bool: ...
     def _setup_session_timer(self, duration_s: float, output_dir: Path) -> None: ...
 
+    if TYPE_CHECKING:
+        # Defined by FrameProcessingMixin (earlier in the MRO); type-checker only.
+        def _live_object_metadata(self) -> Any: ...
+
     def _build_post_analysis_service(self) -> Any:
         """AnalysisService da pós-análise ao vivo, já com a regra de ROI resolvida.
 
@@ -975,6 +979,7 @@ class LiveAnalysisPostProcessorMixin:
                             height=self.camera.actual_height if self.camera else 480,
                             zones_by_aquarium=zones_by_aquarium,
                             base_name=f"{self._experiment_id}",
+                            object_metadata=self._live_object_metadata(),
                         )
 
                         log.info(
@@ -996,6 +1001,7 @@ class LiveAnalysisPostProcessorMixin:
                         zones=zone_data,
                         is_video_file=False,
                         base_name=f"{self._experiment_id}",
+                        object_metadata=self._live_object_metadata(),
                     )
 
                 if not recorder_started:
