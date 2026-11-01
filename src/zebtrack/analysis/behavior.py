@@ -10,6 +10,12 @@ import shapely
 from scipy.signal import savgol_filter
 from shapely.geometry import Polygon
 
+#: Slack on window edges. START/STOP come from the event clock and the index
+#: from the trajectory clock; both are ``POS_MSEC / 1000`` pre-recorded (or the
+#: same capture instant live), but each went through its own float -> ns
+#: rounding. A microsecond is far below any frame interval.
+_WINDOW_EDGE_TOLERANCE = pd.Timedelta(microseconds=1)
+
 
 class Episode(TypedDict):
     """Um episódio contíguo de um estado (congelamento, inatividade, rajada).
@@ -119,6 +125,12 @@ class BehavioralAnalyzer(ABC):
         self._track_keys: list[Any] = []
         self._is_multi_track: bool = False
 
+        # Analysis window (ADR-011), set once by ``restrict_to_window``.
+        self._window_bounds: tuple[float, float] | None = None
+        self._window_empty: bool = False
+        self._window_applied: bool = False
+        self._window_angular: pd.Series | None = None
+
         # Create and preprocess the trajectory DataFrame
         self._trajectory_data = self._preprocess_data(
             trajectory_df, video_height_px, window_length, polyorder
@@ -175,6 +187,99 @@ class BehavioralAnalyzer(ABC):
     def arena_polygon_cm(self) -> Polygon:
         """Returns the arena geometry as a Shapely Polygon in cm."""
         return self._arena_polygon_cm
+
+    # ------------------------------------------------------------------
+    # Analysis window (ADR-011)
+    # ------------------------------------------------------------------
+
+    @property
+    def window_bounds(self) -> tuple[float, float] | None:
+        """``(t_start, t_end)`` in seconds on the index clock, or ``None``.
+
+        ``None`` both without a window and for an EMPTY window
+        (:attr:`window_is_empty`), which has no instants.
+        """
+        return getattr(self, "_window_bounds", None)
+
+    @property
+    def window_is_empty(self) -> bool:
+        """``True`` after ``restrict_to_window(..., empty=True)``."""
+        return bool(getattr(self, "_window_empty", False))
+
+    def observation_span_s(self) -> float:
+        """Denominator of every "per recording" rate, in seconds.
+
+        With a window it is STOP - START, the window the researcher asked for
+        (ADR-011), not the span of the rows that happen to fall inside it.
+        Without one it is the historical ``last row - first row``.
+        """
+        bounds = self.window_bounds
+        if bounds is not None:
+            return bounds[1] - bounds[0]
+        df = self._trajectory_data
+        if df.empty:
+            return 0.0
+        return float((df.index[-1] - df.index[0]).total_seconds())
+
+    def restrict_to_window(
+        self,
+        t_start: float | None,
+        t_end: float | None,
+        *,
+        empty: bool = False,
+    ) -> None:
+        """Keep only the rows inside ``[t_start, t_end]``, absolute index kept.
+
+        The cut is HYBRID (ADR-011): velocity and angular velocity are computed
+        on the WHOLE trajectory first, so the first sample after START keeps its
+        real predecessor instead of becoming a NaN (and the freezing detector
+        does not read a fake standstill there). Everything computed afterwards —
+        distance, episodes, rates, tortuosity — sees only the window. A freezing
+        episode that straddles an edge is therefore truncated, and its
+        ``min_duration`` applies to what remains.
+
+        Args:
+            t_start: START, in seconds on the trajectory clock (inclusive).
+            t_end: STOP, in seconds on the same clock (inclusive).
+            empty: Cut to no rows at all (``on_start_not_met="empty"``); the
+                bounds are ignored.
+
+        Raises:
+            RuntimeError: When a window was already applied (cuts do not compose).
+            ValueError: Missing bounds, or ``t_end`` before ``t_start``.
+        """
+        if getattr(self, "_window_applied", False):
+            raise RuntimeError("restrict_to_window() can only be applied once per analyzer.")
+        bounds: tuple[float, float] | None = None
+        if not empty:
+            if t_start is None or t_end is None:
+                raise ValueError("restrict_to_window() needs both window bounds.")
+            if t_end < t_start:
+                raise ValueError(f"Window end {t_end} s is before its start {t_start} s.")
+            bounds = (float(t_start), float(t_end))
+
+        # Derivatives first, on the whole recording.
+        self.calculate_velocity_timeseries()
+        angular = self.get_angular_velocity()
+
+        df = self._trajectory_data
+        keep: np.ndarray
+        if bounds is None:
+            keep = np.zeros(len(df), dtype=bool)
+            angular_keep = angular.iloc[0:0]
+        else:
+            low = pd.to_timedelta(bounds[0], unit="s") - _WINDOW_EDGE_TOLERANCE
+            high = pd.to_timedelta(bounds[1], unit="s") + _WINDOW_EDGE_TOLERANCE
+            keep = np.asarray((df.index >= low) & (df.index <= high), dtype=bool)
+            angular_keep = angular[(angular.index >= low) & (angular.index <= high)]
+
+        self._trajectory_data = df[keep].copy()
+        if self._track_labels.size == keep.size:
+            self._track_labels = self._track_labels[keep]
+        self._window_angular = angular_keep
+        self._window_bounds = bounds
+        self._window_empty = empty
+        self._window_applied = True
 
     def _preprocess_data(
         self,
@@ -869,6 +974,11 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
                 "Only 'degrees' unit is supported for this detailed implementation."
             )
 
+        windowed = getattr(self, "_window_angular", None)
+        if windowed is not None:
+            # Computed on the whole recording before the cut (restrict_to_window).
+            return windowed.copy()
+
         df = self._trajectory_data
         min_points = 2 * self._angle_calculation_window + 1
         if len(df) < min_points:
@@ -1020,6 +1130,10 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         if window_size is not None:
             # Sliding window not implemented for this concrete class
             raise NotImplementedError("Sliding window tortuosity is not implemented.")
+
+        if self._trajectory_data.empty:
+            # An empty analysis window has no path at all.
+            return float(np.nan)
 
         if self._is_multi_track:
             # Tortuosidade é uma razão POR TRAJETÓRIA: o "início" e o "fim" de
@@ -1179,8 +1293,8 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         episodes = self._extract_velocity_episodes(mask, min_duration)
         total_duration = float(sum(ep["duration"] for ep in episodes))
 
-        overall_duration_td = self._trajectory_data.index[-1] - self._trajectory_data.index[0]
-        overall_duration_s = overall_duration_td.total_seconds()
+        # STOP - START with a window; the recording span without one.
+        overall_duration_s = self.observation_span_s()
         percentage = (
             (total_duration / overall_duration_s) * 100 if overall_duration_s > 0 else np.nan
         )
@@ -1241,9 +1355,8 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
 
         sharp_turns_count = len(sharp_turn_timestamps)
 
-        # Calculate total duration for per-minute metric
-        df = self._trajectory_data
-        total_duration_s = (df.index[-1] - df.index[0]).total_seconds()
+        # Calculate total duration for per-minute metric (STOP - START with a window)
+        total_duration_s = self.observation_span_s()
         total_duration_minutes = total_duration_s / 60.0 if total_duration_s > 0 else 0
 
         if total_duration_minutes > 0:

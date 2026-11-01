@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 from shapely.geometry import Polygon
 
+from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import (
     ROI,
     ROIAnalyzer,
@@ -633,6 +634,289 @@ class TestLatencyPerAnimal:
         frame = pd.DataFrame({"in_A_stable": [True, False, True, True, False, True]})
 
         assert _entry_counts(frame, ["A"]) == {"A": 2}
+
+
+class TestRestrictToWindow:
+    """ADR-011 hybrid cut: presence on the whole recording, metrics on the window."""
+
+    def test_latency_counts_from_start_and_reads_the_state_before_it(self):
+        # Inside 0.0-0.2, outside 0.3-0.5, back in at 0.6.
+        analyzer = _pattern_analyzer([True] * 3 + [False] * 3 + [True] * 3)
+
+        analyzer.restrict_to_window(0.4, 0.8)
+
+        detail = analyzer.get_latency_details()["R"]
+        assert detail.present_at_start is False
+        assert detail.latency_s == pytest.approx(0.2)
+        assert analyzer.get_latency_to_first_entry() == {"R": pytest.approx(0.2)}
+        assert analyzer.get_entry_counts() == {"R": 1}
+
+    def test_inside_at_start_is_latency_zero_and_not_an_entry(self):
+        analyzer = _pattern_analyzer([False, False, True, True, True, True, False, False])
+
+        analyzer.restrict_to_window(0.3, 0.7)
+
+        detail = analyzer.get_latency_details()["R"]
+        assert detail.present_at_start is True
+        assert detail.latency_s == 0.0
+        assert analyzer.get_entry_counts() == {"R": 0}
+        assert analyzer.get_exit_counts() == {"R": 1}
+
+    def test_censored_latency_is_the_window_length(self):
+        analyzer = _pattern_analyzer([False] * 10)
+
+        analyzer.restrict_to_window(0.2, 0.6)
+
+        detail = analyzer.get_latency_details()["R"]
+        assert detail.censored is True
+        assert detail.latency_s == pytest.approx(0.4)
+
+    def test_entry_after_stop_is_censored(self):
+        analyzer = _pattern_analyzer([False] * 8 + [True] * 2)
+
+        analyzer.restrict_to_window(0.1, 0.5)
+
+        assert analyzer.get_latency_details()["R"].censored is True
+        assert analyzer.get_entry_counts() == {"R": 0}
+
+    def test_debounce_runs_on_the_whole_recording(self):
+        """A visit confirmed before START stays confirmed at START.
+
+        Cut first, the 0.2 s row would be the only inside sample of its run and
+        ``flutter_enter_frames=3`` would never confirm it.
+        """
+        analyzer = _pattern_analyzer(
+            [True, True, True, False, False, False],
+            flutter_enter_frames=3,
+            flutter_exit_frames=1,
+        )
+
+        analyzer.restrict_to_window(0.2, 0.5)
+
+        assert analyzer.get_latency_details()["R"].present_at_start is True
+
+    def test_time_in_roi_counts_only_the_window(self):
+        analyzer = _pattern_analyzer([True] * 10)
+
+        analyzer.restrict_to_window(0.3, 0.7)
+
+        time = analyzer.get_time_spent_in_rois()["R"]
+        assert time["seconds"] == pytest.approx(0.4)
+        assert time["percentage"] == pytest.approx(100.0)
+
+    def test_first_row_after_a_start_between_rows_is_clipped_to_start(self):
+        analyzer = _pattern_analyzer([True] * 10)
+
+        analyzer.restrict_to_window(0.25, 0.7)
+
+        # 0.30 contributes 0.05 s (not its whole 0.1 s), then 0.4 s more.
+        assert analyzer.get_time_spent_in_rois()["R"]["seconds"] == pytest.approx(0.45)
+
+    def test_percentage_denominator_is_the_window(self):
+        analyzer = _pattern_analyzer([True] * 5 + [False] * 5)
+
+        analyzer.restrict_to_window(0.2, 0.8)
+
+        # Inside credited 0.3-0.4 (0.2 s) of a 0.6 s window.
+        time = analyzer.get_time_spent_in_rois()["R"]
+        assert time["seconds"] == pytest.approx(0.2)
+        assert time["percentage"] == pytest.approx(0.2 / 0.6 * 100)
+
+    def test_exits_count_only_inside_the_window(self):
+        analyzer = _pattern_analyzer([True, False, True, False, True, False])
+        assert analyzer.get_exit_counts() == {"R": 3}
+
+        analyzer.restrict_to_window(0.15, 0.45)
+
+        assert analyzer.get_exit_counts() == {"R": 1}
+
+    def test_event_log_and_transitions_see_only_the_window(self):
+        analyzer = _pattern_analyzer([True, False, False, True, True, False, False])
+
+        analyzer.restrict_to_window(0.2, 0.6)
+
+        log = analyzer.get_event_log()
+        assert log["timestamp"].min() >= pd.Timedelta(seconds=0.2)
+        assert list(log["event"]) == ["enter", "exit"]
+        # One row per window sample (0.2 .. 0.6), the last one going to NaN.
+        transitions = analyzer.get_roi_transitions()
+        assert int(transitions.to_numpy().sum()) == 5
+
+    def test_distance_in_roi_excludes_the_segment_crossing_start(self):
+        analyzer = _pattern_analyzer([True] * 6)
+        analyzer._trajectory["x_cm_smoothed"] = np.arange(6, dtype=float)
+
+        analyzer.restrict_to_window(0.2, 0.5)
+
+        assert analyzer.get_distance_in_rois() == {"R": pytest.approx(3.0)}
+
+    def test_unobserved_time_counts_only_gaps_inside_the_window(self):
+        # Rows every 0.1 s with a 1.0 s hole before 1.4 and another before 3.0.
+        times = [0.0, 0.1, 0.2, 0.3, 0.4, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 3.0, 3.1]
+        analyzer = _times_analyzer(times, max_gap_s=0.2)
+        assert analyzer.unobserved_time_s == pytest.approx(0.8 + 0.9)
+
+        analyzer.restrict_to_window(1.0, 2.0)
+
+        # Only the part of the first hole after START: 1.0 -> 1.4 minus the cap.
+        assert analyzer.unobserved_time_s == pytest.approx(0.2)
+        assert analyzer.get_time_spent_in_rois()["R"]["seconds"] == pytest.approx(0.2 + 0.5)
+
+    def test_state_at_a_start_between_rows_is_the_row_before_it(self):
+        # Inside up to 0.3, START at 0.35, outside at 0.4: inside AT START.
+        analyzer = _pattern_analyzer([True] * 4 + [False] * 2 + [True] * 2)
+
+        analyzer.restrict_to_window(0.35, 0.7)
+
+        detail = analyzer.get_latency_details()["R"]
+        assert detail.present_at_start is True
+        assert detail.latency_s == 0.0
+        assert analyzer.get_exit_counts() == {"R": 1}
+
+    def test_per_animal_metrics_follow_the_window(self):
+        # START at 0.25 falls between an inside row (0.2) and an outside one.
+        analyzer = _pattern_analyzer([True] * 3 + [False] * 3 + [True] * 3)
+
+        analyzer.restrict_to_window(0.25, 0.8)
+
+        (metrics,) = analyzer.get_metrics_by_track().values()
+        assert metrics["latencia_primeira_entrada"] == {"R": 0.0}
+        assert metrics["latency_present_at_start"] == {"R": True}
+        assert metrics["contagem_entradas"] == {"R": 1}
+        assert metrics["contagem_saidas"] == {"R": 1}
+        assert metrics["tempo_gasto_por_roi"]["R"]["seconds"] == pytest.approx(0.3)
+        assert metrics["tempo_gasto_por_roi"]["R"]["percentage"] == pytest.approx(0.3 / 0.55 * 100)
+
+    def test_empty_window(self):
+        analyzer = _pattern_analyzer([True] * 5)
+
+        analyzer.restrict_to_window(None, None, empty=True)
+
+        detail = analyzer.get_latency_details()["R"]
+        assert detail.latency_s is None
+        assert detail.censored is True
+        assert analyzer.get_time_spent_in_rois() == {"R": {"seconds": 0.0, "percentage": 0.0}}
+        assert analyzer.get_entry_counts() == {"R": 0}
+        assert analyzer.get_exit_counts() == {"R": 0}
+        assert analyzer.get_event_log().empty
+        assert analyzer.get_metrics_by_track() == {}
+        assert analyzer.unobserved_time_s == 0.0
+
+    def test_whole_window_equals_no_window(self):
+        pattern = [False, True, True, False, True, False, False, True]
+        plain = _pattern_analyzer(pattern)
+        windowed = _pattern_analyzer(pattern)
+
+        windowed.restrict_to_window(0.0, 0.7)
+
+        assert windowed.get_time_spent_in_rois()["R"] == pytest.approx(
+            plain.get_time_spent_in_rois()["R"]
+        )
+        assert windowed.get_entry_counts() == plain.get_entry_counts()
+        assert windowed.get_exit_counts() == plain.get_exit_counts()
+        assert windowed.get_latency_to_first_entry() == plain.get_latency_to_first_entry()
+        assert windowed.unobserved_time_s == plain.unobserved_time_s
+
+    def test_restricting_twice_is_rejected(self):
+        analyzer = _pattern_analyzer([True] * 4)
+        analyzer.restrict_to_window(0.0, 0.2)
+
+        with pytest.raises(RuntimeError, match="once"):
+            analyzer.restrict_to_window(0.0, 0.2)
+
+    def test_reversed_or_missing_bounds_are_rejected(self):
+        with pytest.raises(ValueError, match="before"):
+            _pattern_analyzer([True] * 4).restrict_to_window(0.3, 0.1)
+        with pytest.raises(ValueError, match="bounds"):
+            _pattern_analyzer([True] * 4).restrict_to_window(0.1, None)
+
+    def test_window_bounds_property(self):
+        analyzer = _pattern_analyzer([True] * 4)
+        assert analyzer.window_bounds is None
+
+        analyzer.restrict_to_window(0.1, 0.3)
+
+        assert analyzer.window_bounds == (0.1, 0.3)
+
+
+def _times_analyzer(times, **kwargs):
+    """Always-inside analyzer on an arbitrary clock (gaps included)."""
+    index = pd.to_timedelta(np.asarray(times, dtype=float), unit="s")
+    n = len(times)
+    trajectory = pd.DataFrame(
+        {
+            "x1": [_INSIDE_BOX[0]] * n,
+            "y1": [_INSIDE_BOX[1]] * n,
+            "x2": [_INSIDE_BOX[2]] * n,
+            "y2": [_INSIDE_BOX[3]] * n,
+            "x_center_px": [50.0] * n,
+            "y_center_px": [50.0] * n,
+            "x_cm_smoothed": [50.0] * n,
+            "y_cm_smoothed": [50.0] * n,
+        },
+        index=index,
+    )
+    b_analyzer = MagicMock()
+    b_analyzer.trajectory_data = trajectory
+    b_analyzer._pixelcm_x = 1.0
+    b_analyzer._pixelcm_y = 1.0
+    b_analyzer._video_height_px = 0
+    return ROIAnalyzer(
+        behavior_analyzer=b_analyzer,
+        rois=[ROI(name="R", geometry=_SQUARE, coordinate_space="px")],
+        inclusion_rule="centroid_in",
+        flutter_n_frames=1,
+        min_visit_s=0.0,
+        min_gap_s=0.0,
+        **kwargs,
+    )
+
+
+class TestRestrictToWindowMultiTrack:
+    def test_group_and_per_animal_views_are_both_cut(self):
+        b_analyzer = ConcreteBehavioralAnalyzer(
+            trajectory_df=_two_animal_trajectory(),
+            pixelcm_x=1.0,
+            pixelcm_y=1.0,
+            video_height_px=0,
+            arena_polygon_px=[(0, 0), (500, 0), (500, 500), (0, 500)],
+            fps=10.0,
+            window_length=1,
+            polyorder=0,
+        )
+        analyzer = ROIAnalyzer(
+            behavior_analyzer=b_analyzer,
+            rois=[ROI(name="R", geometry=_SQUARE, coordinate_space="px")],
+            inclusion_rule="centroid_in",
+            flutter_n_frames=1,
+            min_visit_s=0.0,
+            min_gap_s=0.0,
+        )
+
+        analyzer.restrict_to_window(0.3, 0.6)
+
+        # Animal 1 inside throughout, animal 2 enters at 0.5.
+        per_animal = analyzer.get_metrics_by_track()
+        assert per_animal["1"]["latency_present_at_start"] == {"R": True}
+        assert per_animal["2"]["latencia_primeira_entrada"] == {"R": pytest.approx(0.2)}
+        assert per_animal["2"]["tempo_gasto_por_roi"]["R"]["seconds"] == pytest.approx(0.2)
+        assert analyzer.get_time_spent_in_rois()["R"]["seconds"] == pytest.approx(0.3)
+
+
+def _two_animal_trajectory() -> pd.DataFrame:
+    rows = []
+    for i in range(8):
+        t = round(i * 0.1, 9)
+        rows.append({"timestamp": t, "track_id": 1, "x_center_px": 50.0, "y_center_px": 50.0})
+        inside = i >= 5
+        x = 50.0 if inside else 300.0
+        rows.append({"timestamp": t, "track_id": 2, "x_center_px": x, "y_center_px": 50.0})
+    df = pd.DataFrame(rows)
+    df["x1"] = df["x_center_px"] - 5
+    df["x2"] = df["x_center_px"] + 5
+    df["y1"] = df["y_center_px"] - 5
+    df["y2"] = df["y_center_px"] + 5
+    return df
 
 
 if __name__ == "__main__":

@@ -258,9 +258,62 @@ def _entry_counts(
     }
 
 
-def _exit_counts(frame: pd.DataFrame, roi_names: Any) -> dict[str, int]:
-    """Contagem de saídas (transição True→False) de cada ROI."""
-    return {name: (frame[f"in_{name}_stable"].astype(int).diff() == -1).sum() for name in roi_names}
+def _exit_counts(
+    frame: pd.DataFrame,
+    roi_names: Any,
+    *,
+    t0: TimePoint | None = None,
+    t_end: TimePoint | None = None,
+) -> dict[str, int]:
+    """Contagem de saídas (transição True→False) de cada ROI.
+
+    With ``t0``/``t_end`` only the exits that happen after ``t0`` (and at or
+    before ``t_end``) count — the mirror of :func:`_entry_counts`.
+    """
+    if t0 is None and t_end is None:
+        return {
+            name: (frame[f"in_{name}_stable"].astype(int).diff() == -1).sum() for name in roi_names
+        }
+    window = _window_mask(frame.index, t0, t_end)
+    counts: dict[str, int] = {}
+    for name in roi_names:
+        cur = frame[f"in_{name}_stable"].astype(bool)
+        falling = (cur.shift(fill_value=False) & ~cur).to_numpy(dtype=bool)
+        counts[name] = int(np.count_nonzero(falling & window))
+    return counts
+
+
+def _seconds_of(index: pd.Index) -> np.ndarray:
+    """The index as float seconds (``TimedeltaIndex`` or a numeric clock)."""
+    clock, in_ns = _index_clock(index)
+    return clock / 1e9 if in_ns else np.asarray(clock, dtype=float)
+
+
+#: Slack on window edges: START/STOP and the index went through separate
+#: float -> ns roundings of the same instant.
+_WINDOW_EDGE_TOLERANCE_S = 1e-6
+
+
+def _clip_dt_to_window(
+    frame: pd.DataFrame, raw_dt_s: np.ndarray, cap_s: float, t0_s: float
+) -> np.ndarray:
+    """Re-credit the ``dt`` of the rows of ``frame`` as if time began at ``t0_s``.
+
+    ``dt`` of a row is the interval that ENDS at it. A row whose interval
+    started before START only owns its part after START; the gap cap is then
+    applied to that part. Rewrites ``frame["dt"]`` only where the value
+    changes and returns the excess the cap discarded per row (unobserved time).
+    """
+    clock_s = _seconds_of(frame.index)
+    portion = np.minimum(raw_dt_s, np.maximum(clock_s - t0_s, 0.0))
+    credited = np.minimum(portion, cap_s) if np.isfinite(cap_s) else portion
+    previous = np.minimum(raw_dt_s, cap_s) if np.isfinite(cap_s) else raw_dt_s
+    changed = np.flatnonzero(credited != previous)
+    if changed.size:
+        is_timedelta = getattr(frame["dt"].dtype, "kind", "") == "m"
+        values = pd.to_timedelta(credited[changed], unit="s") if is_timedelta else credited[changed]
+        frame.iloc[changed, frame.columns.get_loc("dt")] = values
+    return portion - credited
 
 
 def _distance_in_rois(frame: pd.DataFrame, roi_names: Any) -> dict[str, float]:
@@ -447,6 +500,18 @@ class ROIAnalyzer:
         # Com um único sujeito é o PRÓPRIO ``_trajectory`` — o caminho histórico
         # segue byte a byte o mesmo.
         self._view: pd.DataFrame = self._trajectory
+        # Analysis window (ADR-011). ``restrict_to_window`` keeps the WHOLE
+        # timelines here: latency and entries read the state AT START from the
+        # row before it, which the cut no longer holds.
+        self._window: tuple[float, float] | None = None
+        self._window_empty: bool = False
+        self._full_trajectory: pd.DataFrame | None = None
+        self._full_view: pd.DataFrame | None = None
+        self._full_track_positions: list[np.ndarray] | None = None
+        self._raw_dt_s: np.ndarray = np.zeros(0, dtype=float)
+        self._dt_cap_s: float = float(np.inf)
+        self._view_raw_dt_s: np.ndarray = np.zeros(0, dtype=float)
+        self._view_dt_cap_s: float = float(np.inf)
         self._buffered_rois_cache: dict[str, Any] = {}  # Cache for buffered ROI geometries
         self._roi_geometries_px = self._normalize_roi_geometries()
 
@@ -463,6 +528,46 @@ class ROIAnalyzer:
 
         self._validate_rois()
         self._calculate_presence_in_rois()
+
+    @classmethod
+    def from_rule(
+        cls,
+        behavior_analyzer: BehavioralAnalyzer,
+        rois: list[ROI],
+        rule: RoiRuleConfig,
+        *,
+        mask_source: "str | Path | pd.DataFrame | None" = None,
+    ) -> "ROIAnalyzer":
+        """Build the analyzer from a resolved :class:`RoiRuleConfig`.
+
+        The single way the report and the analysis window (whose ``RoiInside``
+        conditions must agree with the report's ROI numbers) turn a rule into
+        an analyzer.
+        """
+        return cls(
+            behavior_analyzer=behavior_analyzer,
+            rois=rois,
+            inclusion_rule=rule.rule,
+            buffer_radius_value=rule.buffer_radius_value,
+            min_bbox_overlap_ratio=rule.min_bbox_overlap_ratio,
+            bbox_overlap_basis=rule.bbox_overlap_basis,
+            flutter_enter_frames=rule.flutter_enter_frames,
+            flutter_exit_frames=rule.flutter_exit_frames,
+            min_visit_s=rule.min_visit_s,
+            min_gap_s=rule.min_gap_s,
+            max_gap_s=rule.max_gap_s,
+            min_seg_overlap_ratio=rule.min_seg_overlap_ratio,
+            mask_source=mask_source,
+        )
+
+    def presence_timeline(self) -> pd.DataFrame:
+        """Stable presence per instant: one boolean column per ROI name.
+
+        Multi-animal: ``any_track`` occupancy (the group view). The index is the
+        trajectory clock. A copy — callers cannot disturb the metrics.
+        """
+        columns = {f"in_{name}_stable": name for name in self._rois}
+        return self._view[list(columns)].rename(columns=columns).copy()
 
     def _resolve_track_axis(
         self, behavior_analyzer: BehavioralAnalyzer
@@ -628,6 +733,10 @@ class ROIAnalyzer:
         dt_seconds = np.nan_to_num(dt_seconds, nan=0.0, posinf=0.0, neginf=0.0)
 
         cap = self._resolve_max_gap(dt_seconds)
+        # Kept for ``restrict_to_window``: a window re-credits the row that
+        # straddles START from these, never from the already-capped column.
+        self._raw_dt_s = dt_seconds
+        self._dt_cap_s = cap
         self._unobserved_time_s = 0.0
         capped = dt_seconds
         if np.isfinite(cap):
@@ -889,6 +998,8 @@ class ROIAnalyzer:
         # tempo do grupo: a sessão só é "não observada" quando NENHUM animal
         # foi visto.
         cap = self._resolve_max_gap(dt_seconds)
+        self._view_raw_dt_s = dt_seconds
+        self._view_dt_cap_s = cap
         self._unobserved_time_s = 0.0
         if np.isfinite(cap):
             exceeds = dt_seconds > cap
@@ -1257,6 +1368,135 @@ class ROIAnalyzer:
             )
         )
 
+    # ------------------------------------------------------------------
+    # Analysis window (ADR-011)
+    # ------------------------------------------------------------------
+
+    @property
+    def window_bounds(self) -> tuple[float, float] | None:
+        """``(t_start, t_end)`` in seconds after :meth:`restrict_to_window`."""
+        return self._window
+
+    def restrict_to_window(
+        self,
+        t_start: float | None,
+        t_end: float | None,
+        *,
+        empty: bool = False,
+    ) -> None:
+        """Measure every metric inside ``[t_start, t_end]`` (seconds, index clock).
+
+        Presence was already decided on the WHOLE recording in ``__init__`` —
+        rule, debounce with backdating, visit/gap filter — so a visit confirmed
+        before START is still confirmed at START. This only cuts:
+
+        - latency, entries and exits read the whole timeline with ``t0 = START``
+          and ``t_end = STOP``: the state AT START is the as-of row before it
+          (inside at START = latency 0, ``present_at_start``), and a subject
+          that never enters is censored at the window length;
+        - time in ROI, its percentage, distance, speed, freezing, transitions,
+          the event log and the unobserved time read only the rows inside the
+          window, and the row whose interval straddles START is re-credited
+          with its part after START only.
+
+        Args:
+            t_start: START in seconds on the trajectory clock.
+            t_end: STOP in seconds on the same clock.
+            empty: No rows at all (``on_start_not_met="empty"``).
+
+        Raises:
+            RuntimeError: When a window was already applied.
+            ValueError: Missing bounds, or ``t_end`` before ``t_start``.
+        """
+        if self._window is not None or self._window_empty:
+            raise RuntimeError("restrict_to_window() can only be applied once per analyzer.")
+        if not empty:
+            if t_start is None or t_end is None:
+                raise ValueError("restrict_to_window() needs both window bounds.")
+            if t_end < t_start:
+                raise ValueError(f"Window end {t_end} s is before its start {t_start} s.")
+
+        self._full_trajectory = self._trajectory
+        self._full_view = self._view
+        self._full_track_positions = self._track_positions
+
+        trajectory = self._trajectory
+        keep: np.ndarray
+        if empty or t_start is None or t_end is None:
+            keep = np.zeros(len(trajectory), dtype=bool)
+            t0_s = 0.0
+        else:
+            t0_s = float(t_start)
+            clock = _seconds_of(trajectory.index)
+            keep = (clock >= t0_s - _WINDOW_EDGE_TOLERANCE_S) & (
+                clock <= float(t_end) + _WINDOW_EDGE_TOLERANCE_S
+            )
+        rows = np.flatnonzero(keep)
+        # ``segment_dist`` (if a metric already ran) holds steps from BEFORE START.
+        cut = trajectory.iloc[rows].drop(columns=["segment_dist"], errors="ignore").copy()
+        excess = _clip_dt_to_window(cut, self._raw_dt_s[rows], self._dt_cap_s, t0_s)
+
+        self._track_labels = self._track_labels[rows]
+        if self._is_multi_track:
+            self._track_positions = [
+                np.flatnonzero(self._track_labels == label)
+                for label in range(len(self._track_keys))
+            ]
+            self._unobserved_by_track = {
+                self._track_keys[label]: float(excess[positions].sum())
+                for label, positions in enumerate(self._track_positions)
+                if positions.size
+            }
+        else:
+            self._track_positions = [np.arange(len(cut))]
+        self._trajectory = cut
+        self._episode_row_index = None
+
+        if self._is_multi_track and self._full_view is not trajectory:
+            view = self._full_view
+            view_clock = _seconds_of(view.index)
+            view_keep: np.ndarray
+            if empty or t_end is None:
+                view_keep = np.zeros(len(view), dtype=bool)
+            else:
+                view_keep = (view_clock >= t0_s - _WINDOW_EDGE_TOLERANCE_S) & (
+                    view_clock <= float(t_end) + _WINDOW_EDGE_TOLERANCE_S
+                )
+            view_rows = np.flatnonzero(view_keep)
+            cut_view = view.iloc[view_rows].copy()
+            view_excess = _clip_dt_to_window(
+                cut_view, self._view_raw_dt_s[view_rows], self._view_dt_cap_s, t0_s
+            )
+            self._view = cut_view
+            self._unobserved_time_s = float(view_excess.sum())
+        else:
+            self._view = cut
+            self._unobserved_time_s = float(excess.sum())
+
+        self._window = None if empty or t_end is None else (t0_s, float(t_end))
+        self._window_empty = empty
+        log.info(
+            "roi.window.applied",
+            t_start=None if empty else t0_s,
+            t_end=None if empty else t_end,
+            rows=len(cut),
+            empty=empty,
+        )
+
+    def _window_args(
+        self, t0: TimePoint | None, t_end: TimePoint | None
+    ) -> tuple[TimePoint | None, TimePoint | None]:
+        """Explicit bounds win; otherwise the applied window's (if any)."""
+        if t0 is None and t_end is None and self._window is not None:
+            return self._window
+        return t0, t_end
+
+    def _timeline(self) -> pd.DataFrame:
+        """The WHOLE group timeline when a window applies (as-of state at START)."""
+        if self._window is not None and self._full_view is not None:
+            return self._full_view
+        return self._view
+
     def get_time_spent_in_rois(
         self, t0: TimePoint | None = None, t_end: TimePoint | None = None
     ) -> dict[str, dict[str, float]]:
@@ -1275,6 +1515,7 @@ class ROIAnalyzer:
             'percentage' keys.
 
         """
+        t0, t_end = self._window_args(t0, t_end)
         return _time_spent_in_rois(self._view, self._rois, t0=t0, t_end=t_end)
 
     def get_latency_details(
@@ -1292,7 +1533,8 @@ class ROIAnalyzer:
         Returns:
             ``{roi: RoiLatency}``. Multi-animal: first OCCUPATION by any animal.
         """
-        return _roi_latencies(self._view, self._rois, t0=t0, t_end=t_end)
+        t0, t_end = self._window_args(t0, t_end)
+        return _roi_latencies(self._timeline(), self._rois, t0=t0, t_end=t_end)
 
     def get_latency_to_first_entry(
         self, t0: TimePoint | None = None, t_end: TimePoint | None = None
@@ -1309,7 +1551,8 @@ class ROIAnalyzer:
             enters (and no ``t_end`` was given).
 
         """
-        return _latency_to_first_entry(self._view, self._rois, t0=t0, t_end=t_end)
+        t0, t_end = self._window_args(t0, t_end)
+        return _latency_to_first_entry(self._timeline(), self._rois, t0=t0, t_end=t_end)
 
     def get_entry_counts(
         self, t0: TimePoint | None = None, t_end: TimePoint | None = None
@@ -1327,7 +1570,8 @@ class ROIAnalyzer:
             Dictionary mapping ROI names to entry counts.
 
         """
-        return _entry_counts(self._view, self._rois, t0=t0, t_end=t_end)
+        t0, t_end = self._window_args(t0, t_end)
+        return _entry_counts(self._timeline(), self._rois, t0=t0, t_end=t_end)
 
     def get_exit_counts(self) -> dict[str, int]:
         """Count the number of exits from each ROI.
@@ -1338,7 +1582,8 @@ class ROIAnalyzer:
             Dictionary mapping ROI names to exit counts.
 
         """
-        return _exit_counts(self._view, self._rois)
+        t0, t_end = self._window_args(None, None)
+        return _exit_counts(self._timeline(), self._rois, t0=t0, t_end=t_end)
 
     def get_metrics_by_track(
         self, t0: TimePoint | None = None, t_end: TimePoint | None = None
@@ -1362,13 +1607,25 @@ class ROIAnalyzer:
             ``{track_id_str: {"tempo_gasto_por_roi": ..., ...}}``.
 
         """
+        t0, t_end = self._window_args(t0, t_end)
+        full = self._full_trajectory if self._window is not None else None
         results: dict[str, dict[str, Any]] = {}
         for label, positions in enumerate(self._track_positions):
             if positions.size == 0:
                 continue
             key = self._track_keys[label] if self._is_multi_track else self._sole_track_key()
             frame = self._trajectory.iloc[positions].copy()
-            latencies = _roi_latencies(frame, self._rois, t0=t0, t_end=t_end)
+            # Latency, entries and exits read the as-of row BEFORE START, which
+            # only the whole per-animal timeline holds.
+            timeline = frame
+            if full is not None and self._full_track_positions is not None:
+                timeline = full.iloc[self._full_track_positions[label]]
+            latencies = _roi_latencies(timeline, self._rois, t0=t0, t_end=t_end)
+            exits = (
+                _exit_counts(frame, self._rois)
+                if full is None
+                else _exit_counts(timeline, self._rois, t0=t0, t_end=t_end)
+            )
             results[str(key)] = {
                 "tempo_gasto_por_roi": _time_spent_in_rois(frame, self._rois, t0=t0, t_end=t_end),
                 "latencia_primeira_entrada": {
@@ -1380,8 +1637,8 @@ class ROIAnalyzer:
                     name: detail.present_at_start for name, detail in latencies.items()
                 },
                 "latency_censored": {name: detail.censored for name, detail in latencies.items()},
-                "contagem_entradas": _entry_counts(frame, self._rois, t0=t0, t_end=t_end),
-                "contagem_saidas": _exit_counts(frame, self._rois),
+                "contagem_entradas": _entry_counts(timeline, self._rois, t0=t0, t_end=t_end),
+                "contagem_saidas": exits,
                 "distancia_por_roi": _distance_in_rois(frame, self._rois),
                 "tempo_nao_observado_s": self._unobserved_by_track.get(
                     key, self._unobserved_time_s if not self._is_multi_track else 0.0
@@ -1461,6 +1718,9 @@ class ROIAnalyzer:
 
         """
         states = self._view["stable_roi"]
+        if states.empty:
+            # An empty analysis window has no events.
+            return pd.DataFrame(columns=["timestamp", "event", "roi_name"])
         # Find points where the state changes by comparing with the previous state
         state_changes = states[states != states.shift(1)]
 

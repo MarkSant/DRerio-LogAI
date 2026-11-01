@@ -8,6 +8,8 @@ freezing detection, angular velocity, tortuosity, thigmotaxis, and episode detec
 import numpy as np
 import pandas as pd
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 
@@ -1026,3 +1028,259 @@ class TestAngularVelocityStats:
         # With only 2 frames, angular velocity computation returns empty or NaN
         for key in ("mean", "median", "max", "std_dev"):
             assert key in stats
+
+
+# === Analysis window (ADR-011, F4b) ===
+
+
+def _window_trajectory(fps: float = 10.0) -> pd.DataFrame:
+    """6 s at ``fps``: moving 0-1 s, perfectly still 1-3 s, zig-zag 3-6 s.
+
+    Timestamps start at 10 s, the way a PTS clock looks once a video was cut,
+    so a window bound is never confused with "seconds since the first row".
+    """
+    n = int(6 * fps)
+    t = np.arange(n) / fps
+    x_cm: np.ndarray = np.where(t < 1.0, 10 + 5 * t, 15.0)
+    y_cm: np.ndarray = np.full(n, 10.0)
+    zig = t >= 3.0
+    # 0.8 cm/frame forward, 1 cm/frame sideways, reversing every 0.5 s.
+    phase = np.clip((t - 3.0) * fps, 0, None)
+    leg = phase % 10
+    x_cm = np.where(zig, 15.0 + 0.8 * phase, x_cm)
+    y_cm = np.where(zig, 10.0 + np.where(leg < 5, leg, 10 - leg), y_cm)
+    x_px = x_cm * 10.0
+    y_px = 720 - y_cm * 10.0
+    return pd.DataFrame(
+        {
+            "timestamp": np.round(10.0 + t, 9),
+            "x_center_px": x_px,
+            "y_center_px": y_px,
+            "x1": x_px - 10,
+            "y1": y_px - 10,
+            "x2": x_px + 10,
+            "y2": y_px + 10,
+        }
+    )
+
+
+def _window_analyzer(df: pd.DataFrame | None = None) -> ConcreteBehavioralAnalyzer:
+    return ConcreteBehavioralAnalyzer(
+        trajectory_df=(_window_trajectory() if df is None else df).copy(),
+        pixelcm_x=10.0,
+        pixelcm_y=10.0,
+        video_height_px=720,
+        arena_polygon_px=[(0, 0), (800, 0), (800, 720), (0, 720)],
+        fps=10.0,
+        window_length=1,
+        polyorder=0,
+    )
+
+
+class TestRestrictToWindow:
+    """Hybrid cut: derivatives on the whole recording, metrics on the window."""
+
+    def test_index_stays_absolute_and_bounds_are_inclusive(self):
+        analyzer = _window_analyzer()
+
+        analyzer.restrict_to_window(11.5, 13.0)
+
+        index = analyzer.trajectory_data.index
+        assert index[0] == pd.Timedelta(seconds=11.5)
+        assert index[-1] == pd.Timedelta(seconds=13.0)
+        assert len(index) == 16
+        assert analyzer.window_bounds == (11.5, 13.0)
+
+    def test_sub_microsecond_clock_noise_keeps_the_edge_samples(self):
+        # START/STOP and the index went through separate float -> ns roundings.
+        analyzer = _window_analyzer()
+
+        analyzer.restrict_to_window(11.5 + 4e-7, 13.0 - 4e-7)
+
+        index = analyzer.trajectory_data.index
+        assert index[0] == pd.Timedelta(seconds=11.5)
+        assert index[-1] == pd.Timedelta(seconds=13.0)
+
+    def test_no_window_has_no_bounds(self):
+        assert _window_analyzer().window_bounds is None
+
+    def test_border_velocity_keeps_its_neighbour_before_start(self):
+        whole = _window_analyzer()
+        full_v = whole.calculate_velocity_timeseries()["v_mag"]
+        cut = _window_analyzer()
+
+        cut.restrict_to_window(10.5, 12.0)
+
+        v = cut.trajectory_data["v_mag"]
+        assert not np.isnan(v.iloc[0])
+        assert v.iloc[0] == pytest.approx(full_v.loc[pd.Timedelta(seconds=10.5)])
+        assert v.iloc[0] == pytest.approx(5.0)
+
+    def test_border_angular_velocity_is_computed_on_the_whole_recording(self):
+        whole = _window_analyzer()
+        full_av = whole.get_angular_velocity()
+        cut = _window_analyzer()
+
+        cut.restrict_to_window(13.5, 15.0)
+
+        av = cut.get_angular_velocity()
+        assert av.index[0] == pd.Timedelta(seconds=13.5)
+        lower = full_av.index >= pd.Timedelta(seconds=13.5)
+        upper = full_av.index <= pd.Timedelta(seconds=15.0)
+        pd.testing.assert_series_equal(av, full_av[lower & upper])
+        assert not np.isnan(av.iloc[0])
+
+    def test_distance_excludes_the_segment_that_crosses_start(self):
+        analyzer = _window_analyzer()
+
+        analyzer.restrict_to_window(10.5, 11.0)
+
+        # 0.5 s at 5 cm/s inside the window; the 10.4 -> 10.5 step is outside.
+        assert analyzer.calculate_total_distance() == pytest.approx(2.5)
+
+    def test_freezing_cut_by_the_edge_is_truncated_and_min_duration_uses_the_rest(self):
+        long_enough = _window_analyzer()
+        long_enough.restrict_to_window(12.5, 13.5)
+        too_short = _window_analyzer()
+        too_short.restrict_to_window(12.5, 13.5)
+
+        kept = long_enough.detect_freezing_episodes(min_duration=0.4, vel_threshold=0.5)
+        dropped = too_short.detect_freezing_episodes(min_duration=0.6, vel_threshold=0.5)
+
+        # Still from 11.1 s to 13.0 s (13.1 moves again); the window keeps
+        # 12.5-13.0, i.e. 0.5 s, although the whole episode lasts 1.9 s.
+        assert len(kept) == 1
+        assert kept[0]["start_time"] == pd.Timedelta(seconds=12.5)
+        assert kept[0]["duration"] == pytest.approx(0.5)
+        assert dropped == []
+
+    def test_inactivity_percentage_is_over_the_window(self):
+        analyzer = _window_analyzer()
+        analyzer.restrict_to_window(12.0, 14.0)
+
+        result = analyzer.calculate_inactivity_periods(
+            velocity_threshold_cm_s=0.5, min_duration=0.1
+        )
+
+        assert result["total_duration_s"] == pytest.approx(1.0)
+        assert result["percentage_of_recording"] == pytest.approx(1.0 / 2.0 * 100)
+
+    def test_observation_span_is_the_window_length(self):
+        analyzer = _window_analyzer()
+        assert analyzer.observation_span_s() == pytest.approx(5.9)
+
+        analyzer.restrict_to_window(11.0, 14.5)
+
+        assert analyzer.observation_span_s() == pytest.approx(3.5)
+
+    def test_sharp_turns_per_minute_is_over_the_window(self):
+        analyzer = _window_analyzer()
+        analyzer.restrict_to_window(12.0, 16.0)
+
+        result = analyzer.calculate_sharp_turns(threshold_deg_s=30.0, cooldown_s=0.1)
+
+        assert result["sharp_turns_count"] > 0
+        assert result["sharp_turns_per_minute"] == pytest.approx(
+            result["sharp_turns_count"] / (4.0 / 60.0)
+        )
+
+    def test_whole_window_equals_no_window(self):
+        df = _window_trajectory()
+        plain = _window_analyzer(df)
+        windowed = _window_analyzer(df)
+        windowed.restrict_to_window(10.0, 15.9)
+
+        assert windowed.calculate_total_distance() == pytest.approx(
+            plain.calculate_total_distance()
+        )
+        assert windowed.get_velocity_stats() == pytest.approx(plain.get_velocity_stats())
+        assert windowed.get_tortuosity() == pytest.approx(plain.get_tortuosity())
+        assert windowed.detect_freezing_episodes(
+            min_duration=0.5, vel_threshold=0.5
+        ) == plain.detect_freezing_episodes(min_duration=0.5, vel_threshold=0.5)
+        assert windowed.calculate_inactivity_periods() == plain.calculate_inactivity_periods()
+        plain_turns = plain.calculate_sharp_turns(threshold_deg_s=30.0)
+        windowed_turns = windowed.calculate_sharp_turns(threshold_deg_s=30.0)
+        assert windowed_turns["sharp_turns_count"] == plain_turns["sharp_turns_count"]
+        assert windowed_turns["sharp_turns_per_minute"] == pytest.approx(
+            plain_turns["sharp_turns_per_minute"]
+        )
+
+    def test_empty_window_yields_empty_metrics(self):
+        analyzer = _window_analyzer()
+
+        analyzer.restrict_to_window(None, None, empty=True)
+
+        assert analyzer.trajectory_data.empty
+        assert analyzer.calculate_total_distance() == 0.0
+        assert np.isnan(analyzer.get_velocity_stats()["mean"])
+        assert analyzer.detect_freezing_episodes(min_duration=0.1, vel_threshold=1.0) == []
+        assert np.isnan(analyzer.get_tortuosity())
+        assert analyzer.calculate_inactivity_periods()["count"] == 0
+        assert analyzer.calculate_sharp_turns(30.0)["sharp_turns_count"] == 0
+        assert analyzer.observation_span_s() == 0.0
+        assert analyzer.window_bounds is None
+        assert analyzer.window_is_empty is True
+
+    def test_window_with_reversed_bounds_is_rejected(self):
+        analyzer = _window_analyzer()
+
+        with pytest.raises(ValueError, match="before"):
+            analyzer.restrict_to_window(12.0, 11.0)
+
+    def test_window_without_bounds_is_rejected(self):
+        analyzer = _window_analyzer()
+
+        with pytest.raises(ValueError, match="bounds"):
+            analyzer.restrict_to_window(None, 11.0)
+
+    def test_restricting_twice_is_rejected(self):
+        analyzer = _window_analyzer()
+        analyzer.restrict_to_window(11.0, 12.0)
+
+        with pytest.raises(RuntimeError, match="once"):
+            analyzer.restrict_to_window(11.0, 12.0)
+
+    def test_multi_track_labels_follow_the_cut(self):
+        df = _window_trajectory()
+        two = pd.concat([df.assign(track_id=1), df.assign(track_id=2, x_center_px=100.0)])
+        analyzer = _window_analyzer(two.sort_values("timestamp", kind="stable"))
+
+        analyzer.restrict_to_window(11.0, 12.0)
+
+        assert analyzer.is_multi_track
+        assert analyzer.track_labels.size == len(analyzer.trajectory_data) == 22
+        assert [p.size for p in analyzer.track_positions] == [11, 11]
+
+
+@settings(max_examples=40, deadline=None)
+@given(
+    start=st.integers(min_value=0, max_value=58),
+    length=st.integers(min_value=1, max_value=59),
+)
+def test_property_cut_never_changes_the_velocity_of_a_kept_sample(start, length):
+    """Cutting before or after does not move the velocity (it is computed whole)."""
+    end = min(start + length, 59)
+    full = _window_analyzer().calculate_velocity_timeseries()["v_mag"]
+    cut = _window_analyzer()
+
+    cut.restrict_to_window(10.0 + start / 10.0, 10.0 + end / 10.0)
+
+    v = cut.trajectory_data["v_mag"]
+    pd.testing.assert_series_equal(v, full.loc[v.index], check_names=False)
+
+
+@settings(max_examples=40, deadline=None)
+@given(
+    start=st.integers(min_value=0, max_value=58),
+    length=st.integers(min_value=1, max_value=59),
+)
+def test_property_window_distance_is_the_sum_of_inner_steps(start, length):
+    end = min(start + length, 59)
+    whole = _window_analyzer().trajectory_data
+    steps = np.hypot(whole["x_cm_smoothed"].diff(), whole["y_cm_smoothed"].diff())
+    cut = _window_analyzer()
+
+    cut.restrict_to_window(10.0 + start / 10.0, 10.0 + end / 10.0)
+
+    assert cut.calculate_total_distance() == pytest.approx(steps.iloc[start + 1 : end + 1].sum())
