@@ -1425,3 +1425,28 @@ modules:
         description: "inicio nunca atingido aparece como aguardando"
         find: 'WindowPhase.START_NOT_MET if self._evaluator.finished else WindowPhase.WAITING_START'
         replace: 'WindowPhase.WAITING_START'
+
+  arduino_event_routing:
+    source: src/zebtrack/core/main_view_model.py
+    tests:
+      - tests/core/test_main_view_model_arduino_event.py
+      - tests/test_live_batch_integration.py
+    mutations:
+      - id: code-zero-routed-to-legacy
+        description: "codigo 0 da sessao da grade iniciada pelo 1 volta a ir ao legado"
+        find: 'if live_coordinator.owns_arduino_events():'
+        replace: 'if live_coordinator.has_pending_external_trigger():'
+
+  arduino_trigger_session:
+    source: src/zebtrack/coordinators/live_camera_session_coordinator.py
+    tests:
+      - tests/test_live_batch_integration.py
+    mutations:
+      - id: triggered-session-forgotten
+        description: "a sessao iniciada pelo codigo 1 deixa de ser dona do codigo 0"
+        find: 'self._triggered_session_id = experiment_id if external_trigger_armed else None'
+        replace: 'self._triggered_session_id = None'
+      - id: any-session-claims-codes
+        description: "qualquer sessao da grade passa a reclamar os codigos do Arduino"
+        find: 'return session_id is not None and session_id == self._triggered_session_id'
+        replace: 'return session_id is not None'
