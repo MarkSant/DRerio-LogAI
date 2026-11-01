@@ -520,6 +520,7 @@ class RecordingSessionCoordinator(BaseCoordinator):
         """
         from zebtrack.core.services.external_trigger_gate import (
             ExternalTriggerDecision,
+            conflicting_triggers_message,
             decide_external_trigger,
         )
 
@@ -533,21 +534,24 @@ class RecordingSessionCoordinator(BaseCoordinator):
         if decision in (
             ExternalTriggerDecision.REJECT_NO_ARDUINO,
             ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE,
+            ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS,
         ):
+            if decision is ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS:
+                message = conflicting_triggers_message()
+            elif decision is ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE:
+                message = _(
+                    "The Arduino is not connected — check the cable "
+                    "and whether the port is in use by another program."
+                )
+            else:
+                message = _("External trigger mode requires a configured Arduino.")
             if self.event_bus:
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=payloads.ErrorOccurredPayload(
                             title=_("External Trigger Unavailable"),
-                            message=(
-                                _(
-                                    "The Arduino is not connected — check the cable "
-                                    "and whether the port is in use by another program."
-                                )
-                                if decision is ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE
-                                else _("External trigger mode requires a configured Arduino.")
-                            ),
+                            message=message,
                         ),
                     )
                 )

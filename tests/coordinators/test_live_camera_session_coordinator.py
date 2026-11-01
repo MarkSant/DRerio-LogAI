@@ -4,6 +4,7 @@ Focuses on the live camera session lifecycle and configuration.
 """
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
@@ -929,6 +930,47 @@ class TestSessionPersistenceAndTriggers:
 
         assert allowed is False
         mock_event_bus.publish.assert_called_once()
+
+    def test_conflicting_triggers_refuse_with_their_own_message(self, coordinator, mock_event_bus):
+        """Legacy trigger re-ticked over an Arduino analysis window (ADR-011)."""
+        from zebtrack.core.conditions.presets import external_trigger_preset
+        from zebtrack.core.services.external_trigger_gate import conflicting_triggers_message
+
+        coordinator_any: Any = coordinator
+        coordinator_any.arduino_manager = SimpleNamespace(is_connected=lambda: True)
+        project_data = {
+            "external_trigger_mode": True,
+            "use_arduino": True,
+            "analysis_window": external_trigger_preset().model_dump(mode="json", by_alias=True),
+        }
+
+        allowed = coordinator_any._external_trigger_allows_start(
+            context={"experiment_id": "exp1"}, project_data=project_data
+        )
+
+        assert allowed is False
+        assert coordinator.has_pending_external_trigger() is False
+        (event,) = [c.args[0] for c in mock_event_bus.publish.call_args_list]
+        assert event.data.message == conflicting_triggers_message()
+
+    def test_arduino_window_records_immediately(self, coordinator, mock_event_bus):
+        """PROCEED: the code becomes an engine event, the session is not armed."""
+        from zebtrack.core.conditions.presets import external_trigger_preset
+
+        coordinator_any: Any = coordinator
+        coordinator_any.arduino_manager = SimpleNamespace(is_connected=lambda: True)
+        project_data = {
+            "use_arduino": True,
+            "analysis_window": external_trigger_preset().model_dump(mode="json", by_alias=True),
+        }
+
+        allowed = coordinator_any._external_trigger_allows_start(
+            context={"experiment_id": "exp1"}, project_data=project_data
+        )
+
+        assert allowed is True
+        assert coordinator.has_pending_external_trigger() is False
+        mock_event_bus.publish.assert_not_called()
 
     def test_external_trigger_allows_start_armed(self, coordinator, mock_event_bus):
         coordinator_any: Any = coordinator

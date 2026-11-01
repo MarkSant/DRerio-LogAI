@@ -2175,6 +2175,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         """
         from zebtrack.core.services.external_trigger_gate import (
             ExternalTriggerDecision,
+            conflicting_triggers_message,
             decide_external_trigger,
             normalize_arduino_port,
         )
@@ -2187,6 +2188,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         if decision in (
             ExternalTriggerDecision.REJECT_NO_ARDUINO,
             ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE,
+            ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS,
         ):
             offline = decision is ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE
             log.error(
@@ -2196,7 +2198,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             )
             if self.event_bus is not None:
                 port = normalize_arduino_port((project_data or {}).get("arduino_port"))
-                if offline:
+                if decision is ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS:
+                    message = conflicting_triggers_message()
+                elif offline:
                     port_suffix = _(" (port {port})").format(port=port) if port else ""
                     message = _(
                         "This project uses External Trigger Mode, but the Arduino "

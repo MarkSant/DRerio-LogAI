@@ -51,10 +51,10 @@ modules:
       - id: trigger-off-arms
         description: "gatilho desligado passa a armar em vez de gravar direto"
         find: |-
-          if not trigger_requested:
+          if not trigger_requested and not window_needs_arduino:
                   return ExternalTriggerDecision.PROCEED
         replace: |-
-          if not trigger_requested:
+          if not trigger_requested and not window_needs_arduino:
                   return ExternalTriggerDecision.ARM_AND_WAIT
       - id: no-arduino-proceeds
         description: "gatilho ligado sem use_arduino GRAVA as cegas em vez de recusar"
@@ -70,6 +70,29 @@ modules:
           return str(value).strip()
         replace: |-
           return str(value)
+      # ---- v8 F5: analysis window that waits for the Arduino (ADR-011) ----
+      - id: window-arduino-arms
+        description: "janela com External(arduino) passa a ARMAR (esperar para gravar)"
+        find: |-
+          log.info("external_trigger_gate.window_waits_for_arduino")
+                  return ExternalTriggerDecision.PROCEED
+        replace: |-
+          log.info("external_trigger_gate.window_waits_for_arduino")
+                  return ExternalTriggerDecision.ARM_AND_WAIT
+      - id: both-configured-accepted
+        description: "gatilho legado + janela com Arduino passa a ser aceito"
+        find: 'if trigger_requested and window_needs_arduino:'
+        replace: 'if False:'
+      - id: window-arduino-not-checked
+        description: "janela com Arduino grava sem checar use_arduino nem a porta"
+        find: 'if not trigger_requested and not window_needs_arduino:'
+        replace: 'if not trigger_requested:'
+      - id: nested-arduino-node-missed
+        description: "so o no raiz da janela e olhado; External aninhado e ignorado"
+        find: |-
+          isinstance(node, External) and node.source == "arduino" for node in iter_nodes(root)
+        replace: |-
+          isinstance(node, External) and node.source == "arduino" for node in (root,)
 
   session_duration_resolver:
     source: src/zebtrack/core/services/session_duration_resolver.py
