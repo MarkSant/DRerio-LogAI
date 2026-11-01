@@ -71,8 +71,11 @@ def reporter_rois():
     ]
 
 
-def _build_context(settings, trajectory_df, rois, *, metadata=None):
-    """Helper: roda a análise completa e devolve um ``ReporterContext``."""
+def _build_context(settings, trajectory_df, rois, *, metadata=None, window=None):
+    """Helper: roda a análise completa e devolve um ``ReporterContext``.
+
+    ``window`` is an optional ``WindowResolution`` (ADR-011 analysis window).
+    """
     service = AnalysisService(settings_obj=settings)
     analysis = service.run_full_analysis_as_dto(
         arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
@@ -91,6 +94,7 @@ def _build_context(settings, trajectory_df, rois, *, metadata=None):
         trajectory_df=trajectory_df,
         video_height_px=480,
         video_path="/fake/video.mp4",
+        window=window,
     )
     return ReporterContext.from_analysis(analysis)
 

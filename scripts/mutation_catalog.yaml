@@ -1698,3 +1698,76 @@ modules:
         description: "metricas da janela e da gravacao inteira dividem a mesma entrada de cache"
         find: 'if window_key is not None:'
         replace: 'if False:'
+
+  report_window_columns:
+    source: src/zebtrack/analysis/data_transformer.py
+    tests:
+      - tests/analysis/test_data_transformer.py
+      - tests/analysis/test_data_transformer_roi_metrics.py
+    mutations:
+      - id: no-window-reported-as-status-none
+        description: "sem janela a coluna window_status vira 'none' em vez de NaN"
+        find: 'if window.get("status") in (None, "none"):'
+        replace: 'if window.get("status") is None:'
+      - id: window-columns-dropped
+        description: "colunas window_* somem do resumo e o unificado acusa schema_mismatch"
+        find: '        combined_data.update(window_columns(report))'
+        replace: '        pass'
+      - id: window-start-from-stop
+        description: "window_start_s passa a mostrar o STOP"
+        find: '"window_start_s": start.get("t_s"),'
+        replace: '"window_start_s": stop.get("t_s"),'
+      - id: censored-flag-from-present-at-start
+        description: "coluna latency_censored passa a ler o present_at_start"
+        find: 'combined_data[f"latency_censored_{roi_name}"] = censored.get(roi_name)'
+        replace: 'combined_data[f"latency_censored_{roi_name}"] = present_at_start.get(roi_name)'
+
+  word_report_window:
+    source: src/zebtrack/analysis/reporters/word_reporter.py
+    tests:
+      - tests/analysis/reporters/test_word_reporter.py
+    mutations:
+      - id: window-note-on-every-report
+        description: "relatorio sem janela ganha a secao de janela de analise"
+        find: |-
+          if status == "none":
+                      return
+        replace: |-
+          if False:
+                      return
+      - id: window-rows-in-summary-table
+        description: "linhas window_* (N/A) voltam a poluir a tabela do .docx"
+        find: 'df = df.drop(columns=[c for c in WINDOW_COLUMNS if c in df.columns])'
+        replace: 'df = df'
+      - id: relative-column-dropped
+        description: "log de eventos perde a coluna relativa ao START"
+        find: '            if window_start is not None:'
+        replace: '            if False:'
+      - id: relative-time-is-absolute
+        description: "coluna relativa ao START mostra o tempo absoluto"
+        find: '_to_seconds(value) - window_start for value in event_log_df["timestamp"]'
+        replace: '_to_seconds(value) for value in event_log_df["timestamp"]'
+
+  visualization_window_axes:
+    source: src/zebtrack/analysis/visualization_generator.py
+    tests:
+      - tests/analysis/test_visualization_generator.py
+    mutations:
+      - id: axis-zero-at-first-sample
+        description: "eixo de tempo volta a comecar na primeira deteccao em vez do START"
+        find: 'return pd.to_timedelta(float(bounds[0]), unit="s")'
+        replace: 'return index[0]'
+      - id: axis-label-unchanged
+        description: "rotulo do eixo nao avisa que o tempo e relativo ao START"
+        find: 'return "Time since window START (s)"'
+        replace: 'return "Time (s)"'
+
+  reporter_context_window:
+    source: src/zebtrack/analysis/reporters/reporter_context.py
+    tests:
+      - tests/analysis/reporters/test_reporter_context.py
+    mutations:
+      - id: legacy-context-ignores-window
+        description: "sumario parquet (caminho legado) analisa a gravacao inteira mesmo com janela"
+        find: '            window=window,'
+        replace: '            window=None,'

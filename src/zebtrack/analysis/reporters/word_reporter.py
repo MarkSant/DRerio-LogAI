@@ -7,6 +7,7 @@ reports in ``.docx`` format using ``python-docx`` and ``docxtpl``.
 from __future__ import annotations
 
 import io
+import json
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -19,7 +20,7 @@ from docx.document import Document as DocxDocument
 from docx.shared import Inches
 from docxtpl import DocxTemplate
 
-from zebtrack.analysis.data_transformer import DISPLAY_COLUMN_MAPPING
+from zebtrack.analysis.data_transformer import DISPLAY_COLUMN_MAPPING, WINDOW_COLUMNS
 from zebtrack.analysis.reporters.reporter_context import (
     INDIVIDUAL_REPORT_TEMPLATE,
     _,
@@ -48,6 +49,12 @@ def _format_time_minutes_seconds(seconds: float | None) -> str:
         minutes = int((seconds % 3600) // 60)
         secs = int(seconds % 60)
         return f"{hours}:{minutes:02d}:{secs:02d}"
+
+
+def _to_seconds(value: Any) -> float:
+    """An event-log timestamp (``Timedelta`` or seconds) as float seconds."""
+    total = getattr(value, "total_seconds", None)
+    return float(total()) if callable(total) else float(value)
 
 
 def _format_seconds_metric(seconds: float | None) -> str:
@@ -198,11 +205,15 @@ class WordReporter:
             document.add_paragraph(f"{key.replace('_', ' ').title()}: {value}")
         progress_callback(1 / total_steps, _("Metadata added"))
 
+        self._append_analysis_window_note(document)
+
         # Summary table
         document.add_heading(_("Metrics Summary"), level=2)
         df = ctx.tidy_data.drop(
             columns=[k for k in (ctx.metadata or {}).keys() if k in ctx.tidy_data.columns]
         )
+        # The window has its own section above; its columns stay in the xlsx.
+        df = df.drop(columns=[c for c in WINDOW_COLUMNS if c in df.columns])
 
         # Geotaxis column renaming for Word
         height_cm = float((ctx.metadata or {}).get("aquarium_height_cm", 0) or 0)
@@ -269,6 +280,82 @@ class WordReporter:
         self._append_roi_coverage_and_per_animal(document)
         self._append_roi_event_log(document, progress_callback, total_steps)
         self._append_validation_warnings(document, progress_callback, total_steps)
+
+    def _window(self) -> dict[str, Any]:
+        """``report["analysis_window"]`` (``{"status": "none"}`` without one)."""
+        report = getattr(self._ctx, "report", None) or {}
+        window = report.get("analysis_window") if isinstance(report, dict) else None
+        return window if isinstance(window, dict) else {"status": "none"}
+
+    def _window_start_s(self) -> float | None:
+        """START in seconds when the metrics were CUT to a window."""
+        window = self._window()
+        if window.get("applied") != "window":
+            return None
+        start = window.get("start") or {}
+        t_s = start.get("t_s")
+        return None if t_s is None else float(t_s)
+
+    def _append_analysis_window_note(self, document: DocxDocument) -> None:
+        """Caveat describing the analysis window, its rule and its status (ADR-011)."""
+        window = self._window()
+        status = window.get("status", "none")
+        if status == "none":
+            return
+        document.add_heading(_("Analysis Window"), level=2)
+        applied = window.get("applied")
+        start = window.get("start") or {}
+        stop = window.get("stop") or {}
+        if applied == "window":
+            document.add_paragraph(
+                _(
+                    "The metrics in this report cover only the analysis window, from START "
+                    "({start_s:.2f} s, frame {start_frame}) to STOP ({stop_s:.2f} s, frame "
+                    "{stop_frame}): {duration:.2f} s. Rates and percentages use this duration; "
+                    "ROI latencies are measured from START. Times in the event log and in the "
+                    "plots are relative to START."
+                ).format(
+                    start_s=float(start.get("t_s", 0.0)),
+                    start_frame=start.get("frame"),
+                    stop_s=float(stop.get("t_s", 0.0)),
+                    stop_frame=stop.get("frame"),
+                    duration=float(window.get("window_duration_s") or 0.0),
+                )
+            )
+        elif applied == "empty":
+            document.add_paragraph(
+                _(
+                    "The analysis window never started and its rule asks for empty metrics "
+                    "in that case: the window metrics of this report are empty."
+                )
+            )
+        else:
+            document.add_paragraph(
+                _(
+                    "The analysis window could not be applied (status: {status}); the "
+                    "metrics cover the whole recording."
+                ).format(status=status)
+            )
+        document.add_paragraph(_("Window status: {status}").format(status=status))
+        if window.get("reason"):
+            document.add_paragraph(_("Window end reason: {reason}").format(reason=window["reason"]))
+        if window.get("censored"):
+            document.add_paragraph(
+                _(
+                    "The STOP condition was not met before the recording ended; the window "
+                    "was closed at the end of the recording (censored)."
+                )
+            )
+        spec = window.get("spec")
+        if isinstance(spec, dict):
+            document.add_paragraph(
+                _("Rule ({spec_hash}): START = {start}; STOP = {stop}").format(
+                    spec_hash=window.get("spec_hash", ""),
+                    start=json.dumps(spec.get("start"), ensure_ascii=False, sort_keys=True),
+                    stop=json.dumps(spec.get("stop"), ensure_ascii=False, sort_keys=True),
+                )
+            )
+        document.add_paragraph(_("Clock: {clock}").format(clock=window.get("clock", "")))
 
     def _append_roi_reference_map(
         self,
@@ -451,14 +538,22 @@ class WordReporter:
             )
 
             event_log_df = event_log_df.rename(columns={"roi_name": "ROI", "event": _("Event")})
-
-            start_time = event_log_df["timestamp"].iloc[0]
+            # Absolute time on the recording's own clock (it used to start at the
+            # first EVENT, which is neither the video's zero nor the window's).
+            window_start = self._window_start_s()
+            relative_column = "__from_start__"
+            if window_start is not None:
+                event_log_df[relative_column] = [
+                    _to_seconds(value) - window_start for value in event_log_df["timestamp"]
+                ]
 
             table = document.add_table(rows=1, cols=len(event_log_df.columns))
             table.style = "Table Grid"
             for i, col_name in enumerate(event_log_df.columns):
                 if col_name == "timestamp":
                     table.cell(0, i).text = _("Time (mm:ss)")
+                elif col_name == relative_column:
+                    table.cell(0, i).text = _("Time from START (s)")
                 else:
                     table.cell(0, i).text = str(col_name)
 
@@ -466,10 +561,12 @@ class WordReporter:
                 cells = table.add_row().cells
                 for i, (col_name, value) in enumerate(row.items()):
                     if col_name == "timestamp":
-                        elapsed = (value - start_time).total_seconds()
+                        elapsed = _to_seconds(value)
                         minutes = int(elapsed // 60)
                         seconds = elapsed % 60
                         cells[i].text = f"{minutes:02d}:{seconds:06.3f}"
+                    elif col_name == relative_column:
+                        cells[i].text = f"{float(value):.3f}"
                     else:
                         cells[i].text = str(value)
         else:

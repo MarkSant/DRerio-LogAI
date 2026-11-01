@@ -157,7 +157,13 @@ def test_legacy_summary_columns_unchanged_in_name_order_and_value():
         "total_entradas_roi": 4,
     }
 
-    assert list(combined) == [*expected, "tempo_nao_observado_s"]
+    v8_flags = [
+        "latency_censored_ROI1",
+        "latency_present_at_start_ROI1",
+        "latency_censored_ROI2",
+        "latency_present_at_start_ROI2",
+    ]
+    assert list(combined) == [*expected, "tempo_nao_observado_s", *v8_flags]
     assert {key: combined[key] for key in expected} == expected
 
 

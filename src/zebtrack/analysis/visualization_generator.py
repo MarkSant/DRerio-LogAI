@@ -136,6 +136,20 @@ class VisualizationGenerator:
         self.frame_crop_box = frame_crop_box
         self.behavioral_config = behavioral_config or {}
 
+    def _time_origin(self, index: pd.Index) -> Any:
+        """Zero of the time axes: START with an analysis window, else the first sample."""
+        bounds = getattr(self.b_analyzer, "window_bounds", None)
+        if isinstance(bounds, tuple) and len(bounds) == 2:
+            return pd.to_timedelta(float(bounds[0]), unit="s")
+        return index[0]
+
+    def _time_axis_label(self) -> str:
+        """English, like every other axis label of these figures."""
+        bounds = getattr(self.b_analyzer, "window_bounds", None)
+        if isinstance(bounds, tuple) and len(bounds) == 2:
+            return "Time since window START (s)"
+        return "Time (s)"
+
     def _roi_geometry_to_cm(self, roi: ROI):
         """Convert ROI geometry from pixels to cm coordinates.
 
@@ -1006,13 +1020,14 @@ class VisualizationGenerator:
         sharp_turn_results = self.b_analyzer.calculate_sharp_turns(self.sharp_turn_threshold)
         sharp_turn_times = cast(pd.Series, sharp_turn_results["sharp_turns_timestamps"])
 
-        time_seconds = (angular_velocity.index - angular_velocity.index[0]).total_seconds()
+        origin = self._time_origin(angular_velocity.index)
+        time_seconds = (angular_velocity.index - origin).total_seconds()
 
         ax.plot(time_seconds, angular_velocity, label="Angular Velocity")
 
         if not sharp_turn_times.empty:
             sharp_turn_values = angular_velocity.loc[sharp_turn_times]
-            sharp_turn_time_seconds = (sharp_turn_times - angular_velocity.index[0]).total_seconds()
+            sharp_turn_time_seconds = (sharp_turn_times - origin).total_seconds()
             ax.plot(
                 sharp_turn_time_seconds,
                 sharp_turn_values,
@@ -1023,7 +1038,7 @@ class VisualizationGenerator:
 
         title = f"Angular Velocity - {self.metadata.get('experiment_id', 'Unknown')}"
         ax.set_title(title)
-        ax.set_xlabel("Time (s)")
+        ax.set_xlabel(self._time_axis_label())
         ax.set_ylabel("Angular Velocity (deg/s)")
         ax.legend()
         ax.grid(True)
@@ -1049,14 +1064,14 @@ class VisualizationGenerator:
             ax.set_title("Position vs. Time")
             return fig
 
-        time_seconds = (traj_data.index - traj_data.index[0]).total_seconds()
+        time_seconds = (traj_data.index - self._time_origin(traj_data.index)).total_seconds()
 
         ax.plot(time_seconds, traj_data["x_cm_smoothed"], label="X coordinate (cm)")
         ax.plot(time_seconds, traj_data["y_cm_smoothed"], label="Y coordinate (cm)")
 
         title = f"Position vs. Time - {self.metadata.get('experiment_id', 'Unknown')}"
         ax.set_title(title)
-        ax.set_xlabel("Time (s)")
+        ax.set_xlabel(self._time_axis_label())
         ax.set_ylabel("Position (cm)")
         ax.legend()
         ax.grid(True)
@@ -1099,12 +1114,12 @@ class VisualizationGenerator:
         )
         distances = pd.Series(distance_array, index=x_smoothed.index)
         cumulative_distance = distances.cumsum().fillna(0)
-        time_seconds = (traj_data.index - traj_data.index[0]).total_seconds()
+        time_seconds = (traj_data.index - self._time_origin(traj_data.index)).total_seconds()
 
         ax.plot(time_seconds, cumulative_distance)
         title = f"Cumulative Distance vs. Time - {self.metadata.get('experiment_id', 'Unknown')}"
         ax.set_title(title)
-        ax.set_xlabel("Time (s)")
+        ax.set_xlabel(self._time_axis_label())
         ax.set_ylabel("Cumulative Distance (cm)")
         return fig
 
@@ -1127,7 +1142,8 @@ class VisualizationGenerator:
             if thigmo_series.empty:
                 ax.text(0.5, 0.5, "No thigmotaxis data.", ha="center", va="center")
             else:
-                time_seconds = (thigmo_series.index - thigmo_series.index[0]).total_seconds()
+                origin = self._time_origin(thigmo_series.index)
+                time_seconds = (thigmo_series.index - origin).total_seconds()
                 ax.plot(time_seconds, thigmo_series, label="Distance to Wall", color="purple")
 
                 # Plot threshold line if configured
@@ -1139,7 +1155,7 @@ class VisualizationGenerator:
                     ax.axhline(y=thresh, color="r", linestyle="--", label=f"Wall Zone ({thresh}cm)")
 
                 ax.set_ylabel("Distance to Wall (cm)")
-                ax.set_xlabel("Time (s)")
+                ax.set_xlabel(self._time_axis_label())
                 ax.legend()
                 ax.grid(True)
         except Exception as e:
@@ -1175,7 +1191,8 @@ class VisualizationGenerator:
             elif geo_series.isna().all():
                 ax.text(0.5, 0.5, "Animal detected below arena bottom.", ha="center", va="center")
             else:
-                time_seconds = (geo_series.index - geo_series.index[0]).total_seconds()
+                origin = self._time_origin(geo_series.index)
+                time_seconds = (geo_series.index - origin).total_seconds()
                 ax.plot(time_seconds, geo_series, label="Distance to Bottom", color="brown")
 
                 # Plot threshold line if configured
@@ -1187,7 +1204,7 @@ class VisualizationGenerator:
                     )
 
                 ax.set_ylabel("Distance to Bottom (cm)")
-                ax.set_xlabel("Time (s)")
+                ax.set_xlabel(self._time_axis_label())
                 ax.legend()
                 ax.grid(True)
         except Exception as e:

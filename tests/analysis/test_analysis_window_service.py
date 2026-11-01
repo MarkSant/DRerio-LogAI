@@ -147,6 +147,7 @@ class TestResolve:
         assert resolution.window_duration_s == pytest.approx(2.0)
         assert resolution.reused is False
         assert resolution.clock == "pts"
+        assert resolution.to_report()["spec"] == _spec().model_dump(mode="json", by_alias=True)
         artifact = read_artifact(tmp_path / f"7_AnalysisWindow_{BASE}.json")
         assert artifact is not None
         assert artifact.spec_hash == spec_hash(_spec())
@@ -466,6 +467,7 @@ class TestResolutionReport:
             "clock": "pts",
             "on_start_not_met": "whole_recording",
             "missing_inputs": [],
+            "spec": None,
         }
         json.dumps(report)
 

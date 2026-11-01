@@ -139,6 +139,7 @@ class WindowResolution:
         warnings: User-facing warnings for the report, already translated.
         missing: What the spec needed and the recording lacks.
         aquarium_id: Aquarium the window belongs to (``None`` = single arena).
+        spec: The spec as stored (JSON form), for the report's rule note.
     """
 
     status: WindowStatusValue
@@ -153,6 +154,7 @@ class WindowResolution:
     warnings: tuple[str, ...] = field(default_factory=tuple)
     missing: tuple[str, ...] = field(default_factory=tuple)
     aquarium_id: int | None = None
+    spec: Mapping[str, Any] | None = None
 
     @property
     def met(self) -> bool:
@@ -217,6 +219,7 @@ class WindowResolution:
             "clock": self.clock,
             "on_start_not_met": self.on_start_not_met,
             "missing_inputs": list(self.missing),
+            "spec": None if self.spec is None else dict(self.spec),
         }
 
 
@@ -529,6 +532,7 @@ class AnalysisWindowService:
             artifact_path=artifact_path,
             missing=missing,
             aquarium_id=aquarium_id,
+            spec=spec.model_dump(mode="json", by_alias=True),
         )
         warnings = _report_warnings(resolution, online=online, has_objects=has_objects)
         return replace(resolution, warnings=tuple(warnings))
