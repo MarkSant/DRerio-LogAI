@@ -132,6 +132,7 @@ class MetricsCache:
         calibration: dict[str, Any],
         smoothing_window: int,
         smoothing_polyorder: int,
+        window_key: str | None = None,
     ) -> str:
         """
         Generate cache key from file content and parameters.
@@ -141,6 +142,9 @@ class MetricsCache:
             calibration: Calibration parameters dict
             smoothing_window: Trajectory smoothing window length
             smoothing_polyorder: Trajectory smoothing polynomial order
+            window_key: ``WindowResolution.cache_token()`` of the analysis
+                window (spec hash + bounds). ``None`` (no window) keeps the
+                pre-v8 key, so existing caches stay valid.
 
         Returns:
             Cache key string (filename safe)
@@ -161,7 +165,11 @@ class MetricsCache:
         smoothing_str = f"{smoothing_window}_{smoothing_polyorder}"
         smoothing_hash = hashlib.sha256(smoothing_str.encode()).hexdigest()[:4]
 
-        return f"{parquet_path.stem}_{parquet_hash}_{calib_hash}_{smoothing_hash}.json"
+        key = f"{parquet_path.stem}_{parquet_hash}_{calib_hash}_{smoothing_hash}"
+        if window_key is not None:
+            # Metrics of a window are not the recording's: same file, other numbers.
+            key += "_w" + hashlib.sha256(window_key.encode()).hexdigest()[:8]
+        return f"{key}.json"
 
     def get_base_metrics(
         self,
@@ -169,6 +177,7 @@ class MetricsCache:
         calibration: dict[str, Any],
         smoothing_window: int,
         smoothing_polyorder: int,
+        window_key: str | None = None,
     ) -> dict[str, Any] | None:
         """
         Load cached base metrics if available and valid.
@@ -178,12 +187,13 @@ class MetricsCache:
             calibration: Calibration parameters
             smoothing_window: Trajectory smoothing window
             smoothing_polyorder: Trajectory smoothing polynomial order
+            window_key: Analysis-window token (see :meth:`_cache_key`)
 
         Returns:
             Cached metrics dict or None if not available
         """
         cache_file = self.cache_dir / self._cache_key(
-            parquet_path, calibration, smoothing_window, smoothing_polyorder
+            parquet_path, calibration, smoothing_window, smoothing_polyorder, window_key
         )
 
         if not cache_file.exists():
@@ -217,6 +227,7 @@ class MetricsCache:
         smoothing_window: int,
         smoothing_polyorder: int,
         metrics: dict[str, Any],
+        window_key: str | None = None,
     ) -> None:
         """
         Save base metrics to cache.
@@ -227,9 +238,10 @@ class MetricsCache:
             smoothing_window: Trajectory smoothing window
             smoothing_polyorder: Trajectory smoothing polynomial order
             metrics: Base metrics dict to cache
+            window_key: Analysis-window token (see :meth:`_cache_key`)
         """
         cache_file = self.cache_dir / self._cache_key(
-            parquet_path, calibration, smoothing_window, smoothing_polyorder
+            parquet_path, calibration, smoothing_window, smoothing_polyorder, window_key
         )
 
         try:

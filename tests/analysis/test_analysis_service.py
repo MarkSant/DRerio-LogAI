@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from zebtrack.analysis.analysis_service import AnalysisService
+from zebtrack.analysis.analysis_window_service import WindowBound, WindowResolution
 from zebtrack.settings import Settings, load_settings
 
 
@@ -235,11 +236,11 @@ def test_analysis_window_is_always_reported(settings_obj: Settings):
     assert report["latency_present_at_start"] == {}
 
 
-def test_window_cut_is_not_silently_ignored(settings_obj: Settings):
+def test_a_window_that_is_not_a_resolution_is_refused(settings_obj: Settings):
     frames = range(30)
     df = _moving_track(frames, [f / 10 for f in frames], 1, 100.0)
 
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(TypeError, match="WindowResolution"):
         _run(settings_obj, df, fps=10.0, window=object())
 
 
@@ -266,3 +267,196 @@ def test_latency_flags_reach_the_report(settings_obj: Settings):
     (per_animal,) = roi["por_animal"].values()
     assert per_animal["latency_present_at_start"] == {"Left": True, "Far": False}
     assert report["analysis_window"] == {"status": "none"}
+
+
+# === Analysis window (ADR-011, F4b) ===
+
+
+def _window(start: float | None, stop: float | None, **kwargs) -> WindowResolution:
+    fields: dict = {"status": "complete", "spec_hash": "sha256:" + "a" * 64}
+    if start is not None and stop is not None:
+        fields["start"] = WindowBound(round(start * 10), start, "persist")
+        fields["stop"] = WindowBound(round(stop * 10), stop, "delay")
+    fields.update(kwargs)
+    return WindowResolution(**fields)
+
+
+def _rois():
+    from shapely.geometry import Polygon
+
+    from zebtrack.analysis.roi import ROI
+
+    return [
+        ROI("Left", Polygon([(0, 0), (60, 0), (60, 400), (0, 400)]), coordinate_space="px"),
+        ROI("Right", Polygon([(100, 0), (400, 0), (400, 400), (100, 400)]), "px"),
+        ROI("Far", Polygon([(350, 350), (400, 350), (400, 400), (350, 400)]), "px"),
+    ]
+
+
+def _walk() -> pd.DataFrame:
+    frames = range(45)
+    return _moving_track(frames, [round(f / 10, 9) for f in frames], 1, 100.0)
+
+
+def _run_full(settings_obj: Settings, **kwargs):
+    service = AnalysisService(settings_obj=settings_obj)
+    return service.run_full_analysis(
+        trajectory_df=_walk(),
+        pixelcm_x=10.0,
+        pixelcm_y=10.0,
+        video_height_px=400,
+        arena_polygon_px=_ARENA,
+        rois=[],
+        fps=10.0,
+        freezing_vel_threshold=1.0,
+        freezing_min_duration=1.0,
+        **kwargs,
+    )
+
+
+def test_window_report_is_complete(settings_obj: Settings):
+    report = _run(settings_obj, _walk(), fps=10.0, window=_window(1.0, 4.0))
+
+    window = report["analysis_window"]
+    assert window["status"] == "complete"
+    assert window["applied"] == "window"
+    assert window["start"] == {"frame": 10, "t_s": 1.0, "reason": "persist"}
+    assert window["stop"] == {"frame": 40, "t_s": 4.0, "reason": "delay"}
+    assert window["reason"] == "delay"
+    assert window["window_duration_s"] == pytest.approx(3.0)
+    assert window["censored"] is False
+    assert window["clock"] == "pts"
+    assert window["spec_hash"] == "sha256:" + "a" * 64
+    # The recording length stays the recording's; the window has its own.
+    assert report["comportamento_geral"]["duracao_video_s"] == pytest.approx(4.5)
+    assert report["comportamento_geral"]["total_frames_analisados"] == 31
+
+
+def test_window_distance_counts_only_steps_inside(settings_obj: Settings):
+    whole = _run(settings_obj, _walk(), fps=10.0)
+    cut = _run(settings_obj, _walk(), fps=10.0, window=_window(1.0, 4.0))
+
+    # 2 px/frame at 10 px/cm = 0.2 cm per step; 30 steps inside [1.0, 4.0].
+    assert cut["comportamento_geral"]["distancia_total_cm"] == pytest.approx(30 * 0.2, rel=0.05)
+    assert (
+        cut["comportamento_geral"]["distancia_total_cm"]
+        < (whole["comportamento_geral"]["distancia_total_cm"])
+    )
+
+
+def test_window_velocity_is_computed_before_the_cut(settings_obj: Settings):
+    full_v = _run_full(settings_obj)[1].trajectory_data["v_mag"]
+
+    report, b_analyzer, *_ = _run_full(settings_obj, window=_window(1.0, 4.0))
+
+    v = b_analyzer.trajectory_data["v_mag"]
+    assert v.index[0] == pd.Timedelta(seconds=1.0)
+    pd.testing.assert_series_equal(v, full_v.loc[v.index])
+    assert report["comportamento_geral"]["estatisticas_velocidade"]["mean"] == pytest.approx(
+        full_v.loc[v.index].mean()
+    )
+
+
+def test_window_latency_is_measured_from_start(settings_obj: Settings):
+    plain = _run(settings_obj, _walk(), fps=10.0, rois=_rois())
+    cut = _run(settings_obj, _walk(), fps=10.0, rois=_rois(), window=_window(1.0, 4.0))
+
+    plain_latency = plain["analise_roi"]["latencia_primeira_entrada"]["Right"]
+    cut_latency = cut["analise_roi"]["latencia_primeira_entrada"]["Right"]
+    assert plain_latency > 1.0
+    assert cut_latency == pytest.approx(plain_latency - 1.0)
+    # Never entered: the ceiling is the window length, flagged as censored.
+    assert cut["analise_roi"]["latencia_primeira_entrada"]["Far"] == pytest.approx(3.0)
+    assert cut["latency_censored"]["Far"] is True
+    assert plain["analise_roi"]["latencia_primeira_entrada"]["Far"] is None
+
+
+def test_window_subject_inside_at_start_has_latency_zero(settings_obj: Settings):
+    report = _run(settings_obj, _walk(), fps=10.0, rois=_rois(), window=_window(0.2, 4.0))
+
+    assert report["analise_roi"]["latencia_primeira_entrada"]["Left"] == 0.0
+    assert report["latency_present_at_start"]["Left"] is True
+    assert report["analise_roi"]["contagem_entradas"]["Left"] == 0
+    (per_animal,) = report["analise_roi"]["por_animal"].values()
+    assert per_animal["latency_present_at_start"]["Left"] is True
+
+
+def test_window_percentages_use_the_window(settings_obj: Settings):
+    report = _run(settings_obj, _walk(), fps=10.0, rois=_rois(), window=_window(1.0, 4.0))
+
+    times = report["analise_roi"]["tempo_gasto_por_roi"]
+    assert times["Left"]["seconds"] + times["Right"]["seconds"] <= 3.0 + 1e-9
+    right = times["Right"]
+    assert right["percentage"] == pytest.approx(right["seconds"] / 3.0 * 100, rel=1e-6)
+
+
+def test_start_not_met_analyses_the_whole_recording_with_a_warning(settings_obj: Settings):
+    warning = "window never started"
+    plain = _run(settings_obj, _walk(), fps=10.0, rois=_rois())
+    report = _run(
+        settings_obj,
+        _walk(),
+        fps=10.0,
+        rois=_rois(),
+        window=_window(None, None, status="start_not_met", warnings=(warning,)),
+    )
+
+    assert report["analysis_window"]["status"] == "start_not_met"
+    assert report["analysis_window"]["applied"] == "whole_recording"
+    assert report["analysis_window"]["window_duration_s"] is None
+    assert warning in report["validacao"]["avisos"]
+    assert report["comportamento_geral"]["distancia_total_cm"] == pytest.approx(
+        plain["comportamento_geral"]["distancia_total_cm"]
+    )
+    assert report["comportamento_geral"]["total_frames_analisados"] == 45
+
+
+def test_start_not_met_with_empty_policy_yields_empty_metrics(settings_obj: Settings):
+    report = _run(
+        settings_obj,
+        _walk(),
+        fps=10.0,
+        rois=_rois(),
+        window=_window(None, None, status="start_not_met", on_start_not_met="empty"),
+    )
+
+    assert report["analysis_window"]["applied"] == "empty"
+    assert report["analysis_window"]["window_duration_s"] == 0.0
+    assert report["comportamento_geral"]["distancia_total_cm"] == 0.0
+    assert report["comportamento_geral"]["total_frames_analisados"] == 0
+    assert report["analise_roi"]["tempo_gasto_por_roi"]["Right"]["seconds"] == 0.0
+    assert report["analise_roi"]["latencia_primeira_entrada"]["Right"] is None
+
+
+def test_whole_window_equals_no_window(settings_obj: Settings):
+    plain = _run(settings_obj, _walk(), fps=10.0, rois=_rois())
+    cut = _run(settings_obj, _walk(), fps=10.0, rois=_rois(), window=_window(0.0, 4.4))
+
+    for key in ("distancia_total_cm", "tortuosidade"):
+        assert cut["comportamento_geral"][key] == pytest.approx(plain["comportamento_geral"][key])
+    assert cut["analise_roi"]["contagem_entradas"] == plain["analise_roi"]["contagem_entradas"]
+    assert cut["analise_roi"]["latencia_primeira_entrada"]["Right"] == pytest.approx(
+        plain["analise_roi"]["latencia_primeira_entrada"]["Right"]
+    )
+
+
+def test_dto_carries_the_window(settings_obj: Settings):
+    service = AnalysisService(settings_obj=settings_obj)
+
+    result = service.run_full_analysis_as_dto(
+        trajectory_df=_walk(),
+        pixelcm_x=10.0,
+        pixelcm_y=10.0,
+        video_height_px=400,
+        arena_polygon_px=_ARENA,
+        rois=[],
+        fps=10.0,
+        metadata={"experiment_id": "W"},
+        roi_colors={},
+        freezing_vel_threshold=1.0,
+        freezing_min_duration=1.0,
+        window=_window(1.0, 4.0),
+    )
+
+    assert result.report["analysis_window"]["status"] == "complete"
+    assert result.behavioral_analyzer.window_bounds == (1.0, 4.0)

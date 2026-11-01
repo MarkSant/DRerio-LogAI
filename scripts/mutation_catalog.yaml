@@ -687,9 +687,13 @@ modules:
         find: '"analysis_window": {"status": "none"},'
         replace: '"analysis_window_removed": {"status": "none"},'
       - id: window-silently-ignored
-        description: "janela pedida passa a ser ignorada em silencio e o video inteiro e analisado"
-        find: '        if window is not None:'
-        replace: '        if False:'
+        description: "janela pedida passa a ser ignorada em silencio e o relatorio diz status none"
+        find: |-
+          if window is not None:
+                      report["analysis_window"] = window.to_report()
+        replace: |-
+          if False:
+                      report["analysis_window"] = window.to_report()
 
   report_fps:
     source: src/zebtrack/coordinators/report_generation_coordinator.py
@@ -1658,3 +1662,39 @@ modules:
         description: "condicao sem entrada (classe de contexto sem 3c) e avaliada como ausencia"
         find: '        if missing:'
         replace: '        if False:'
+
+  analysis_window_cut_service:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_service.py
+    mutations:
+      - id: cut-before-smoothing
+        description: "a trajetoria e recortada ANTES da suavizacao e a 1a amostra da janela perde o vizinho"
+        find: 'trajectory_subset = trajectory_df[available_cols].copy()'
+        replace: 'trajectory_subset = trajectory_df[available_cols][_window_row_mask(trajectory_df, window)].copy()'
+      - id: latency-t0-back-to-first-row
+        description: "a ROI deixa de ser recortada e a latencia volta a contar da primeira linha"
+        find: '                r_analyzer.restrict_to_window(cut[0], cut[1])'
+        replace: '                pass'
+      - id: window-warnings-dropped
+        description: "o aviso de inicio nao atingido nao chega ao relatorio"
+        find: 'validation_warnings.extend(window.warnings)'
+        replace: 'pass'
+      - id: empty-policy-ignored
+        description: "on_start_not_met=empty passa a analisar a gravacao inteira"
+        find: 'if window.is_empty:'
+        replace: 'if False:'
+      - id: frames-analysed-of-whole-recording
+        description: "total_frames_analisados volta a contar a gravacao inteira com janela"
+        find: 'frames_analysed = inside'
+        replace: 'frames_analysed = frames_analysed'
+
+  metrics_cache_window:
+    source: src/zebtrack/analysis/metrics_cache.py
+    tests:
+      - tests/analysis/test_metrics_cache.py
+    mutations:
+      - id: window-not-in-cache-key
+        description: "metricas da janela e da gravacao inteira dividem a mesma entrada de cache"
+        find: 'if window_key is not None:'
+        replace: 'if False:'
