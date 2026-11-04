@@ -106,6 +106,8 @@ DRerio LogAI utilizes two coexisting event bus systems to separate domain logic 
   `class_roles: {class id: role token}`. No publisher fills it yet; when it is `None` the overlay
   uses `gui.overlay_class_roles` (explicit maps only) and, without one, the 7.2 colours.
 
+### 3.5. Live Analysis Window State (v8)
+
 | Event Name                      | Payload Requirements                                                                       | Description                                  |
 | ------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------- |
 | `ANALYSIS_WINDOW_STATE_CHANGED` | `AnalysisWindowStatePayload(state, t_s, reason, on_start_not_met, on_stop, experiment_id)` | Phase of the LIVE analysis window changed.   |
