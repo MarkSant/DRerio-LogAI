@@ -22,9 +22,18 @@ from zebtrack.analysis.analysis_service import (
     resolve_mask_sidecar,
     resolve_sharp_turn_threshold,
 )
+from zebtrack.analysis.analysis_window_service import (
+    WindowResolution,
+    resolve_analysis_window,
+)
 from zebtrack.analysis.roi import ROI
-from zebtrack.analysis.roi_builder import build_roi_from_polygon
-from zebtrack.analysis.time_base import TimeBase, resolve_time_base, retime_from_ledger
+from zebtrack.analysis.roi_builder import build_roi_from_polygon, build_rois_from_zone_polygons
+from zebtrack.analysis.time_base import (
+    SOURCE_LEDGER,
+    TimeBase,
+    resolve_time_base,
+    retime_from_ledger,
+)
 from zebtrack.coordinators._unified_report_mixin import UnifiedReportMixin
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
@@ -162,6 +171,42 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             duration_s=time_base.duration_s,
         )
         return df, time_base
+
+    def _resolve_window(
+        self,
+        trajectory_path: Path | str,
+        df: pd.DataFrame,
+        rois: list[ROI],
+        *,
+        time_base: TimeBase,
+        entry: Any = None,
+        aquarium_id: int | None = None,
+        pixelcm: tuple[float, float] = (1.0, 1.0),
+    ) -> WindowResolution | None:
+        """The analysis window of one trajectory (ADR-011); ``None`` = whole recording.
+
+        ``df`` and ``rois`` must be in the SAME pixel space (each call site
+        passes the pair it hands to the analysis, or the raw pair). The ROI
+        rule is the analysis service's, so a ``RoiInside`` condition agrees
+        with the report's ROI numbers.
+        """
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        service = self.analysis_service
+        roi_rule = service.resolve_roi_rule() if service is not None else None
+        return resolve_analysis_window(
+            project_data,
+            trajectory_path,
+            video_entry=entry if isinstance(entry, dict) else None,
+            trajectory_df=df,
+            rois=rois,
+            aquarium_id=aquarium_id,
+            roi_rule=roi_rule,
+            settings_obj=self.settings_baseline,
+            pixelcm=pixelcm,
+            # A re-timed live trajectory is on the capture clock.
+            clock="capture_perf" if time_base.source == SOURCE_LEDGER else None,
+            mask_source=resolve_mask_sidecar(trajectory_path),
+        )
 
     @staticmethod
     def _report_fps(time_base: TimeBase, fallback_fps: float) -> float:
@@ -346,6 +391,17 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
 
         px_x, px_y = self._resolve_pixel_cm(aq_metadata, calib, loc_w, loc_h)
 
+        # One window per aquarium (ADR-011), from this aquarium's own files.
+        window = self._resolve_window(
+            trajectory_path,
+            df,
+            rois,
+            time_base=time_base,
+            entry=entry,
+            aquarium_id=aq_id,
+            pixelcm=(px_x, px_y),
+        )
+
         frame_crop = (off_x, off_y, loc_w, loc_h) if arena_polygon else None
         video_path_report = self._prepare_background_image(path, exp_id, aq_results_dir, frame_crop)
 
@@ -383,6 +439,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             video_path=video_path_report,
             frame_crop_box=frame_crop_for_viz,
             behavioral_config=params.get("behavioral_config"),
+            window=window,
         )
 
         report_base = self._build_aquarium_report_base(aq_metadata, aq_id)
@@ -464,6 +521,10 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
 
         px_x, px_y = self._resolve_pixel_cm(metadata, calib, loc_w, loc_h, px_x_orig, px_y_orig)
 
+        window = self._resolve_window(
+            traj_path, df, rois, time_base=time_base, entry=entry, pixelcm=(px_x, px_y)
+        )
+
         frame_crop = (off_x, off_y, loc_w, loc_h)
         video_path_report = self._prepare_background_image(
             path, exp_id, str(results_path), frame_crop
@@ -499,6 +560,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             frame_crop_box=None,
             behavioral_config=analysis_params.get("behavioral_config"),
             mask_sidecar_path=resolve_mask_sidecar(traj_path),
+            window=window,
         )
 
         report_paths = self._export_individual_outputs(analysis_result, str(results_path), exp_id)
@@ -731,6 +793,20 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 self.project_manager.project_data
             ).get("behavioral_config", {})
 
+        # Raw pixels on both sides: the context warps the trajectory itself.
+        window = self._resolve_window(
+            traj_path,
+            df,
+            build_rois_from_zone_polygons(
+                [[(float(x), float(y)) for x, y in p] for p in aq_zone.roi_polygons],
+                list(aq_zone.roi_names),
+            ),
+            time_base=time_base,
+            entry=video,
+            aquarium_id=aq_id,
+            pixelcm=(px_x, px_y),
+        )
+
         ctx = ReporterContext(
             trajectory_df=df,
             metadata=aq_meta,
@@ -746,6 +822,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             frame_crop_box=out.get("frame_crop_box"),
             behavioral_config=behavioral_config,
             settings_obj=settings,
+            window=window,
         )
 
         os.makedirs(aq_results_dir, exist_ok=True)
@@ -809,6 +886,18 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                     self.project_manager.project_data
                 ).get("behavioral_config", {})
 
+            window = self._resolve_window(
+                traj_path,
+                df,
+                build_rois_from_zone_polygons(
+                    [[(float(x), float(y)) for x, y in p] for p in zone_data.roi_polygons],
+                    list(zone_data.roi_names),
+                ),
+                time_base=time_base,
+                entry=video,
+                pixelcm=(px_x, px_y),
+            )
+
             ctx = ReporterContext(
                 trajectory_df=df,
                 metadata=meta,
@@ -822,6 +911,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 video_path=str(path),
                 behavioral_config=behavioral_config,
                 settings_obj=settings,
+                window=window,
             )
 
             os.makedirs(res_dir, exist_ok=True)

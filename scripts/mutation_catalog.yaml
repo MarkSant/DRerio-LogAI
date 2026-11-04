@@ -1771,3 +1771,49 @@ modules:
         description: "sumario parquet (caminho legado) analisa a gravacao inteira mesmo com janela"
         find: '            window=window,'
         replace: '            window=None,'
+
+  report_window_wiring:
+    source: src/zebtrack/coordinators/report_generation_coordinator.py
+    tests:
+      - tests/coordinators/test_report_generation_coordinator.py
+    mutations:
+      - id: standard-report-ignores-window
+        description: "relatorio individual analisa a gravacao inteira mesmo com janela no projeto"
+        find: |-
+          mask_sidecar_path=resolve_mask_sidecar(traj_path),
+                      window=window,
+        replace: |-
+          mask_sidecar_path=resolve_mask_sidecar(traj_path),
+                      window=None,
+      - id: aquarium-shares-window-of-aquarium-0
+        description: "cada aquario deixa de ter a propria janela"
+        find: |-
+          entry=entry,
+                      aquarium_id=aq_id,
+        replace: |-
+          entry=entry,
+                      aquarium_id=None,
+      - id: live-clock-not-propagated
+        description: "trajetoria re-datada pelo ledger e avaliada como se fosse PTS"
+        find: 'clock="capture_perf" if time_base.source == SOURCE_LEDGER else None,'
+        replace: 'clock=None,'
+
+  pipeline_runner_window:
+    source: src/zebtrack/core/video/analysis_pipeline_runner.py
+    tests:
+      - tests/core/video/test_analysis_pipeline_runner.py
+    mutations:
+      - id: runner-context-ignores-window
+        description: "pipeline de video unico/lote deixa de aplicar a janela"
+        find: |-
+          smoothing_polyorder=smoothing_polyorder,
+                      window=window,
+                  )
+
+              def _resolve_analysis_window(
+        replace: |-
+          smoothing_polyorder=smoothing_polyorder,
+                      window=None,
+                  )
+
+              def _resolve_analysis_window(

@@ -769,3 +769,151 @@ class TestRealTimeBase:
         )
 
         assert time_base.source == "trajectory_timestamps"
+
+
+_RESOLVE = "zebtrack.coordinators.report_generation_coordinator.resolve_analysis_window"
+
+
+def _frame_window_spec() -> dict:
+    from zebtrack.core.conditions import FrameReached, WindowSpec
+
+    spec = WindowSpec(start=FrameReached(frame=20), stop=FrameReached(frame=60))
+    return spec.model_dump(mode="json", by_alias=True)
+
+
+class TestAnalysisWindowWiring:
+    """Every report entry resolves the window the same way (ADR-011)."""
+
+    @patch("os.path.exists", return_value=True)
+    @patch("os.makedirs")
+    def test_standard_report_applies_the_project_window(
+        self, _mkdirs, _exists, mock_state_manager, mock_project_manager, mock_event_bus
+    ):
+        from zebtrack.analysis.analysis_service import AnalysisService
+        from zebtrack.settings import load_settings
+
+        settings = load_settings()
+        coordinator = ReportGenerationCoordinator(
+            state_manager=mock_state_manager,
+            project_manager=mock_project_manager,
+            settings_obj=settings,
+            event_bus=mock_event_bus,
+            analysis_service=AnalysisService(settings_obj=settings),
+        )
+        _wire_standard_report(coordinator, mock_project_manager, _ten_fps_trajectory())
+        mock_project_manager.project_data = {"analysis_window": _frame_window_spec()}
+        export = coordinator._export_individual_outputs
+        assert isinstance(export, MagicMock)
+
+        coordinator._generate_standard_report("video.mp4", "exp1", {}, {})
+
+        window = export.call_args.args[0].report["analysis_window"]
+        assert window["start"]["frame"] == 20
+        assert window["stop"]["frame"] == 60
+        assert window["window_duration_s"] == pytest.approx(4.0)
+
+    @patch("os.path.exists", return_value=True)
+    @patch("os.makedirs")
+    def test_standard_report_without_window_stays_whole(
+        self, _mkdirs, _exists, coordinator, mock_project_manager
+    ):
+        _wire_standard_report(coordinator, mock_project_manager, _ten_fps_trajectory())
+        coordinator.analysis_service = MagicMock()
+
+        coordinator._generate_standard_report("video.mp4", "exp1", {}, {})
+
+        kwargs = coordinator.analysis_service.run_full_analysis_as_dto.call_args.kwargs
+        assert kwargs["window"] is None
+
+    def test_multi_aquarium_report_gets_its_own_window(self, coordinator):
+        coordinator._read_trajectory = MagicMock(return_value=_ten_fps_trajectory())
+        coordinator._build_aquarium_report_base = MagicMock(return_value="base")
+        coordinator._export_individual_outputs = MagicMock()
+        coordinator._prepare_background_image = MagicMock(return_value=None)
+        coordinator.analysis_service = MagicMock()
+        out_info = {"results_dir": "dir", "parquet_files": {"trajectory": "aq2/traj.parquet"}}
+        sentinel = object()
+
+        with (
+            patch("os.path.exists", return_value=True),
+            patch(_RESOLVE, return_value=sentinel) as r,
+        ):
+            coordinator._process_single_aquarium_in_multi(
+                "path", "exp_id", {}, 1, out_info, None, {}, 30.0, 100, 100, {}
+            )
+
+        assert r.call_args.args[1] == "aq2/traj.parquet"
+        assert r.call_args.kwargs["aquarium_id"] == 1
+        kwargs = coordinator.analysis_service.run_full_analysis_as_dto.call_args.kwargs
+        assert kwargs["window"] is sentinel
+
+    def test_multi_aquarium_summary_gets_its_own_window(self, coordinator, tmp_path):
+        traj_p = tmp_path / "traj.parquet"
+        traj_p.write_text("data")
+        aquarium = MagicMock(id=0, polygon=[], roi_polygons=[], roi_names=[], roi_colors=[])
+        coordinator.project_manager.project_data = {"calibration": {}}
+        coordinator._read_trajectory = MagicMock(return_value=_ten_fps_trajectory())
+        coordinator._prepare_summary_geometry = MagicMock(
+            return_value=(10.0, 10.0, [], 100, [], {}, None)
+        )
+        out_info = {"results_dir": str(tmp_path), "parquet_files": {"trajectory": str(traj_p)}}
+        entry: dict[str, Any] = {"multi_aquarium_outputs": {"0": {"parquet_files": {}}}}
+        sentinel = object()
+
+        with (
+            patch("zebtrack.analysis.reporters.ReporterContext") as context,
+            patch("zebtrack.analysis.reporters.ParquetSummaryReporter"),
+            patch(_RESOLVE, return_value=sentinel) as r,
+        ):
+            coordinator._process_one_aquarium_summary(
+                entry,
+                "exp1",
+                "v.mp4",
+                0,
+                out_info,
+                MagicMock(aquariums=[aquarium]),
+                coordinator.settings,
+                [],
+            )
+
+        assert r.call_args.kwargs["aquarium_id"] == 0
+        assert context.call_args.kwargs["window"] is sentinel
+
+    def test_standard_summary_gets_the_window(self, coordinator, tmp_path):
+        traj_p = tmp_path / "3_CoordMovimento_exp1.parquet"
+        traj_p.write_text("data")
+        pm = coordinator.project_manager
+        pm.project_data = {"calibration": {}}
+        pm.resolve_results_directory.return_value = str(tmp_path)
+        pm.get_metadata_for_experiment.return_value = {"experiment_id": "exp1"}
+        coordinator._read_trajectory = MagicMock(return_value=_ten_fps_trajectory())
+        coordinator._resolve_summary_zone_data = MagicMock(
+            return_value=MagicMock(polygon=[], roi_polygons=[], roi_names=[], roi_colors=[])
+        )
+        coordinator._prepare_summary_geometry = MagicMock(
+            return_value=(10.0, 10.0, [], 100, [], {}, None)
+        )
+        video: dict[str, Any] = {"parquet_files": {"trajectory": str(traj_p)}}
+        sentinel = object()
+
+        with (
+            patch("zebtrack.analysis.reporters.ReporterContext") as context,
+            patch("zebtrack.analysis.reporters.ParquetSummaryReporter"),
+            patch(_RESOLVE, return_value=sentinel) as r,
+        ):
+            status, *_ = coordinator._process_standard_summary_video(
+                video, "exp1", "v.mp4", coordinator.settings, []
+            )
+
+        assert status == "completed"
+        assert r.call_args.args[1] == str(traj_p)
+        assert context.call_args.kwargs["window"] is sentinel
+
+    def test_live_trajectory_is_evaluated_on_the_capture_clock(self, coordinator):
+        from zebtrack.analysis.time_base import SOURCE_LEDGER, TimeBase
+
+        time_base = TimeBase(10.0, 10.0, 1.0, 0.0, 1.0, 0.1, SOURCE_LEDGER)
+        with patch(_RESOLVE, return_value=None) as r:
+            coordinator._resolve_window("t.parquet", _ten_fps_trajectory(), [], time_base=time_base)
+
+        assert r.call_args.kwargs["clock"] == "capture_perf"

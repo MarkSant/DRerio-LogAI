@@ -10,6 +10,7 @@ from zebtrack.analysis.analysis_service import (
     resolve_mask_sidecar,
     resolve_sharp_turn_threshold,
 )
+from zebtrack.analysis.analysis_window_service import resolve_analysis_window
 from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -464,6 +465,18 @@ class AnalysisControlViewModel:
                         except (IndexError, TypeError):
                             pass
 
+                # Raw trajectory and raw ROIs: the same pair the analysis gets.
+                window = resolve_analysis_window(
+                    self.project_manager.project_data or {},
+                    parquet_path,
+                    video_entry=entry if isinstance(entry, dict) else None,
+                    trajectory_df=df,
+                    rois=rois_list,
+                    roi_rule=self.analysis_service.resolve_roi_rule(),
+                    pixelcm=(pixelcm_x, pixelcm_y),
+                    mask_source=resolve_mask_sidecar(parquet_path),
+                )
+
                 analysis_result = self.analysis_service.run_full_analysis_as_dto(
                     trajectory_df=df,
                     pixelcm_x=pixelcm_x,
@@ -481,6 +494,7 @@ class AnalysisControlViewModel:
                     sharp_turn_threshold=resolve_sharp_turn_threshold(params, self.settings),
                     video_path=video_path,
                     mask_sidecar_path=resolve_mask_sidecar(parquet_path),
+                    window=window,
                 )
 
                 # Generate Reports

@@ -293,3 +293,78 @@ class TestReporterFrameRate:
 
     def test_without_timestamps_the_setting_is_used(self, runner, trajectory_df):
         assert self._create(runner, trajectory_df) == pytest.approx(30.0)
+
+
+@pytest.mark.unit
+class TestAnalysisWindowResolution:
+    """The pipeline runner resolves the window like every other entry (ADR-011)."""
+
+    _RESOLVE = "zebtrack.core.video.analysis_pipeline_runner.resolve_analysis_window"
+
+    def _zone(self) -> ZoneData:
+        zone = ZoneData()
+        zone.roi_polygons = [[(10, 10), (60, 10), (60, 60), (10, 60)]]
+        zone.roi_names = ["toca"]
+        return zone
+
+    def test_raw_rois_and_the_trajectory_reach_the_resolver(self, runner, trajectory_df):
+        from unittest.mock import patch
+
+        runner.project_manager.project_data = {"analysis_window": {"version": 1}}
+        runner.project_manager.find_video_entry.return_value = {"path": "v.mp4"}
+        sentinel = object()
+
+        with patch(self._RESOLVE, return_value=sentinel) as resolve:
+            window = runner._resolve_analysis_window(
+                trajectory_path="r/3_CoordMovimento_e.parquet",
+                filtered_df=trajectory_df,
+                zone_data=self._zone(),
+                video_path="v.mp4",
+            )
+
+        assert window is sentinel
+        args, kwargs = resolve.call_args
+        assert args[1] == "r/3_CoordMovimento_e.parquet"
+        assert kwargs["trajectory_df"] is trajectory_df
+        assert kwargs["video_entry"] == {"path": "v.mp4"}
+        (roi,) = kwargs["rois"]
+        assert roi.name == "toca"
+        assert roi.geometry.bounds == (10.0, 10.0, 60.0, 60.0)
+
+    def test_without_a_project_there_is_no_window(self, runner, trajectory_df):
+        runner.project_manager.project_data = None
+
+        window = runner._resolve_analysis_window(
+            trajectory_path="r/3_CoordMovimento_e.parquet",
+            filtered_df=trajectory_df,
+            zone_data=self._zone(),
+            video_path="v.mp4",
+        )
+
+        assert window is None
+        runner.project_manager.find_video_entry.assert_not_called()
+
+    def test_reporter_context_receives_the_window(self, runner, trajectory_df):
+        from unittest.mock import patch
+
+        sentinel = object()
+        with patch("zebtrack.core.video.analysis_pipeline_runner.ReporterContext") as context:
+            runner._create_reporter_instance(
+                filtered_df=trajectory_df,
+                metadata={},
+                calibration=SimpleNamespace(target_dims_px=(100, 100)),
+                arena_polygon_warped=[],
+                rois=[],
+                roi_colors={},
+                video_path="v.mp4",
+                pixelcm_x=1.0,
+                pixelcm_y=1.0,
+                sharp_turn_threshold=90.0,
+                freezing_threshold=1.5,
+                freezing_duration=1.0,
+                smoothing_window=5,
+                smoothing_polyorder=2,
+                window=sentinel,  # type: ignore[arg-type]
+            )
+
+        assert context.call_args.kwargs["window"] is sentinel
