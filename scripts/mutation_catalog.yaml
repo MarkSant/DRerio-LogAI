@@ -1817,3 +1817,21 @@ modules:
                   )
 
               def _resolve_analysis_window(
+
+  live_post_analysis_window:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: live-metrics-ignore-window
+        description: "pos-analise ao vivo calcula as metricas da gravacao inteira com janela definida"
+        find: '                    window=window,'
+        replace: '                    window=None,'
+      - id: unreadable-rule-silent
+        description: "regra de janela ilegivel some em silencio e o relatorio nao avisa"
+        find: 'return None, bool(raw)'
+        replace: 'return None, False'
+      - id: live-window-on-pts-clock
+        description: "artefato da sessao ao vivo passa a dizer relogio PTS"
+        find: 'clock="capture_perf")'
+        replace: 'clock=None)'

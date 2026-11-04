@@ -334,6 +334,113 @@ class TestPostAnalysisWiring:
         assert host.stopped_with == [False]
 
 
+def _frame_spec():
+    from zebtrack.core.conditions import FrameReached, WindowSpec
+
+    return WindowSpec(start=FrameReached(frame=1), stop=FrameReached(frame=2))
+
+
+def _seed_online(output_dir, spec, *, start_frame: int) -> None:
+    """The artifact the processing thread writes before the post-analysis starts."""
+    from zebtrack.core.conditions import (
+        AnalysisWindowArtifact,
+        ArtifactEvent,
+        OnlineWindow,
+        artifact_path,
+        write_artifact,
+    )
+
+    artifact = AnalysisWindowArtifact.for_spec(
+        spec,
+        clock="capture_perf",
+        online=OnlineWindow(start=ArtifactEvent(frame=start_frame, t_s=0.5, reason="frame")),
+    )
+    write_artifact(artifact_path(output_dir, "adhoc_exp"), artifact)
+
+
+class TestPostAnalysisWindow:
+    """ADR-011: the live post-analysis applies the OFFLINE window (F4b + F5)."""
+
+    def _run(self, tmp_path, monkeypatch, raw, *, online_start: int | None = None):
+        from unittest.mock import patch
+
+        output_dir = tmp_path / "live_20260822_140000"
+        output_dir.mkdir()
+        _write_trajectory(output_dir)
+        _write_ledger(output_dir)
+        if online_start is not None:
+            _seed_online(output_dir, _frame_spec(), start_frame=online_start)
+        host = PostAnalysisHost(
+            output_dir,
+            project_data={"calibration": {"pixelcm_x": 12.0, "pixelcm_y": 12.0}},
+            analysis_params={},
+        )
+        host._analysis_window_raw = raw  # type: ignore[attr-defined]
+        result = SimpleNamespace(validation_warnings=[])
+        service = MagicMock()
+        service.collect_analysis_parameters.return_value = {
+            "freezing_vel_threshold": 0.5,
+            "freezing_min_duration": 1.0,
+            "smoothing_window_length": 5,
+            "smoothing_polyorder": 2,
+            "behavioral_config": {},
+        }
+        service.run_full_analysis_as_dto.return_value = result
+        host._build_post_analysis_service = lambda: service  # type: ignore[method-assign]
+        monkeypatch.setattr(
+            "zebtrack.core.recording.live_analysis_post_processor.threading.Thread",
+            _ImmediateThread,
+        )
+        with (
+            patch("zebtrack.analysis.reporters.ExcelReporter"),
+            patch("zebtrack.analysis.reporters.WordReporter"),
+            patch("zebtrack.analysis.reporters.ReporterContext"),
+        ):
+            host._on_session_complete(output_dir, keep_data=True)
+        return output_dir, service.run_full_analysis_as_dto.call_args.kwargs["window"], result
+
+    def test_without_a_window_nothing_is_applied(self, tmp_path, monkeypatch):
+        _out, window, result = self._run(tmp_path, monkeypatch, None)
+
+        assert window is None
+        assert result.validation_warnings == []
+
+    def test_offline_window_on_the_capture_clock_is_applied(self, tmp_path, monkeypatch):
+        from zebtrack.core.conditions import artifact_path, read_artifact
+
+        raw = _frame_spec().model_dump(mode="json", by_alias=True)
+        output_dir, window, _result = self._run(tmp_path, monkeypatch, raw, online_start=1)
+
+        assert window is not None
+        assert window.start is not None and window.stop is not None
+        assert (window.start.frame, window.stop.frame) == (1, 2)
+        # Ledger instants (0.5 s, 1.0 s), not the processing timestamps (0.0, 0.1).
+        assert (window.start.t_s, window.stop.t_s) == pytest.approx((0.5, 1.0))
+        assert not any("live session" in w for w in window.warnings)
+        artifact = read_artifact(artifact_path(output_dir, "adhoc_exp"))
+        assert artifact is not None and artifact.offline is not None
+        assert artifact.offline.start is not None and artifact.offline.start.frame == 1
+        assert artifact.online.start is not None and artifact.online.start.frame == 1
+        assert artifact.clock == "capture_perf"
+
+    def test_divergent_online_window_is_reported(self, tmp_path, monkeypatch):
+        raw = _frame_spec().model_dump(mode="json", by_alias=True)
+
+        _out, window, _result = self._run(tmp_path, monkeypatch, raw, online_start=9)
+
+        assert window is not None and window.start is not None
+        assert window.start.frame == 1
+        assert any("frame 9" in w for w in window.warnings)
+
+    def test_unreadable_rule_analyses_everything_and_says_so(self, tmp_path, monkeypatch):
+        _out, window, result = self._run(
+            tmp_path, monkeypatch, {"version": 1, "start": {"kind": "nope"}}
+        )
+
+        assert window is None
+        assert any("analysis window" in w for w in result.validation_warnings)
+
+
 class TestPublishPostAnalysisStatus:
     def test_without_event_bus_is_a_noop(self):
         host = DummyPostProcessor(project_data={}, polygon=None, analysis_params={})

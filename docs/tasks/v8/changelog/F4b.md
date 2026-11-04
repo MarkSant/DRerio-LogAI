@@ -14,7 +14,7 @@ its pt_BR msgstr.
 - **Janela de análise aplicada às métricas** (ADR-011). A regra salva em
   `project_data["analysis_window"]` passa a valer em toda análise: relatório individual
   (vídeo padrão e multi-aquário, uma janela por aquário), sumários parquet, pipeline de
-  vídeo único/lote e geração de sumários. O recorte é híbrido: validação, suavização,
+  vídeo único/lote, geração de sumários e pós-análise da sessão ao vivo. O recorte é híbrido: validação, suavização,
   velocidade e presença em ROI (com debounce) rodam na gravação inteira e só então as
   métricas leem [START, STOP], com o índice de tempo absoluto preservado.
   - Denominadores passam a ser STOP − START (percentuais, curvas por minuto, inatividade
@@ -67,6 +67,7 @@ its pt_BR msgstr.
 | `analysis/reporters/reporter_context.py` (`window=`) | `tests/analysis/reporters/test_reporter_context.py::TestReporterContextWindow` + `--module reporter_context_window` |
 | `coordinators/report_generation_coordinator.py` (window wiring) | `tests/coordinators/test_report_generation_coordinator.py::TestAnalysisWindowWiring` + `--module report_window_wiring` |
 | `core/video/analysis_pipeline_runner.py` (window wiring) | `tests/core/video/test_analysis_pipeline_runner.py::TestAnalysisWindowResolution` + `--module pipeline_runner_window` |
+| `core/recording/live_analysis_post_processor.py` (window) | `tests/core/recording/test_live_analysis_post_processor.py::TestPostAnalysisWindow` + `--module live_post_analysis_window` |
 | Barnes acceptance (ADR-011) | `tests/integration/test_barnes_window_e2e.py` |
 ```
 
@@ -75,14 +76,17 @@ Mutation blocks added to `scripts/mutation_catalog.yaml` (F7: add them to
 (6), `window_observations` (8), `analysis_window_service` (8), `analysis_window_cut_service`
 (5), `metrics_cache_window` (1), `report_window_columns` (4), `word_report_window` (4),
 `visualization_window_axes` (2), `reporter_context_window` (1), `report_window_wiring` (3),
-`pipeline_runner_window` (1). The F1 mutation `video_duration::window-silently-ignored`
+`pipeline_runner_window` (1), `live_post_analysis_window` (3). The F1 mutation `video_duration::window-silently-ignored`
 targeted the `NotImplementedError` block, which no longer exists; it now targets the line
 that fills `report["analysis_window"]`.
 
-## Contract notes for F5 (live post-processor)
+## Live post-processor (wired after F5 was merged)
 
-`core/recording/live_analysis_post_processor.py` is NOT wired here. F5 calls the same entry
-every other path uses, right before `run_full_analysis_as_dto(..., window=window)`:
+`core/recording/live_analysis_post_processor.py` was wired by F4b once F5 landed
+(`_resolve_live_window`, step by step in [F5.md](F5.md), "Window hook: what was done"). It
+uses `AnalysisWindowService.resolve(..., clock="capture_perf")` directly because the live
+spec comes from `self._analysis_window_raw`, not from the project. A future live path that
+starts from the project can use the same entry every other path uses:
 
 ```python
 from zebtrack.analysis.analysis_window_service import resolve_analysis_window

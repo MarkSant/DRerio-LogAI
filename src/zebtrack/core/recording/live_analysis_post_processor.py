@@ -713,9 +713,13 @@ class LiveAnalysisPostProcessorMixin:
                         if key in self._analysis_params:
                             metadata[key] = self._analysis_params[key]
 
-                # Analysis window (ADR-011): NOT applied here yet. The integrator
-                # wires F4b's window resolution in at this call (see
-                # docs/tasks/v8/changelog/F5.md, "Window hook").
+                # Analysis window (ADR-011): the OFFLINE window, recomputed from
+                # what was recorded, governs the metrics; the online one written
+                # by the processing thread is kept in the artifact and compared.
+                window, window_unreadable = self._resolve_live_window(
+                    trajectory_file, df, rois, analysis_service
+                )
+
                 analysis_result = analysis_service.run_full_analysis_as_dto(
                     trajectory_df=df,
                     pixelcm_x=pixelcm_x,
@@ -733,10 +737,18 @@ class LiveAnalysisPostProcessorMixin:
                     sharp_turn_threshold=resolve_sharp_turn_threshold(params, self.settings),
                     behavioral_config=params["behavioral_config"],
                     video_path=str(video_path),
+                    window=window,
                 )
 
                 # Clock warnings (no ledger, partial ledger) go into the report.
                 analysis_result.validation_warnings.extend(time_warnings)
+                if window_unreadable:
+                    analysis_result.validation_warnings.append(
+                        _(
+                            "The session's analysis window could not be read; the metrics "
+                            "cover the whole recording."
+                        )
+                    )
 
                 # Escala desconhecida: o aviso precisa entrar ANTES de
                 # ``ReporterContext.from_analysis`` — ``validation_warnings`` e
@@ -891,6 +903,46 @@ class LiveAnalysisPostProcessorMixin:
 
         lines = "\n".join(f"  • {describe_session_output(path)}" for path in files)
         return _("\n💡 Files generated:\n{lines}\n").format(lines=lines)
+
+    def _resolve_live_window(
+        self,
+        trajectory_file: Path,
+        df: pd.DataFrame,
+        rois: list[Any],
+        analysis_service: Any,
+    ) -> tuple[Any, bool]:
+        """Offline window of the session (ADR-011) and whether its rule was unreadable.
+
+        ``df`` is already re-timed on the capture clock, the clock of the
+        artifact's ``online`` instants and ``external_events``. The service
+        reads ``7_AnalysisWindow_<base>.json`` next to ``trajectory_file`` (the
+        processing thread wrote ``online`` there), fills ``offline``, keeps
+        ``online`` and warns when they diverge by more than one frame.
+
+        Returns:
+            ``(None, False)`` without a window; ``(None, True)`` when the stored
+            rule does not validate (the live runtime ran without it too, so the
+            whole recording is analysed and the report says why).
+        """
+        from zebtrack.analysis.analysis_window_service import AnalysisWindowService
+        from zebtrack.core.recording.condition_runtime import parse_window_spec
+        from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig
+
+        raw = getattr(self, "_analysis_window_raw", None)
+        spec = parse_window_spec(raw)
+        if spec is None:
+            return None, bool(raw)
+        rule = analysis_service.resolve_roi_rule()
+        window = AnalysisWindowService(
+            roi_rule=rule if isinstance(rule, RoiRuleConfig) else None
+        ).resolve(trajectory_file, spec, trajectory_df=df, rois=rois, clock="capture_perf")
+        log.info(
+            "live_camera_service.analysis_window.resolved",
+            status=window.status,
+            applied=window.applied,
+            reused=window.reused,
+        )
+        return window, False
 
     def _retime_live_trajectory(
         self, df: pd.DataFrame, trajectory_file: Path
