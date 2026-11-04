@@ -1,7 +1,7 @@
 # Live Camera & Analysis Reference
 
 **Status:** Canonical Reference
-**Last Updated:** February 2, 2026
+**Last Updated:** November 4, 2026
 **Category:** Reference (Diátaxis)
 
 ## 1. Overview
@@ -27,6 +27,32 @@ For multi-aquarium live analysis, the system:
 - Crops the full frame into $N$ sub-regions based on assigned aquariums.
 - Parallelizes detection using a `ThreadPoolExecutor` to maintain frame rates.
 - Re-maps local IDs to global IDs (`aquarium_id * 1000 + id`).
+
+### 3.2. Analysis Window, Capture Clock and Object Sidecar (v8)
+
+A live session can carry an **analysis window** (ADR-011): START/STOP conditions evaluated
+online by `core/recording/condition_runtime.ConditionRuntime`. The recording is always
+complete; the window only marks where the analysis starts and stops (and, with
+`on_stop="end_session"`, ends the session through the same "End and Save" path).
+
+- **Where the spec comes from:** live project → `project_data["analysis_window"]`; ad hoc →
+  the dialog config's `analysis_window`. Never the shared `Settings`.
+- **Clock:** every analysed frame is dated `t_capture_perf − t0_perf`, where `t0` is pinned on
+  the frame ledger by the capture thread at frame 1. The trajectory `timestamp` is a processing
+  clock and is never used to date an event.
+- **Inputs per frame:** class presence from `pop_class_observations()` (subject + context
+  roles of the detector's role map), subject ROIs by the same rule as the Arduino per-ROI
+  commands, and external events — Arduino codes (stamped by the serial reader at
+  `readline()`) and the **Mark start/stop** button of the live project controls.
+- **Arduino:** with a window, per-ROI commands run only inside it and the exit sweep runs at
+  its STOP. Codes the window waits for are claimed by the window and never start or stop a
+  session. See `external_trigger_gate` for the start-time rules.
+- **UI:** the external-trigger notice becomes a "waiting for the start condition" banner
+  (`ANALYSIS_WINDOW_STATE_CHANGED`), mirrored on the status bar and the preview status.
+- **Outputs:** `3c_Objetos_<base>.parquet` gets a heartbeat on EVERY analysed frame
+  (`clock="capture_perf"` in its metadata); `7_AnalysisWindow_<base>.json` gets the `online`
+  section and `external_events` at session end.
+- **Multi-aquarium:** the window is skipped in v8 (logged).
 
 ## 4. Operational Parameters
 

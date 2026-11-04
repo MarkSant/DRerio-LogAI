@@ -106,6 +106,23 @@ DRerio LogAI utilizes two coexisting event bus systems to separate domain logic 
   `class_roles: {class id: role token}`. No publisher fills it yet; when it is `None` the overlay
   uses `gui.overlay_class_roles` (explicit maps only) and, without one, the 7.2 colours.
 
+| Event Name                      | Payload Requirements                                                                       | Description                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| `ANALYSIS_WINDOW_STATE_CHANGED` | `AnalysisWindowStatePayload(state, t_s, reason, on_start_not_met, on_stop, experiment_id)` | Phase of the LIVE analysis window changed.   |
+
+- **Publisher:** `FrameProcessingMixin._post_window_state` (`core/recording/frame_processing_pipeline.py`)
+  computes the payload on the processing thread and publishes it through `root.after(0, ...)`,
+  i.e. on the Tk thread (`EventBusV2.publish` is synchronous). Published once when the session's
+  runtime is armed and on every phase change.
+- **Payload:** `state` is a `core.recording.condition_runtime.WindowPhase` token —
+  `waiting_start`, `in_analysis`, `finished`, `start_not_met`. `t_s` is the START instant while
+  in analysis and the STOP instant once finished, in seconds on the session's capture clock;
+  `None` while waiting or when never met.
+- **Subscriber:** `EventDispatcher._on_analysis_window_state_changed` →
+  `DialogManager.show_analysis_window_state`: the external-trigger notice becomes a generic
+  "waiting for the start condition" banner (highlighted while waiting / never met), and the
+  status bar carries the same sentence (ad hoc sessions have no project banner).
+
 ---
 
 ## 4. How to Use (Implementation Patterns)

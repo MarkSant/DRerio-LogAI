@@ -303,6 +303,7 @@ failure.
 | Event (UIEvents)               | Payload Keys        | Publishers            | Subscribers                    |
 | ------------------------------ | ------------------- | --------------------- | ------------------------------ |
 | `ANALYSIS_WINDOW_SPEC_CHANGED` | `spec`, `spec_hash` | `AnalysisWindowPanel` | `EventDispatcher` (status bar) |
+| `ANALYSIS_WINDOW_STATE_CHANGED` | `state`, `t_s`, `reason`, `on_start_not_met`, `on_stop`, `experiment_id` | live pipeline (`root.after`) | `EventDispatcher` → `DialogManager.show_analysis_window_state` (banner + status bar) |
 
 `spec` is `project_data["analysis_window"]` as just saved (`None` = whole recording). The
 panel lives in the Zone Configuration tab's left column and is rebound on
@@ -1125,7 +1126,23 @@ lives in `core/services/external_trigger_gate.py` and both paths consult it:
 ```python
 decide_external_trigger(project_data, arduino_manager=None) -> ExternalTriggerDecision
 # PROCEED | ARM_AND_WAIT | REJECT_NO_ARDUINO | REJECT_ARDUINO_OFFLINE
+# | REJECT_CONFLICTING_TRIGGERS (v8)
 ```
+
+**v8 (ADR-011).** The gate also reads `project_data["analysis_window"]`. A window with an
+`External(source="arduino")` node records EVERYTHING immediately and turns the code into a
+condition-engine event — it never arms (that would wait to record):
+
+| Situation | Decision |
+| --------- | -------- |
+| legacy `external_trigger_mode` on | `ARM_AND_WAIT` (unchanged) |
+| window with `External(arduino)`, `use_arduino` off | `REJECT_NO_ARDUINO` |
+| same, port offline | `REJECT_ARDUINO_OFFLINE` |
+| same, Arduino ready | `PROCEED` |
+| legacy trigger **and** an Arduino window | `REJECT_CONFLICTING_TRIGGERS` (`conflicting_triggers_message()`) |
+
+A window that does not validate counts as "no window". A converted v3 template turns the legacy
+flag off (F6); re-ticking it is the conflicting case.
 
 The function is pure (no I/O, no events) — each coordinator translates the
 decision into its own pending state and UI events. `use_arduino` is the source of
@@ -1157,10 +1174,18 @@ otherwise the Arduino can fire into a session with no arena. The two use separat
 slots (`_pending_live_context` for zones, `_pending_trigger_context` for the
 trigger) because a session can legitimately need both.
 
-`MainViewModel.on_arduino_event` routes to whichever coordinator actually has an
-armed session (probed on the reader thread, before the `root.after(0, ...)`
-marshalling), falling back to the legacy coordinator so unexpected start codes
-still get logged.
+`MainViewModel.on_arduino_event` routes to the grid coordinator while it
+`owns_arduino_events()` — a session armed waiting for code 1, OR the session code 1
+started, still running (its code 0 is the end of the protocol; until v8 the code 0 went
+to the legacy coordinator once the arm was cleared, and the grid session never stopped).
+Probed on the reader thread, before the `root.after(0, ...)` marshalling; otherwise the
+legacy coordinator gets it, so unexpected start codes still get logged. A grid session
+started any other way does not claim the codes.
+
+Codes an analysis window waits for never reach `MainViewModel`: the live pipeline
+registers `ArduinoManager.set_event_sink` for the session, the reader thread stamps each
+numeric line with `perf_counter` right after `readline()` and offers it to the sink first,
+and a claimed code stops there (§5.17).
 
 **Consequence for callers:** `start_live_project_session` returns `False` for
 three different reasons — genuine failure, awaiting zone confirmation, and armed
@@ -1470,6 +1495,43 @@ project, not the session. Use `disconnect()`, never
 next project would never reconnect.
 
 ---
+
+### 5.17. Live Analysis Window (v8, ADR-011)
+
+`core/recording/condition_runtime.ConditionRuntime` wraps the condition engine for one live
+session. The spec comes from `start_session(analysis_window=...)`: the project's
+`analysis_window` (grid and legacy project paths) or the dialog config (ad hoc); it is never
+written to the shared `Settings`.
+
+```text
+capture thread  frame 1 → FrameLedger.pin_origin(t_perf, t_wall)  (before queueing)
+processing loop start → _reset_condition_runtime()  (spec, role map, ArduinoManager sink)
+each ANALYSED frame while recording:
+  trajectory row (only with detections, processing-clock timestamp, schema unchanged)
+  3c_Objetos_ heartbeat + observations, t_event_s = t_capture_perf − t0  (every frame)
+  ConditionRuntime.step(t_capture_perf, classes from pop_class_observations,
+                        subject ROIs by ArduinoRoiEvaluator.occupied_rois, externals)
+    STOP confirmed → Arduino exit sweep NOW
+    on_stop="end_session" → root.after(0, finish_session_early)   (keep_data=True)
+    phase changed → preview status + ANALYSIS_WINDOW_STATE_CHANGED via root.after
+  per-ROI Arduino commands — only while the window is open
+loop end → finish() (end-of-stream STOP), 7_AnalysisWindow_<base>.json (online +
+           external_events; offline belongs to the analysis), sink cleared,
+           session-end sweep only if the window opened and never swept
+```
+
+- **Clock.** `t_s = t_capture_perf − t0_perf` of the ledger anchor — the origin
+  `retime_from_ledger` uses. The trajectory `timestamp` (processing clock) dates nothing.
+  Holds are evaluated in capture seconds; a `Hold(frames=...)` is warned (duplicates from
+  camera polling and two decimation cadences).
+- **External events** (Arduino, "Mark start/stop" button) are stamped at their source and
+  delivered with the first analysed frame CAPTURED at or after the stamp.
+- **Session end by condition** never calls `_on_session_complete(output_dir)` raw: an early
+  stop without `keep_data` falls into the 50 % heuristic (`.cancelled` + polygon erased).
+- **Multi-aquarium live** skips the window in v8 (warning); see the F5 fragment for the
+  separate "multi-aquarium live writes no rows" bug.
+- The live post-analysis re-times the trajectory from `6_FrameLedger_` before analysing
+  (`LiveAnalysisPostProcessorMixin._retime_live_trajectory`) and takes the recording's fps.
 
 ## 6. Common Pitfalls for Agents
 
