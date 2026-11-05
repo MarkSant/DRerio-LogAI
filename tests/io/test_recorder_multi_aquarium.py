@@ -523,6 +523,58 @@ class TestLiveSessionVideo:
         assert not list(tmp_path.rglob("*.mp4"))
 
 
+class TestLiveSessionVideoFailures:
+    """A failed start never leaves a half-open session behind."""
+
+    def test_unopenable_session_mp4_refuses_the_start(self, tmp_path, monkeypatch):
+        import cv2
+
+        class _Closed:
+            def isOpened(self):
+                return False
+
+        monkeypatch.setattr(cv2, "VideoWriter", lambda *_a, **_k: _Closed())
+        recorder = Recorder()
+
+        started = recorder.start_recording_multi_aquarium(
+            output_folder=str(tmp_path),
+            width=128,
+            height=48,
+            zones_by_aquarium=_TWO_AQUARIUMS,
+            session_video=True,
+        )
+
+        assert started is False
+        assert not recorder.is_multi_aquarium_mode()
+        assert recorder.is_capturing_video() is False
+        assert recorder.get_aquarium_recorders() == {}
+
+    def test_a_failing_aquarium_releases_the_session_mp4(self, tmp_path, monkeypatch):
+        recorder = Recorder()
+        original = Recorder.start_recording
+
+        def _second_fails(self, *args, **kwargs):
+            if kwargs.get("base_name", "").endswith("aquarium_2"):
+                return False
+            return original(self, *args, **kwargs)
+
+        monkeypatch.setattr(Recorder, "start_recording", _second_fails)
+
+        started = recorder.start_recording_multi_aquarium(
+            output_folder=str(tmp_path),
+            width=128,
+            height=48,
+            zones_by_aquarium=_TWO_AQUARIUMS,
+            base_name="sessao",
+            session_video=True,
+        )
+
+        assert started is False
+        assert recorder.video_writer is None
+        assert recorder.is_capturing_video() is False
+        assert not recorder.is_multi_aquarium_mode()
+
+
 class TestStopRecordingDispatch:
     """#635: ``stop_recording()`` is what the live ``stop_session`` calls.
 

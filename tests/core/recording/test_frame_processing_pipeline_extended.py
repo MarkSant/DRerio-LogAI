@@ -941,3 +941,34 @@ class TestLiveRecordingFps:
 
     def test_nothing_known_lets_the_recorder_use_the_settings(self):
         assert self._host()._live_recording_fps() is None
+
+
+class TestMultiAquariumObjectSidecarDegrades:
+    """The 3c sidecar is an audit aid: its failure never stops the recording."""
+
+    def _host(self, recorder):
+        host = object.__new__(FrameProcessingMixin)
+        host_any: Any = host
+        host_any.recorder = recorder
+        host_any._frame_ledger = _FakeLedger(T0)
+        return host
+
+    _ZONES = SimpleNamespace(aquariums=[SimpleNamespace(id=0, polygon=[[0, 0], [1, 1]])])
+
+    def test_a_failing_partitioned_writer_is_swallowed(self):
+        recorder = SimpleNamespace(
+            write_partitioned_object_data=MagicMock(side_effect=OSError("disk full"))
+        )
+
+        self._host(recorder)._write_object_frame(
+            0.1, 3, T0 + 1.0, [], multi_zone_data=self._ZONES
+        )  # must not raise
+
+        recorder.write_partitioned_object_data.assert_called_once()
+
+    def test_a_recorder_without_the_partitioned_writer_writes_nothing(self):
+        recorder = SimpleNamespace(write_object_data=MagicMock())
+
+        self._host(recorder)._write_object_frame(0.1, 3, T0 + 1.0, [], multi_zone_data=self._ZONES)
+
+        recorder.write_object_data.assert_not_called()
