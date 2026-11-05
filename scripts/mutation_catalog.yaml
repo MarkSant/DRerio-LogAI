@@ -2079,6 +2079,14 @@ modules:
         description: "fps do MP4 ignora a taxa medida no ledger da sessao"
         find: 'if ledger is not None and getattr(ledger, "row_count", 0) >= 30:'
         replace: 'if False:'
+      - id: camera-cursor-not-reset
+        description: "cursor da camera da sessao anterior trava a captura da seguinte"
+        find: |-
+          # Camera cursor of ``_read_camera_frame`` (#637).
+                      self._last_camera_seq = 0
+        replace: |-
+          # Camera cursor of ``_read_camera_frame`` (#637).
+                      pass
 
   live_recording_fps_start:
     source: src/zebtrack/core/recording/live_analysis_post_processor.py

@@ -651,3 +651,18 @@ def test_a_source_without_read_next_frame_is_stamped_and_paced_here(tmp_path):
     assert read is not None
     assert read.paced_by_camera is False
     assert read.t_perf >= before
+
+
+def test_a_new_session_restarts_the_camera_cursor(tmp_path):
+    """A new ``Camera`` numbers its reads from 1 again; the previous session's
+    cursor would make ``read_next_frame`` wait forever for a "newer" frame."""
+    harness = _PipelineHarness(tmp_path)
+    harness._last_camera_seq = 500  # left by the previous session's camera
+    harness._camera_frames_skipped = 7
+    for loop in ("_capture_loop", "_processing_loop", "_video_recording_loop"):
+        setattr(harness, loop, lambda: None)
+
+    assert harness._start_threads() is True
+
+    assert harness._last_camera_seq == 0
+    assert harness._camera_frames_skipped == 0
