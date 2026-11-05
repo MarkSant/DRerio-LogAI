@@ -302,6 +302,13 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   entregando 39–41: agora usa a taxa medida (ledger, senão a da câmera). A latência
   do closed-loop (`5_ClosedLoop_*`) passa a contar desde a leitura real do quadro,
   então os números de `capture_to_*` podem subir até um intervalo de quadro.
+- **Ao parar a sessão ao vivo, o fim da gravação sumia sem rastro (#636).** O
+  `stop_session` esvaziava as filas de uma vez: até ~600 quadros capturados (~20 s)
+  não entravam no MP4 nem ganhavam linha no `6_FrameLedger`, quebrando a promessa
+  de "uma linha por quadro capturado". Agora a captura para primeiro e a thread de
+  vídeo escreve o que está na fila, por até 2 s dentro do mesmo orçamento de 5 s
+  do encerramento; o que sobrar entra no ledger como `dropped_on_stop`.
+  Cancelamento manual não espera, porque a pasta é apagada.
 - **Sessão ao vivo com dois aquários não gravava nenhuma linha de trajetória
   (#635).** Os três defeitos apontados (o `start_time` do recorder pai nunca era
   definido, a escrita particionada tinha argumentos inválidos e o `TypeError` era

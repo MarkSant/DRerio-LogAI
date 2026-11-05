@@ -468,7 +468,9 @@ Live sessions additionally produce, per session folder:
 `6_FrameLedger` is what makes the session timeline reconstructible: it maps
 `3_CoordMovimento.frame` → real capture instant → real MP4 frame index, and
 records every frame loss (`dropped_queue_full`, `write_failed`,
-`not_recording`). **`3_CoordMovimento.timestamp` is a PROCESSING clock** — never
+`not_recording`, `dropped_on_stop`). At stop the capture thread ends first and the
+video thread drains its queue within the join budget (`_drain_video_queue_for_stop`);
+only what is left after that becomes `dropped_on_stop` — never a silent truncation (#636). **`3_CoordMovimento.timestamp` is a PROCESSING clock** — never
 use it for latency or to date an event. See
 [`docs/reference/system_integration.md`](docs/reference/system_integration.md)
 § 5.9.

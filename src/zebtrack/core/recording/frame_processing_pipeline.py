@@ -16,6 +16,7 @@ import cv2
 import numpy as np
 import structlog
 
+from zebtrack.core.recording.frame_ledger import OUTCOME_DROPPED_ON_STOP
 from zebtrack.i18n import _
 from zebtrack.io.camera import CapturedFrame
 
@@ -252,6 +253,9 @@ class FrameProcessingMixin:
             # Camera cursor of ``_read_camera_frame`` (#637).
             self._last_camera_seq = 0
             self._camera_frames_skipped = 0
+            # Stops ONLY the capture thread, so the video thread can drain its
+            # queue at stop time (#636); see ``_drain_video_queue_for_stop``.
+            self._capture_stop_event = threading.Event()
             self._video_frames_written = 0  # Reset counter
             # Ledger de frames da sessão: criado ANTES das threads (as duas
             # produzem linhas) e ligado à pasta de saída assim que o recorder
@@ -444,7 +448,7 @@ class FrameProcessingMixin:
 
         frame_count = 0
 
-        while not self.exit_event.is_set():
+        while not self.exit_event.is_set() and not self._capture_stop_requested():
             if not self.camera:
                 log.warning("live_camera_service.camera_not_initialized")
                 time.sleep(0.1)
@@ -2051,19 +2055,80 @@ class FrameProcessingMixin:
         except Exception:
             log.error("live_camera_service.analysis_window.artifact_failed", exc_info=True)
 
+    def _capture_stop_requested(self) -> bool:
+        """Whether the stop sequence asked the capture thread (only) to end."""
+        event = getattr(self, "_capture_stop_event", None)
+        return bool(event is not None and event.is_set())
+
+    def _drain_video_queue_for_stop(self, timeout_s: float) -> int:
+        """Stop capturing, then let the video thread write what is queued (#636).
+
+        The stop used to set ``exit_event`` and empty both queues at once: up to
+        ``video_queue.maxsize`` frames (~20 s) captured but never written, and,
+        since a recorded frame gets its ledger row only when the video thread
+        consumes it, never logged either — the end of the session vanished.
+
+        Order: the capture thread is told to stop (no new frames), then the
+        video thread, still running, empties the queue until it is empty or
+        ``timeout_s`` runs out. What is left is the caller's to record as
+        ``dropped_on_stop`` (``_clear_queues``).
+
+        Returns:
+            How many video frames are still queued.
+        """
+        deadline = time.monotonic() + max(0.0, float(timeout_s))
+        event = getattr(self, "_capture_stop_event", None)
+        if event is not None:
+            event.set()
+        capture = getattr(self, "capture_thread", None)
+        if capture is not None and capture.is_alive():
+            capture.join(timeout=max(0.0, deadline - time.monotonic()))
+        writer = getattr(self, "video_recording_thread", None)
+        while (
+            writer is not None
+            and writer.is_alive()
+            and not self.video_queue.empty()
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.02)
+        left = self.video_queue.qsize()
+        log.info(
+            "live_camera_service.video_queue_drained_for_stop",
+            frames_written=getattr(self, "_video_frames_written", 0),
+            frames_left=left,
+        )
+        return left
+
     def _clear_queues(self) -> None:
-        """Clear all queues."""
+        """Empty both queues; every discarded VIDEO frame gets its ledger row.
+
+        Analysis-queue items are dropped silently on purpose: the same frame is
+        (or was) in the video queue, whose item carries its ledger row. A video
+        item discarded here never reached the MP4, so it is recorded as
+        ``dropped_on_stop`` (#636): one ledger row per captured frame holds
+        up to the very end of the session.
+        """
         while not self.frame_queue.empty():
             try:
                 self.frame_queue.get_nowait()
             except queue.Empty:
                 break
 
+        dropped = 0
         while not self.video_queue.empty():
             try:
-                self.video_queue.get_nowait()
+                item = self.video_queue.get_nowait()
             except queue.Empty:
                 break
+            _frame, meta = _unpack_video_item(item)
+            self._ledger_record_meta(meta, OUTCOME_DROPPED_ON_STOP)
+            dropped += 1
+        if dropped:
+            log.warning(
+                "live_camera_service.video_frames_dropped_on_stop",
+                frames=dropped,
+                note="logged in 6_FrameLedger as dropped_on_stop",
+            )
 
     def _adjust_fps_dynamically(self, frame_number: int, processing_time: float) -> bool:
         """Adjust FPS dynamically based on processing performance.

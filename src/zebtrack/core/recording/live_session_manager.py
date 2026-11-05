@@ -53,6 +53,11 @@ class LiveSessionManagerMixin:
     #: ponta por ``test_stop_session_bounded_total_join_budget``.
     _max_join_wait_s: float = 5.0
 
+    #: Part of that same budget the video thread gets to write what is still
+    #: queued when the session stops (#636). Whatever it cannot write in time is
+    #: recorded in the ledger as ``dropped_on_stop`` instead of vanishing.
+    _stop_drain_timeout_s: float = 2.0
+
     # -- Typing stubs for attributes defined by LiveCameraService.__init__ --
     controller: MainViewModel | None
     state_manager: StateManager
@@ -118,6 +123,7 @@ class LiveSessionManagerMixin:
         def _setup_camera(self, camera_index: int) -> bool: ...
         def _start_threads(self) -> bool: ...
         def _clear_queues(self) -> None: ...
+        def _drain_video_queue_for_stop(self, timeout_s: float) -> int: ...
         def _on_session_complete(self, output_dir: Path, *, keep_data: bool = False) -> None: ...
         def _finalize_frame_ledger(self) -> None: ...
         def _live_object_metadata(self) -> Any: ...
@@ -1039,10 +1045,20 @@ class LiveSessionManagerMixin:
         # crash that killed the program right after the 30s timer expired.
         #
         # Correct order:
+        #   (0) stop CAPTURE only and let the video thread drain its queue,
+        #       bounded (#636) — skipped on a manual cancel, whose folder is
+        #       deleted below anyway
         #   (1) exit_event.set()  — tell workers to stop NEW iterations
-        #   (2) clear_queues()    — unblock any worker stuck on queue.get
+        #   (2) clear_queues()    — unblock any worker stuck on queue.get; the
+        #       video frames still queued get a ``dropped_on_stop`` ledger row
         #   (3) join threads      — wait for workers to actually exit
         #   (4) recorder.stop_recording() — NOW safe to close writers
+        # The drain is charged to the same total budget as the join below, so
+        # a hung session still stops within ``_max_join_wait_s``.
+        MAX_JOIN_WAIT_S = self._max_join_wait_s
+        wait_start = time.time()
+        if not (cancelled and not keep_data):
+            self._drain_video_queue_for_stop(min(self._stop_drain_timeout_s, MAX_JOIN_WAIT_S))
         self.exit_event.set()
         self._clear_queues()
         log.info("live_camera_service.queues_cleared_before_join")
@@ -1076,10 +1092,8 @@ class LiveSessionManagerMixin:
         # gravacao. Os arquivos continuavam no disco (o ``rmtree`` obedece ao
         # parametro ``cancelled``, nao a esta variavel), o que tornava a perda
         # invisivel: pasta cheia, projeto vazio, nenhum erro para o operador.
-        MAX_JOIN_WAIT_S = self._max_join_wait_s
         TICK_S = 0.1
         threads_hung = False
-        wait_start = time.time()
         while any(t is not None and t.is_alive() for _, t in threads_to_join):
             if time.time() - wait_start > MAX_JOIN_WAIT_S:
                 still_alive = [n for n, t in threads_to_join if t is not None and t.is_alive()]

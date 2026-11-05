@@ -2123,3 +2123,47 @@ modules:
           if False:
                       self._fps = float(fps)
                   fps = self._fps
+
+  # Issue #636: at stop the capture thread ends first, the video thread drains
+  # its queue within the join budget, and every video frame still queued gets a
+  # ``dropped_on_stop`` ledger row.
+  live_stop_drain:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_frame_ledger.py
+      - tests/core/recording/test_frame_processing_pipeline_extended.py
+    mutations:
+      - id: tail-dropped-silently
+        description: "quadro de video descartado no stop volta a sumir do ledger"
+        find: 'self._ledger_record_meta(meta, OUTCOME_DROPPED_ON_STOP)'
+        replace: 'None'
+      - id: capture-keeps-running
+        description: "captura continua durante a drenagem e enche a fila de novo"
+        find: 'while not self.exit_event.is_set() and not self._capture_stop_requested():'
+        replace: 'while not self.exit_event.is_set():'
+      - id: drain-does-not-wait
+        description: "o stop nao espera a thread de video escrever a fila"
+        find: 'and not self.video_queue.empty()'
+        replace: 'and False'
+      - id: capture-stop-leaks-into-next-session
+        description: "a parada da captura da sessao anterior impede a seguinte de capturar"
+        find: 'self._capture_stop_event = threading.Event()'
+        replace: 'pass'
+
+  live_stop_drain_order:
+    source: src/zebtrack/core/recording/live_session_manager.py
+    tests:
+      - tests/core/recording/test_live_session_stop_intent.py
+    mutations:
+      - id: stop-skips-the-drain
+        description: "stop_session volta a esvaziar as filas sem drenar"
+        find: 'self._drain_video_queue_for_stop(min(self._stop_drain_timeout_s, MAX_JOIN_WAIT_S))'
+        replace: 'None'
+      - id: drain-outside-the-budget
+        description: "a drenagem passa a somar ao orcamento total do encerramento"
+        find: 'min(self._stop_drain_timeout_s, MAX_JOIN_WAIT_S)'
+        replace: 'self._stop_drain_timeout_s'
+      - id: cancel-waits-for-the-drain
+        description: "cancelamento manual espera drenar uma pasta que sera apagada"
+        find: 'if not (cancelled and not keep_data):'
+        replace: 'if True:'
