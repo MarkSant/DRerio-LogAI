@@ -2029,6 +2029,101 @@ modules:
         find: '            windows=windows,'
         replace: '            windows=None,'
 
+  # Issue #637: one sensor frame = one pipeline frame, stamped at cap.read;
+  # one sampling cadence; the live MP4 at the rate the camera really delivers.
+  camera_read_next_frame:
+    source: src/zebtrack/io/camera.py
+    tests:
+      - tests/io/test_camera_lag.py
+    mutations:
+      - id: same-frame-handed-twice
+        description: "read_next_frame volta a entregar o mesmo quadro do sensor de novo"
+        find: 'lambda: self._frame_available and self._frame_seq > after_seq,'
+        replace: 'lambda: self._frame_available,'
+      - id: stamped-at-the-call
+        description: "instante de captura passa a ser o da chamada, nao o do cap.read"
+        find: 't_perf=self._last_read_perf,'
+        replace: 't_perf=time.perf_counter(),'
+      - id: measured-is-the-driver-value
+        description: "fps medido volta a ser o que o driver reporta"
+        find: 'return (len(stamps) - 1) / span'
+        replace: 'return float(self.actual_fps)'
+      - id: min-samples-ignored
+        description: "duas leituras ja viram taxa medida"
+        find: 'if len(stamps) < max(2, int(min_samples)):'
+        replace: 'if len(stamps) < 2:'
+
+  live_capture_timebase:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_frame_ledger.py
+      - tests/core/recording/test_frame_processing_pipeline_extended.py
+    mutations:
+      - id: polls-get-frame
+        description: "captura volta a sondar get_frame e duplicar quadros do sensor"
+        find: 'reader = getattr(self.camera, "read_next_frame", None)'
+        replace: 'reader = None'
+      - id: stamped-in-the-loop
+        description: "t_capture_perf volta a ser o instante do laco, nao o da leitura"
+        find: 'capture_perf = read.t_perf'
+        replace: 'capture_perf = time.perf_counter()'
+      - id: skipped-sensor-frames-not-counted
+        description: "quadros do sensor que o pipeline perdeu deixam de ser contados"
+        find: 'if last_seq > 0 and gap > 0:'
+        replace: 'if False:'
+      - id: second-decimation
+        description: "processamento volta a decimar pela contagem de quadros RECEBIDOS"
+        find: 'should_analyze = (frame_number % self.analysis_interval_frames) == 0'
+        replace: 'should_analyze = (frames_received % self.analysis_interval_frames) == 0'
+      - id: ledger-rate-ignored
+        description: "fps do MP4 ignora a taxa medida no ledger da sessao"
+        find: 'if ledger is not None and getattr(ledger, "row_count", 0) >= 30:'
+        replace: 'if False:'
+      - id: camera-cursor-not-reset
+        description: "cursor da camera da sessao anterior trava a captura da seguinte"
+        find: |-
+          # Camera cursor of ``_read_camera_frame`` (#637).
+                      self._last_camera_seq = 0
+        replace: |-
+          # Camera cursor of ``_read_camera_frame`` (#637).
+                      pass
+
+  live_recording_fps_start:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: mp4-at-settings-fps
+        description: "MP4 ao vivo volta a ser gravado com o fps das configuracoes"
+        find: 'fps = self._live_recording_fps()'
+        replace: 'fps = None'
+
+  recorder_live_fps:
+    source: src/zebtrack/io/recorder.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: single-ignores-fps
+        description: "start_recording ignora o fps medido da camera"
+        find: |-
+          log.warning("recorder.start.already_recording")
+                      return False
+                  if fps is not None and fps > 0:
+        replace: |-
+          log.warning("recorder.start.already_recording")
+                      return False
+                  if False:
+      - id: multi-ignores-fps
+        description: "MP4 da sessao multi-aquario ignora o fps medido"
+        find: |-
+          if fps is not None and fps > 0:
+                      self._fps = float(fps)
+                  fps = self._fps
+        replace: |-
+          if False:
+                      self._fps = float(fps)
+                  fps = self._fps
+
   # Issue #636: at stop the capture thread ends first, the video thread drains
   # its queue within the join budget, and every video frame still queued gets a
   # ``dropped_on_stop`` ledger row.

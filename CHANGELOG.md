@@ -289,6 +289,19 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
 
 ### Fixed
 
+- **Ao vivo, a base de tempo dos quadros (#637).** Três defeitos na mesma linha do
+  tempo. (1) O laço de captura sondava `camera.get_frame()` — que devolve o quadro
+  mais recente sem consumi-lo — a 1,5× o fps configurado: o mesmo quadro do sensor
+  virava dois quadros do pipeline, datados no instante da sondagem. Agora a câmera
+  entrega cada quadro uma vez (`Camera.read_next_frame`), com o instante em que o
+  `cap.read` o devolveu; quadros que o pipeline não acompanhou são contados
+  (`camera_frames_skipped` na âncora do ledger), nunca duplicados. (2) Havia duas
+  cadências: o ledger marcava `quadro % N` e o processamento analisava a cada N
+  quadros RECEBIDOS, de N a ~N² sob carga; agora só os múltiplos de N são
+  analisados. (3) O MP4 ao vivo era gravado a 30 fps nominais com a câmera
+  entregando 39–41: agora usa a taxa medida (ledger, senão a da câmera). A latência
+  do closed-loop (`5_ClosedLoop_*`) passa a contar desde a leitura real do quadro,
+  então os números de `capture_to_*` podem subir até um intervalo de quadro.
 - **Ao parar a sessão ao vivo, o fim da gravação sumia sem rastro (#636).** O
   `stop_session` esvaziava as filas de uma vez: até ~600 quadros capturados (~20 s)
   não entravam no MP4 nem ganhavam linha no `6_FrameLedger`, quebrando a promessa

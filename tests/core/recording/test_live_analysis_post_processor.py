@@ -480,9 +480,13 @@ class _MultiHost(LiveAnalysisPostProcessorMixin):
         self._multi_aq_detector = None
         self.project_manager = MagicMock()
         self.detector_service: Any = SimpleNamespace(detector=detector)
+        self.recording_fps: float | None = None
 
     def _live_object_metadata(self) -> Any:
         return None
+
+    def _live_recording_fps(self) -> float | None:
+        return self.recording_fps
 
 
 def _two_aquariums():
@@ -761,6 +765,69 @@ class TestMultiAquariumPostAnalysis:
 
         windows = service.run_multi_aquarium_analysis.call_args.kwargs["windows"]
         assert windows == {0: None, 1: None}
+
+
+class TestLiveMp4Rate:
+    """#637: the live MP4 was written at the settings' 30 fps while the camera
+    delivered 39-41: the video ran slow and re-processing it re-dated everything."""
+
+    @staticmethod
+    def _feed(recorder) -> None:
+        import numpy as np
+
+        for _ in range(3):
+            recorder.write_video_frame(np.zeros((480, 640, 3), dtype=np.uint8))
+
+    @staticmethod
+    def _mp4_fps(path) -> float:
+        import cv2
+
+        capture = cv2.VideoCapture(str(path))
+        try:
+            return float(capture.get(cv2.CAP_PROP_FPS))
+        finally:
+            capture.release()
+
+    def test_single_aquarium_mp4_runs_at_the_measured_rate(self, tmp_path):
+        from zebtrack.core.detection import ZoneData
+        from zebtrack.io.recorder import Recorder
+
+        recorder = Recorder(settings_obj=None)
+        host = _MultiHost(tmp_path, recorder, SimpleNamespace())
+        host.recording_fps = 40.0
+
+        assert host._start_live_recorder(ZoneData(), "sessao") is True
+        self._feed(recorder)
+        recorder.stop_recording()
+
+        assert self._mp4_fps(tmp_path / "sessao.mp4") == pytest.approx(40.0, abs=0.01)
+
+    def test_multi_aquarium_session_mp4_runs_at_the_measured_rate(self, tmp_path):
+        from zebtrack.io.recorder import Recorder
+
+        recorder = Recorder(settings_obj=None)
+        host = _MultiHost(tmp_path, recorder, SimpleNamespace())
+        host._live_multi_zone_data = _two_aquariums()
+        host.recording_fps = 40.0
+
+        assert host._start_live_recorder(None, "sessao") is True
+        self._feed(recorder)
+        recorder.stop_recording()
+
+        assert self._mp4_fps(tmp_path / "sessao.mp4") == pytest.approx(40.0, abs=0.01)
+
+    def test_unknown_rate_keeps_the_settings_value(self, tmp_path):
+        from zebtrack.core.detection import ZoneData
+        from zebtrack.io.recorder import Recorder
+
+        recorder = Recorder(settings_obj=None)
+        host = _MultiHost(tmp_path, recorder, SimpleNamespace())
+
+        host._start_live_recorder(ZoneData(), "sessao")
+        self._feed(recorder)
+        recorder.stop_recording()
+
+        assert self._mp4_fps(tmp_path / "sessao.mp4") == pytest.approx(30.0, abs=0.01)
 
 
 class TestLiveRoiBuilder:

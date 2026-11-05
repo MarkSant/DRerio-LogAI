@@ -17,6 +17,7 @@ import queue
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import numpy as np
@@ -400,7 +401,8 @@ def test_analysis_cadence_and_opportunistic_queueing(tmp_path):
 
     analysis = [r["pipeline_frame"] for r in rows if r["is_analysis_frame"]]
     assert analysis == [10]  # cadência determinística
-    # Enfileiramento oportunista: o parquet NÃO contém só múltiplos de 10.
+    # Enfileiramento oportunista: os outros quadros também vão à fila (exibição);
+    # desde o #637 só os múltiplos de 10 são ANALISADOS.
     assert all(r["queued_for_analysis"] for r in rows)
 
 
@@ -537,6 +539,133 @@ def test_origin_without_pin_is_the_first_timed_row(tmp_path):
     assert ledger.origin_perf == 50.0
     assert ledger.build_anchor()["t0_perf"] == 50.0
     ledger.finalize()
+
+
+# --------------------------------------------------------------------------- #
+# Capture time base (#637)
+# --------------------------------------------------------------------------- #
+
+
+class _SensorCamera:
+    """A ``Camera`` look-alike: a sensor thread at ``fps``, newest frame kept.
+
+    ``get_frame`` behaves like the real one (newest frame, not consumed), so a
+    loop polling it faster than the sensor repeats frames. ``read_next_frame``
+    hands each frame out once, stamped at its read. Frame ``k`` carries ``k``
+    in pixel ``[0, 0, 0]``; ``stamps[k]`` is its read instant.
+    """
+
+    _camera_index = 0
+
+    def __init__(self, fps: float, n_frames: int, exit_event: threading.Event) -> None:
+        self._cond = threading.Condition()
+        self._seq = 0
+        self._frame = FRAME.copy()
+        self.stamps: dict[int, float] = {}
+        self._exit = exit_event
+        self._thread = threading.Thread(target=self._run, args=(fps, n_frames), daemon=True)
+        self._thread.start()
+
+    def _run(self, fps: float, n_frames: int) -> None:
+        for k in range(1, n_frames + 1):
+            time.sleep(1.0 / fps)
+            frame = FRAME.copy()
+            frame[0, 0, 0] = k
+            with self._cond:
+                self._seq, self._frame = k, frame
+                self.stamps[k] = time.perf_counter()
+                self._cond.notify_all()
+        time.sleep(0.3)
+        self._exit.set()
+
+    def get_frame(self):
+        with self._cond:
+            if self._seq == 0:
+                return False, None
+            return True, self._frame.copy()
+
+    def read_next_frame(self, after_seq: int, timeout: float = 0.5):
+        from zebtrack.io.camera import CapturedFrame
+
+        with self._cond:
+            if not self._cond.wait_for(lambda: self._seq > after_seq, timeout=timeout):
+                return None
+            return CapturedFrame(self._frame.copy(), self._seq, self.stamps[self._seq], time.time())
+
+
+def test_each_sensor_frame_becomes_one_pipeline_frame(tmp_path):
+    """The capture loop polled ``get_frame`` at 1.5x the configured 30 fps: with
+    a 20 fps camera most sensor frames became two pipeline frames (#637)."""
+    harness = _PipelineHarness(tmp_path)
+    camera = _SensorCamera(fps=20.0, n_frames=12, exit_event=harness.exit_event)
+    harness.camera = cast(Any, camera)
+
+    rows = _run_pipeline(harness)
+    recorder = cast(Any, harness.recorder)
+    marks = [int(frame[0, 0, 0]) for frame in recorder.written]
+
+    assert marks == sorted(set(marks)), "a sensor frame was recorded twice"
+    assert len(rows) == len(marks)
+
+
+def test_capture_instant_is_the_sensor_read(tmp_path):
+    """``t_capture_perf`` was the instant of the POLL, not of ``cap.read``."""
+    harness = _PipelineHarness(tmp_path)
+    camera = _SensorCamera(fps=20.0, n_frames=8, exit_event=harness.exit_event)
+    harness.camera = cast(Any, camera)
+
+    rows = _run_pipeline(harness)
+    recorder = cast(Any, harness.recorder)
+    marks = [int(frame[0, 0, 0]) for frame in recorder.written]
+
+    assert marks
+    for row, mark in zip(rows, marks, strict=True):
+        assert row["t_capture_perf"] == pytest.approx(camera.stamps[mark], abs=1e-9)
+
+
+def test_sensor_frames_the_pipeline_missed_are_counted(tmp_path):
+    from zebtrack.io.camera import CapturedFrame
+
+    harness = _PipelineHarness(tmp_path)
+    handed = iter(
+        [CapturedFrame(FRAME.copy(), seq, float(seq), float(seq)) for seq in (1, 2, 5, 6)]
+    )
+    camera = SimpleNamespace(read_next_frame=lambda *_args, **_kwargs: next(handed))
+    harness.camera = cast(Any, camera)
+    harness._last_camera_seq = 0
+    harness._camera_frames_skipped = 0
+
+    reads = [harness._read_camera_frame() for _ in range(4)]
+
+    assert all(read is not None and read.paced_by_camera for read in reads)
+    assert harness._camera_frames_skipped == 2  # sensor frames 3 and 4
+    assert harness._last_camera_seq == 6
+
+
+def test_a_source_without_read_next_frame_is_stamped_and_paced_here(tmp_path):
+    harness = _PipelineHarness(tmp_path, n_frames=1)
+    before = time.perf_counter()
+
+    read = harness._read_camera_frame()
+
+    assert read is not None
+    assert read.paced_by_camera is False
+    assert read.t_perf >= before
+
+
+def test_a_new_session_restarts_the_camera_cursor(tmp_path):
+    """A new ``Camera`` numbers its reads from 1 again; the previous session's
+    cursor would make ``read_next_frame`` wait forever for a "newer" frame."""
+    harness = _PipelineHarness(tmp_path)
+    harness._last_camera_seq = 500  # left by the previous session's camera
+    harness._camera_frames_skipped = 7
+    for loop in ("_capture_loop", "_processing_loop", "_video_recording_loop"):
+        setattr(harness, loop, lambda: None)
+
+    assert harness._start_threads() is True
+
+    assert harness._last_camera_seq == 0
+    assert harness._camera_frames_skipped == 0
 
 
 # --------------------------------------------------------------------------- #

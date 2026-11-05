@@ -93,6 +93,7 @@ class LiveAnalysisPostProcessorMixin:
     if TYPE_CHECKING:
         # Defined by FrameProcessingMixin (earlier in the MRO); type-checker only.
         def _live_object_metadata(self) -> Any: ...
+        def _live_recording_fps(self) -> float | None: ...
 
     def _build_post_analysis_service(self) -> Any:
         """AnalysisService da pós-análise ao vivo, já com a regra de ROI resolvida.
@@ -1159,6 +1160,8 @@ class LiveAnalysisPostProcessorMixin:
         """
         width = self.camera.actual_width if self.camera else 640
         height = self.camera.actual_height if self.camera else 480
+        # The MP4 is written at the rate the camera really delivers (#637).
+        fps = self._live_recording_fps()
         multi = getattr(self, "_live_multi_zone_data", None)
         if multi is not None:
             if len(multi.aquariums) > 2:
@@ -1177,6 +1180,7 @@ class LiveAnalysisPostProcessorMixin:
                 base_name=base_name,
                 object_metadata=self._live_object_metadata(),
                 session_video=True,
+                fps=fps,
             )
             log.info(
                 "live_camera_service.recorder_started_multi_aquarium",
@@ -1193,6 +1197,7 @@ class LiveAnalysisPostProcessorMixin:
                 is_video_file=False,
                 base_name=base_name,
                 object_metadata=self._live_object_metadata(),
+                fps=fps,
             )
         )
 
