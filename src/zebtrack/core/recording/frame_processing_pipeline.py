@@ -70,6 +70,27 @@ def _unpack_video_item(item: Any) -> tuple[Any, VideoFrameMeta | None]:
     return item, None
 
 
+def _recorder_takes_video(recorder: Any) -> bool:
+    """Whether the recorder would write a video frame now.
+
+    Asks ``Recorder.is_capturing_video()``, which also covers the parent of a
+    multi-aquarium live session: it owns the session MP4 but never has
+    ``is_recording`` set, so the old ``is_recording and video_writer`` test
+    marked every frame of such a session ``not_recording`` (#635). Recorders
+    without the probe (or answering with something that is not a ``bool``,
+    as a ``MagicMock`` does) keep the old test.
+    """
+    if recorder is None:
+        return False
+    probe = getattr(recorder, "is_capturing_video", None)
+    if callable(probe):
+        verdict = probe()
+        if isinstance(verdict, bool):
+            return verdict
+    is_recording = getattr(recorder, "is_recording", False)
+    return bool(is_recording and getattr(recorder, "video_writer", None))
+
+
 class FrameProcessingMixin:
     """Mixin providing frame capture, processing, and recording threads.
 
@@ -124,6 +145,9 @@ class FrameProcessingMixin:
     _frame_skip_count: int
     _fps_adjustment_interval: int
     _multi_aq_detector: MultiAquariumDetector | None
+    #: Aquariums of a 2+-aquarium session (``None`` otherwise), resolved at
+    #: ``start_session``; see ``_resolve_session_multi_zone_data`` (#635).
+    _live_multi_zone_data: Any
     _experiment_id: str
     # Per-zone Arduino command state (lazily built once per live session).
     _arduino_zone_enabled: bool
@@ -536,7 +560,7 @@ class FrameProcessingMixin:
                 item = self.video_queue.get(timeout=0.5)
                 frame, meta = _unpack_video_item(item)
 
-                if self.recorder and self.recorder.is_recording and self.recorder.video_writer:
+                if _recorder_takes_video(self.recorder):
                     try:
                         self.recorder.write_video_frame(frame)
                         # ``video_frame_index`` vem do CONSUMIDOR: é o índice
@@ -907,9 +931,17 @@ class FrameProcessingMixin:
 
                     # Run detection
                     detector = self.detector_service.detector
+                    # The session's aquariums, NOT ``get_zone_data()``: that is the
+                    # aquarium-0 shim, never multi, so this branch was unreachable
+                    # and a 2-aquarium session ran the single detector (#635).
+                    multi_zone_data = self._session_multi_zone_data()
+                    is_multi_aquarium = multi_zone_data is not None
                     if detector:
-                        zone_data = self.project_manager.get_zone_data()
-                        is_multi_aquarium = hasattr(zone_data, "aquariums") and zone_data.aquariums
+                        zone_data = (
+                            multi_zone_data
+                            if multi_zone_data is not None
+                            else self.project_manager.get_zone_data()
+                        )
 
                         log.debug(
                             "live_camera_service.detection_attempt",
@@ -974,7 +1006,12 @@ class FrameProcessingMixin:
                         # isso a correção é feita no consumo.
                         timestamp = time.time() - self.recorder.start_time
                         class_observations = self._pop_class_observations()
-                        if detections:
+                        if is_multi_aquarium:
+                            # ``_run_multi_aquarium_detection`` already wrote the
+                            # rows, partitioned per aquarium; the parent recorder
+                            # has no trajectory of its own.
+                            pass
+                        elif detections:
                             self.recorder.write_detection_data(timestamp, frame_number, detections)
                             # Depois da trajetória e com as MESMAS detecções: o
                             # ``track_id`` que indexa a máscara é o que acabou de
@@ -999,7 +1036,11 @@ class FrameProcessingMixin:
                         # when something was detected, so without this "nothing
                         # there" and "frame not analysed" look the same.
                         self._write_object_frame(
-                            timestamp, frame_number, capture_ts, class_observations
+                            timestamp,
+                            frame_number,
+                            capture_ts,
+                            class_observations,
+                            multi_zone_data=multi_zone_data,
                         )
                     else:
                         log.warning(
@@ -1629,18 +1670,40 @@ class FrameProcessingMixin:
         frame_number: int,
         capture_ts: float | None,
         observations: list,
+        *,
+        multi_zone_data: Any = None,
     ) -> None:
         """One ``3c_Objetos_`` heartbeat (+ observations) for an analysed frame.
 
         ``timestamp`` is the trajectory's (processing clock, kept for the join);
         ``t_event_s`` is the CAPTURE clock, the one the analysis window uses.
+        A multi-aquarium session writes every aquarium's sidecar (one heartbeat
+        each, rows routed by aquarium polygon), which the per-aquarium window
+        of the post-analysis reads.
         DEGRADES, never raises — the recording is the data that does not return.
         """
+        t_event_s = self._capture_seconds(capture_ts)
+        if multi_zone_data is not None:
+            partitioned = getattr(self.recorder, "write_partitioned_object_data", None)
+            if not callable(partitioned):
+                return
+            polygons = {aq.id: aq.polygon for aq in multi_zone_data.aquariums}
+            try:
+                partitioned(timestamp, frame_number, t_event_s, observations, polygons)
+            # except Exception justified: recording-boundary — sidecar I/O cannot
+            # abort the session.
+            except Exception:
+                log.warning(
+                    "live_camera_service.object_sidecar_write_failed",
+                    frame_number=frame_number,
+                    exc_info=True,
+                )
+            return
         writer = getattr(self.recorder, "write_object_data", None)
         if not callable(writer):
             return
         try:
-            writer(timestamp, frame_number, self._capture_seconds(capture_ts), observations)
+            writer(timestamp, frame_number, t_event_s, observations)
         # except Exception justified: recording-boundary — sidecar I/O cannot
         # abort the session.
         except Exception:
@@ -1698,17 +1761,15 @@ class FrameProcessingMixin:
         )
         self._post_window_state(runtime)
 
+    def _session_multi_zone_data(self) -> Any:
+        """The session's aquariums when it films 2+ of them, else ``None``."""
+        return getattr(self, "_live_multi_zone_data", None)
+
     def _is_multi_aquarium_session(self) -> bool:
-        project_manager = getattr(self, "project_manager", None)
-        getter = getattr(project_manager, "get_zone_data", None)
-        if not callable(getter):
-            return False
-        try:
-            zone_data = getter()
-        # except Exception justified: a probe; "unknown" means single-aquarium.
-        except Exception:
-            return False
-        return bool(getattr(zone_data, "aquariums", None))
+        # Was a probe of ``project_manager.get_zone_data()``, the aquarium-0
+        # shim, which never carries ``aquariums``: the window was armed in
+        # 2-aquarium sessions and stepped with both aquariums' detections.
+        return self._session_multi_zone_data() is not None
 
     def _on_arduino_condition_event(self, code: int, t_read_perf: float) -> bool:
         """``ArduinoManager`` event sink (reader thread): hand the code to the window.

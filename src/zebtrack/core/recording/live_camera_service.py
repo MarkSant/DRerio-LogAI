@@ -32,6 +32,7 @@ from zebtrack.core.recording.live_session_manager import LiveSessionManagerMixin
 if TYPE_CHECKING:
     from tkinter import Misc
 
+    from zebtrack.core.detection import MultiAquariumZoneData
     from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
     from zebtrack.core.main_view_model import MainViewModel
     from zebtrack.core.project.project_manager import ProjectManager
@@ -281,6 +282,9 @@ class LiveCameraService(
 
         # Phase 4.3: Lazily-created MultiAquariumDetector (shares plugin w/ SingleDetector)
         self._multi_aq_detector: MultiAquariumDetector | None = None
+        # Aquariums of the current session when it films 2+ (#635); resolved
+        # at start_session, read by the recorder start and the processing thread.
+        self._live_multi_zone_data: MultiAquariumZoneData | None = None
 
         # Closed-loop latency logging (per live session; built lazily on the
         # first tracked Arduino trigger, finalized at session end).

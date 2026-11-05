@@ -1533,8 +1533,22 @@ loop end → finish() (end-of-stream STOP), 7_AnalysisWindow_<base>.json (online
   delivered with the first analysed frame CAPTURED at or after the stamp.
 - **Session end by condition** never calls `_on_session_complete(output_dir)` raw: an early
   stop without `keep_data` falls into the 50 % heuristic (`.cancelled` + polygon erased).
-- **Multi-aquarium live** skips the window in v8 (warning); see the F5 fragment for the
-  separate "multi-aquarium live writes no rows" bug.
+- **Multi-aquarium live** skips the window DURING the session (warning): it neither
+  gates the Arduino commands nor ends the session. The post-analysis applies one
+  OFFLINE window per aquarium (`_resolve_live_window(..., aquarium_id=)`, from each
+  `aquarium_N/3c_Objetos_*`) and passes `windows=` to `run_multi_aquarium_analysis` (#635).
+- **Multi-aquarium live recording (#635).** The session's aquariums are resolved ONCE,
+  at `start_session`, by `LiveAnalysisPostProcessorMixin._resolve_session_multi_zone_data`
+  (`get_multi_aquarium_zone_data`; 2+ aquariums, else `None`) and cached in
+  `_live_multi_zone_data`. `get_zone_data()` is the aquarium-0 shim and never says
+  "multi": the recorder start (`_start_live_recorder`, both start paths), the processing
+  loop's detector choice and `_is_multi_aquarium_session()` all read the cache. The
+  parent recorder (`start_recording_multi_aquarium(session_video=True)`) owns the session
+  clock, folder and ONE full-frame `<base>.mp4`; the ledger binds to that folder; the
+  sub-recorders write `aquarium_N/3_CoordMovimento_*` and `3c_Objetos_*` and no video.
+  `Recorder.stop_recording()` dispatches to `stop_recording_multi_aquarium()`. The
+  post-analysis looks for `aquarium_N/` trajectories BEFORE the top-level one and re-times
+  each on the session ledger (`_retime_live_trajectory(ledger_dir=, ledger_base=)`).
 - The live post-analysis re-times the trajectory from `6_FrameLedger_` before analysing
   (`LiveAnalysisPostProcessorMixin._retime_live_trajectory`) and takes the recording's fps.
 
