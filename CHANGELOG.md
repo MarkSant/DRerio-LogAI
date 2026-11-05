@@ -296,6 +296,22 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   vídeo escreve o que está na fila, por até 2 s dentro do mesmo orçamento de 5 s
   do encerramento; o que sobrar entra no ledger como `dropped_on_stop`.
   Cancelamento manual não espera, porque a pasta é apagada.
+- **Sessão ao vivo com dois aquários não gravava nenhuma linha de trajetória
+  (#635).** Os três defeitos apontados (o `start_time` do recorder pai nunca era
+  definido, a escrita particionada tinha argumentos inválidos e o `TypeError` era
+  engolido, o `stop` não descarregava os sub-recorders) ficavam atrás de um
+  quarto: o pipeline decidia "multi-aquário" por `get_zone_data()`, que é o shim
+  do aquário 0 e nunca tem `aquariums`, então o ramo particionado era
+  inalcançável — e com as zonas validadas no início a sessão gravava o aquário 0
+  sobre o quadro inteiro. Também não havia MP4 utilizável nem `6_FrameLedger`, e
+  a pós-análise procurava a trajetória só na raiz da sessão. Agora os aquários da
+  sessão são resolvidos uma vez por `get_multi_aquarium_zone_data()`; a sessão
+  grava um único `<base>.mp4` de quadro inteiro e um ledger na pasta da sessão,
+  e uma trajetória/`3c_Objetos_` por `aquarium_N/`; `Recorder.stop_recording()`
+  chega aos sub-recorders; a pós-análise re-data cada aquário pelo ledger
+  compartilhado e aplica uma janela de análise **offline** por aquário. A janela
+  continua não rodando **durante** a sessão com dois aquários (não controla o
+  Arduino nem encerra a sessão). Sessões de um aquário não mudam.
 - **O ByteTrack media o buffer de trilha perdida com o fps das configurações, não
   o do vídeo (#630).** `track_buffer` é contado em quadros e convertido com
   `frame_rate / 30`; com `settings.video_processing.fps` (30) num vídeo de Barnes

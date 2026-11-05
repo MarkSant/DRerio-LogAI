@@ -416,6 +416,39 @@ def test_opportunistic_queueing_marked_false_when_queue_is_full(tmp_path):
     assert all(r["outcome"] == "written" for r in rows)  # o vídeo não é afetado
 
 
+def test_multi_aquarium_session_frames_are_written_to_the_session_mp4(tmp_path):
+    """#635: the parent of a multi-aquarium session never has ``is_recording``.
+
+    The video thread tested ``is_recording and video_writer``, so every frame
+    of such a session was logged ``not_recording`` and no MP4 existed; the
+    ledger did not even bind, the parent having no ``output_folder``.
+    """
+    from zebtrack.core.detection import ZoneData
+    from zebtrack.io.recorder import Recorder
+
+    recorder = Recorder()
+    assert recorder.start_recording_multi_aquarium(
+        output_folder=str(tmp_path),
+        width=4,
+        height=4,
+        zones_by_aquarium={
+            0: ZoneData(polygon=[(0, 0), (2, 0), (2, 4), (0, 4)]),
+            1: ZoneData(polygon=[(2, 0), (4, 0), (4, 4), (2, 4)]),
+        },
+        base_name="exp",
+        session_video=True,
+    )
+    harness = _PipelineHarness(tmp_path, n_frames=6)
+    harness.recorder = cast(Any, recorder)
+
+    rows = _run_pipeline(harness)
+    recorder.stop_recording()
+
+    assert {r["outcome"] for r in rows} == {"written"}
+    assert [r["video_frame_index"] for r in rows] == list(range(6))
+    assert load_ledger(tmp_path, "exp"), "the ledger must bind to the session folder"
+
+
 def test_ledger_written_without_arduino(tmp_path):
     """O ledger não depende do caminho closed-loop (que exige bindings + ACK)."""
     harness = _PipelineHarness(tmp_path, n_frames=5)

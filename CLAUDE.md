@@ -214,6 +214,12 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
 - **Always use `ProjectManager.get_multi_aquarium_zone_data()`** in report-generation contexts. `get_zone_data()` returns only aquarium 0 (legacy compatibility shim).
 - Track IDs: `global_id = aquarium_id * 1000 + local_track_id`. Local IDs MUST stay <1000.
 - Sequential vs parallel processing toggle: `MultiAquariumZoneData.sequential_processing` (UI in `ui/components/zone_controls.py`).
+- **Live: the session's aquariums come from `_resolve_session_multi_zone_data()`, never
+  `get_zone_data()`.** Resolved once at `start_session` and cached in `_live_multi_zone_data`;
+  the recorder start, the processing loop and the window probe read it. Until #635 every
+  live "is it multi?" asked the aquarium-0 shim, so a 2-aquarium session recorded zero rows.
+  A live multi-aquarium session = one full-frame `<base>.mp4` + `6_FrameLedger` in the session
+  folder (parent recorder, `session_video=True`) and one trajectory per `aquarium_N/`.
 - See [`docs/reference/DOMAIN_GLOSSARY.md`](docs/reference/DOMAIN_GLOSSARY.md) and [`docs/archive/PHASES.md`](docs/archive/PHASES.md) for full data model.
 
 ### 🔑 Identidade do vídeo: o caminho, nunca o basename
