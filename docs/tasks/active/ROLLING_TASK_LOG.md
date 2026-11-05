@@ -10,7 +10,8 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 __ID:__ TASK-076
 __Agent:__ Claude Code (Opus 5.5) + agentes de implementação por frente
-__Status:__ In Progress 🚧
+__Status:__ Ready for release 🟡 (código, catálogo e documentação prontos; tag, release e DOI
+aguardam o mantenedor)
 __Branch:__ release/8.0 (frentes `feat/v8-*`, ver `docs/tasks/v8/PLAN.md`)
 __Description:__
 O programa supunha dois papéis fixos (aquário e peixe) e um tempo zero implícito (a primeira
@@ -28,6 +29,44 @@ __Critério de pronto:__
 - fps real, `duracao_video_s` por tempo e latência por borda de subida com t0 explícito.
 - Suíte completa (`pytest -m "" -n0`) verde; versão 8.0.0; branches no GitHub; sem PR nem merge
   na `main` sem ordem do mantenedor.
+
+__Resultado (F7, i18n/docs/versão, 2026-11-04):__
+
+- Frentes F0–F6, F4a e F4b integradas em `release/8.0`; F7 em `feat/v8-i18n-docs-release`
+  (7 commits: teste de sincronia do `.pot`, catálogo, generalização da interface, CHANGELOG,
+  versão, CLAUDE.md, documentação técnica + este registro).
+- `tests/i18n/test_pot_in_sync.py` re-extrai as msgids com o Babel e falha em qualquer uma fora do
+  `.pot` (estavam faltando 262 no `zebtrack` e 10 no `reporter`).
+- Catálogo pt_BR completo: 228 msgids novas ou órfãs traduzidas no primeiro passo e 54 da
+  generalização (`_pairs/v8_*.json`), "All catalogues are complete".
+- Interface generalizada de peixe/aquário para animal/arena (assistente, calibração, diálogos de
+  vídeo único e ao vivo, diagnóstico, editor de configuração, slots de peso, título dos scripts
+  exportados); o parágrafo "Definitions" do Word passou a ser traduzido. Nenhuma chave persistida
+  mudou.
+- Versão 8.0.0 nos cinco lugares do `RELEASE.md` + `docs/INDEX.md`, datada de 2026-11-04;
+  `RELEASE_NOTES_v8.0.0.md`; CHANGELOG sob `[Unreleased]` ("8.0.0 (unreleased)").
+- Gates: `pytest -q` 7858 passed / 4 skipped / 1 xfailed; `pytest -m gui -n0` 1306 passed;
+  `mutation_check.py --all` 312/312 (65 blocos); ruff, ruff format e mypy limpos.
+
+__Fica para depois (issues):__
+
+- Multi-aquário ao vivo não grava linhas de trajetória (xfail estrito da F5; três defeitos:
+  `start_time` do recorder pai, kwargs errados em `write_partitioned_detection_data`,
+  `stop_session` não para os sub-recorders) — e não tem janela de análise.
+- Congelamento com `fillna(0)` (linha 0 parece congelada) e blocos atravessando lacunas.
+- Distância total somando o salto através de lacunas de rastreamento.
+- Reporter HTML ainda com fps 30.
+- Espaço de coordenadas das máscaras `3b` não documentado/validado contra a trajetória.
+- Defaults de geotaxia/perspectiva (lateral) e teto de tigmotaxia herdados do zebrafish.
+- `_clear_queues` descarta a cauda sem linha no `6_FrameLedger`.
+- `frame_rate` do ByteTrack = fps da configuração (30): no Barnes a 9,9 fps o buffer fica ~3x mais
+  longo.
+- Editor de janela de análise no diálogo ao vivo ad hoc (o encanamento já repassa
+  `analysis_window`).
+- DOI de versão da 8.0.0 (só existe depois de publicar o release).
+- Corte de ~3,3 s no import de torch/ultralytics (`core/services/__init__.py`).
+- O aviso de divergência online/offline interpola `START`/`STOP` em inglês dentro da frase
+  traduzida (`analysis_window_service.py`); trocar por duas msgids completas.
 
 ### [2026-09-15] README para quem nunca abriu um terminal, instalador que instala os pré-requisitos, release 7.2.0
 
