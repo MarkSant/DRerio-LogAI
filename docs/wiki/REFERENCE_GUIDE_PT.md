@@ -151,6 +151,13 @@ Esta detecção automática também funciona no wizard (Model Selection Step), g
 | `<video>_summary.xlsx`              | Relatório tabular consolidado.              | Exportado por `Reporter`.                   |
 | `<video>_report.docx`               | Relatório Word com gráficos e mapas.        | Usa `matplotlib` + `docx`.                  |
 | `<video>_summary.parquet/csv`       | Formatos alternativos se escolhidos.        | Padrão: Excel.                              |
+| `3c_Objetos_<video>.parquet`        | Batimento por frame + detecções de sujeito e contexto (v8). | Desligável com `recorder.persist_object_sidecar`. |
+| `7_AnalysisWindow_<video>.json`     | Início e fim da janela de análise (v8).     | Só existe com janela de análise.            |
+
+Papéis de classe e janela de análise, passo a passo e com o exemplo do labirinto de Barnes:
+[Usar um peso com outras classes](user-guide/PRIMEIROS_PASSOS.md#usar-um-peso-com-outras-classes-papéis)
+e [Definir início e fim da análise](user-guide/PRIMEIROS_PASSOS.md#definir-início-e-fim-da-análise).
+Esquemas dos arquivos: [`docs/reference/data_schema.md`](../reference/data_schema.md).
 
 ---
 
