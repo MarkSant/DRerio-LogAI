@@ -592,3 +592,16 @@ def test_capture_stops_before_the_drain(tmp_path):
 
     assert harness._last_captured_frame == captured_at_stop
     assert len(rows) == captured_at_stop
+
+
+def test_a_new_session_captures_again_after_a_stop(tmp_path):
+    """The capture-only stop of the previous session must not leak into the next."""
+    harness = _PipelineHarness(tmp_path)
+    harness._capture_stop_event = threading.Event()
+    harness._capture_stop_event.set()  # what the previous stop left behind
+    for loop in ("_capture_loop", "_processing_loop", "_video_recording_loop"):
+        setattr(harness, loop, lambda: None)
+
+    assert harness._start_threads() is True
+
+    assert harness._capture_stop_requested() is False
