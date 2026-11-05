@@ -501,6 +501,17 @@ class BYTETracker:
         self.tracked_stracks = [t for t in self.tracked_stracks if t.state == TrackState.Tracked]
         self.tracked_stracks = joint_stracks(self.tracked_stracks, activated_starcks)
         self.tracked_stracks = joint_stracks(self.tracked_stracks, refind_stracks)
+        # Lost-pool bookkeeping, as in upstream ByteTrack (issue #630). Without it
+        # a re-found track stayed in BOTH lists, and ``remove_duplicate_stracks``
+        # -- which ties on duration because it is the same object -- dropped it
+        # from the TRACKED side: the animal was never emitted again. And an
+        # expired track stayed in the matching pool forever, absorbing
+        # detections, so ``max_time_lost`` (and the fps scaling it) had no effect.
+        self.lost_stracks = sub_stracks(self.lost_stracks, self.tracked_stracks)
+        self.lost_stracks = [t for t in self.lost_stracks if t.state != TrackState.Removed]
+        # Only the LAST update's removals: upstream's ever-growing list is a
+        # known leak, and nothing reads past removals.
+        self.removed_stracks = removed_stracks
 
         (
             self.tracked_stracks,

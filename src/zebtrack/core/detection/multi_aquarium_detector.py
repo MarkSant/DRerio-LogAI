@@ -51,6 +51,9 @@ class MultiAquariumDetector:
         settings_obj: Settings instance (injected, optional for backward compat).
         class_role_map: Roles of the model's classes (ADR-009). ``None`` builds
             the map from the aliases -- literally the 7.2 resolution.
+        source_fps: Real frame rate of the source (video ``CAP_PROP_FPS`` or the
+            camera's rate). Scales ByteTrack's lost-track buffer; ``None`` falls
+            back to ``settings.video_processing.fps`` with a warning (#630).
     """
 
     def __init__(
@@ -62,6 +65,7 @@ class MultiAquariumDetector:
         base_height: int = 720,
         settings_obj: "Settings | None" = None,
         class_role_map: ClassRoleMap | None = None,
+        source_fps: float | None = None,
     ) -> None:
         self.plugin = plugin
         if not self.plugin:
@@ -71,6 +75,7 @@ class MultiAquariumDetector:
         self.settings = settings_obj
         self.zone_scaler = zone_scaler
         self.post_processor = post_processor
+        self._source_fps: float | None = source_fps
         self.base_width = base_width
         self.base_height = base_height
 
@@ -130,6 +135,39 @@ class MultiAquariumDetector:
         observations = self._class_observations
         self._class_observations = {}
         return [item for aq_id in sorted(observations) for item in observations[aq_id]]
+
+    # =========================================================================
+    # Source frame rate (issue #630)
+    # =========================================================================
+
+    def set_source_fps(self, fps: float | None) -> None:
+        """Declare the real frame rate of the source being tracked.
+
+        Changing it makes ``_ensure_multi_trackers`` rebuild the trackers on the
+        next frame, because the rate is part of their parameter key.
+
+        Args:
+            fps: Real frames per second, or ``None`` when unknown.
+        """
+        self._source_fps = fps
+
+    @property
+    def source_fps(self) -> float | None:
+        """Real frame rate declared for the source (``None`` if unknown)."""
+        return self._source_fps
+
+    def _tracker_frame_rate(self) -> float:
+        """Frame rate to build a ByteTrack with; warns when it is the settings fallback."""
+        frame_rate, origin = DetectionPostProcessor.resolve_tracker_fps(
+            self.settings, self._source_fps
+        )
+        if origin != "source":
+            log.warning(
+                "multi_aquarium_detector.bytetrack.fps_fallback_to_settings",
+                frame_rate=frame_rate,
+                reason="source_fps_unknown",
+            )
+        return frame_rate
 
     def _inference_window(
         self, frame: np.ndarray, aquarium_id: int
@@ -305,7 +343,7 @@ class MultiAquariumDetector:
         )
 
         processing_interval = pp.get_processing_interval(self.settings)
-        frame_rate = pp.get_fps(self.settings)
+        frame_rate = self._tracker_frame_rate()
 
         try:
             self._byte_trackers_multi[aq.id] = BYTETracker(
@@ -382,6 +420,7 @@ class MultiAquariumDetector:
         track_buffer = pp.get_track_buffer(self.settings, self.plugin)
         max_dist = pp.get_max_center_distance(self.settings)
         iou_thresh = pp.get_iou_threshold(self.settings)
+        source_fps, _origin = pp.resolve_tracker_fps(self.settings, self._source_fps)
 
         params = (
             use_bytetrack,
@@ -390,6 +429,7 @@ class MultiAquariumDetector:
             track_buffer,
             max_dist,
             iou_thresh,
+            source_fps,
         )
 
         if self._multi_tracker_params == params:
@@ -415,7 +455,7 @@ class MultiAquariumDetector:
             for aq in self._aquariums:
                 if use_bytetrack:
                     interval = pp.get_processing_interval(self.settings)
-                    fps = pp.get_fps(self.settings)
+                    fps = self._tracker_frame_rate()
                     new_byte[aq.id] = BYTETracker(
                         args=SimpleNamespace(
                             track_thresh=track_thresh,
@@ -955,7 +995,7 @@ class MultiAquariumDetector:
             mot20=False,
         )
         processing_interval = pp.get_processing_interval(self.settings)
-        frame_rate = pp.get_fps(self.settings)
+        frame_rate = self._tracker_frame_rate()
 
         if aquarium_id is not None:
             if aquarium_id in self._byte_trackers_multi:

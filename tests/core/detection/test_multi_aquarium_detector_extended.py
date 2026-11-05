@@ -288,3 +288,75 @@ class TestClassRolesInTheMultiAquariumDetector:
 
         assert _classes(legacy.detect_partitioned(_frame()))[0] == [2, 3]
         assert _classes(explicit.detect_partitioned(_frame()))[0] == [2]
+
+
+# ---------------------------------------------------------------------------
+# Issue #630: per-aquarium ByteTrack follows the SOURCE frame rate.
+# ---------------------------------------------------------------------------
+
+
+def _fps_multi(source_fps):
+    settings_obj = load_settings()
+    settings_obj.video_processing.fps = 30
+    settings_obj.video_processing.processing_interval = 1
+    settings_obj.bytetrack.track_buffer = 30
+    settings_obj.tracking.use_bytetrack = True
+    plugin = MagicMock(spec=DetectorPlugin)
+    plugin.get_name.return_value = "MockDetectorPlugin"
+    plugin.detect.return_value = []
+    detector = MultiAquariumDetector(
+        plugin=plugin,
+        zone_scaler=ZoneScaler(500, 300),
+        post_processor=DetectionPostProcessor(),
+        base_width=500,
+        base_height=300,
+        settings_obj=settings_obj,
+        source_fps=source_fps,
+    )
+    detector.set_multi_aquarium_zones(
+        [AquariumData(id=0, polygon=_AQ0), AquariumData(id=1, polygon=_AQ1)],
+        actual_width=500,
+        actual_height=300,
+    )
+    return detector
+
+
+class TestMultiAquariumByteTrackFps:
+    # Each aquarium runs single_animal_mode, whose limit is buffer * 3.
+
+    def test_constructor_source_fps_scales_every_aquarium_tracker(self):
+        detector = _fps_multi(10.0)
+        detector._ensure_multi_trackers()
+
+        assert detector.source_fps == 10.0
+        assert {aq: t.buffer_size for aq, t in detector._byte_trackers_multi.items()} == {
+            0: 10,
+            1: 10,
+        }
+
+    def test_reset_keeps_the_source_rate(self):
+        detector = _fps_multi(10.0)
+        detector.reset_multi_aquarium_tracking()
+
+        assert all(t.buffer_size == 10 for t in detector._byte_trackers_multi.values())
+
+    def test_set_source_fps_rebuilds_on_the_next_ensure(self):
+        detector = _fps_multi(30.0)
+        detector._ensure_multi_trackers()
+        assert all(t.buffer_size == 30 for t in detector._byte_trackers_multi.values())
+
+        detector.set_source_fps(10.0)
+        detector._ensure_multi_trackers()
+
+        assert all(t.buffer_size == 10 for t in detector._byte_trackers_multi.values())
+
+    def test_unknown_source_falls_back_to_settings_with_a_warning(self, monkeypatch):
+        from zebtrack.core.detection import multi_aquarium_detector as module
+
+        warnings: list[str] = []
+        monkeypatch.setattr(module.log, "warning", lambda event, **kw: warnings.append(event))
+        detector = _fps_multi(None)
+        detector._ensure_multi_trackers()
+
+        assert all(t.buffer_size == 30 for t in detector._byte_trackers_multi.values())
+        assert "multi_aquarium_detector.bytetrack.fps_fallback_to_settings" in warnings

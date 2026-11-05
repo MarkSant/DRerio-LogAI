@@ -1032,6 +1032,13 @@ class _WorkerProcess(multiprocessing.Process):
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        # Real rate of THIS video: ByteTrack's lost-track buffer is counted in
+        # frames and must be scaled with it, not with settings.video_processing.fps
+        # (issue #630). 0/NaN from a broken container falls back with a warning.
+        source_fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+        set_source_fps = getattr(detector, "set_source_fps", None)
+        if callable(set_source_fps):
+            set_source_fps(source_fps)
 
         # 2. Setup Zones & Calibration
         # Use per-video zone data if available (batch processing), otherwise use default
@@ -1072,6 +1079,7 @@ class _WorkerProcess(multiprocessing.Process):
                 base_height=multi_base_height,
                 settings_obj=detector.settings,
                 class_role_map=getattr(detector, "class_role_map", None),
+                source_fps=source_fps,
             )
             multi_aq_detector.set_multi_aquarium_zones(
                 video_zone_data.aquariums,

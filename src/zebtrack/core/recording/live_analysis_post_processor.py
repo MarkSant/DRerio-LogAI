@@ -1290,6 +1290,8 @@ class LiveAnalysisPostProcessorMixin:
                     # aliases, ADR-009). Without them the multi detector fell
                     # back to the aliases and could track another class.
                     class_role_map=getattr(detector, "class_role_map", None),
+                    # Camera's real rate scales ByteTrack's buffer (issue #630).
+                    source_fps=float(getattr(self, "_actual_fps", 0.0) or 0.0),
                 )
                 if hasattr(zone_data, "aquariums") and zone_data.aquariums:
                     h, w = frame.shape[:2]

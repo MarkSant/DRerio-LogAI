@@ -561,6 +561,39 @@ class DetectionPostProcessor:
         return 30
 
     @staticmethod
+    def resolve_tracker_fps(
+        settings: "Settings | None", source_fps: float | None
+    ) -> tuple[float, str]:
+        """Frame rate the ByteTrack lost-track buffer must be scaled with (issue #630).
+
+        ``BYTETracker`` counts its buffer in FRAMES and converts ``track_buffer``
+        (configured as frames at 30 fps) with ``frame_rate / 30``. Feeding it the
+        nominal ``settings.video_processing.fps`` instead of the source's real
+        rate makes the buffer cover ``30 / real_fps`` times the intended real
+        time: a 9.9 fps Barnes video kept a lost track alive ~3x too long, long
+        enough to hand its id to another detection.
+
+        Args:
+            settings: Application settings, used only as the fallback.
+            source_fps: Real rate of the frame source -- ``CAP_PROP_FPS`` of the
+                video, or the camera's reported rate live. ``None``, zero,
+                negative, NaN or infinite values are treated as unknown.
+
+        Returns:
+            ``(fps, origin)`` where ``origin`` is ``"source"`` when the real rate
+            was used and ``"settings"`` when it fell back to the nominal value.
+            The caller logs the fallback once, when it builds the tracker.
+        """
+        if source_fps is not None:
+            try:
+                value = float(source_fps)
+            except (TypeError, ValueError):
+                value = 0.0
+            if np.isfinite(value) and value > 0:
+                return value, "source"
+        return float(DetectionPostProcessor.get_fps(settings)), "settings"
+
+    @staticmethod
     def get_single_animal_mode(settings: "Settings | None", explicit_mode: bool) -> bool:
         """Determine single_animal_mode for ByteTracker.
 

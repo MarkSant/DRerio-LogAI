@@ -93,7 +93,13 @@ class SingleDetector:
         self._single_subject_mode = False
         self._single_subject_tracker = SingleSubjectTracker()
         self._byte_tracker: BYTETracker | None = None
-        self._byte_tracker_params: tuple[float, float, int, float, float, bool, bool] | None = None
+        self._byte_tracker_params: (
+            tuple[float, float, int, float, float, bool, bool, float] | None
+        ) = None
+        #: Real frame rate of the current source (video ``CAP_PROP_FPS`` or the
+        #: camera's rate). ``None`` until the caller knows it; ByteTrack then
+        #: falls back to ``settings.video_processing.fps`` with a warning (#630).
+        self._source_fps: float | None = None
 
         # Máscaras do frame corrente, indexadas pela bbox JÁ no espaço do frame
         # inteiro. A bbox é a chave porque ela é o único identificador que
@@ -633,6 +639,26 @@ class SingleDetector:
             except Exception:  # pragma: no cover - defensive
                 log.warning("single_detector.plugin_update_failed", exc_info=True)
 
+    def set_source_fps(self, fps: float | None) -> None:
+        """Declare the real frame rate of the source being tracked (issue #630).
+
+        ByteTrack's lost-track buffer is counted in frames, so it must be scaled
+        with the rate the frames actually arrive at, not the nominal
+        ``settings.video_processing.fps``. Call it once per video / camera
+        session, before the first ``detect()``. A change of rate rebuilds the
+        tracker on the next frame (the rate is part of its parameter key).
+
+        Args:
+            fps: Real frames per second, or ``None`` when unknown.
+        """
+        self._source_fps = fps
+        log.debug("single_detector.source_fps.set", fps=fps)
+
+    @property
+    def source_fps(self) -> float | None:
+        """Real frame rate declared by ``set_source_fps`` (``None`` if unknown)."""
+        return self._source_fps
+
     def is_single_subject_mode(self) -> bool:
         """Expose the current single-subject tracking flag."""
         return self._single_subject_mode
@@ -954,6 +980,7 @@ class SingleDetector:
         iou_threshold = pp.get_iou_threshold(self.settings)
         use_bytetrack = pp.should_use_bytetrack(self.settings)
         single_animal_mode = pp.get_single_animal_mode(self.settings, self._single_subject_mode)
+        frame_rate, fps_origin = pp.resolve_tracker_fps(self.settings, self._source_fps)
 
         params = (
             track_thresh,
@@ -963,6 +990,7 @@ class SingleDetector:
             iou_threshold,
             single_animal_mode,
             use_bytetrack,
+            frame_rate,
         )
         if self._byte_tracker is not None and self._byte_tracker_params == params:
             return self._byte_tracker
@@ -979,10 +1007,17 @@ class SingleDetector:
             )
 
             processing_interval = pp.get_processing_interval(self.settings)
-            frame_rate = pp.get_fps(self.settings)
+            if fps_origin != "source":
+                log.warning(
+                    "single_detector.bytetrack.fps_fallback_to_settings",
+                    frame_rate=frame_rate,
+                    reason="source_fps_unknown",
+                )
 
             log.info(
                 "single_detector.bytetrack.initializing",
+                frame_rate=frame_rate,
+                frame_rate_origin=fps_origin,
                 track_thresh=track_thresh,
                 match_thresh=match_thresh,
                 track_buffer=track_buffer,

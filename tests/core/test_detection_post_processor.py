@@ -173,6 +173,19 @@ class TestSettingsGetters:
         s = SimpleNamespace(video_processing=SimpleNamespace(fps=60))
         assert P.get_fps(s) == 60  # type: ignore[arg-type]
 
+    def test_tracker_fps_prefers_the_source_rate(self):
+        """Issue #630: the real video rate wins over settings.video_processing.fps."""
+        s = SimpleNamespace(video_processing=SimpleNamespace(fps=30))
+        assert P.resolve_tracker_fps(s, 9.9) == (9.9, "source")  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize("bad", [None, 0, 0.0, -5.0, float("nan"), float("inf"), "x"])
+    def test_tracker_fps_unknown_source_falls_back_to_settings(self, bad):
+        s = SimpleNamespace(video_processing=SimpleNamespace(fps=25))
+        assert P.resolve_tracker_fps(s, bad) == (25.0, "settings")  # type: ignore[arg-type]
+
+    def test_tracker_fps_without_settings_uses_30(self):
+        assert P.resolve_tracker_fps(None, None) == (30.0, "settings")
+
     def test_should_use_bytetrack_default_and_value(self):
         assert P.should_use_bytetrack(None) is True
         s = SimpleNamespace(tracking=SimpleNamespace(use_bytetrack=False))
