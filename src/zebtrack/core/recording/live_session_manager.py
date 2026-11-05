@@ -121,6 +121,8 @@ class LiveSessionManagerMixin:
         def _on_session_complete(self, output_dir: Path, *, keep_data: bool = False) -> None: ...
         def _finalize_frame_ledger(self) -> None: ...
         def _live_object_metadata(self) -> Any: ...
+        def _resolve_session_multi_zone_data(self) -> Any: ...
+        def _start_live_recorder(self, zone_data: Any, base_name: str) -> bool: ...
 
     def _resolve_session_detector_config(self) -> tuple[str | None, bool, str]:
         """Resolve ``(active_weight, use_openvino, source)`` for the next session.
@@ -587,6 +589,13 @@ class LiveSessionManagerMixin:
 
         # Check if we need aquarium detection phase
         zone_data = self.project_manager.get_zone_data() if self.project_manager else None
+        # The aquarium-0 shim above never says "multi-aquarium": resolve the
+        # session's aquariums here, BEFORE the threads start, because the
+        # processing thread and the analysis-window probe read this cache from
+        # their first frame (#635). The partitioned detector is rebuilt for the
+        # new zones on first use.
+        self._multi_aq_detector = None
+        self._resolve_session_multi_zone_data()
 
         log.info(
             "live_camera_service.zone_data_check",
@@ -771,14 +780,11 @@ class LiveSessionManagerMixin:
                     # for (it expects ``{_current_base_name}.mp4``). The
                     # report's frame-extraction silently skipped because the
                     # file didn't exist at the searched path.
-                    recorder_started = self.recorder.start_recording(
-                        output_folder=str(output_dir),
-                        frame_width=self.camera.actual_width if self.camera else 640,
-                        frame_height=self.camera.actual_height if self.camera else 480,
-                        zones=recorder_zones,
-                        is_video_file=False,
-                        base_name=self._current_base_name,
-                        object_metadata=self._live_object_metadata(),
+                    # Multi-aquarium sessions branch inside (#635): with the
+                    # zones validated up front this used to record aquarium 0
+                    # over the whole frame.
+                    recorder_started = self._start_live_recorder(
+                        recorder_zones, self._current_base_name
                     )
 
                     if not recorder_started:

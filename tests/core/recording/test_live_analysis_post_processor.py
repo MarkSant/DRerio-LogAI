@@ -485,9 +485,30 @@ class _MultiHost(LiveAnalysisPostProcessorMixin):
         return None
 
 
+def _two_aquariums():
+    from zebtrack.core.detection import AquariumData, MultiAquariumZoneData
+
+    return MultiAquariumZoneData(
+        aquariums=[
+            AquariumData(
+                id=aq_id,
+                polygon=[[x0, 0], [x0 + 300, 0], [x0 + 300, 480], [x0, 480]],
+                roi_polygons=[],
+                roi_names=[],
+                roi_colors=[],
+                group="G",
+                subject_id=f"S0{aq_id + 1}",
+                day=1,
+            )
+            for aq_id, x0 in ((0, 0), (1, 320))
+        ],
+        video_width=640,
+        video_height=480,
+    )
+
+
 class TestMultiAquariumLive:
-    """v8 F5: multi-aquarium live is outside the analysis window, but two things
-    were checked here: the role map reaches the detector, and the recording bug."""
+    """Multi-aquarium live recording (#635): role map, rows, session MP4."""
 
     def test_role_map_reaches_the_multi_aquarium_detector(self, tmp_path, monkeypatch):
         import numpy as np
@@ -515,19 +536,11 @@ class TestMultiAquariumLive:
 
         assert created.call_args.kwargs["class_role_map"] is role_map
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "AUDIT §2: live multi-aquarium writes no trajectory rows. The parent "
-            "recorder's start_time stays 0 (only the per-aquarium sub-recorders "
-            "start), so the write is skipped; and when it is not, "
-            "write_partitioned_detection_data is called with invalid kwargs "
-            "(frame=, aquarium_detections=) and the TypeError falls back to a "
-            "single-detector detect. Not a small fix: stop_session also stops "
-            "only the parent recorder, never the sub-recorders. Tracked as an issue."
-        ),
-    )
     def test_live_multi_aquarium_records_trajectory_rows(self, tmp_path, monkeypatch):
+        """Was ``xfail(strict=True)``: 0 rows. Three defects stacked: the parent's
+        ``start_time`` stayed 0, the partitioned write had invalid kwargs (the
+        TypeError fell back to the single detector), and ``stop_recording()`` —
+        the call ``stop_session`` makes — never reached the sub-recorders."""
         import numpy as np
         import pandas as pd
 
@@ -565,8 +578,168 @@ class TestMultiAquariumLive:
         }
         host._multi_aq_detector = fake
         host._run_multi_aquarium_detection(np.zeros((480, 640, 3), dtype=np.uint8), 30, zone_data)
-        recorder.stop_recording_multi_aquarium()
+        recorder.stop_recording()  # what stop_session calls
 
         trajectories = sorted(tmp_path.rglob("3_CoordMovimento_*.parquet"))
-        rows = sum(len(pd.read_parquet(path)) for path in trajectories)
-        assert rows == 2
+        rows = {path.parent.name: len(pd.read_parquet(path)) for path in trajectories}
+        assert rows == {"aquarium_1": 1, "aquarium_2": 1}
+        assert sorted(pd.read_parquet(trajectories[1])["track_id"]) == [1001]
+        # One session MP4, named like the single-aquarium one.
+        assert (tmp_path / "multi_exp.mp4").exists()
+
+    def test_session_aquariums_come_from_the_multi_zones_not_the_shim(self, tmp_path):
+        """``get_zone_data()`` is the aquarium-0 shim: it can never say "multi"."""
+        from zebtrack.core.detection import ZoneData
+
+        zone_data = _two_aquariums()
+        host = _MultiHost(tmp_path, MagicMock(), SimpleNamespace())
+        host_any: Any = host
+        pm: Any = host.project_manager
+        pm.get_zone_data.return_value = ZoneData(polygon=[[0, 0], [1, 1]])
+        host_any._resolve_live_multi_aquarium_zone_data = lambda _p: zone_data
+
+        assert host._resolve_session_multi_zone_data() is zone_data
+        assert host._live_multi_zone_data is zone_data
+
+    def test_a_single_stored_aquarium_stays_on_the_single_path(self, tmp_path):
+        """Same output layout as before for one-aquarium sessions."""
+        from zebtrack.core.detection import MultiAquariumZoneData
+
+        one = _two_aquariums()
+        single = MultiAquariumZoneData(
+            aquariums=one.aquariums[:1], video_width=640, video_height=480
+        )
+        host = _MultiHost(tmp_path, MagicMock(), SimpleNamespace())
+        host_any: Any = host
+        host_any._resolve_live_multi_aquarium_zone_data = lambda _p: single
+
+        assert host._resolve_session_multi_zone_data() is None
+
+    def test_zones_validated_up_front_still_record_per_aquarium(self, tmp_path):
+        """The predefined-arena path (``start_session``) used ``start_recording``
+        with aquarium 0's zones over the whole frame; it now shares the rule."""
+        from zebtrack.core.detection import ZoneData
+
+        recorder = MagicMock()
+        host = _MultiHost(tmp_path, recorder, SimpleNamespace())
+        host._live_multi_zone_data = _two_aquariums()
+
+        assert host._start_live_recorder(ZoneData(), "sessao") is True
+
+        recorder.start_recording.assert_not_called()
+        kwargs = recorder.start_recording_multi_aquarium.call_args.kwargs
+        assert sorted(kwargs["zones_by_aquarium"]) == [0, 1]
+        assert kwargs["session_video"] is True
+        assert kwargs["base_name"] == "sessao"
+
+    def test_without_aquariums_the_single_recorder_starts(self, tmp_path):
+        from zebtrack.core.detection import ZoneData
+
+        recorder = MagicMock()
+        host = _MultiHost(tmp_path, recorder, SimpleNamespace())
+        host._live_multi_zone_data = None
+        zones = ZoneData(polygon=[[0, 0], [1, 1]])
+
+        host._start_live_recorder(zones, "sessao")
+
+        recorder.start_recording_multi_aquarium.assert_not_called()
+        assert recorder.start_recording.call_args.kwargs["zones"] is zones
+
+
+class TestMultiAquariumPostAnalysis:
+    """#635: the live post-analysis of a 2-aquarium session.
+
+    It looked for ``3_CoordMovimento_*`` only at the top of the session folder,
+    where a multi-aquarium session has none, and stopped at "no trajectory"
+    before the per-aquarium analysis. Now each aquarium is re-timed on the
+    session's single ledger and gets its own offline window (ADR-011).
+    """
+
+    def _session(self, tmp_path):
+        import pandas as pd
+
+        output_dir = tmp_path / "live_20261105_120000"
+        output_dir.mkdir()
+        (output_dir / "adhoc_exp.mp4").write_bytes(b"")  # the session MP4
+        _write_ledger(output_dir)  # 6_FrameLedger_adhoc_exp, frames 1-2 at 0.5 s / 1.0 s
+        for aq_id, x0 in ((0, 10.0), (1, 330.0)):
+            folder = output_dir / f"aquarium_{aq_id + 1}"
+            folder.mkdir()
+            pd.DataFrame(
+                {
+                    "timestamp": [0.0, 0.1],
+                    "frame": [1, 2],
+                    "track_id": [aq_id * 1000 + 1] * 2,
+                    "x1": [x0, x0 + 2],
+                    "y1": [10.0, 12.0],
+                    "x2": [x0 + 10, x0 + 12],
+                    "y2": [20.0, 22.0],
+                    "confidence": [0.9, 0.9],
+                }
+            ).to_parquet(folder / f"3_CoordMovimento_adhoc_exp_aquarium_{aq_id + 1}.parquet")
+        return output_dir
+
+    def _run(self, tmp_path, monkeypatch, raw_window=None):
+        from unittest.mock import patch
+
+        output_dir = self._session(tmp_path)
+        host = PostAnalysisHost(
+            output_dir,
+            project_data={"calibration": {"pixelcm_x": 12.0, "pixelcm_y": 12.0}},
+            analysis_params={},
+        )
+        host._analysis_window_raw = raw_window  # type: ignore[attr-defined]
+        pm: Any = host.project_manager
+        pm.get_multi_aquarium_zone_data.return_value = _two_aquariums()
+        results = {0: SimpleNamespace(validation_warnings=[]), 1: None}
+        service = MagicMock()
+        service.collect_analysis_parameters.return_value = {
+            "freezing_vel_threshold": 0.5,
+            "freezing_min_duration": 1.0,
+            "smoothing_window_length": 5,
+            "smoothing_polyorder": 2,
+            "behavioral_config": {},
+        }
+        service.run_multi_aquarium_analysis.return_value = results
+        service.resolve_roi_rule.return_value = None
+        host._build_post_analysis_service = lambda: service  # type: ignore[method-assign]
+        monkeypatch.setattr(
+            "zebtrack.core.recording.live_analysis_post_processor.threading.Thread",
+            _ImmediateThread,
+        )
+        with patch("zebtrack.analysis.reporters.export_multi_aquarium_reports", return_value={}):
+            host._on_session_complete(output_dir, keep_data=True)
+        return service, results
+
+    def test_per_aquarium_trajectories_reach_the_analysis(self, tmp_path, monkeypatch):
+        service, _results = self._run(tmp_path, monkeypatch)
+
+        service.run_multi_aquarium_analysis.assert_called_once()
+        data_map = service.run_multi_aquarium_analysis.call_args.kwargs["aquarium_data_map"]
+        assert sorted(data_map) == [0, 1]
+
+    def test_every_aquarium_is_retimed_on_the_session_ledger(self, tmp_path, monkeypatch):
+        service, results = self._run(tmp_path, monkeypatch)
+
+        kwargs = service.run_multi_aquarium_analysis.call_args.kwargs
+        for aq_id in (0, 1):
+            df, _aquarium = kwargs["aquarium_data_map"][aq_id]
+            assert list(df["timestamp"]) == pytest.approx([0.5, 1.0])
+        assert kwargs["fps"] == pytest.approx(2.0)  # the recording's rate, not 30
+        assert results[0].validation_warnings == []  # the ledger was found
+
+    def test_one_offline_window_per_aquarium(self, tmp_path, monkeypatch):
+        raw = _frame_spec().model_dump(mode="json", by_alias=True)
+        service, _results = self._run(tmp_path, monkeypatch, raw)
+
+        windows = service.run_multi_aquarium_analysis.call_args.kwargs["windows"]
+        assert sorted(windows) == [0, 1]
+        for window in windows.values():
+            assert (window.start.frame, window.stop.frame) == (1, 2)
+            assert (window.start.t_s, window.stop.t_s) == pytest.approx((0.5, 1.0))
+
+    def test_without_a_window_none_is_applied(self, tmp_path, monkeypatch):
+        service, _results = self._run(tmp_path, monkeypatch)
+
+        windows = service.run_multi_aquarium_analysis.call_args.kwargs["windows"]
+        assert windows == {0: None, 1: None}

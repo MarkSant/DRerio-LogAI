@@ -589,7 +589,15 @@ class Recorder:
         Args:
             force_stop (bool): If True, forces cleanup without saving data,
                                useful in an error state.
+
+        A multi-aquarium recorder is stopped through its sub-recorders: the
+        parent never has ``is_recording`` set, so without this dispatch every
+        caller that does not know about the mode (the live ``stop_session``)
+        returned here and the per-aquarium buffers were never flushed (#635).
         """
+        if self._multi_aquarium_mode:
+            self.stop_recording_multi_aquarium(force_stop=force_stop, reason=reason)
+            return
         if not self.is_recording:
             return
 
@@ -657,6 +665,7 @@ class Recorder:
         calibration_by_aquarium: dict[int, Any] | None = None,
         output_folders_by_aquarium: dict[int, str] | None = None,
         object_metadata: ObjectSidecarMetadata | None = None,
+        session_video: bool = False,
     ) -> bool:
         """
         Start recording for multiple aquariums with separate output folders.
@@ -691,6 +700,15 @@ class Recorder:
                 If provided, uses these paths instead of creating aquarium_N subfolders.
             object_metadata: Metadata of every aquarium's ``3c_Objetos_`` sidecar
                 (one weight, one clock: the same for all of them).
+            session_video: Live camera. ONE camera films every aquarium, so the
+                session has ONE full-frame ``<base_name>.mp4`` in
+                ``output_folder``, written by this (parent) recorder through
+                :meth:`write_video_frame`; the sub-recorders write no video and
+                ``write_video`` is ignored. Re-processing that MP4 as a
+                pre-recorded multi-aquarium video partitions it again by zones.
+                Also stamps the parent's ``start_time``, ``output_folder`` and
+                ``base_name``, which the live pipeline reads to timestamp rows
+                and to bind the frame ledger.
 
         Returns:
             True if all recordings started successfully, False otherwise.
@@ -710,6 +728,22 @@ class Recorder:
         self._multi_aquarium_mode = True
         base_folder = Path(output_folder)
         base_folder.mkdir(parents=True, exist_ok=True)
+        self.output_folder = str(base_folder)
+        self.base_name = base_name or base_folder.name
+
+        if session_video:
+            # The sub-recorders' clock must still be the capture clock when no
+            # metadata could be built (they are started with is_video_file=True,
+            # which would otherwise infer ``pts``).
+            object_metadata = object_metadata or ObjectSidecarMetadata(clock=CLOCK_CAPTURE)
+            video_filename = os.path.join(self.output_folder, f"{self.base_name}.mp4")
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
+            self.video_writer = cv2.VideoWriter(video_filename, fourcc, fps, (width, height))
+            if not self.video_writer.isOpened():
+                log.error("recorder.multi_aquarium.video_writer_open_error", path=video_filename)
+                self.video_writer = None
+                self._multi_aquarium_mode = False
+                return False
 
         for aq_id, zone_data in zones_by_aquarium.items():
             # Use custom output folder if provided, otherwise use default aquarium_N subfolder
@@ -749,7 +783,7 @@ class Recorder:
                     frame_width=width,
                     frame_height=height,
                     zones=zone_data,
-                    is_video_file=not write_video,
+                    is_video_file=session_video or not write_video,
                     pixel_per_cm_ratio=aq_ratio,
                     base_name=aq_base_name,
                     calibration=aq_calibration,
@@ -783,10 +817,15 @@ class Recorder:
                 self._cleanup_aquarium_recorders()
                 return False
 
+        # Set LAST: a truthy ``start_time`` is what the live pipeline reads as
+        # "recording" before it writes a row. Stamping it on the parent is the
+        # only way a multi-aquarium session ever passes that gate (#635).
+        self.start_time = time.time()
         log.info(
             "recorder.multi_aquarium.started",
             aquarium_count=len(self._aquarium_recorders),
             output_folder=str(base_folder),
+            session_video=session_video,
         )
         return True
 
@@ -876,20 +915,24 @@ class Recorder:
         if aquarium_id in self._aquarium_recorders:
             self._aquarium_recorders[aquarium_id].write_video_frame(frame)
 
-    def stop_recording_multi_aquarium(self, force_stop: bool = False) -> None:
+    def stop_recording_multi_aquarium(
+        self, force_stop: bool = False, reason: str | None = None
+    ) -> None:
         """
         Stop recording for all aquariums.
 
         Args:
             force_stop: If True, forces cleanup without saving data.
+            reason: Forwarded to every sub-recorder's ``stop_recording``.
         """
         if not self._multi_aquarium_mode:
             log.warning("recorder.multi_aquarium.stop.not_active")
             return
 
+        self._release_session_video()
         for aq_id, recorder in list(self._aquarium_recorders.items()):
             try:
-                recorder.stop_recording(force_stop=force_stop)
+                recorder.stop_recording(force_stop=force_stop, reason=reason)
                 log.info(
                     "recorder.multi_aquarium.recorder_stopped",
                     aquarium_id=aq_id,
@@ -915,8 +958,20 @@ class Recorder:
         """Get all aquarium recorders (for testing/debugging)."""
         return self._aquarium_recorders.copy()
 
+    def _release_session_video(self) -> None:
+        """Release the parent's full-frame writer (``session_video``), if any.
+
+        Under ``_writer_lock`` for the same reason as ``stop_recording``: the
+        live video thread may be inside :meth:`write_video_frame`.
+        """
+        with self._writer_lock:
+            if self.video_writer is not None:
+                self.video_writer.release()
+                self.video_writer = None
+
     def _cleanup_aquarium_recorders(self) -> None:
         """Cleanup all aquarium recorders on error."""
+        self._release_session_video()
         for _aq_id, recorder in list(self._aquarium_recorders.items()):
             try:
                 recorder.stop_recording(force_stop=True, reason="Cleanup on error")
@@ -941,8 +996,17 @@ class Recorder:
         # main thread cannot release the writer between them. The lock is
         # also acquired in ``stop_recording`` before nulling the writer.
         with self._writer_lock:
-            if self.is_recording and self.video_writer:
-                self.video_writer.write(frame)
+            if self.is_capturing_video():
+                self.video_writer.write(frame)  # type: ignore[union-attr]
+
+    def is_capturing_video(self) -> bool:
+        """Whether :meth:`write_video_frame` would write a frame now.
+
+        True for a single recording with a writer and for a multi-aquarium
+        live session (``session_video``), whose parent owns the MP4 without
+        ever having ``is_recording`` set.
+        """
+        return self.video_writer is not None and (self.is_recording or self._multi_aquarium_mode)
 
     def write_detection_data(self, timestamp, frame_number, detections):
         """Appends detection data to an in-memory list."""

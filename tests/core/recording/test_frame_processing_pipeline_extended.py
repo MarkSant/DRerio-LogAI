@@ -753,11 +753,22 @@ class TestAnalysisWindowLive:
         assert runtime.result.start.t_s == pytest.approx(1.0)
 
     def test_multi_aquarium_session_skips_the_window(self, tmp_path):
+        """The session's aquariums decide it (#635).
+
+        This used to stub ``get_zone_data()`` with ``aquariums`` — something
+        the aquarium-0 shim never returns, so in the app the window was armed
+        in 2-aquarium sessions and fed with both aquariums' detections.
+        """
         h = _LoopHarness(tmp_path, window=WindowSpec())
-        project_manager: Any = h.project_manager
-        project_manager.get_zone_data = lambda: SimpleNamespace(aquariums=[1, 2])
+        h._live_multi_zone_data = SimpleNamespace(aquariums=[1, 2])
         h.arm()
         assert h._condition_runtime is None
+
+    def test_single_aquarium_session_arms_the_window(self, tmp_path):
+        h = _LoopHarness(tmp_path, window=WindowSpec())
+        h._live_multi_zone_data = None
+        h.arm()
+        assert h._condition_runtime is not None
 
 
 ZONE_PROJECT = {
@@ -818,3 +829,70 @@ class TestArduinoCommandsInsideTheWindow:
         h = _LoopHarness(tmp_path, script={1: ([_box(5, 5)], [_rat()])}, project_data=ZONE_PROJECT)
         h.run([(1, T0 + 1.0)])
         assert h.manager.sent == [1, 2]
+
+
+class _PartitionedRecorder(_FakeRecorder):
+    """Parent of a multi-aquarium session: partitioned writers only."""
+
+    def __init__(self, folder):
+        super().__init__(folder)
+        self.partitioned_objects: list[tuple] = []
+
+    def write_partitioned_object_data(
+        self, timestamp, frame_number, t_event_s, observations, aquarium_polygons
+    ):
+        self.partitioned_objects.append((frame_number, t_event_s, dict(aquarium_polygons)))
+
+
+class TestMultiAquariumProcessingLoop:
+    """#635: the loop decided "multi" from ``get_zone_data()``, the aquarium-0
+    shim, so the partitioned branch was unreachable in the app."""
+
+    def _harness(self, tmp_path):
+        from zebtrack.core.detection import ZoneData
+
+        h = _LoopHarness(tmp_path, script={1: ([_box(5, 5)], [])})
+        project_manager: Any = h.project_manager
+        # What the app really returns: never ``aquariums``.
+        project_manager.get_zone_data = lambda: ZoneData(polygon=[[0, 0], [9, 9]])
+        h.recorder = _PartitionedRecorder(tmp_path)
+        polygons = {0: [[0, 0], [2, 0], [2, 4], [0, 4]], 1: [[2, 0], [4, 0], [4, 4], [2, 4]]}
+        h._live_multi_zone_data = SimpleNamespace(
+            aquariums=[SimpleNamespace(id=k, polygon=v) for k, v in polygons.items()]
+        )
+        calls: list[tuple] = []
+
+        def _multi(frame, frame_number, zone_data):
+            calls.append((frame_number, zone_data))
+            return [_box(1, 1)]
+
+        harness: Any = h
+        harness._run_multi_aquarium_detection = _multi
+        return h, calls, polygons
+
+    def test_two_aquariums_run_the_partitioned_detector(self, tmp_path):
+        h, calls, _polygons = self._harness(tmp_path)
+        h.run([(1, T0 + 1.0)])
+
+        assert [frame for frame, _ in calls] == [1]
+        assert calls[0][1] is h._live_multi_zone_data
+        assert h.detector.frames == [1]  # the single detector never ran
+
+    def test_rows_are_not_duplicated_into_the_parent(self, tmp_path):
+        """The partitioned call already wrote them per aquarium."""
+        h, _calls, _polygons = self._harness(tmp_path)
+        h.run([(1, T0 + 1.0)])
+
+        recorder: Any = h.recorder
+        assert recorder.trajectory == []
+
+    def test_object_heartbeat_goes_to_every_aquarium(self, tmp_path):
+        h, _calls, polygons = self._harness(tmp_path)
+        h.run([(1, T0 + 1.0)])
+
+        recorder: Any = h.recorder
+        assert recorder.objects == []
+        ((frame, t_event, sent_polygons),) = recorder.partitioned_objects
+        assert frame == 1
+        assert t_event == pytest.approx(1.0)
+        assert sent_polygons == polygons

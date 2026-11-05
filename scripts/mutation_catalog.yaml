@@ -1833,8 +1833,8 @@ modules:
         replace: 'return None, False'
       - id: live-window-on-pts-clock
         description: "artefato da sessao ao vivo passa a dizer relogio PTS"
-        find: 'clock="capture_perf")'
-        replace: 'clock=None)'
+        find: '            clock="capture_perf",'
+        replace: '            clock=None,'
 
   # Issue #630: ByteTrack's lost-track buffer follows the SOURCE fps, and the
   # lost pool is pruned the way upstream ByteTrack does it.
@@ -1915,3 +1915,116 @@ modules:
         description: "worker de lote nao informa o fps do video ao detector"
         find: 'source_fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)'
         replace: 'source_fps = 0.0'
+
+  # Issue #635: live multi-aquarium recording. The parent recorder owns the
+  # session clock, folder and the ONE full-frame MP4; stop_recording() reaches
+  # the sub-recorders; the session's aquariums (never the aquarium-0 shim)
+  # decide every multi/single branch; the post-analysis finds the per-aquarium
+  # trajectories, re-times them on the shared ledger and windows each aquarium.
+  recorder_multi_aquarium_live:
+    source: src/zebtrack/io/recorder.py
+    tests:
+      - tests/io/test_recorder_multi_aquarium.py
+      - tests/core/recording/test_frame_ledger.py
+    mutations:
+      - id: stop-does-not-reach-sub-recorders
+        description: "stop_recording() no pai multi-aquario volta a nao descarregar os aquarios"
+        find: |-
+          if self._multi_aquarium_mode:
+                      self.stop_recording_multi_aquarium(force_stop=force_stop, reason=reason)
+                      return
+        replace: |-
+          if False:
+                      self.stop_recording_multi_aquarium(force_stop=force_stop, reason=reason)
+                      return
+      - id: parent-start-time-zero
+        description: "pai multi-aquario sem start_time: o pipeline ao vivo nao grava linha"
+        find: |-
+          self.start_time = time.time()
+                  log.info(
+                      "recorder.multi_aquarium.started",
+        replace: |-
+          self.start_time = 0.0
+                  log.info(
+                      "recorder.multi_aquarium.started",
+      - id: sub-recorders-open-video
+        description: "com session_video cada aquario volta a abrir um MP4 que ninguem alimenta"
+        find: 'is_video_file=session_video or not write_video,'
+        replace: 'is_video_file=not write_video,'
+      - id: parent-video-needs-is-recording
+        description: "MP4 da sessao multi-aquario so aceita quadro com is_recording (nunca)"
+        find: 'return self.video_writer is not None and (self.is_recording or self._multi_aquarium_mode)'
+        replace: 'return self.video_writer is not None and self.is_recording'
+
+  live_multi_aquarium_pipeline:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_frame_processing_pipeline_extended.py
+      - tests/core/recording/test_frame_ledger.py
+    mutations:
+      - id: multi-branch-unreachable
+        description: "laco de processamento volta a rodar o detector unico com 2 aquarios"
+        find: 'is_multi_aquarium = multi_zone_data is not None'
+        replace: 'is_multi_aquarium = False'
+      - id: rows-duplicated-into-parent
+        description: "linhas ja particionadas tambem vao para o recorder pai"
+        find: |-
+          if is_multi_aquarium:
+                                      # ``_run_multi_aquarium_detection`` already wrote the
+        replace: |-
+          if False:
+                                      # ``_run_multi_aquarium_detection`` already wrote the
+      - id: window-armed-with-two-aquariums
+        description: "janela ao vivo armada numa sessao de 2 aquarios"
+        find: 'return self._session_multi_zone_data() is not None'
+        replace: 'return False'
+      - id: video-probe-ignored
+        description: "thread de video ignora o MP4 do pai multi-aquario: tudo not_recording"
+        find: |-
+          if isinstance(verdict, bool):
+                      return verdict
+        replace: |-
+          if False:
+                      return verdict
+      - id: objects-not-partitioned
+        description: "3c de sessao multi-aquario vai para o pai em vez de cada aquario"
+        find: |-
+          if multi_zone_data is not None:
+                      partitioned = getattr(self.recorder, "write_partitioned_object_data", None)
+        replace: |-
+          if False:
+                      partitioned = getattr(self.recorder, "write_partitioned_object_data", None)
+
+  live_multi_aquarium_post_processor:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: single-stored-aquarium-goes-multi
+        description: "zona multi com um aquario so muda o layout de saida da sessao"
+        find: 'len(multi.aquariums) < 2'
+        replace: 'len(multi.aquariums) < 1'
+      - id: predefined-zones-record-aquarium-zero
+        description: "zonas validadas no inicio voltam a gravar so o aquario 0 no quadro todo"
+        find: |-
+          multi = getattr(self, "_live_multi_zone_data", None)
+                  if multi is not None:
+        replace: |-
+          multi = getattr(self, "_live_multi_zone_data", None)
+                  if False:
+      - id: partitioned-write-bad-kwargs
+        description: "escrita particionada volta com kwargs invalidos (TypeError engolido)"
+        find: 'partitioned_detections=all_detections,'
+        replace: 'aquarium_detections=all_detections,'
+      - id: multi-trajectories-not-searched
+        description: "pos-analise procura trajetoria so na pasta da sessao e desiste"
+        find: 'if not trajectory_files and not multi_trajectory_outputs:'
+        replace: 'if not trajectory_files:'
+      - id: aquariums-not-retimed
+        description: "aquarios analisados no relogio de processamento (ledger da sessao ignorado)"
+        find: 'rows = load_ledger(ledger_dir, ledger_base)'
+        replace: 'rows = []'
+      - id: aquarium-windows-dropped
+        description: "janela por aquario resolvida mas nao aplicada as metricas"
+        find: '            windows=windows,'
+        replace: '            windows=None,'
