@@ -283,7 +283,12 @@ failure.
 
 - All payload values are optional (None if not updated)
 - `use_bytetrack: bool` - Toggles between ByteTrack and SingleSubjectTracker
-- `track_buffer: int` - Frames to keep lost tracks (default: 300)
+- `track_buffer: int` - Frames to keep lost tracks (default: 300), expressed at
+  the 30 fps reference: `BYTETracker` converts it with `frame_rate / 30`, and
+  `frame_rate` is the SOURCE's real rate (`set_source_fps()` /
+  `MultiAquariumDetector(source_fps=...)`, resolved by
+  `DetectionPostProcessor.resolve_tracker_fps()`), never
+  `settings.video_processing.fps` except as a warned fallback (#630).
 - `max_center_distance: float` - Max distance for hybrid matching (pixels)
 - `iou_threshold: float` - IoU threshold for hybrid matching [0, 1)
 

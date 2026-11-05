@@ -1835,3 +1835,83 @@ modules:
         description: "artefato da sessao ao vivo passa a dizer relogio PTS"
         find: 'clock="capture_perf")'
         replace: 'clock=None)'
+
+  # Issue #630: ByteTrack's lost-track buffer follows the SOURCE fps, and the
+  # lost pool is pruned the way upstream ByteTrack does it.
+  byte_tracker_lost_pool:
+    source: src/zebtrack/tracker/byte_tracker.py
+    tests:
+      - tests/test_byte_tracker_single_animal.py
+    mutations:
+      - id: refound-stays-in-lost
+        description: "trilha reencontrada fica em lost e tracked: o tracker nunca mais a emite"
+        find: 'self.lost_stracks = sub_stracks(self.lost_stracks, self.tracked_stracks)'
+        replace: 'self.lost_stracks = list(self.lost_stracks)'
+      - id: removed-stays-in-pool
+        description: "trilha expirada segue no pool de associacao: max_time_lost sem efeito"
+        find: 'self.lost_stracks = [t for t in self.lost_stracks if t.state != TrackState.Removed]'
+        replace: 'self.lost_stracks = list(self.lost_stracks)'
+
+  detection_post_processor_tracker_fps:
+    source: src/zebtrack/core/detection/detection_post_processor.py
+    tests:
+      - tests/core/test_detection_post_processor.py
+    mutations:
+      - id: source-fps-ignored
+        description: "fps real da fonte ignorado: volta ao fps das settings (bug #630)"
+        find: 'if np.isfinite(value) and value > 0:'
+        replace: 'if False:'
+      - id: nonpositive-source-accepted
+        description: "fps zero/negativo da fonte aceito como real"
+        find: 'if np.isfinite(value) and value > 0:'
+        replace: 'if True:'
+
+  single_detector_source_fps:
+    source: src/zebtrack/core/detection/single_detector.py
+    tests:
+      - tests/core/detection/test_single_detector_extended.py
+    mutations:
+      - id: source-fps-not-passed
+        description: "detector unico constroi o ByteTrack com o fps das settings"
+        find: 'frame_rate, fps_origin = pp.resolve_tracker_fps(self.settings, self._source_fps)'
+        replace: 'frame_rate, fps_origin = pp.resolve_tracker_fps(self.settings, None)'
+      - id: fps-not-in-tracker-key
+        description: "troca de fps da fonte nao reconstroi o tracker"
+        find: |-
+          use_bytetrack,
+                      frame_rate,
+                  )
+        replace: |-
+          use_bytetrack,
+                      0.0,
+                  )
+
+  multi_aquarium_detector_source_fps:
+    source: src/zebtrack/core/detection/multi_aquarium_detector.py
+    tests:
+      - tests/core/detection/test_multi_aquarium_detector_extended.py
+    mutations:
+      - id: tracker-built-with-settings-fps
+        description: "ByteTrack por aquario construido com o fps das settings"
+        find: |-
+          frame_rate, origin = DetectionPostProcessor.resolve_tracker_fps(
+                      self.settings, self._source_fps
+                  )
+        replace: |-
+          frame_rate, origin = DetectionPostProcessor.resolve_tracker_fps(
+                      self.settings, None
+                  )
+      - id: fps-not-in-multi-tracker-key
+        description: "set_source_fps nao reconstroi os trackers por aquario"
+        find: 'source_fps, _origin = pp.resolve_tracker_fps(self.settings, self._source_fps)'
+        replace: 'source_fps, _origin = pp.resolve_tracker_fps(self.settings, None)'
+
+  processing_worker_source_fps:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/integration/test_prerecorded_golden.py
+    mutations:
+      - id: worker-does-not-declare-video-fps
+        description: "worker de lote nao informa o fps do video ao detector"
+        find: 'source_fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)'
+        replace: 'source_fps = 0.0'

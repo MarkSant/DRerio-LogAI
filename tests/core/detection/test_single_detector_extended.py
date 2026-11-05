@@ -300,3 +300,110 @@ class TestClassRolesInTheSingleDetector:
 
         assert (detector.aquarium_class_id, detector.animal_class_id) == (0, 2)
         assert detector.class_role_map is role_map
+
+
+# ---------------------------------------------------------------------------
+# Issue #630: ByteTrack's lost-track buffer follows the SOURCE frame rate.
+# ---------------------------------------------------------------------------
+
+
+def _fps_settings(*, settings_fps: int = 30, track_buffer: int = 30):
+    """Settings with a nominal 30 fps, interval 1 and a short ByteTrack buffer."""
+    settings_obj = load_settings()
+    settings_obj.video_processing.fps = settings_fps
+    settings_obj.video_processing.processing_interval = 1
+    settings_obj.bytetrack.track_buffer = track_buffer
+    settings_obj.tracking.use_bytetrack = True
+    return settings_obj
+
+
+def _fps_detector(settings_obj) -> SingleDetector:
+    plugin = MagicMock(spec=DetectorPlugin)
+    plugin.get_name.return_value = "MockDetector"
+    plugin.detect.return_value = []
+    return SingleDetector(plugin=plugin, settings_obj=settings_obj)
+
+
+def _seconds_until_removed(tracker, fps: float) -> float:
+    """Feed one detection, then nothing; real seconds until the track is removed."""
+    box = np.array([[100.0, 100.0, 140.0, 140.0, 0.95]])
+    tracker.update(box, (480, 640), (480, 640))
+    tracker.update(box, (480, 640), (480, 640))  # second hit confirms the track
+    empty = np.empty((0, 5))
+    for frames_without_detection in range(1, 10_000):
+        tracker.update(empty, (480, 640), (480, 640))
+        if tracker.removed_stracks:
+            return frames_without_detection / fps
+    raise AssertionError("the lost track was never removed")
+
+
+class TestByteTrackFollowsTheSourceFps:
+    """A 10 fps video with settings at 30 must keep the configured buffer in SECONDS."""
+
+    def test_buffer_in_seconds_matches_the_configured_one_on_a_10_fps_video(self):
+        settings_obj = _fps_settings(settings_fps=30, track_buffer=30)
+        detector = _fps_detector(settings_obj)
+        detector.set_source_fps(10.0)
+
+        tracker = detector._ensure_byte_tracker()
+
+        assert tracker is not None
+        # 30 frames at the 30 fps reference == 1 s; at 10 fps that is 10 frames.
+        assert tracker.max_time_lost == 10
+        # Behaviour, not just the attribute: the lost track dies after ~1 s of
+        # REAL time (one frame of slack: removal happens on the first frame past
+        # the limit). With the settings fps it lived 3 s (30 frames at 10 fps).
+        assert _seconds_until_removed(tracker, fps=10.0) == pytest.approx(1.1)
+
+    def test_a_30_fps_source_is_unchanged(self):
+        settings_obj = _fps_settings(settings_fps=30, track_buffer=30)
+        detector = _fps_detector(settings_obj)
+        detector.set_source_fps(30.0)
+
+        tracker = detector._ensure_byte_tracker()
+
+        assert tracker is not None
+        assert tracker.max_time_lost == 30
+
+    def test_unknown_source_falls_back_to_settings_with_a_warning(self, monkeypatch):
+        from zebtrack.core.detection import single_detector as module
+
+        warnings: list[tuple[str, dict]] = []
+        monkeypatch.setattr(module.log, "warning", lambda event, **kw: warnings.append((event, kw)))
+        settings_obj = _fps_settings(settings_fps=30, track_buffer=30)
+        detector = _fps_detector(settings_obj)
+
+        tracker = detector._ensure_byte_tracker()
+
+        assert tracker is not None
+        assert tracker.max_time_lost == 30
+        assert detector.source_fps is None
+        assert (
+            "single_detector.bytetrack.fps_fallback_to_settings",
+            {"frame_rate": 30.0, "reason": "source_fps_unknown"},
+        ) in warnings
+
+    def test_known_source_does_not_warn(self, monkeypatch):
+        from zebtrack.core.detection import single_detector as module
+
+        warnings: list[str] = []
+        monkeypatch.setattr(module.log, "warning", lambda event, **kw: warnings.append(event))
+        detector = _fps_detector(_fps_settings())
+        detector.set_source_fps(10.0)
+
+        detector._ensure_byte_tracker()
+
+        assert "single_detector.bytetrack.fps_fallback_to_settings" not in warnings
+
+    def test_a_new_source_rate_rebuilds_the_tracker(self):
+        detector = _fps_detector(_fps_settings(track_buffer=30))
+        detector.set_source_fps(30.0)
+        first = detector._ensure_byte_tracker()
+
+        assert detector._ensure_byte_tracker() is first  # same rate: reused
+        detector.set_source_fps(10.0)
+        second = detector._ensure_byte_tracker()
+
+        assert second is not first
+        assert second is not None
+        assert second.max_time_lost == 10

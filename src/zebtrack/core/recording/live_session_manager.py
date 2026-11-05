@@ -576,6 +576,15 @@ class LiveSessionManagerMixin:
                 log.error("live_camera_service.detector_setup_failed")
                 return False
 
+        # ByteTrack's lost-track buffer is counted in frames: scale it with the
+        # camera's real rate, not settings.video_processing.fps (issue #630).
+        # ``actual_fps`` is the rate the driver reports (already falling back
+        # to the settings value when the driver reports 0).
+        detector = self.detector_service.detector
+        set_source_fps = getattr(detector, "set_source_fps", None)
+        if callable(set_source_fps):
+            set_source_fps(float(getattr(self, "_actual_fps", 0.0) or 0.0))
+
         # Check if we need aquarium detection phase
         zone_data = self.project_manager.get_zone_data() if self.project_manager else None
 

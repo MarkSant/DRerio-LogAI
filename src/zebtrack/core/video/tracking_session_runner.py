@@ -105,6 +105,17 @@ class TrackingSessionRunnerMixin:
             frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
+        # ByteTrack's lost-track buffer is counted in frames: scale it with THIS
+        # video's rate, not settings.video_processing.fps (issue #630).
+        source_fps = (
+            float(video_context.fps)
+            if video_context is not None and video_context.fps
+            else float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+        )
+        set_source_fps = getattr(detector, "set_source_fps", None)
+        if callable(set_source_fps):
+            set_source_fps(source_fps)
+
         zone_data, arena_polygon = self._prepare_zone_data_for_tracking(
             frame_width, frame_height, detector
         )

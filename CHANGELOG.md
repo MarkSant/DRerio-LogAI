@@ -289,6 +289,23 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
 
 ### Fixed
 
+- **O ByteTrack media o buffer de trilha perdida com o fps das configurações, não
+  o do vídeo (#630).** `track_buffer` é contado em quadros e convertido com
+  `frame_rate / 30`; com `settings.video_processing.fps` (30) num vídeo de Barnes
+  a ~9,9 fps, uma trilha perdida ficava "viva" ~3× mais tempo real que o
+  configurado. Agora o tracker recebe o fps real da fonte — `CAP_PROP_FPS` no
+  worker de lote e no pipeline em processo, `camera.actual_fps` ao vivo e na
+  pós-análise multi-aquário — por `DetectionPostProcessor.resolve_tracker_fps()`;
+  as configurações ficam só como fallback, com aviso
+  (`*.bytetrack.fps_fallback_to_settings`). Vídeos a 30 fps não mudam.
+- **Uma trilha reencontrada nunca mais era emitida pelo ByteTrack, e uma trilha
+  expirada nunca saía do pool de associação (#630).** Faltava o
+  `sub_stracks(lost, tracked)` / `sub_stracks(lost, removed)` do ByteTrack
+  original: a trilha reencontrada ficava nas duas listas e
+  `remove_duplicate_stracks` a descartava do lado rastreado; a expirada seguia
+  absorvendo detecções, de modo que `max_time_lost` não tinha efeito algum. O
+  `SingleDetector` mascarava a perda (ID 1 forçado no modo sujeito único,
+  `track_id=None` no multi-sujeito). Os goldens pré-gravado e Barnes não mudam.
 - **Pesos que não são de zebrafish rastreavam o objeto errado sem avisar.** As
   classes eram reconhecidas por duas listas fixas de nomes (aquário e peixe),
   duplicadas em `DetectionPostProcessor` e `DetectorService`; um nome fora delas

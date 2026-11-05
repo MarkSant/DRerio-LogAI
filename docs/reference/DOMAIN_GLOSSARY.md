@@ -16,7 +16,9 @@ registered in `plugins/__init__.py` via the `DETECTOR_PLUGINS` dict.
 
 **ByteTracker**
 Multi-object tracker (in `tracker/`) that assigns persistent `track_id`s across
-frames using Kalman filtering + matching.
+frames using Kalman filtering + matching. Its lost-track buffer is counted in
+frames and scaled by the source's REAL fps (#630), so it means the same real
+time on a 30 fps zebrafish video and on a ~9.9 fps Barnes video.
 
 **track_id (convention)**
 Persistent ID for one tracked subject across frames.

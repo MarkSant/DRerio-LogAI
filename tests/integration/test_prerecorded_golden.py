@@ -291,3 +291,33 @@ def test_experiment_id_reaches_the_recorded_filenames(outcome: PipelineOutcome) 
     assert f"3_CoordMovimento_{EXPERIMENT_ID}.parquet" in produced
     assert f"1_ProcessingArea_{EXPERIMENT_ID}.parquet" in produced
     assert f"2_AreasOfInterest_{EXPERIMENT_ID}.parquet" in produced
+
+
+@pytest.mark.integration
+def test_bytetrack_is_built_with_the_video_fps_not_the_settings_one(tmp_path, monkeypatch) -> None:
+    """Issue #630: the worker hands ByteTrack the VIDEO's rate.
+
+    The fixture video runs at 10 fps while ``settings.video_processing.fps`` stays
+    at 30. The lost-track buffer is counted in frames, so building the tracker
+    with 30 kept a lost track alive 3x longer in real time than configured.
+    """
+    from tests.helpers.prerecorded_pipeline import FPS
+    from zebtrack.core.detection import single_detector as module
+
+    real_tracker = module.BYTETracker
+    frame_rates: list[float] = []
+
+    def spy(*args, **kwargs):
+        frame_rates.append(kwargs["frame_rate"])
+        return real_tracker(*args, **kwargs)
+
+    monkeypatch.setattr(module, "BYTETracker", spy)
+    settings = load_pristine_settings()
+    settings.video_processing.fps = 30
+    try:
+        run_prerecorded_pipeline(tmp_path, settings)
+    except RuntimeError as exc:
+        pytest.skip(f"Cannot build the golden fixture video: {exc}")
+
+    assert frame_rates, "the pipeline never built a ByteTrack"
+    assert frame_rates == pytest.approx([float(FPS)] * len(frame_rates))
