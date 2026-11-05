@@ -6,6 +6,40 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-05] Mutation check paralelo e isolado: o PR #629 estoura os 20 min do passo
+
+__ID:__ TASK-077
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (branch publicada; PR aguarda o mantenedor)
+__Branch:__ claude/mutation-check-parallel-3d4605 (a partir de `release/8.0`)
+__Description:__
+`scripts/mutation_check.py` roda um pytest por vez (~10,6 s cada, 55 min no `--all` local) e
+aplica o mutante NO ARQUIVO REAL: matar o processo no meio deixou mutantes no disco duas vezes na
+v8. No PR #629 (`release/8.0` → `main`) o passo "Mutation check" estoura os 20 min, também porque
+o PR altera o próprio runner e "runner alterado ⇒ catálogo inteiro".
+
+__Critério de pronto:__
+
+- Cada mutante numa cópia isolada da árvore, com `PYTHONPATH` no `src/` da cópia (o
+  `drerio_logai.pth` aponta para o repositório principal); matar o runner não deixa nada mutado.
+- `--jobs N` com padrão por núcleos e RAM livre; saída e `--json` determinísticos (ordem do
+  catálogo).
+- Runner alterado ⇒ testes do runner + 1 mutante por bloco + blocos que o diff seleciona; o
+  `--all` noturno continua inteiro e bloqueante.
+- `--all` medido antes e depois nesta máquina, score idêntico; números no `MUTATION_BASELINE.md`.
+
+__Resultado (2026-11-05):__
+
+- `--all`: 4010 s (série, árvore real) → 841 s (`--jobs 7`, cópias), 321/321 nos dois, JSON com
+  os mesmos vereditos na mesma ordem. Máquina compartilhada nas duas medições.
+- Emulação do runner de 4 vCPUs (afinidade 0xF, 6 blocos/48 pytests): 533 s → 169 s, 3,15×.
+  Estimativa para o PR #629 no CI: ~16 min (367 processos × 8,1 s ÷ 3,15). Limite do passo
+  mantido em 20 min; se ficar perto, 30 cabe no job de 45 (12 min antes do passo).
+- Baseline vermelho passou a sair com 2; a checagem final compara bytes com o snapshot inicial
+  (o `git status` acusava edição local do próprio dev como vazamento).
+- Fora do escopo: o custo de import de torch por processo (issue #643); um bloco do catálogo para
+  o próprio runner (os testes dele precisam do `.git`, que a cópia não tem).
+
 ### [2026-10-30] v8.0.0: qualquer peso/qualquer classe e janelas de análise por condição
 
 __ID:__ TASK-076

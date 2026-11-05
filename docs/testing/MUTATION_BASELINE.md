@@ -9,9 +9,14 @@ noticed.
 ```bash
 poetry run python scripts/mutation_check.py --all
 poetry run python scripts/mutation_check.py --changed-since origin/main   # what CI runs
+poetry run python scripts/mutation_check.py --all --jobs 4                # override the default
 poetry run python scripts/mutation_check.py --module mask_capture --verbose
 poetry run python scripts/mutation_check.py --list
 ```
+
+Exit codes: `0` every mutation killed, `1` at least one survivor, `2` the run cannot vouch for
+its verdicts (a red baseline, the runner's own tests failing, a copy that drifted from the
+checkout or could not be built, the checkout edited during the run).
 
 ## Why this exists
 
@@ -32,10 +37,12 @@ percentage.
 
 ## Current baseline
 
-Measured 2026-11-04 on `release/8.0` (v8.0.0) with `--all`. **312 mutations in
-65 blocks, 312 killed, 0 survivors.** Before
-v8 the catalogue had 58 mutations in 15 blocks; the v8 fronts added the blocks marked (v8) and
-extended `external_trigger_gate` (4 → 8) and `weight_manager` (5 → 10).
+Measured 2026-11-05 on `release/8.0` (v8.0.0, `de65c06d`) with `--all`. **321 mutations in
+70 blocks, 321 killed, 0 survivors**, with the serial runner and with the parallel one alike
+(see [Speed](#speed)). Before v8 the catalogue had 58 mutations in 15 blocks; the v8 fronts added
+the blocks marked (v8) and extended `external_trigger_gate` (4 → 8) and `weight_manager` (5 → 10).
+The five `*_source_fps` / `*_tracker_fps` / `byte_tracker_lost_pool` blocks came with the fix for
+issue #630 (ByteTrack using the source's real fps).
 
 | Block | Module | Mutations | Killed |
 | --- | --- | --- | --- |
@@ -104,6 +111,11 @@ extended `external_trigger_gate` (4 → 8) and `weight_manager` (5 → 10).
 | `report_window_wiring` (v8) | `coordinators/report_generation_coordinator.py` | 3 | 3 |
 | `pipeline_runner_window` (v8) | `core/video/analysis_pipeline_runner.py` | 1 | 1 |
 | `live_post_analysis_window` (v8) | `core/recording/live_analysis_post_processor.py` | 3 | 3 |
+| `byte_tracker_lost_pool` (v8) | `tracker/byte_tracker.py` | 2 | 2 |
+| `detection_post_processor_tracker_fps` (v8) | `core/detection/detection_post_processor.py` | 2 | 2 |
+| `single_detector_source_fps` (v8) | `core/detection/single_detector.py` | 2 | 2 |
+| `multi_aquarium_detector_source_fps` (v8) | `core/detection/multi_aquarium_detector.py` | 2 | 2 |
+| `processing_worker_source_fps` (v8) | `core/video/processing_worker.py` | 1 | 1 |
 
 The sharp-turn entry was added with the fix for a threshold that never reached the number: the
 metrics table was computed with a hardcoded `90.0` while the plot used the DTO default of `45.0`.
@@ -138,8 +150,8 @@ correct behaviour until the data is already wrong.
 
 | When | Command | Blocking |
 | --- | --- | --- |
-| Every PR and every push to `main` — step of the `test (ubuntu-latest, core)` job | `--changed-since HEAD^` | **yes** |
-| Nightly, `mutation-catalogue` job in `stress-tests.yml` | `--all --json` | yes, opens an issue |
+| Every PR and every push to `main` — step of the `test (ubuntu-latest, core)` job | `--changed-since HEAD^ --jobs 4` | **yes** |
+| Nightly, `mutation-catalogue` job in `stress-tests.yml` | `--all --jobs 4 --json` | yes, opens an issue |
 
 `--changed-since REF` keeps only the modules whose **source or test files** the diff touches. The
 reason is arithmetic: each mutation is a fresh pytest process, and in this repository a fresh
@@ -157,11 +169,21 @@ source or test file. Paying seven minutes on the critical path for the other nin
 the step at `continue-on-error` — and a check that cannot fail the build is a check nobody reads.
 
 Scoping is exact for the defect a change introduces **in the module itself**, and blind to one
-that arrives through a shared dependency. Three consequences, all deliberate:
+that arrives through a shared dependency. The consequences, all deliberate:
 
-- **The runner and `tests/conftest.py` widen the scope back to everything.** The first defines
-  what a mutation is; the second owns the autouse fixtures every module's tests run under, and one
-  neutered fixture can hide a defect in a module the diff never named.
+- **`tests/conftest.py` widens the scope back to everything.** It owns the autouse fixtures
+  every module's tests run under, and one neutered fixture can hide a defect in a module the diff
+  never named. Its effect differs block by block, so a sample of blocks says nothing about the
+  blocks left out.
+- **A change to the runner (`scripts/mutation_check.py`) runs a sample, not the catalogue.** It
+  runs the runner's own tests (`tests/quality/test_mutation_check.py`, in the checkout; failing
+  ⇒ exit 2 before any mutant) and then **the first mutation of every block** (`mutations[0]`),
+  added to whatever the diff selects in full. The reason is that a runner defect is uniform: a lost
+  `PYTHONPATH`, a broken copy, a mis-parsed pytest summary or a scheduler that mixes up results
+  breaks every block alike, and one mutant per block still pushes every source file and every test
+  list in the catalogue through the new code. Until 2026-11 the runner forced the whole
+  catalogue, which made the v8 release PR (#629) exceed the step's 20 minutes. Every mutant of
+  every block still runs nightly.
 - **A catalogue edit selects only the blocks it added or changed**, compared with the catalogue at
   the merge base (or at the ref itself on a shallow clone). A block that did not change, guarding a
   module the diff did not touch, cannot change its verdict. Until v8 any catalogue edit ran every
@@ -178,6 +200,37 @@ triggers: on a `pull_request` the checked-out commit is the merge of the branch 
 its first parent is the base tip; on a push to `main` it is the previous `main` commit. It requires
 `fetch-depth: 2` on `actions/checkout` — with the default depth of 1 there is no parent to diff
 against and the run falls back to the full catalogue.
+
+## Speed
+
+Every mutant costs a fresh pytest process, and most of that cost is interpreter start-up and
+the `torch`/`ultralytics` imports (issue #643), not the tests. So the runner gets its speed from
+running several processes at once, each in its own copy of the tree. `--jobs` defaults to one
+per core, capped by free RAM at ~1.5 GB per process.
+
+Measured 2026-11-05 on the development machine (Core Ultra 5 225H: 4 P + 10 E cores, 31 GB), full
+catalogue (`--all`, 70 blocks, 391 pytest processes):
+
+| Runner | Workers | Wall clock | Score |
+| --- | --- | --- | --- |
+| serial, mutant patched in the checkout (`de65c06d`) | 1 | 4010 s (66.8 min) | 321/321 |
+| parallel, one copy per worker | 7 (default; RAM-bound) | 841 s (14.0 min) | 321/321 |
+
+The two JSON reports list the same verdicts in the same order. Both runs shared the machine with
+other work (the serial run overlapped the fast suite and another session's mutation runs, the
+parallel run overlapped another session's GUI suite), so the 4.8× is indicative, not a
+benchmark. The serial run took ~55 min when measured alone the day before.
+
+**What CI should expect.** GitHub's `ubuntu-latest` runner has 4 vCPUs. To approximate it, six
+blocks (48 pytest processes) were run pinned to four logical CPUs (`ProcessorAffinity = 0xF`):
+533 s with `--jobs 1`, 169 s with `--jobs 4`, a **3.15×** speedup, 42/42 killed both times.
+The PR #629 log gives the serial cost on the runner itself: 149 processes in 1212 s, ~8.1 s each.
+Its diff against `main` selects 61 blocks in full (288 mutants), plus the runner sample for the
+other 9 blocks: ~367 processes, ~2970 s serially, so **~16 min** at 3.15×, inside the step's 20.
+If the runner's 4 vCPUs are two SMT cores the speedup will be lower; if the step comes close to
+the limit, raising it to 30 still fits the job's 45 minutes (the steps before it took 12 min
+in that run). The limit was left at 20 because none of these numbers comes from a run on the
+GitHub runner itself.
 
 ## Rules
 
@@ -196,16 +249,39 @@ against and the run falls back to the full catalogue.
 The runner is deliberately dependency-free and deterministic — no `mutmut`, no random operator
 generation — so it behaves the same on the Windows development machine and on the Linux runners.
 
-Two details it gets right, both learned the hard way:
+Details it gets right, all learned the hard way:
 
 - It parses pytest's outcome counts rather than the **exit code**. While `--cov-fail-under` lived
   in `pytest.ini`, every partial run exited non-zero, so an exit-code-based runner reported all
   mutations as killed and proved nothing.
-- It patches and restores **bytes**, not text. Text I/O rewrote LF as CRLF on Windows, leaving four
-  source files dirty in git after a run that changed nothing. The final `git status` check exists
-  so that a restoration failure can never pass unnoticed.
-- An **empty selection returns before anything else runs**. That final `git status` builds its
-  pathspec from the selected sources, so with nothing selected the pathspec vanishes and git
-  reports the whole repository — every unrelated edit in the working tree would be announced as a
-  mutation leak and exit 2. Pinned by
+- It never patches the checkout. Until 2026-11 it patched the real file and restored it in a
+  `finally`; killing the process between the two left the mutant on disk, which happened twice
+  during v8 and was restored by hand both times. Now each worker builds one copy of the tree
+  (`src/`, `tests/`, `scripts/`, `resources/` and the root files, in a temporary directory) and
+  every mutant it runs is applied there. The final check compares the checkout's sources with the
+  bytes read when the run started. Comparing bytes, not `git status`, means a developer's own
+  uncommitted edit to a catalogued source is not reported as a leak, and an empty selection cannot
+  turn into a repository-wide pathspec.
+- The copy's `src/` goes **first on `PYTHONPATH`**, and each new copy is probed once
+  (`importlib.util.find_spec("zebtrack")` must resolve inside it) before any pytest runs there.
+  The venv resolves `zebtrack` through `site-packages/drerio_logai.pth`, an absolute path to the
+  main repository's `src/`, and `scripts/wt-env.sh` adds the worktree's. Without the prepend a
+  pytest in the copy would import the unmutated checkout and every verdict would be about the wrong
+  file. `test_the_pytest_in_a_copy_imports_the_copy_not_the_checkout` reproduces that trap with real
+  pytest runs.
+- A copy is **verified before each mutant** (its bytes must equal the checkout's) and its cached
+  bytecode for the mutated file is dropped after applying and after restoring. CPython validates a
+  `.pyc` by whole-second mtime and size, so a same-length mutant (`!=` for `==`) restored within
+  one second could otherwise be served from the cache to the next run.
+- It patches and restores **bytes**, not text. Text I/O rewrote LF as CRLF on Windows.
+- Each worker's pytest gets its own `--basetemp`. The shared default (`pytest-of-<user>`) prunes
+  old numbered directories, so one worker could delete another's `tmp_path` in the middle of a
+  test.
+- A block's mutants are queued **only after its baseline is green**, and a red baseline exits 2.
+  Until 2026-11 it was a "skip" that left the exit code at 0, so a runner that broke every pytest
+  would have reported a clean run scoring 0/0.
+- Output and `--json` follow **catalogue order** whatever finishes first: a block's section is
+  printed once it and every block before it are complete.
+- An **empty selection returns before anything else runs**: no copy is built and no pytest
+  starts. Pinned by
   `tests/quality/test_mutation_check.py::test_empty_scope_exits_clean_without_running_anything`.

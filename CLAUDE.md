@@ -491,6 +491,18 @@ Baseline in [`docs/testing/MUTATION_BASELINE.md`](docs/testing/MUTATION_BASELINE
 An edit to `scripts/mutation_catalog.yaml` selects **only the blocks it added or changed**
 (compared with the catalogue at the merge base), not the whole catalogue; append your blocks
 inside your module's section and expect the scoped run to exercise exactly those.
+An edit to `scripts/mutation_check.py` runs the runner's own tests plus **the first mutation of
+every block** (`mutations[0]`), on top of what the diff selects; only `tests/conftest.py` still
+forces the whole catalogue.
+
+**Mutants never touch your checkout.** Each one is applied in a private copy of the tree
+(`src/`, `tests/`, `scripts/`, `resources/` and the root files) that one worker reuses, with the
+copy's `src/` first on `PYTHONPATH` — otherwise the venv's `drerio_logai.pth` would import the
+main repo's unmutated code. Killing the runner leaves nothing to restore. `--jobs N` (default:
+cores, capped at ~1.5 GB of free RAM each) runs that many pytests at once; output and `--json`
+stay in catalogue order. A red baseline now exits **2**, not 0: it proves nothing about its
+block. A catalogued test that reads a directory outside that list fails its baseline in the copy;
+add the directory to `_WORKSPACE_DIRS`.
 
 Three shapes are rejected automatically by `tests/quality/test_no_hollow_tests.py`:
 
