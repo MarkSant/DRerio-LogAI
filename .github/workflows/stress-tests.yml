@@ -259,6 +259,10 @@ jobs:
   # off the PR critical path. Unlike the mutmut job above it is NOT
   # continue-on-error -- a survivor here is a named hole in the tests, and the
   # failure opens an issue.
+  #
+  # --jobs 4 matches the runner's 4 vCPUs. Without it the v8 catalogue
+  # (70 blocks, ~390 pytest processes at ~8 s each on this runner) would not
+  # fit in the 45 minutes. Each mutant runs in a private copy of the tree.
   mutation-catalogue:
     name: Curated Mutation Catalogue (--all)
     runs-on: ubuntu-latest
@@ -300,7 +304,7 @@ jobs:
       - name: Run the curated mutation catalogue
         run: |
           xvfb-run --auto-servernum poetry run python scripts/mutation_check.py \
-            --all --json mutation-catalogue.json
+            --all --jobs 4 --json mutation-catalogue.json
 
       - name: Upload mutation catalogue report
         if: always()
