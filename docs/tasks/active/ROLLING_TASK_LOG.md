@@ -48,25 +48,27 @@ __Resultado (F7, i18n/docs/versão, 2026-11-04):__
 - Gates: `pytest -q` 7858 passed / 4 skipped / 1 xfailed; `pytest -m gui -n0` 1306 passed;
   `mutation_check.py --all` 312/312 (65 blocos); ruff, ruff format e mypy limpos.
 
-__Fica para depois (issues):__
+__Verificação com vídeos reais (2026-11-04, peso `best_det_topdown_rat_v2`):__ `Exemp_1` e
+`Exemp_2` processados inteiros; base de tempo pelo batimento do `3c` (55,23 s / 186,71 s, fps
+9,89) bate com o PTS; INÍCIO em 8,18 s / 4,87 s (experimentador visível com confiança ~0,96 até
+8,08 s / 4,77 s, ~1,5 s depois da marcação manual do laboratório); FIM censurado no fim do
+vídeo nos dois (o rato fica visível até o último quadro).
 
-- Multi-aquário ao vivo não grava linhas de trajetória (xfail estrito da F5; três defeitos:
-  `start_time` do recorder pai, kwargs errados em `write_partitioned_detection_data`,
-  `stop_session` não para os sub-recorders) — e não tem janela de análise.
-- Congelamento com `fillna(0)` (linha 0 parece congelada) e blocos atravessando lacunas.
-- Distância total somando o salto através de lacunas de rastreamento.
-- Reporter HTML ainda com fps 30.
-- Espaço de coordenadas das máscaras `3b` não documentado/validado contra a trajetória.
-- Defaults de geotaxia/perspectiva (lateral) e teto de tigmotaxia herdados do zebrafish.
-- `_clear_queues` descarta a cauda sem linha no `6_FrameLedger`.
-- `frame_rate` do ByteTrack = fps da configuração (30): no Barnes a 9,9 fps o buffer fica ~3x mais
-  longo.
-- Editor de janela de análise no diálogo ao vivo ad hoc (o encanamento já repassa
-  `analysis_window`).
-- DOI de versão da 8.0.0 (só existe depois de publicar o release).
-- Corte de ~3,3 s no import de torch/ultralytics (`core/services/__init__.py`).
-- O aviso de divergência online/offline interpola `START`/`STOP` em inglês dentro da frase
-  traduzida (`analysis_window_service.py`); trocar por duas msgids completas.
+__Fica para depois — issues abertas (#630–#651):__
+
+- Barnes e roedores: #630 (ByteTrack com fps 30), #631 (padrões herdados do zebrafish), #632
+  (freezing e distância através de lacunas), #633 (métricas do Barnes, v8.1), #634 (editor de
+  janela no ao vivo ad hoc), #649 (sujeito único; trilhas de 1 linha), #650 (FIM pela entrada na
+  toca), #651 (rabo do rato move a bbox).
+- Ao vivo: #635 (multi-aquário não grava linhas; xfail estrito), #636 (`_clear_queues` sem
+  ledger), #637 (quadros duplicados, dupla cadência, MP4 a 30 fps), #638 (`processing_offset`
+  ignorado).
+- Relatórios e dados: #639 (HTML a 30 fps), #640 (espaço das máscaras `3b`), #641
+  (`total_frames_analisados` conta linhas), #642 (START/STOP no aviso traduzido).
+- Interface e infraestrutura: #643 (import de torch), #644 (`ArduinoBindingsPanel` com dict
+  descartável), #645 (overlay sem papéis), #646 (papéis fora dos templates), #647 (código morto
+  em `tracking_session_runner`), #648 (`bandit`/`pip-audit` no pre-push).
+- Sem issue: DOI de versão da 8.0.0 (só existe depois de publicar o release).
 
 ### [2026-09-15] README para quem nunca abriu um terminal, instalador que instala os pré-requisitos, release 7.2.0
 
