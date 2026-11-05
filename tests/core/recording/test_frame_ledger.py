@@ -537,3 +537,104 @@ def test_origin_without_pin_is_the_first_timed_row(tmp_path):
     assert ledger.origin_perf == 50.0
     assert ledger.build_anchor()["t0_perf"] == 50.0
     ledger.finalize()
+
+
+# --------------------------------------------------------------------------- #
+# Stop: the tail of the session (#636)
+# --------------------------------------------------------------------------- #
+
+
+class _SlowRecorder(_FakeRecorder):
+    """Writer that takes ``delay_s`` per frame, so the video queue backs up."""
+
+    def __init__(self, output_folder, delay_s: float) -> None:
+        super().__init__(output_folder)
+        self._delay_s = delay_s
+
+    def write_video_frame(self, frame) -> None:
+        time.sleep(self._delay_s)
+        super().write_video_frame(frame)
+
+
+def _stop_like_stop_session(harness: _PipelineHarness, run_s: float, drain_s: float):
+    """Run capture + video for ``run_s``, then stop in ``stop_session``'s order."""
+    harness._reset_frame_ledger()
+    harness._capture_stop_event = threading.Event()
+    harness.capture_thread = threading.Thread(target=harness._capture_loop, daemon=True)
+    harness.video_recording_thread = threading.Thread(
+        target=harness._video_recording_loop, daemon=True
+    )
+    harness.capture_thread.start()
+    harness.video_recording_thread.start()
+    time.sleep(run_s)
+
+    left = harness._drain_video_queue_for_stop(drain_s)
+    harness.exit_event.set()
+    harness._clear_queues()
+    harness.capture_thread.join(timeout=5)
+    harness.video_recording_thread.join(timeout=5)
+    ledger = harness._frame_ledger
+    assert ledger is not None
+    rows = sorted(ledger.rows_snapshot(), key=lambda r: r["pipeline_frame"])
+    harness._finalize_frame_ledger()
+    return rows, left
+
+
+def test_stop_writes_the_queued_tail_before_emptying_the_queues(tmp_path):
+    """The video thread drains the queue: every captured frame reaches the MP4."""
+    harness = _PipelineHarness(tmp_path, n_frames=10**9)
+    harness.recorder = cast(Any, _SlowRecorder(tmp_path, delay_s=0.03))
+
+    rows, left = _stop_like_stop_session(harness, run_s=0.4, drain_s=5.0)
+
+    assert left == 0
+    assert len(rows) == harness._last_captured_frame
+    assert {r["outcome"] for r in rows} == {"written"}
+    assert [r["video_frame_index"] for r in rows] == list(range(len(rows)))
+
+
+def test_frames_left_after_the_deadline_are_logged_dropped_on_stop(tmp_path):
+    """One ledger row per captured frame, to the very end of the session."""
+    harness = _PipelineHarness(tmp_path, n_frames=10**9)
+    harness.recorder = cast(Any, _SlowRecorder(tmp_path, delay_s=0.2))
+
+    rows, left = _stop_like_stop_session(harness, run_s=0.5, drain_s=0.1)
+
+    assert left > 0
+    assert [r["pipeline_frame"] for r in rows] == list(range(1, harness._last_captured_frame + 1))
+    by_outcome: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        by_outcome.setdefault(row["outcome"], []).append(row)
+    assert set(by_outcome) == {"written", "dropped_on_stop"}
+    assert len(by_outcome["dropped_on_stop"]) == left
+    assert all(r["video_frame_index"] == -1 for r in by_outcome["dropped_on_stop"])
+    # The tail is what was dropped: every dropped frame comes after every written one.
+    assert max(r["pipeline_frame"] for r in by_outcome["written"]) < min(
+        r["pipeline_frame"] for r in by_outcome["dropped_on_stop"]
+    )
+
+
+def test_capture_stops_before_the_drain(tmp_path):
+    """No new frame is captured once the drain starts."""
+    harness = _PipelineHarness(tmp_path, n_frames=10**9)
+    harness.recorder = cast(Any, _SlowRecorder(tmp_path, delay_s=0.01))
+
+    rows, _left = _stop_like_stop_session(harness, run_s=0.3, drain_s=1.0)
+    captured_at_stop = harness._last_captured_frame
+    time.sleep(0.1)
+
+    assert harness._last_captured_frame == captured_at_stop
+    assert len(rows) == captured_at_stop
+
+
+def test_a_new_session_captures_again_after_a_stop(tmp_path):
+    """The capture-only stop of the previous session must not leak into the next."""
+    harness = _PipelineHarness(tmp_path)
+    harness._capture_stop_event = threading.Event()
+    harness._capture_stop_event.set()  # what the previous stop left behind
+    for loop in ("_capture_loop", "_processing_loop", "_video_recording_loop"):
+        setattr(harness, loop, lambda: None)
+
+    assert harness._start_threads() is True
+
+    assert harness._capture_stop_requested() is False
