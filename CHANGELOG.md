@@ -9,23 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+> **8.0.0 (unreleased)** — ainda sem tag e sem release. Quando o mantenedor
+> cortar a versão, esta seção vira `## [8.0.0] - <data>` e o `[Unreleased]` fica
+> vazio (`docs/guides/developer/RELEASE.md`, §5). O DOI da 8.0.0 ainda não
+> existe; os metadados citam o DOI conceitual.
 
-- **Pesos que não são de zebrafish rastreavam o objeto errado sem avisar.** As
-  classes eram reconhecidas por duas listas fixas de nomes (aquário e peixe),
-  duplicadas em `DetectionPostProcessor` e `DetectorService`; um nome fora delas
-  caía em `arena = 0, animal = 1` pela POSIÇÃO. Como o Roboflow exporta as
-  classes em ordem alfabética, um peso de roedor `{0: arena, 1: experimenter,
-  2: rat}` rastreava o experimentador. O `AquariumDetector` e a calibração ao
-  vivo pediam sempre `classes=[0]` como arena.
-
-- **As notas experimentais do bloco agora chegam aos relatórios.** O botão
-  "📝 Adicionar Nota" da janela do bloco (aba Progresso, projetos ao vivo)
-  existia desde a v2.3.1 e gravava a nota em `project_data["experiment_notes"]`,
-  mas nada no programa lia essa chave: a nota não aparecia no Word, no Excel, no
-  relatório unificado nem na grade. Além disso, o aviso "nota salva" saía antes
-  de salvar o projeto, então uma falha de gravação mostrava sucesso e erro em
-  seguida.
+A 8.0.0 tira duas suposições herdadas do zebrafish: que todo peso tem exatamente
+duas classes (aquário e peixe) e que a análise começa no primeiro quadro em que o
+animal aparece. Qualquer peso YOLOv8/v11 passa a funcionar dizendo o que cada
+classe é (**papéis**), e cada gravação pode ter um **início e um fim de análise**
+definidos por condições — o caso que motivou a versão é o labirinto de Barnes,
+gravado a ~9,9 fps com tempo de quadro variável, em que o rato só deve ser
+medido depois que o experimentador sai de cena e a caixa de partida é retirada.
+Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
 
 ### Added
 
@@ -37,7 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   projeto. O `AquariumDetector` resolve a classe da arena pelo nome (padrão 0).
   Classes sem papel (`experimenter`, `start_box`) seguem ignoradas pelo
   rastreamento.
-
 - **Notas por cobaia**, além da nota do bloco: botão "📝 Nota" em cada linha da
   janela do bloco, com editor de várias linhas e data da última edição.
 - As notas entram na seção "Notas experimentais" do `.docx` e na aba `Notas` do
@@ -47,6 +42,286 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as mesmas regras de `session_duration_overrides` (`Dia_1|Grupo|3`, bloco =
   `Dia_1|Grupo|*`). Notas antigas (`Dia_1_Grupo`, texto puro) continuam sendo
   lidas e passam para o formato novo na próxima edição.
+- **Papéis de classe por nome** (`core/detection/class_roles.py`, ADR-009). Toda
+  classe de um peso é `subject` (sujeito, rastreado), `arena`, `context`
+  (observada, não rastreada) ou `ignored` (ignorada), gravada pelo nome
+  normalizado da classe — um retreino que insere uma classe não desloca os
+  papéis. Um único resolvedor, `resolve_class_role_map()`, com precedência
+  projeto (só enquanto o sha256 do peso gravado bater) > registro do peso >
+  aliases > posição. Aliases nunca produzem `context`, então pesos de zebrafish
+  se comportam exatamente como na 7.2.
+- Entradas do `weights_config.json` aceitam `class_roles` opcional, importado do
+  JSON que acompanha o `.pt` (ex.: `best_det_topdown_rat_v1.json`).
+  `WeightManager.set_weight_class_roles`, `get_weight_sha256`, `sha256_for_path`,
+  `openvino_cache_dir`, `openvino_cache_is_current`.
+- `core/services/worker_model_resolution.py`: o peso que o worker de lote carrega
+  é resolvido no processo principal (`WorkerModelSpec`: caminho, tipo, sha256,
+  exportação OpenVINO, papéis).
+- Os detectores capturam as detecções de sujeito e de contexto de cada quadro
+  (`pop_class_observations()`, mesmo contrato de uso único de `pop_track_masks()`).
+- Projetos gravam `model_selection` (métodos det/seg) na criação; projetos novos e
+  migrados têm `analysis_window: None` e `model_overrides.class_roles` /
+  `class_roles_weight_sha256: None`. Fixture congelada de um projeto 7.2.0
+  (`tests/fixtures/legacy/project_7_2_0/`).
+- **Editor de papéis de classe** (`ui/components/class_roles_panel.py`). Tabela
+  `id | classe | papel` por peso, com o papel escolhido numa lista (sujeito,
+  arena, contexto, ignorada), a origem do mapa em uso (projeto, peso, automático
+  pelo nome, automático pela posição), "Restaurar automático" e "Salvar". Recusa
+  um mapa sem sujeito ou com duas arenas, com frase própria para cada caso, e
+  avisa quando o peso não tem classe reconhecível como o animal ou quando o mapa
+  do projeto foi feito para outro arquivo de peso.
+  - **Escopo do peso**: Configuração Global de Modelos → catálogo → "Papéis das
+    classes…" grava em `weights_config.json` e vale para todo projeto que use o
+    peso.
+  - **Escopo do projeto**: aba "Config. Modelo IA" grava
+    `model_overrides.class_roles` + `class_roles_weight_sha256`; se o save falhar,
+    a edição é desfeita na memória.
+  - **Assistente**: seção recolhível "Papéis das classes (opcional)" na etapa de
+    modelos; uma edição vai para o projeto na criação.
+- O relatório de diagnóstico de modelos lista o papel de cada classe do peso
+  testado (e o acrescenta a cada detecção), dentro e fora de um projeto.
+- **Overlays por papel**: com um mapa explícito, caixas de sujeito, arena e
+  contexto ganham cor e rótulo do papel (contexto em laranja, com o nome da
+  classe) no canvas de zonas e no quadro de análise. Sem mapa explícito as cores
+  da 7.2 ficam idênticas.
+- **`3c_Objetos_<base>.parquet`** (ADR-010). Um arquivo por vídeo, ao lado da
+  trajetória (por pasta `aquarium_N/` no multi-aquário). Para cada quadro
+  processado há uma linha de batimento (`class_id = -1`, `role = "frame"`, sem
+  caixa), mesmo sem nenhuma detecção, mais uma linha por detecção de sujeito e de
+  contexto. Colunas em ordem fixa, só acréscimos: `frame, timestamp, t_event_s,
+  class_id, class_name, role, x1, y1, x2, y2, confidence, track_id, aquarium_id`.
+  Coordenadas em pixels brutos do vídeo. Metadados Parquet:
+  `zebtrack.objects_schema=1`, `class_names`, `class_roles`, `weight_sha256`,
+  `clock` (`pts` | `capture_perf`), `analysis_interval_frames`,
+  `class_roles_source`. Gravado por padrão; `recorder.persist_object_sidecar:
+  false` desliga. Regra única em `core/services/object_capture.should_capture_objects()`;
+  leitura validada em `io/object_sidecar.py` (arquivo ausente, corrompido ou
+  incompatível vira `None` com aviso, nunca exceção).
+- No multi-aquário, linhas de sujeito vão só para o próprio aquário; linhas de
+  contexto vão para o aquário que contém o centroide, ou para todos com
+  `aquarium_id = null` quando não caem em nenhum.
+- A lista de saídas da sessão rotula `3c_Objetos_` ("objetos detectados por
+  frame") e `7_AnalysisWindow_` ("janela de análise"), em ordem de pipeline; os
+  rótulos passaram a ser traduzíveis.
+- **Motor de condições de início e fim da análise** (`core/conditions/`,
+  ADR-011). Uma `WindowSpec` declara quando a análise COMEÇA e quando TERMINA, com
+  nós de nível (`ClassPresence` por classe ou papel, `RoiInside`, `Not`,
+  `AllOfLevel`, `AnyOfLevel`) e de gatilho (`Persist`, `RoiEdge`, `TimeReached`,
+  `FrameReached`, `Delay`, `External`, `EndOfStream`, `FirstOf`, `AllOf`,
+  `Sequence`). A persistência é medida no relógio do evento (PTS no pré-gravado,
+  captura no ao vivo) e o evento é datado no PRIMEIRO quadro da sequência válida.
+  Um único avaliador serve ao vivo (`step` por quadro) e à análise
+  (`evaluate_window`, a mesma dobra), então os dois não divergem sobre a mesma
+  entrada. Início nunca atingido vira `start_not_met`; fim nunca atingido vira
+  `end_of_stream` com `censored=True`.
+- **Janela de análise aplicada às métricas** (ADR-011). A regra salva em
+  `project_data["analysis_window"]` vale em toda análise: relatório individual
+  (vídeo padrão e multi-aquário, uma janela por aquário), sumários parquet,
+  pipeline de vídeo único/lote, geração de sumários e pós-análise da sessão ao
+  vivo. O recorte é híbrido: validação, suavização, velocidade e presença em ROI
+  (com debounce) rodam na gravação inteira e só então as métricas leem
+  [INÍCIO, FIM], com o índice de tempo absoluto preservado.
+  - Denominadores passam a ser FIM − INÍCIO (percentuais, curvas por minuto,
+    inatividade %, `percentage_of_recording`); a latência a cada ROI conta a
+    partir do INÍCIO; quem já está dentro no INÍCIO tem latência 0
+    (`latency_present_at_start`); quem nunca entra sai com o teto = duração da
+    janela e `latency_censored = True`.
+  - Episódio de congelamento cortado pela borda é truncado e o `min_duration`
+    vale para o que sobra.
+  - Início nunca atingido: `on_start_not_met="whole_recording"` analisa a
+    gravação inteira com aviso; `"empty"` deixa as métricas da janela vazias.
+  - `report["analysis_window"]` completo (status, applied, start/stop com frame e
+    t_s, reason, censored, spec_hash, window_duration_s, clock, spec); sem janela
+    continua `{"status": "none"}`.
+- **`7_AnalysisWindow_<base>.json`**: o INÍCIO/FIM calculado fica ao lado da
+  trajetória (escrita atômica) e é reaproveitado enquanto a regra e os arquivos
+  de entrada (trajetória, `3c_Objetos_`, ROIs) não mudarem; os eventos externos e
+  a seção `online` gravados ao vivo são preservados. O `offline` governa a
+  análise; divergência > 1 quadro com o `online` vira aviso no relatório.
+- Sem `3c_Objetos_` (projeto 7.2 ou sidecar desligado) a janela é avaliada só com
+  a trajetória (presença do sujeito e ROIs), com aviso; condição sobre classe de
+  contexto vira `inputs_missing` em vez de ser lida como "ausente".
+- Resumo `.xlsx`: colunas `window_status`, `window_start_s`, `window_stop_s`,
+  `window_duration_s`, `window_reason` (sempre presentes, vazias sem janela) e, por
+  ROI, `latency_censored_<roi>` e `latency_present_at_start_<roi>` (também na aba
+  `por_animal`). Todas no fim, para nenhuma coluna antiga mudar de posição.
+- `.docx`: seção "Analysis Window" ("Janela de Análise") com o recorte, a regra, o
+  status e a ressalva de censura.
+- Chaves de relatório em inglês, sempre presentes (o relatório unificado nunca vê
+  esquema divergente): `analysis_window`, `latency_censored` e
+  `latency_present_at_start` (`{roi: bool}`, também por animal em
+  `analise_roi.por_animal`); `validacao.estatisticas.duration_s` ao lado de
+  `total_frames`. As chaves em português não mudaram (contrato de persistência).
+- `AnalysisService.run_full_analysis(..., window=...)` e
+  `ROIAnalyzer.get_latency_details(t0, t_end)`, com `t0`/`t_end` em latência,
+  contagem de entradas, tempo em ROI e métricas por animal.
+- **Janela de análise ao vivo** (`core/recording/condition_runtime.py`). O
+  `ConditionRuntime` avalia as condições de INÍCIO/FIM durante a sessão, em todo
+  quadro analisado, datando cada quadro pelo instante de CAPTURA
+  (`t_capture_perf − t0` do `6_FrameLedger`), nunca pelo relógio de
+  processamento. A regra vem do projeto ao vivo (`analysis_window`) ou da
+  configuração do diálogo ad hoc, nunca do `Settings` compartilhado. A gravação é
+  sempre completa: a janela só marca onde a análise começa e termina; com "quando
+  o fim acontecer: encerrar a sessão" ela encerra pelo mesmo caminho do "Encerrar
+  e Salvar". Ao fim, `7_AnalysisWindow_<base>.json` recebe a seção `online` e os
+  eventos externos.
+- **Botão "Marcar início/fim"** nos controles do projeto ao vivo, para janelas
+  com sinal manual. O clique é carimbado na hora e entregue ao primeiro quadro
+  capturado depois dele.
+- **Estado da janela na interface**: o aviso de gatilho externo vira um banner
+  genérico de "aguardando a condição de início" e mostra "janela aberta desde
+  X s", "janela encerrada em X s" ou "a condição de início nunca ocorreu" (com o
+  que a análise fará). O mesmo texto vai à barra de status e à prévia ao vivo.
+  Evento `ANALYSIS_WINDOW_STATE_CHANGED`.
+- **`3c_Objetos_` ao vivo**: batimento em TODO quadro analisado, `t_event_s` no
+  relógio de captura e metadados com `clock="capture_perf"` e o mapa de papéis do
+  detector.
+- Eventos numéricos do Arduino são carimbados com `perf_counter` pela thread
+  leitora, no `readline()`; um "event sink" de sessão os recebe antes dos
+  coordenadores.
+- **Editor de janela de análise na aba Configuração de Zonas**
+  (`ui/components/analysis_window_panel.py`). Mostra em texto corrido quando a
+  análise começa e quando termina, e abre um editor de linhas tipadas: classe
+  presente/ausente (por nome ou papel), "mantida por" N segundos ou quadros,
+  sujeito entra/sai de uma ROI do projeto, tempo do vídeo, número do quadro, tempo
+  após o início (só no fim), sinal do Arduino com código, sinal manual e fim do
+  vídeo (só no fim). Cada bloco combina as linhas por "todas", "qualquer uma" ou
+  "em sequência"; "se o início nunca acontecer" e "quando o fim acontecer"
+  completam a regra. Erros de validação viram frases com o bloco e a linha. A
+  regra fica em `project_data["analysis_window"]` (`None` = gravação inteira);
+  uma regra escrita à mão que o editor não sabe mostrar é descrita e preservada
+  até alguém salvar outra. O editor oferece as classes do peso efetivo do projeto
+  como lista fechada. Evento `ANALYSIS_WINDOW_SPEC_CHANGED`.
+- **Predefinição "labirinto de Barnes"** (`core/conditions/presets.py`): início
+  quando a caixa de partida e o experimentador somem e o rato aparece, por 5
+  quadros seguidos; fim no primeiro de fim do vídeo, rato ausente por 3 s ou 240 s
+  após o início. Avisa sobre classes que o peso não tem.
+- **Templates do assistente na versão 4**: guardam a janela de análise. Um
+  template v3 com "Modo de Gatilho Externo" ligado é convertido ao carregar em uma
+  janela equivalente (código 1 do Arduino inicia, código 0 para e encerra a sessão
+  ao vivo), com aviso na etapa de confirmação.
+- **`tests/i18n/test_pot_in_sync.py`**: re-extrai as msgids do código e falha se
+  alguma não estiver no `.pot` commitado. O `.pot` estava 40 msgids atrás do `.po`
+  antes da v8 sem que nada falhasse.
+
+### Changed
+
+- **Mudanças deliberadas nos números (ADR-013).** São correções de defeitos, não
+  escolhas de estilo; cada linha muda resultados de análises já feitas quando o
+  relatório for gerado de novo.
+
+  | Mudança | Por quê | O que muda para o pesquisador |
+  | --- | --- | --- |
+  | Latência a cada ROI pela borda de subida, com `t0` explícito | o `bool.diff()` era um XOR e contava uma SAÍDA como primeira entrada | Quem começa dentro de uma ROI tem latência `0.0` com `latency_present_at_start = True`, não mais `None` ao lado de 1 entrada (no golden, `latencia_primeira_entrada.Esquerda` foi de `None` a `0.0`). ROIs em que o animal entrou vindo de fora não mudam. As latências entre visitas (centro/periferia) deixam de listar as saídas. |
+  | `duracao_video_s` / coluna `video_duration_s` medida pelos timestamps | era `len(df) / fps`, uma contagem de LINHAS | A duração é `(t_último − t_primeiro) + dt mediano`. Exemplos: 2 trilhas × 100 quadros a 10 fps foram de 20 s para 10 s; 1 a cada 10 quadros de um vídeo de 10 fps, de 1 s para 10 s. A normalização por duração de quem usa essa coluna muda junto. |
+  | fps do próprio vídeo (ou do registro de frames) no lugar do 30 global | vídeos de taxa variável ou fora de 30 fps tinham a base de tempo errada | Toda métrica normalizada pelo tempo (velocidade, por minuto, tempo em ROI quando derivado de contagem) passa a usar a taxa real. No Barnes (~9,9 fps) a diferença chegava a 125 s. Quando nenhuma taxa pode ser medida, o valor configurado é usado e o relatório avisa. |
+  | Chaves `analysis_window`, `latency_censored`, `latency_present_at_start` e colunas `window_*` sempre presentes | janela de análise | Quem consome o relatório unificado ou o `.xlsx` vê colunas novas no FIM da tabela; nenhuma coluna antiga muda de posição. |
+  | Novo arquivo `3c_Objetos_` por vídeo | ADR-010 | A pasta de saída ganha um arquivo; scripts que listam a pasta por prefixo não são afetados (nenhum arquivo novo começa com `3_CoordMovimento`). |
+  | Reanálise de sessão ao vivo redatada pelo `6_FrameLedger` | o `timestamp` ao vivo é relógio de processamento, não de captura | Tempos e durações de sessões ao vivo reanalisadas passam a refletir o instante real de captura; sem ledger, o relatório avisa e mantém o relógio antigo. |
+
+- Relatórios individuais, sumários parquet e o reporter do pipeline tiravam a
+  taxa de quadros de `settings.video_processing.fps`; agora usam
+  `analysis/time_base.resolve_time_base()` (primeiro o batimento do `3c`, depois o
+  registro de frames, depois o PTS da trajetória), e a configuração é só o último
+  recurso, com aviso.
+- Quando há um `6_FrameLedger_<base>` ao lado da trajetória ao vivo, os relatórios
+  a redatam pelo instante de captura (`t_capture_perf − t0_perf`, unindo
+  `pipeline_frame == frame`), só em memória. Se alguma linha não tiver instante de
+  captura, a trajetória fica no relógio original com aviso, em vez de misturar
+  dois relógios.
+- Pesos com nomes de classe, três ou mais classes e nenhuma classe reconhecível
+  como o animal são recusados (`ClassRolesUnresolvedError`, mensagem traduzida) em
+  vez de rastrear a classe 1 pela posição — ao vivo (`DetectorService`) e no worker
+  de lote.
+- Os detectores rastreiam toda classe `subject` num único eixo de `track_id`. Sem
+  mapa explícito isso continua sendo exatamente uma classe, o menor id de animal.
+- Com classes de contexto, a inferência roda na caixa da arena ampliada por
+  `model_selection.context_crop_margin_frac` (escopo `context_inference_scope`),
+  com `min(sujeito, context_min_confidence)`, refiltrada por papel. Sem classes de
+  contexto o recorte e o limiar são idênticos aos da 7.2.
+- `apply_class_mismatch_fallback` ("caixa de arena pequena = animal") só roda para
+  pesos cujas classes ninguém nomeou.
+- O NMS do OpenVINO é por classe para modelos com mais de duas classes ou com
+  papéis de contexto; pesos legados de duas classes mantêm o NMS agnóstico.
+- As pastas de cache do OpenVINO são `<stem>_<sha8>_openvino_model` (e `_int8_`),
+  e o `metadata.json` registra `source_sha256`. Uma pasta da 7.2 (sem sha) é
+  reexportada uma vez; até lá o peso roda em PyTorch com aviso.
+- O worker pré-gravado grava o sidecar de objetos em todo quadro processado. Antes
+  nada era gravado num quadro sem detecção, e "ausente" e "não processado" ficavam
+  iguais.
+- Importar uma trajetória pelo assistente também copia os `3b_Mascaras_`,
+  `3c_Objetos_`, `6_FrameLedger_` (csv, parquet, âncora) e `7_AnalysisWindow_`,
+  renomeados para a base de destino. Sidecars que já estavam ao lado da trajetória
+  sobrescrita são removidos.
+- O log de eventos de ROI do `.docx` mostra o tempo absoluto da gravação (antes
+  contava a partir do primeiro evento) e, com janela, uma coluna relativa ao
+  INÍCIO. Com janela, os eixos de tempo dos gráficos começam no INÍCIO e
+  `total_frames_analisados` conta só as linhas dentro da janela.
+- **Gatilho externo e janela de análise** (`external_trigger_gate`, regra única
+  dos dois caminhos de início). Uma janela que espera o Arduino grava tudo desde
+  já e transforma o código em evento do motor; sem `use_arduino` ou com a porta
+  offline a sessão é recusada, como no gatilho legado. Gatilho legado ligado JUNTO
+  com uma janela que espera o Arduino é recusado com mensagem própria.
+- Com janela de análise, os comandos por ROI do Arduino só saem DENTRO da janela
+  e a varredura de saída roda no FIM da janela; no fim da sessão ela só roda se a
+  janela ficou aberta. Sem janela, nada muda.
+- A pós-análise da sessão ao vivo redata a trajetória pelo `6_FrameLedger` antes
+  de analisar e usa o fps da própria gravação, não o nominal da câmera.
+- O `t0` do ledger (âncora) é fixado pela thread de captura no primeiro quadro,
+  antes de ele entrar em qualquer fila; antes era a primeira linha REGISTRADA,
+  cuja ordem entre as threads de captura e de vídeo não é garantida.
+- `TEMPLATE_SCHEMA_VERSION` 3 → 4. Templates antigos continuam abrindo; o arquivo
+  só é regravado como v4 quando salvo de novo.
+- "Alterar alvo" do catálogo de pesos escolhe numa lista em vez de interpretar
+  texto digitado (os tokens gravados `aquarium`/`zebrafish` não mudaram). O rótulo
+  "Alvo" do overlay de sujeito único passou a ser traduzível.
+- **A interface fala de animal e arena, não de peixe e aquário.** Etapa de modelos
+  e calibração do assistente (com exemplos de zebrafish, campo aberto de roedores
+  e Barnes), diálogos de vídeo único e ao vivo ad hoc ("IA Arena", "IA Animal"),
+  tooltips de diagnóstico e de configuração, rótulos dos slots de peso e título
+  dos scripts exportados. A marca no assistente passou a "DRerio LogAI" (o pacote
+  continua `zebtrack`). Nenhuma chave persistida mudou; "Número de aquários"
+  continua nomeando o recurso multi-aquário.
+- Catálogo pt_BR completo: 272 msgids novas ou órfãs traduzidas (218 da v8 e
+  antigas sem tradução, 54 da generalização) nos domínios `zebtrack` e
+  `reporter`. O parágrafo "Definições" da validação no `.docx` estava fora de
+  `_()` e agora é traduzido.
+
+### Fixed
+
+- **Pesos que não são de zebrafish rastreavam o objeto errado sem avisar.** As
+  classes eram reconhecidas por duas listas fixas de nomes (aquário e peixe),
+  duplicadas em `DetectionPostProcessor` e `DetectorService`; um nome fora delas
+  caía em `arena = 0, animal = 1` pela POSIÇÃO. Como o Roboflow exporta as
+  classes em ordem alfabética, um peso de roedor `{0: arena, 1: experimenter,
+  2: rat}` rastreava o experimentador. O `AquariumDetector` e a calibração ao
+  vivo pediam sempre `classes=[0]` como arena.
+- **O worker de lote ignorava o peso do projeto** (`model_overrides.slot_weights`
+  / `active_weight`) e carregava sempre o padrão da configuração — um projeto
+  montado com um peso de rato era processado com o de zebrafish.
+- Um peso retreinado salvo com o mesmo nome de arquivo reaproveitava a exportação
+  OpenVINO antiga.
+- O método det/seg escolhido no assistente se perdia ao reabrir o projeto (valia o
+  método global); projetos antigos o recuperam de `_wizard_metadata`.
+- O caminho multi-aquário de quadro inteiro rastreava todas as classes; com mapa
+  de papéis explícito ele mantém só os sujeitos.
+- **Reprocessar reaproveitava um `3b_Mascaras_` velho.** `start_recording`
+  mantinha o sidecar de máscaras da execução anterior, que depois era unido por
+  `(frame, track_id)` com a trajetória nova. Agora ele apaga os `3b_Mascaras_`,
+  `3c_Objetos_` e `7_AnalysisWindow_` da mesma base antes de gravar.
+- **O código 0 do Arduino não parava a sessão da grade de Progresso.** Depois que
+  o código 1 iniciava a sessão armada e limpava a pendência, o 0 ia para o
+  coordenador legado, que não tinha gravação própria e o ignorava. A sessão
+  disparada pelo 1 agora é dona do 0 até terminar.
+- O `MultiAquariumDetector` criado ao vivo recebe o mapa de papéis do detector
+  (antes os aliases decidiam de novo).
+- **As notas experimentais do bloco agora chegam aos relatórios.** O botão
+  "📝 Adicionar Nota" da janela do bloco (aba Progresso, projetos ao vivo)
+  existia desde a v2.3.1 e gravava a nota em `project_data["experiment_notes"]`,
+  mas nada no programa lia essa chave: a nota não aparecia no Word, no Excel, no
+  relatório unificado nem na grade. Além disso, o aviso "nota salva" saía antes
+  de salvar o projeto, então uma falha de gravação mostrava sucesso e erro em
+  seguida.
 
 ## [7.2.0] - 2026-09-15
 
