@@ -303,6 +303,7 @@ class Recorder:
         base_name: str | None = None,
         calibration=None,
         object_metadata: ObjectSidecarMetadata | None = None,
+        fps: float | None = None,
     ):
         """
         Prepares and starts a new recording session.
@@ -329,6 +330,11 @@ class Recorder:
                 sha256, clock, cadence). Without it the sidecar still records,
                 with empty class fields and the clock inferred from the
                 pipeline: ``pts`` for a video file, ``capture_perf`` otherwise.
+            fps (float, optional): Rate the MP4 is written at. A live camera
+                passes what it really delivers: with the configured value (30)
+                and a camera at 40 fps, the MP4 played 33 % slow and
+                re-processing it gave another time base (#637). Without it (or
+                non-positive) ``video_processing.fps`` of the settings is used.
 
         Returns:
             bool: True if recording started successfully, False otherwise.
@@ -347,6 +353,8 @@ class Recorder:
         if self.is_recording:
             log.warning("recorder.start.already_recording")
             return False
+        if fps is not None and fps > 0:
+            self._fps = float(fps)
 
         output_folder = str(output_folder)
         os.makedirs(output_folder, exist_ok=True)
@@ -658,7 +666,7 @@ class Recorder:
         height: int,
         zones_by_aquarium: dict[int, ZoneData],
         base_name: str | None = None,
-        fps: float = 30.0,
+        fps: float | None = None,
         write_video: bool = True,
         pixel_per_cm_ratio: tuple[float, float] | None = None,
         calibration: Any = None,
@@ -691,7 +699,8 @@ class Recorder:
             height: Frame height in pixels.
             zones_by_aquarium: Dict mapping aquarium_id to ZoneData.
             base_name: Optional base name for output files.
-            fps: Frames per second (default: 30.0).
+            fps: Frames per second of every MP4 written (the session one or
+                the per-aquarium ones); ``None`` keeps the settings value.
             write_video: If True, also writes video files per aquarium.
             pixel_per_cm_ratio: Optional calibration ratio (x_ratio, y_ratio).
             calibration: Optional global calibration object (fallback).
@@ -726,6 +735,9 @@ class Recorder:
             return False
 
         self._multi_aquarium_mode = True
+        if fps is not None and fps > 0:
+            self._fps = float(fps)
+        fps = self._fps
         base_folder = Path(output_folder)
         base_folder.mkdir(parents=True, exist_ok=True)
         self.output_folder = str(base_folder)

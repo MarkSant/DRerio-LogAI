@@ -896,3 +896,48 @@ class TestMultiAquariumProcessingLoop:
         assert frame == 1
         assert t_event == pytest.approx(1.0)
         assert sent_polygons == polygons
+
+
+class TestOneSamplingCadence:
+    """#637: the processing thread decimated a SECOND time, by the count of frames
+    it happened to receive, so the effective cadence drifted from N to ~N^2."""
+
+    def test_analysed_frames_are_the_multiples_of_n_whatever_arrives(self, tmp_path):
+        h = _LoopHarness(tmp_path)
+        h.analysis_interval_frames = 3
+        # A thinned stream: the opportunistic frames 5 and 8 never made it.
+        h.run([(f, T0 + f) for f in (1, 2, 3, 4, 6, 7, 9)])
+
+        recorder: Any = h.recorder
+        assert [frame for frame, _t, _obs in recorder.objects] == [3, 6, 9]
+
+
+class TestLiveRecordingFps:
+    """#637: the MP4 is written at the rate the camera really delivers."""
+
+    def _host(self, *, ledger=None, camera=None):
+        host = object.__new__(FrameProcessingMixin)
+        host_any: Any = host
+        host_any._frame_ledger = ledger
+        host_any.camera = camera
+        return host
+
+    def test_the_session_ledger_wins_once_it_has_a_sample(self):
+        ledger = SimpleNamespace(row_count=30, current_fps_measured=lambda: 39.5)
+        camera = SimpleNamespace(measured_fps=lambda: 41.0, actual_fps=30.0)
+
+        assert self._host(ledger=ledger, camera=camera)._live_recording_fps() == 39.5
+
+    def test_a_short_ledger_defers_to_the_camera_measurement(self):
+        ledger = SimpleNamespace(row_count=5, current_fps_measured=lambda: 12.0)
+        camera = SimpleNamespace(measured_fps=lambda: 41.0, actual_fps=30.0)
+
+        assert self._host(ledger=ledger, camera=camera)._live_recording_fps() == 41.0
+
+    def test_without_a_measurement_the_driver_value(self):
+        camera = SimpleNamespace(measured_fps=lambda: None, actual_fps=30.0)
+
+        assert self._host(camera=camera)._live_recording_fps() == 30.0
+
+    def test_nothing_known_lets_the_recorder_use_the_settings(self):
+        assert self._host()._live_recording_fps() is None

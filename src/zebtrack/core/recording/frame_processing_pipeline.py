@@ -17,6 +17,7 @@ import numpy as np
 import structlog
 
 from zebtrack.i18n import _
+from zebtrack.io.camera import CapturedFrame
 
 if TYPE_CHECKING:
     from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
@@ -89,6 +90,15 @@ def _recorder_takes_video(recorder: Any) -> bool:
             return verdict
     is_recording = getattr(recorder, "is_recording", False)
     return bool(is_recording and getattr(recorder, "video_writer", None))
+
+
+class _CameraRead(NamedTuple):
+    """A frame for the capture loop and when it was captured."""
+
+    frame: Any
+    t_perf: float
+    t_wall: float
+    paced_by_camera: bool  # True: the source blocked until a NEW frame existed
 
 
 class FrameProcessingMixin:
@@ -239,6 +249,9 @@ class FrameProcessingMixin:
         try:
             # Clear exit event
             self.exit_event.clear()
+            # Camera cursor of ``_read_camera_frame`` (#637).
+            self._last_camera_seq = 0
+            self._camera_frames_skipped = 0
             self._video_frames_written = 0  # Reset counter
             # Ledger de frames da sessão: criado ANTES das threads (as duas
             # produzem linhas) e ligado à pasta de saída assim que o recorder
@@ -379,6 +392,9 @@ class FrameProcessingMixin:
             return
         self._maybe_bind_frame_ledger()
         try:
+            # Sensor frames read by the camera but never taken by the pipeline
+            # (it was slower than the sensor): not rows, but not invisible.
+            ledger.set_anchor(camera_frames_skipped=int(getattr(self, "_camera_frames_skipped", 0)))
             ledger.finalize()
             log.info("live_camera_service.frame_ledger.finalized", rows=ledger.row_count)
         # except Exception justified: o encerramento da sessão nunca pode falhar
@@ -386,6 +402,35 @@ class FrameProcessingMixin:
         except Exception:
             log.error("live_camera_service.frame_ledger.finalize_error", exc_info=True)
         self._frame_ledger = None
+
+    def _read_camera_frame(self) -> _CameraRead | None:
+        """Next frame of the session source, with its capture instant.
+
+        A ``Camera`` (``read_next_frame``) hands each sensor frame out once, with
+        the instant ``cap.read`` returned it, and blocks until a new one exists;
+        sensor frames the pipeline was too slow to take are counted in
+        ``_camera_frames_skipped`` (they never became pipeline frames, so they
+        have no ledger row). Any other source falls back to ``get_frame()``,
+        stamped now and paced by the caller.
+        """
+        reader = getattr(self.camera, "read_next_frame", None)
+        if callable(reader):
+            last_seq = int(getattr(self, "_last_camera_seq", 0) or 0)
+            captured = reader(last_seq, timeout=0.5)
+            if captured is None:
+                return None
+            if isinstance(captured, CapturedFrame):
+                gap = captured.seq - last_seq - 1
+                if last_seq > 0 and gap > 0:
+                    self._camera_frames_skipped = (
+                        int(getattr(self, "_camera_frames_skipped", 0) or 0) + gap
+                    )
+                self._last_camera_seq = captured.seq
+                return _CameraRead(captured.frame, captured.t_perf, captured.t_wall, True)
+        ret, frame = self.camera.get_frame()  # type: ignore[union-attr]
+        if not ret or frame is None:
+            return None
+        return _CameraRead(frame, time.perf_counter(), time.time(), False)
 
     def _capture_loop(self) -> None:
         """Thread loop for capturing frames from camera."""
@@ -406,21 +451,24 @@ class FrameProcessingMixin:
                 continue
 
             try:
-                ret, frame = self.camera.get_frame()
-                if not ret or frame is None:
+                read = self._read_camera_frame()
+                if read is None:
                     log.warning("live_camera_service.frame_capture_failed", frame_count=frame_count)
                     self._check_camera_disconnect()
                     time.sleep(0.1)
                     continue
+                frame = read.frame
+                paced_by_camera = read.paced_by_camera
 
                 # Update last valid frame timestamp
-                current_time = time.time()
+                current_time = read.t_wall
                 self._last_valid_frame_time = current_time
                 # Monotonic capture instant (FRAME_T0) — rides with the frame
                 # through the queue so the closed-loop latency log can measure
-                # capture -> LED-ACK end-to-end. Uses perf_counter (not time())
-                # so it is immune to wall-clock adjustments.
-                capture_perf = time.perf_counter()
+                # capture -> LED-ACK end-to-end. perf_counter (not time()), so it
+                # is immune to wall-clock adjustments. From a ``Camera`` it is the
+                # instant ``cap.read`` returned, not the instant of this loop (#637).
+                capture_perf = read.t_perf
 
                 # If we were disconnected, mark reconnection
                 if self._camera_disconnected:
@@ -520,10 +568,14 @@ class FrameProcessingMixin:
                 # sessão (a gravação pode começar depois da detecção de aquário).
                 self._maybe_bind_frame_ledger()
 
-                # Control capture rate
-                default_fps = 30.0
-                fps = self.settings.video_processing.fps if self.settings else default_fps
-                time.sleep(1 / (fps * 1.5))
+                # Control capture rate — only for sources that do not block until
+                # a NEW frame exists. A ``Camera`` paces this loop by itself: the
+                # old fixed poll at 1.5x the configured fps duplicated sensor
+                # frames whenever it outran the camera (#637).
+                if not paced_by_camera:
+                    default_fps = 30.0
+                    fps = self.settings.video_processing.fps if self.settings else default_fps
+                    time.sleep(1 / (fps * 1.5))
 
             # except Exception justified: daemon thread fault-isolation
             except Exception as e:
@@ -536,6 +588,7 @@ class FrameProcessingMixin:
         log.info(
             "live_camera_service.capture_loop_finished",
             total_frames=frame_count,
+            camera_frames_skipped=getattr(self, "_camera_frames_skipped", 0),
             dropped_frames_processing=self._dropped_frames_processing,
             dropped_frames_video=self._dropped_frames_video,
             drop_rate_processing=f"{drop_rate_proc:.1f}%",
@@ -911,7 +964,13 @@ class FrameProcessingMixin:
                     continue
 
                 # PHASE 2: Normal Processing (after arena is defined)
-                should_analyze = (frames_received % self.analysis_interval_frames) == 0
+                # ONE cadence, the capture thread's: a frame is analysed iff its
+                # PIPELINE number is a multiple of N — exactly the ledger's
+                # ``is_analysis_frame``. Counting the frames this thread happened
+                # to RECEIVE (a subset, thinned by the opportunistic queueing)
+                # decimated a second time: N to ~N^2 under load (#637).
+                # Opportunistic frames still serve the display.
+                should_analyze = (frame_number % self.analysis_interval_frames) == 0
                 should_display = (frames_received % self.display_interval_frames) == 0
 
                 detections = []
@@ -1643,6 +1702,32 @@ class FrameProcessingMixin:
             log.warning("live_camera_service.class_observations_failed", exc_info=True)
             return []
         return list(observations) if observations else []
+
+    def _live_recording_fps(self) -> float | None:
+        """Rate to write the session MP4 at: what the camera really delivers (#637).
+
+        In order: the session ledger (the frames the pipeline actually took, so
+        exactly the frames the MP4 will hold) once it has a stable sample — the
+        case when recording starts after the arena-detection phase; else the
+        camera's own measurement of its reads (it has been reading since it was
+        opened, before the detector loaded); else what the driver reports;
+        ``None`` lets the recorder use the settings.
+        """
+        ledger = getattr(self, "_frame_ledger", None)
+        if ledger is not None and getattr(ledger, "row_count", 0) >= 30:
+            measured = ledger.current_fps_measured()
+            if isinstance(measured, int | float) and measured > 0:
+                return float(measured)
+        camera = getattr(self, "camera", None)
+        probe = getattr(camera, "measured_fps", None)
+        if callable(probe):
+            measured = probe()
+            if isinstance(measured, int | float) and measured > 0:
+                return float(measured)
+        reported = getattr(camera, "actual_fps", None)
+        if isinstance(reported, int | float) and reported > 0:
+            return float(reported)
+        return None
 
     def _live_object_metadata(self) -> Any:
         """``3c_Objetos_`` metadata of a live recording (role map + capture clock).

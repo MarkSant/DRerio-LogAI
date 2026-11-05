@@ -745,10 +745,27 @@ or to measure latency — the capture instant lives in the ledger.
 
 **Honest caveats (this will end up in a publication):**
 
-- `frame_t0`/`t_capture_perf` is stamped in the **capture** thread, right after
-  `camera.get_frame()` and before any `put` — verified. So queue wait is
-  attributed to `queue_wait_ms` and never smuggled into inference time.
-- But `perf_counter()` after `camera.get_frame()` measures when the frame became
+- `frame_t0`/`t_capture_perf` is the instant `cap.read` RETURNED the frame, stamped
+  by the camera's reader thread (`Camera.read_next_frame` → `CapturedFrame.t_perf`) —
+  the instant closest to the sensor that Python sees. Until #637 it was stamped in the
+  capture loop after `camera.get_frame()`, which returns the newest frame WITHOUT
+  consuming it: a loop polling at 1.5× the configured fps turned one sensor frame
+  into two pipeline frames, both stamped at the poll. Now each sensor frame is handed
+  out once; sensor frames the pipeline was too slow to take are counted
+  (`camera_frames_skipped` in the ledger anchor), never duplicated. Sources without
+  `read_next_frame` keep the old poll, stamped in the loop. The same value goes to the
+  ledger and the latency log (`frame_to_ack_ms` now starts at the read, so it can grow
+  by up to one frame interval compared with sessions recorded before #637).
+- **One sampling cadence (#637).** A frame is analysed iff `frame % N == 0` on its
+  PIPELINE number — exactly the ledger's `is_analysis_frame`. The processing thread
+  used to decimate again by the count of frames it RECEIVED (a subset), so the
+  effective cadence drifted from N to ~N². Opportunistic frames serve the display only.
+- **MP4 rate (#637).** The live MP4 is opened at `_live_recording_fps()`: the ledger's
+  measured rate (≥ 30 rows), else `Camera.measured_fps()` (last ~120 reads), else
+  `actual_fps` (driver), else the settings. It was the settings' 30 fps while cameras
+  delivered 39–41, so the video played slow and re-processing it re-dated everything.
+- Queue wait is attributed to `queue_wait_ms` and never smuggled into inference time.
+- But `perf_counter()` after `cap.read` measures when the frame became
   available **to Python**, not when the sensor exposed it. Driver/UVC buffering
   (typically 1–3 frames) is invisible and enters `frame_to_ack_ms` in full as if
   it were pipeline latency. It is not correctable in software without reference
@@ -1527,8 +1544,9 @@ loop end → finish() (end-of-stream STOP), 7_AnalysisWindow_<base>.json (online
 
 - **Clock.** `t_s = t_capture_perf − t0_perf` of the ledger anchor — the origin
   `retime_from_ledger` uses. The trajectory `timestamp` (processing clock) dates nothing.
-  Holds are evaluated in capture seconds; a `Hold(frames=...)` is warned (duplicates from
-  camera polling and two decimation cadences).
+  Holds are evaluated in capture seconds; a `Hold(frames=...)` is warned: a frame count
+  still depends on the camera's real rate and on sensor frames the pipeline skipped
+  (the duplicates and the double cadence are gone since #637).
 - **External events** (Arduino, "Mark start/stop" button) are stamped at their source and
   delivered with the first analysed frame CAPTURED at or after the stamp.
 - **Session end by condition** never calls `_on_session_complete(output_dir)` raw: an early
