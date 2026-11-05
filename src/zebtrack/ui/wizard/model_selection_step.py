@@ -374,7 +374,7 @@ class ModelSelectionStep(WizardStep):
         subtitle = Label(
             self,
             text=_(
-                "Adjust how ZebTrack will use each detection model.\n"
+                "Adjust how DRerio LogAI will use each detection model.\n"
                 "If you prefer, keep the recommended defaults and move on."
             ),
             fg="gray",
@@ -428,7 +428,7 @@ class ModelSelectionStep(WizardStep):
         self._build_method_row(
             parent=methods_frame,
             row=0,
-            title=_("Aquarium (arena detection)"),
+            title=_("Arena (apparatus detection)"),
             method_var=self.aquarium_method_var,
             weight_var=self.aquarium_weight_var,
             combo_attr="_aquarium_weight_combo",
@@ -606,7 +606,7 @@ class ModelSelectionStep(WizardStep):
                 "🔗 Match Threshold\n\n"
                 "Tolerance when associating boxes.\n"
                 "HIGH values (close to 1.0) are more permissive for fast movement.\n\n"
-                "💡 Default: 0.95 (for fast zebrafish)"
+                "💡 Default: 0.95 (for fast animals such as zebrafish)"
             ),
             param_key="match",
         )
@@ -649,7 +649,7 @@ class ModelSelectionStep(WizardStep):
             tooltip=_(
                 "🔳 IoU Threshold\n\n"
                 "Minimum overlap to prefer a box match over a distance match.\n"
-                "For small, fast fish, low values work better.\n\n"
+                "For small, fast animals, low values work better.\n\n"
                 "💡 Default: 0.1"
             ),
             param_key="iou_thresh",
@@ -663,8 +663,8 @@ class ModelSelectionStep(WizardStep):
             "📊 Quick Guide:\n"
             "• Track Thresh: ↓ to keep a weak trail\n"
             "• Match Thresh: ↑ to accept abrupt movements\n"
-            "• Buffer: ↑ to 'remember' the fish for longer\n"
-            "• Distance: ↑ for very fast fish"
+            "• Buffer: ↑ to 'remember' the animal for longer\n"
+            "• Distance: ↑ for very fast animals"
         )
 
         guide_label = Label(
@@ -843,7 +843,7 @@ class ModelSelectionStep(WizardStep):
                 _(
                     "ℹ️ ByteTrack disabled. The system will use a simplified hybrid "
                     "tracker that relies only on '{distance}' and '{iou}' to keep the ID "
-                    "stable. Ideal for 1 animal per aquarium."
+                    "stable. Ideal for 1 animal per arena."
                 ).format(
                     distance=_("Max distance (px):").rstrip(":"),
                     iou=_("IoU Threshold (0-1):").rstrip(":"),
@@ -858,7 +858,7 @@ class ModelSelectionStep(WizardStep):
             self.bytetrack_hint_var.set(
                 _(
                     "💡 ByteTrack uses a Kalman filter to predict positions even when the "
-                    "fish briefly disappears. Adjust the fields below for more stability."
+                    "animal briefly disappears. Adjust the fields below for more stability."
                 )
             )
 
@@ -884,8 +884,8 @@ class ModelSelectionStep(WizardStep):
         ToolTip(
             method_combo,
             _(
-                "Segmentation supports several animals per aquarium.\n"
-                "Detection is optimized for one animal per aquarium and uses ByteTrack."
+                "Segmentation supports several animals per arena.\n"
+                "Detection is optimized for one animal per arena and uses ByteTrack."
             ),
         )
 
@@ -1116,7 +1116,7 @@ class ModelSelectionStep(WizardStep):
         if method_key == "det" and animals_per_aquarium > 1:
             self.animal_method_hint_var.set(
                 _(
-                    "⚠️ Detection (det) is recommended for only 1 animal per aquarium."
+                    "⚠️ Detection (det) is recommended for only 1 animal per arena."
                     " Consider segmentation (seg) for several animals."
                 )
             )
@@ -1320,7 +1320,7 @@ class ModelSelectionStep(WizardStep):
 
         for role_message, method_var, weight_var in (
             (
-                _("Select a valid weight for the aquarium. The file must match the chosen method."),
+                _("Select a valid weight for the arena. The file must match the chosen method."),
                 self.aquarium_method_var,
                 self.aquarium_weight_var,
             ),

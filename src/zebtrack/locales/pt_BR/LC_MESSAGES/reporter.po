@@ -3,15 +3,15 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI 1.6\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-04 21:00-0300\n"
+"POT-Creation-Date: 2026-11-04 21:12-0300\n"
 "PO-Revision-Date: 2025-10-09 00:00+0000\n"
 "Last-Translator: DRerio LogAI Team <marco.sant@unesp.br>\n"
-"Language-Team: Portuguese <marco.sant@unesp.br>\n"
 "Language: pt_BR\n"
+"Language-Team: Portuguese <marco.sant@unesp.br>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "Generated-By: Babel 2.18.0\n"
 
 #: src/zebtrack/analysis/reporters/word_reporter.py:108
@@ -60,23 +60,23 @@ msgstr "Janela de Análise"
 msgid ""
 "The metrics in this report cover only the analysis window, from START "
 "({start_s:.2f} s, frame {start_frame}) to STOP ({stop_s:.2f} s, frame "
-"{stop_frame}): {duration:.2f} s. Rates and percentages use this duration; "
-"ROI latencies are measured from START. Times in the event log and in the "
-"plots are relative to START."
+"{stop_frame}): {duration:.2f} s. Rates and percentages use this duration;"
+" ROI latencies are measured from START. Times in the event log and in the"
+" plots are relative to START."
 msgstr ""
 "As métricas deste relatório cobrem apenas a janela de análise, do INÍCIO "
 "({start_s:.2f} s, frame {start_frame}) ao FIM ({stop_s:.2f} s, frame "
-"{stop_frame}): {duration:.2f} s. Taxas e percentuais usam essa duração; as "
-"latências de ROI são medidas a partir do INÍCIO. Os tempos do log de eventos"
-" e dos gráficos são relativos ao INÍCIO."
+"{stop_frame}): {duration:.2f} s. Taxas e percentuais usam essa duração; "
+"as latências de ROI são medidas a partir do INÍCIO. Os tempos do log de "
+"eventos e dos gráficos são relativos ao INÍCIO."
 
 #: src/zebtrack/analysis/reporters/word_reporter.py:328
 msgid ""
 "The analysis window never started and its rule asks for empty metrics in "
 "that case: the window metrics of this report are empty."
 msgstr ""
-"A janela de análise nunca começou e a regra dela pede métricas vazias nesse "
-"caso: as métricas da janela neste relatório estão vazias."
+"A janela de análise nunca começou e a regra dela pede métricas vazias "
+"nesse caso: as métricas da janela neste relatório estão vazias."
 
 #: src/zebtrack/analysis/reporters/word_reporter.py:335
 #, python-brace-format
@@ -84,8 +84,8 @@ msgid ""
 "The analysis window could not be applied (status: {status}); the metrics "
 "cover the whole recording."
 msgstr ""
-"Não foi possível aplicar a janela de análise (status: {status}); as métricas"
-" cobrem a gravação inteira."
+"Não foi possível aplicar a janela de análise (status: {status}); as "
+"métricas cobrem a gravação inteira."
 
 #: src/zebtrack/analysis/reporters/word_reporter.py:339
 #, python-brace-format
@@ -99,8 +99,8 @@ msgstr "Motivo do fim da janela: {reason}"
 
 #: src/zebtrack/analysis/reporters/word_reporter.py:345
 msgid ""
-"The STOP condition was not met before the recording ended; the window was "
-"closed at the end of the recording (censored)."
+"The STOP condition was not met before the recording ended; the window was"
+" closed at the end of the recording (censored)."
 msgstr ""
 "A condição de FIM não ocorreu antes de a gravação terminar; a janela foi "
 "fechada no fim da gravação (censurada)."
@@ -176,18 +176,18 @@ msgid ""
 "Unobserved time (tracking gaps not credited to any ROI): {value}. ROI "
 "durations do not cover this portion of the session."
 msgstr ""
-"Tempo não observado (falhas de rastreamento não atribuídas a nenhuma ROI): "
-"{value}. As durações por ROI não cobrem essa parte da sessão."
+"Tempo não observado (falhas de rastreamento não atribuídas a nenhuma "
+"ROI): {value}. As durações por ROI não cobrem essa parte da sessão."
 
 #: src/zebtrack/analysis/reporters/word_reporter.py:487
 msgid ""
-"ROI metrics at the top of this report are region OCCUPANCY (any_track). Per-"
-"animal totals follow; the full per-animal x ROI breakdown is in the "
+"ROI metrics at the top of this report are region OCCUPANCY (any_track). "
+"Per-animal totals follow; the full per-animal x ROI breakdown is in the "
 "'por_animal' sheet of the summary spreadsheet."
 msgstr ""
 "As métricas de ROI no topo deste relatório são de OCUPAÇÃO da região "
-"(any_track). Os totais por animal vêm a seguir; o detalhamento completo por "
-"animal x ROI está na aba 'por_animal' da planilha de resumo."
+"(any_track). Os totais por animal vêm a seguir; o detalhamento completo "
+"por animal x ROI está na aba 'por_animal' da planilha de resumo."
 
 #: src/zebtrack/analysis/reporters/word_reporter.py:494
 msgid "Animal (track_id)"
@@ -217,8 +217,7 @@ msgstr "Apêndice: Registro de Eventos de ROI"
 
 #: src/zebtrack/analysis/reporters/word_reporter.py:537
 msgid "Chronological log of all entries and exits from defined ROIs."
-msgstr ""
-"Registro cronológico de todas as entradas e saídas das ROIs definidas."
+msgstr "Registro cronológico de todas as entradas e saídas das ROIs definidas."
 
 #: src/zebtrack/analysis/reporters/word_reporter.py:540
 msgid "Event"
@@ -292,19 +291,35 @@ msgstr "Detalhes da validação"
 
 #: src/zebtrack/analysis/reporters/word_reporter.py:657
 msgid ""
-"The following issues were detected during trajectory validation. These may "
-"affect the precision of the calculated metrics."
+"The following issues were detected during trajectory validation. These "
+"may affect the precision of the calculated metrics."
 msgstr ""
-"Os problemas a seguir foram detectados durante a validação da trajetória. "
-"Eles podem afetar a precisão das métricas calculadas."
+"Os problemas a seguir foram detectados durante a validação da trajetória."
+" Eles podem afetar a precisão das métricas calculadas."
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:672
+#: src/zebtrack/analysis/reporters/word_reporter.py:663
+msgid ""
+"Definitions:\n"
+"- Temporal Gaps: Frames where the animal was not detected "
+"(occlusion/error).\n"
+"- Missing Frames: Total frames skipped if using processing_interval > 1 "
+"(expected behavior).\n"
+"- Max Gap: The largest consecutive sequence of lost frames."
+msgstr ""
+"Definições:\n"
+"- Lacunas temporais: frames em que o animal não foi detectado "
+"(oclusão/erro).\n"
+"- Frames ausentes: total de frames pulados ao usar processing_interval > "
+"1 (comportamento esperado).\n"
+"- Maior lacuna: a maior sequência consecutiva de frames perdidos."
+
+#: src/zebtrack/analysis/reporters/word_reporter.py:675
 msgid "No significant issues were detected during trajectory validation."
 msgstr ""
 "Nenhum problema significativo foi detectado durante a validação da "
 "trajetória."
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:675
+#: src/zebtrack/analysis/reporters/word_reporter.py:678
 msgid "Validation details added"
 msgstr "Detalhes de validação adicionados"
 

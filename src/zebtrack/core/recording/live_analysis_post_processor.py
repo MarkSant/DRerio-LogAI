@@ -231,10 +231,10 @@ class LiveAnalysisPostProcessorMixin:
                 "Scale differs by {percent:.0f}% between the axes "
                 "({px_x:.1f} px/cm horizontally against {px_y:.1f} vertically). "
                 "A camera facing the apparatus should give nearly the same value "
-                "on both, so the aquarium dimensions entered probably do not "
+                "on both, so the arena dimensions entered probably do not "
                 "match the real proportions. Distances and velocities are "
                 "affected UNEVENLY by direction, which no single correction "
-                "factor can undo — re-measure the aquarium and regenerate the "
+                "factor can undo — re-measure the arena and regenerate the "
                 "report."
             ).format(percent=(ratio - 1) * 100, px_x=pixelcm_x, px_y=pixelcm_y)
         )

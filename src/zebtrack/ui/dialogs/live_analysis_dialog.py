@@ -407,11 +407,11 @@ class LiveAnalysisDialog(Dialog):
         adv_frame.columnconfigure(5, weight=1)
 
         # Row 0: Model Methods
-        ttk.Label(adv_frame, text=_("Aquarium AI:")).grid(row=0, column=0, padx=(5, 2), sticky="w")
+        ttk.Label(adv_frame, text=_("Arena AI:")).grid(row=0, column=0, padx=(5, 2), sticky="w")
         create_help_label(
             adv_frame,
             _(
-                "Segmentation or Detection model for the tank.\n"
+                "Segmentation or Detection model for the arena.\n"
                 "• seg: slower, but outlines the edges better.\n"
                 "• det: very fast."
             ),
@@ -427,10 +427,10 @@ class LiveAnalysisDialog(Dialog):
         )
         aquarium_method_combo.grid(row=0, column=2, padx=5, sticky="w")
 
-        ttk.Label(adv_frame, text=_("Fish AI:")).grid(row=0, column=3, padx=(15, 2), sticky="w")
+        ttk.Label(adv_frame, text=_("Animal AI:")).grid(row=0, column=3, padx=(15, 2), sticky="w")
         create_help_label(
             adv_frame,
-            _("Model for the fish.\n• Use 'seg' if there is more than one fish per aquarium."),
+            _("Model for the animal.\n• Use 'seg' if there is more than one animal per arena."),
         ).grid(row=0, column=4, padx=2)
         ttk.Combobox(
             adv_frame,
@@ -456,7 +456,7 @@ class LiveAnalysisDialog(Dialog):
         # aceitar em silêncio uma escolha que não pode ter efeito.
         self._preserve_real_shape_check = ttk.Checkbutton(
             adv_frame,
-            text=_("Preserve the real aquarium shape (mask)"),
+            text=_("Preserve the real arena shape (mask)"),
             variable=self.preserve_real_shape_var,
         )
         self._preserve_real_shape_check.grid(
@@ -465,11 +465,11 @@ class LiveAnalysisDialog(Dialog):
         create_help_label(
             adv_frame,
             _(
-                "Aquarium Outline\n\n"
+                "Arena Outline\n\n"
                 "• Checked: keeps the segmentation mask outline, for round, "
-                "hexagonal, maze-shaped or perspective-skewed tanks.\n"
+                "hexagonal, maze-shaped or perspective-skewed arenas.\n"
                 "• Unchecked: reduces the detection to a 4-corner rectangle.\n\n"
-                "Requires the 'seg' aquarium model."
+                "Requires the 'seg' arena model."
             ),
         ).grid(row=1, column=3, padx=2, sticky="w")
         aquarium_method_combo.bind(
@@ -508,7 +508,7 @@ class LiveAnalysisDialog(Dialog):
         ttk.Label(adv_frame, text=_("Animals/aquarium:")).grid(
             row=2, column=3, padx=(15, 2), pady=5, sticky="w"
         )
-        create_help_label(adv_frame, _("Number of fish inside each aquarium.")).grid(
+        create_help_label(adv_frame, _("Number of animals inside each aquarium.")).grid(
             row=2, column=4, padx=2
         )
         Spinbox(
@@ -529,13 +529,13 @@ class LiveAnalysisDialog(Dialog):
         # horizontal e um vertical do MESMO tamanho real viravam números
         # diferentes. O erro é anisotrópico, então não dá para corrigir depois
         # multiplicando por uma constante.
-        ttk.Label(adv_frame, text=_("Aquarium width (cm):")).grid(
+        ttk.Label(adv_frame, text=_("Arena width (cm):")).grid(
             row=3, column=0, padx=(5, 2), pady=5, sticky="w"
         )
         create_help_label(
             adv_frame,
             _(
-                "Real WIDTH of the aquarium, in centimetres.\n\n"
+                "Real WIDTH of the arena, in centimetres.\n\n"
                 "Together with the height it converts pixels to cm, so every "
                 "distance, speed and cm-based metric in the report depends on "
                 "this pair.\n\n"
@@ -554,16 +554,16 @@ class LiveAnalysisDialog(Dialog):
             width=8,
         ).grid(row=3, column=2, padx=5, sticky="w")
 
-        ttk.Label(adv_frame, text=_("Aquarium height (cm):")).grid(
+        ttk.Label(adv_frame, text=_("Arena height (cm):")).grid(
             row=3, column=3, padx=(15, 2), pady=5, sticky="w"
         )
         create_help_label(
             adv_frame,
             _(
-                "Real HEIGHT of the aquarium, in centimetres — the vertical "
+                "Real HEIGHT of the arena, in centimetres — the vertical "
                 "extent as the camera sees it.\n\n"
                 "For a top-down view this is the depth of the apparatus on the "
-                "bench, not the water column."
+                "bench (for a fish tank, not the water column)."
             ),
         ).grid(row=3, column=4, padx=2)
         Spinbox(
@@ -861,7 +861,7 @@ class LiveAnalysisDialog(Dialog):
             if num_aquariums < 1 or animals_per_aquarium < 1:
                 raise ValueError(_("The number of aquariums and animals must be >= 1"))
             if aquarium_width <= 0 or aquarium_height <= 0:
-                raise ValueError(_("The aquarium dimensions must be positive"))
+                raise ValueError(_("The arena dimensions must be positive"))
 
         except (ValueError, TypeError) as e:
             messagebox.showerror(

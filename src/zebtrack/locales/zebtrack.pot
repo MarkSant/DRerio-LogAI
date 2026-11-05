@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-04 20:59-0300\n"
+"POT-Creation-Date: 2026-11-04 21:12-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2163,10 +2163,10 @@ msgstr ""
 msgid ""
 "Scale differs by {percent:.0f}% between the axes ({px_x:.1f} px/cm "
 "horizontally against {px_y:.1f} vertically). A camera facing the "
-"apparatus should give nearly the same value on both, so the aquarium "
+"apparatus should give nearly the same value on both, so the arena "
 "dimensions entered probably do not match the real proportions. Distances "
 "and velocities are affected UNEVENLY by direction, which no single "
-"correction factor can undo — re-measure the aquarium and regenerate the "
+"correction factor can undo — re-measure the arena and regenerate the "
 "report."
 msgstr ""
 
@@ -2892,19 +2892,19 @@ msgid "Command {command} failed ({source})"
 msgstr ""
 
 #: src/zebtrack/core/viewmodels/hardware_status_view_model.py:289
-msgid "🐠 Aquarium (det)"
+msgid "🔲 Arena (det)"
 msgstr ""
 
 #: src/zebtrack/core/viewmodels/hardware_status_view_model.py:290
-msgid "🐠 Aquarium (seg)"
+msgid "🔲 Arena (seg)"
 msgstr ""
 
 #: src/zebtrack/core/viewmodels/hardware_status_view_model.py:291
-msgid "🐟 Animal (det)"
+msgid "🐾 Animal (det)"
 msgstr ""
 
 #: src/zebtrack/core/viewmodels/hardware_status_view_model.py:292
-msgid "🐟 Animal (seg)"
+msgid "🐾 Animal (seg)"
 msgstr ""
 
 #: src/zebtrack/core/viewmodels/hardware_status_view_model.py:388
@@ -4565,6 +4565,7 @@ msgstr ""
 #: src/zebtrack/ui/components/canvas/overlay_roles.py:114
 #: src/zebtrack/ui/components/canvas/overlay_roles.py:139
 #: src/zebtrack/ui/components/class_roles_panel.py:129
+#: src/zebtrack/ui/components/global_model_configuration_panel.py:30
 #: src/zebtrack/ui/components/validation_manager.py:899
 #: src/zebtrack/ui/components/validation_manager.py:1000
 #: src/zebtrack/ui/wizard/import_config_step.py:158
@@ -4901,10 +4902,10 @@ msgstr ""
 msgid ""
 "ROI Inclusion Logic\n"
 "\n"
-"Defines when the fish counts as 'inside' a zone.\n"
+"Defines when the animal counts as 'inside' a zone.\n"
 "• Centroid (centroid_in): only if the centre point is in the zone.\n"
 "• Centroid w/ Buffer: expands the zone virtually for the calculation.\n"
-"• BBox Intersection: if any part of the fish's box touches the zone.\n"
+"• BBox Intersection: if any part of the animal's box touches the zone.\n"
 "• Seg Overlap: based on the pixel mask (most accurate).\n"
 "\n"
 "'seg_overlap' needs two more things besides this rule: "
@@ -4948,7 +4949,7 @@ msgid ""
 "Basis (denominator) of the Overlap Fraction\n"
 "\n"
 "Defines WHAT the fraction is measured against.\n"
-"• bbox: fraction of the fish's box that is in the zone (historical).\n"
+"• bbox: fraction of the animal's box that is in the zone (historical).\n"
 "• roi: fraction of the zone that is covered by the box.\n"
 "• max: the larger of the two — recommended for small zones, where 'bbox' "
 "underestimates (a box 4x bigger than the zone, covering it entirely, "
@@ -5618,11 +5619,11 @@ msgid "Rule '{rule}' ({detail})."
 msgstr ""
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:30
-msgid "Aquarium"
-msgstr ""
-
-#: src/zebtrack/ui/components/global_model_configuration_panel.py:30
-msgid "Zebrafish"
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1434
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1506
+#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1597
+#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:69
+msgid "Animal"
 msgstr ""
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:35
@@ -5683,19 +5684,19 @@ msgid ""
 msgstr ""
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:204
-msgid "🐠 Aquarium (Detection)"
+msgid "🔲 Arena (Detection)"
 msgstr ""
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:205
-msgid "🐠 Aquarium (Segmentation)"
+msgid "🔲 Arena (Segmentation)"
 msgstr ""
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:206
-msgid "🐟 Animal (Detection)"
+msgid "🐾 Animal (Detection)"
 msgstr ""
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:207
-msgid "🐟 Animal (Segmentation)"
+msgid "🐾 Animal (Segmentation)"
 msgstr ""
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:226
@@ -6520,7 +6521,7 @@ msgid ""
 "Minimum probability (0.0 to 1.0) for a detection to count as valid.\n"
 "• Raise it (e.g. 0.50) if there are many 'false positives' "
 "(noise/ghosts).\n"
-"• Lower it (e.g. 0.15) if the fish is not detected in some frames.\n"
+"• Lower it (e.g. 0.15) if the animal is not detected in some frames.\n"
 "• Recommended default: 0.25"
 msgstr ""
 
@@ -6553,7 +6554,7 @@ msgid ""
 "Minimum confidence to START or KEEP a track.\n"
 "• Defines how 'sure' the detector must be to create a new ID.\n"
 "• Raise it to avoid junk/noise tracks.\n"
-"• Lower it to keep the ID of fish that are hard to detect.\n"
+"• Lower it to keep the ID of animals that are hard to detect.\n"
 "• Recommended default: 0.25"
 msgstr ""
 
@@ -6580,9 +6581,9 @@ msgstr ""
 msgid ""
 "Track Buffer (Memory)\n"
 "\n"
-"How many frames the system 'remembers' a fish after it disappears "
+"How many frames the system 'remembers' an animal after it disappears "
 "(occlusion/miss).\n"
-"• Raise it (e.g. 120) if the fish vanishes for a long time.\n"
+"• Raise it (e.g. 120) if the animal vanishes for a long time.\n"
 "• Lower it to drop lost tracks quickly.\n"
 "• Default: 90 frames (~3s at 30fps)"
 msgstr ""
@@ -6595,10 +6596,10 @@ msgstr ""
 msgid ""
 "Maximum Distance (pixels)\n"
 "\n"
-"How far the centre of the fish may move between processed frames.\n"
+"How far the centre of the animal may move between processed frames.\n"
 "• Prevents impossible associations (teleporting).\n"
-"• Raise it if the fish is fast or the frame rate is low.\n"
-"• Lower it if IDs are swapped between distant fish.\n"
+"• Raise it if the animal is fast or the frame rate is low.\n"
+"• Lower it if IDs are swapped between distant animals.\n"
 "• Default: 400.0 px"
 msgstr ""
 
@@ -6612,7 +6613,7 @@ msgid ""
 "\n"
 "Minimum overlap (Intersection over Union) to associate boxes.\n"
 "• Default: 0.05 (undemanding).\n"
-"• Raise it (e.g. 0.3) to require the fish to stay in almost the same "
+"• Raise it (e.g. 0.3) to require the animal to stay in almost the same "
 "position.\n"
 "• Lower it to allow abrupt movements that change the box area."
 msgstr ""
@@ -9173,13 +9174,6 @@ msgstr ""
 msgid "Block note:"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1434
-#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1506
-#: src/zebtrack/ui/dialogs/block_detail_dialog.py:1597
-#: src/zebtrack/ui/dialogs/project_video_import_dialog.py:69
-msgid "Animal"
-msgstr ""
-
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:1435
 msgid "Note"
 msgstr ""
@@ -9659,12 +9653,10 @@ msgid "Animals per Aquarium:"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/create_project_dialog.py:109
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:224
 msgid "Aquarium Width (cm):"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/create_project_dialog.py:116
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:240
 msgid "Aquarium Height (cm):"
 msgstr ""
 
@@ -9962,41 +9954,41 @@ msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:410
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:403
-msgid "Aquarium AI:"
+msgid "Arena AI:"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:414
 msgid ""
-"Segmentation or Detection model for the tank.\n"
+"Segmentation or Detection model for the arena.\n"
 "• seg: slower, but outlines the edges better.\n"
 "• det: very fast."
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:430
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:452
-msgid "Fish AI:"
+msgid "Animal AI:"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:433
 msgid ""
-"Model for the fish.\n"
-"• Use 'seg' if there is more than one fish per aquarium."
+"Model for the animal.\n"
+"• Use 'seg' if there is more than one animal per arena."
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:459
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:430
-msgid "Preserve the real aquarium shape (mask)"
+msgid "Preserve the real arena shape (mask)"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:468
 msgid ""
-"Aquarium Outline\n"
+"Arena Outline\n"
 "\n"
 "• Checked: keeps the segmentation mask outline, for round, hexagonal, "
-"maze-shaped or perspective-skewed tanks.\n"
+"maze-shaped or perspective-skewed arenas.\n"
 "• Unchecked: reduces the detection to a 4-corner rectangle.\n"
 "\n"
-"Requires the 'seg' aquarium model."
+"Requires the 'seg' arena model."
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:489
@@ -10014,16 +10006,16 @@ msgid "Animals/aquarium:"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:511
-msgid "Number of fish inside each aquarium."
+msgid "Number of animals inside each aquarium."
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:532
-msgid "Aquarium width (cm):"
+msgid "Arena width (cm):"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:538
 msgid ""
-"Real WIDTH of the aquarium, in centimetres.\n"
+"Real WIDTH of the arena, in centimetres.\n"
 "\n"
 "Together with the height it converts pixels to cm, so every distance, "
 "speed and cm-based metric in the report depends on this pair.\n"
@@ -10034,16 +10026,16 @@ msgid ""
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:557
-msgid "Aquarium height (cm):"
+msgid "Arena height (cm):"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:563
 msgid ""
-"Real HEIGHT of the aquarium, in centimetres — the vertical extent as the "
+"Real HEIGHT of the arena, in centimetres — the vertical extent as the "
 "camera sees it.\n"
 "\n"
-"For a top-down view this is the depth of the apparatus on the bench, not "
-"the water column."
+"For a top-down view this is the depth of the apparatus on the bench (for "
+"a fish tank, not the water column)."
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:583
@@ -10202,7 +10194,7 @@ msgid "The number of aquariums and animals must be >= 1"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:864
-msgid "The aquarium dimensions must be positive"
+msgid "The arena dimensions must be positive"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:868
@@ -10953,7 +10945,7 @@ msgstr ""
 msgid ""
 "Number of Aquariums\n"
 "\n"
-"Sets whether the video contains 1 or 2 independent tanks.\n"
+"Sets whether the video contains 1 or 2 independent arenas (e.g. tanks).\n"
 "• 1: standard analysis.\n"
 "• 2: lets you draw two arenas and process them together."
 msgstr ""
@@ -10962,24 +10954,32 @@ msgstr ""
 msgid ""
 "Animals per Aquarium\n"
 "\n"
-"How many fish are in each tank.\n"
+"How many animals are in each arena.\n"
 "• 1: enables the tracker optimized for a single subject.\n"
 "• >1: requires Segmentation (seg) mode to avoid ID swaps."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:224
+msgid "Arena Width (cm):"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:230
 msgid ""
 "Real Width (cm)\n"
 "\n"
-"Horizontal size of the tank in centimetres.\n"
+"Horizontal size of the arena in centimetres.\n"
 "• Essential to compute speed in cm/s and total distance."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:240
+msgid "Arena Height (cm):"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:245
 msgid ""
 "Real Height (cm)\n"
 "\n"
-"Vertical size of the tank in centimetres."
+"Vertical size of the arena in centimetres."
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:252
@@ -11007,7 +11007,7 @@ msgstr ""
 msgid ""
 "Freezing Threshold (Speed)\n"
 "\n"
-"Speed below which the fish is considered motionless.\n"
+"Speed below which the animal is considered motionless.\n"
 "• Lower it: if small breathing movements are counting as swimming.\n"
 "• Default: 0.5 cm/s."
 msgstr ""
@@ -11020,7 +11020,7 @@ msgstr ""
 msgid ""
 "Minimum Freezing Duration\n"
 "\n"
-"How long the fish must stay still for the event to be recorded.\n"
+"How long the animal must stay still for the event to be recorded.\n"
 "• E.g. 1.0s means brief pauses (<1s) are ignored."
 msgstr ""
 
@@ -11077,7 +11077,7 @@ msgstr ""
 
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:409
 msgid ""
-"Model for Aquarium Detection\n"
+"Model for Arena Detection\n"
 "\n"
 "• seg: segmentation (more precise at the corners).\n"
 "• det: box detection (faster)."
@@ -11085,21 +11085,21 @@ msgstr ""
 
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:439
 msgid ""
-"Aquarium Outline\n"
+"Arena Outline\n"
 "\n"
 "• Checked: keeps the segmentation mask outline, for round, hexagonal or "
-"perspective-skewed tanks.\n"
+"perspective-skewed arenas.\n"
 "• Unchecked: reduces the detection to a 4-corner rectangle.\n"
 "\n"
-"Requires the 'seg' aquarium model."
+"Requires the 'seg' arena model."
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:458
 msgid ""
-"Model for Fish Tracking\n"
+"Model for Animal Tracking\n"
 "\n"
-"• seg: recommended for several fish (avoids confusion).\n"
-"• det: recommended for 1 fish (very fast)."
+"• seg: recommended for several animals (avoids confusion).\n"
+"• det: recommended for 1 animal (very fast)."
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:475
@@ -11443,7 +11443,7 @@ msgstr ""
 
 #: src/zebtrack/ui/wizard/calibration_step.py:156
 msgid ""
-"🐟 Animals per Aquarium\n"
+"🐾 Animals per Aquarium\n"
 "\n"
 "How many animals will be present in EACH video/aquarium.\n"
 "\n"
@@ -11456,8 +11456,8 @@ msgid ""
 "    → Ideal for: social interaction, small-group behaviour\n"
 "    → Recommended method: segmentation (seg)\n"
 "\n"
-"  • 6+ animals: shoal tracking\n"
-"    → Ideal for: shoal dynamics, collective behaviour\n"
+"  • 6+ animals: group tracking (e.g. a zebrafish shoal)\n"
+"    → Ideal for: group dynamics, collective behaviour\n"
 "    → Recommended method: segmentation (seg) with high confidence\n"
 "\n"
 "⚠️ IMPORTANT: this value must be the SAME for every video in the project."
@@ -11470,7 +11470,7 @@ msgid ""
 msgstr ""
 
 #: src/zebtrack/ui/wizard/calibration_step.py:178
-msgid "Physical Aquarium Dimensions"
+msgid "Physical Arena Dimensions"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/calibration_step.py:186
@@ -11479,7 +11479,7 @@ msgstr ""
 
 #: src/zebtrack/ui/wizard/calibration_step.py:192
 msgid ""
-"📏 Aquarium Width (horizontal axis)\n"
+"📏 Arena Width (horizontal axis)\n"
 "\n"
 "The REAL physical size of the arena visible in the video, in centimetres."
 "\n"
@@ -11490,10 +11490,10 @@ msgid ""
 "  3. Measure in a straight line, from the left side to the right\n"
 "\n"
 "Typical values:\n"
-"  • Larvae (Petri dish): 5-10 cm\n"
-"  • Adults (small tank): 15-30 cm\n"
-"  • Adults (medium tank): 30-50 cm\n"
-"  • Large experimental setup: 50-100 cm\n"
+"  • Zebrafish larvae (Petri dish): 5-10 cm\n"
+"  • Adult zebrafish (small to medium tank): 15-50 cm\n"
+"  • Rodent open field (top view): 40-100 cm\n"
+"  • Barnes maze (top view): the table diameter, 120-185 cm\n"
 "\n"
 "Use in the analysis:\n"
 "  • Converts pixel coordinates → centimetres\n"
@@ -11511,7 +11511,7 @@ msgstr ""
 
 #: src/zebtrack/ui/wizard/calibration_step.py:223
 msgid ""
-"📏 Aquarium Height (vertical axis)\n"
+"📏 Arena Height (vertical axis)\n"
 "\n"
 "The REAL physical size of the arena visible in the video, in centimetres."
 "\n"
@@ -11522,10 +11522,10 @@ msgid ""
 "  3. Measure in a straight line, from top to bottom\n"
 "\n"
 "Typical values:\n"
-"  • Larvae (Petri dish): 5-10 cm\n"
-"  • Adults (small tank): 10-20 cm\n"
-"  • Adults (medium tank): 20-40 cm\n"
-"  • Large experimental setup: 40-80 cm\n"
+"  • Zebrafish larvae (Petri dish): 5-10 cm\n"
+"  • Adult zebrafish, side view of the tank: 10-40 cm\n"
+"  • Rodent open field (top view): 40-100 cm\n"
+"  • Barnes maze (top view): the table diameter, 120-185 cm\n"
 "\n"
 "Use in the analysis:\n"
 "  • Converts pixel coordinates → centimetres\n"
@@ -11535,21 +11535,21 @@ msgid ""
 "\n"
 "⚠️ IMPORTANT: width and height must describe the SAME arena.\n"
 "Use the dimensions of the area VISIBLE in the video, not of the whole "
-"tank.\n"
+"apparatus.\n"
 "\n"
 "💡 Tip: for a top-down camera, width ≈ height (a square/rectangular field "
 "of view)."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/calibration_step.py:250
+#: src/zebtrack/ui/wizard/calibration_step.py:251
 msgid "⚙️ Advanced Settings"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/calibration_step.py:260
+#: src/zebtrack/ui/wizard/calibration_step.py:261
 msgid "Analysis interval (frames):"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/calibration_step.py:268
+#: src/zebtrack/ui/wizard/calibration_step.py:269
 msgid ""
 "🎬 Analysis Interval\n"
 "\n"
@@ -11561,15 +11561,15 @@ msgid ""
 "💡 Tip: use 5 or 10 for a good balance between speed and precision."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/calibration_step.py:286
+#: src/zebtrack/ui/wizard/calibration_step.py:287
 msgid "🧠 Behavioural Analysis"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/calibration_step.py:321
+#: src/zebtrack/ui/wizard/calibration_step.py:322
 msgid "About Calibration"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/calibration_step.py:327
+#: src/zebtrack/ui/wizard/calibration_step.py:328
 msgid ""
 "Physical calibration makes it possible to convert pixel coordinates into "
 "centimetres.\n"
@@ -11583,7 +11583,7 @@ msgid ""
 "values and adjust them later in the project settings."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/calibration_step.py:359
+#: src/zebtrack/ui/wizard/calibration_step.py:360
 #: src/zebtrack/ui/wizard/live_config_step.py:972
 #, python-brace-format
 msgid "Error validating data: {error}"
@@ -13351,7 +13351,7 @@ msgstr ""
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:377
 msgid ""
-"Adjust how ZebTrack will use each detection model.\n"
+"Adjust how DRerio LogAI will use each detection model.\n"
 "If you prefer, keep the recommended defaults and move on."
 msgstr ""
 
@@ -13360,7 +13360,7 @@ msgid "Methods and Weights per Role"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:431
-msgid "Aquarium (arena detection)"
+msgid "Arena (apparatus detection)"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:440
@@ -13473,7 +13473,7 @@ msgid ""
 "Tolerance when associating boxes.\n"
 "HIGH values (close to 1.0) are more permissive for fast movement.\n"
 "\n"
-"💡 Default: 0.95 (for fast zebrafish)"
+"💡 Default: 0.95 (for fast animals such as zebrafish)"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:616
@@ -13515,7 +13515,7 @@ msgid ""
 "🔳 IoU Threshold\n"
 "\n"
 "Minimum overlap to prefer a box match over a distance match.\n"
-"For small, fast fish, low values work better.\n"
+"For small, fast animals, low values work better.\n"
 "\n"
 "💡 Default: 0.1"
 msgstr ""
@@ -13525,8 +13525,8 @@ msgid ""
 "📊 Quick Guide:\n"
 "• Track Thresh: ↓ to keep a weak trail\n"
 "• Match Thresh: ↑ to accept abrupt movements\n"
-"• Buffer: ↑ to 'remember' the fish for longer\n"
-"• Distance: ↑ for very fast fish"
+"• Buffer: ↑ to 'remember' the animal for longer\n"
+"• Distance: ↑ for very fast animals"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:683
@@ -13570,19 +13570,19 @@ msgstr ""
 msgid ""
 "ℹ️ ByteTrack disabled. The system will use a simplified hybrid tracker "
 "that relies only on '{distance}' and '{iou}' to keep the ID stable. Ideal"
-" for 1 animal per aquarium."
+" for 1 animal per arena."
 msgstr ""
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:860
 msgid ""
-"💡 ByteTrack uses a Kalman filter to predict positions even when the fish "
-"briefly disappears. Adjust the fields below for more stability."
+"💡 ByteTrack uses a Kalman filter to predict positions even when the "
+"animal briefly disappears. Adjust the fields below for more stability."
 msgstr ""
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:887
 msgid ""
-"Segmentation supports several animals per aquarium.\n"
-"Detection is optimized for one animal per aquarium and uses ByteTrack."
+"Segmentation supports several animals per arena.\n"
+"Detection is optimized for one animal per arena and uses ByteTrack."
 msgstr ""
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:902
@@ -13611,8 +13611,8 @@ msgstr ""
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:1119
 msgid ""
-"⚠️ Detection (det) is recommended for only 1 animal per aquarium. "
-"Consider segmentation (seg) for several animals."
+"⚠️ Detection (det) is recommended for only 1 animal per arena. Consider "
+"segmentation (seg) for several animals."
 msgstr ""
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:1280
@@ -13661,7 +13661,7 @@ msgstr ""
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:1323
 msgid ""
-"Select a valid weight for the aquarium. The file must match the chosen "
+"Select a valid weight for the arena. The file must match the chosen "
 "method."
 msgstr ""
 

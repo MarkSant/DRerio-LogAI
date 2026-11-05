@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-04 21:00-0300\n"
+"POT-Creation-Date: 2026-11-04 21:12-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -279,10 +279,20 @@ msgid ""
 "may affect the precision of the calculated metrics."
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:672
-msgid "No significant issues were detected during trajectory validation."
+#: src/zebtrack/analysis/reporters/word_reporter.py:663
+msgid ""
+"Definitions:\n"
+"- Temporal Gaps: Frames where the animal was not detected "
+"(occlusion/error).\n"
+"- Missing Frames: Total frames skipped if using processing_interval > 1 "
+"(expected behavior).\n"
+"- Max Gap: The largest consecutive sequence of lost frames."
 msgstr ""
 
 #: src/zebtrack/analysis/reporters/word_reporter.py:675
+msgid "No significant issues were detected during trajectory validation."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/word_reporter.py:678
 msgid "Validation details added"
 msgstr ""

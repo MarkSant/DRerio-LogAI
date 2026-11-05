@@ -659,11 +659,14 @@ class WordReporter:
                 )
             )
             document.add_paragraph(
-                "Definitions:\n"
-                "- Temporal Gaps: Frames where the fish was not detected (occlusion/error).\n"
-                "- Missing Frames: Total frames skipped if using processing_interval > 1 "
-                "(expected behavior).\n"
-                "- Max Gap: The largest consecutive sequence of lost frames."
+                _(
+                    "Definitions:\n"
+                    "- Temporal Gaps: Frames where the animal was not detected "
+                    "(occlusion/error).\n"
+                    "- Missing Frames: Total frames skipped if using processing_interval > 1 "
+                    "(expected behavior).\n"
+                    "- Max Gap: The largest consecutive sequence of lost frames."
+                )
             )
             for warning in self._ctx.validation_warnings:
                 document.add_paragraph(str(warning), style="List Bullet")

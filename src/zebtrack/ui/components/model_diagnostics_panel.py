@@ -284,7 +284,7 @@ class ModelDiagnosticsPanel(ttk.Frame):
                 "Confidence Threshold\n\n"
                 "Minimum probability (0.0 to 1.0) for a detection to count as valid.\n"
                 "• Raise it (e.g. 0.50) if there are many 'false positives' (noise/ghosts).\n"
-                "• Lower it (e.g. 0.15) if the fish is not detected in some frames.\n"
+                "• Lower it (e.g. 0.15) if the animal is not detected in some frames.\n"
                 "• Recommended default: 0.25"
             ),
         ).grid(row=row_idx, column=1, padx=2)
@@ -352,7 +352,7 @@ class ModelDiagnosticsPanel(ttk.Frame):
                 "Minimum confidence to START or KEEP a track.\n"
                 "• Defines how 'sure' the detector must be to create a new ID.\n"
                 "• Raise it to avoid junk/noise tracks.\n"
-                "• Lower it to keep the ID of fish that are hard to detect.\n"
+                "• Lower it to keep the ID of animals that are hard to detect.\n"
                 "• Recommended default: 0.25"
             ),
         ).grid(row=t_row, column=1, padx=2)
@@ -384,9 +384,9 @@ class ModelDiagnosticsPanel(ttk.Frame):
             tracking_frame,
             _(
                 "Track Buffer (Memory)\n\n"
-                "How many frames the system 'remembers' a fish after it disappears "
+                "How many frames the system 'remembers' an animal after it disappears "
                 "(occlusion/miss).\n"
-                "• Raise it (e.g. 120) if the fish vanishes for a long time.\n"
+                "• Raise it (e.g. 120) if the animal vanishes for a long time.\n"
                 "• Lower it to drop lost tracks quickly.\n"
                 "• Default: 90 frames (~3s at 30fps)"
             ),
@@ -401,10 +401,10 @@ class ModelDiagnosticsPanel(ttk.Frame):
             tracking_frame,
             _(
                 "Maximum Distance (pixels)\n\n"
-                "How far the centre of the fish may move between processed frames.\n"
+                "How far the centre of the animal may move between processed frames.\n"
                 "• Prevents impossible associations (teleporting).\n"
-                "• Raise it if the fish is fast or the frame rate is low.\n"
-                "• Lower it if IDs are swapped between distant fish.\n"
+                "• Raise it if the animal is fast or the frame rate is low.\n"
+                "• Lower it if IDs are swapped between distant animals.\n"
                 "• Default: 400.0 px"
             ),
         ).grid(row=t_row, column=4, padx=2)
@@ -421,7 +421,7 @@ class ModelDiagnosticsPanel(ttk.Frame):
                 "IoU Threshold (Tracking)\n\n"
                 "Minimum overlap (Intersection over Union) to associate boxes.\n"
                 "• Default: 0.05 (undemanding).\n"
-                "• Raise it (e.g. 0.3) to require the fish to stay in almost the same "
+                "• Raise it (e.g. 0.3) to require the animal to stay in almost the same "
                 "position.\n"
                 "• Lower it to allow abrupt movements that change the box area."
             ),

@@ -27,7 +27,7 @@ _CONVERSION_POLL_INTERVAL_MS = 1500
 
 def _target_labels() -> dict[str, str]:
     """Human-readable names for the stored ``target`` tokens."""
-    return {"aquarium": _("Aquarium"), "zebrafish": _("Zebrafish")}
+    return {"aquarium": _("Arena"), "zebrafish": _("Animal")}
 
 
 def _method_labels() -> dict[str, str]:
@@ -201,10 +201,10 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         grid.columnconfigure(1, weight=1)
 
         slot_specs = [
-            (_("🐠 Aquarium (Detection)"), "det", "aquarium"),
-            (_("🐠 Aquarium (Segmentation)"), "seg", "aquarium"),
-            (_("🐟 Animal (Detection)"), "det", "zebrafish"),
-            (_("🐟 Animal (Segmentation)"), "seg", "zebrafish"),
+            (_("🔲 Arena (Detection)"), "det", "aquarium"),
+            (_("🔲 Arena (Segmentation)"), "seg", "aquarium"),
+            (_("🐾 Animal (Detection)"), "det", "zebrafish"),
+            (_("🐾 Animal (Segmentation)"), "seg", "zebrafish"),
         ]
         for row, (label, method, target) in enumerate(slot_specs):
             ttk.Label(grid, text=f"{label}:").grid(row=row, column=0, sticky="w", padx=4, pady=2)
