@@ -701,6 +701,15 @@ map as a sidecar — the `3_CoordMovimento` schema stays **immutable**.
   thread — the frame was dequeued but `_video_frames_written` does **not**
   advance), and a failed `camera.get_frame()` (never counted at all, so it
   cannot desynchronize anything).
+- **The session tail (#636).** `stop_session` used to set `exit_event` and empty
+  both queues at once: up to `video_queue.maxsize` captured frames (~20 s) were
+  neither written nor logged. Now: `_drain_video_queue_for_stop` stops the
+  CAPTURE thread only (`_capture_stop_event`) and lets the video thread write the
+  queue until it is empty or `_stop_drain_timeout_s` (2 s) runs out — charged to
+  the same `_max_join_wait_s` budget as the join. `_clear_queues` then records
+  each video item still queued as `dropped_on_stop` (`video_frame_index = -1`).
+  A manual cancel skips the drain (its folder is deleted). Analysis-queue items
+  are still discarded: their ledger row comes from the video item.
 - **Queue item shape:** `video_queue` now carries
   `(frame_count, capture_perf, capture_wall, is_analysis_frame,
   queued_for_analysis, frame)`. `_unpack_video_item` tolerates the legacy bare

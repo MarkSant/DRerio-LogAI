@@ -289,6 +289,13 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
 
 ### Fixed
 
+- **Ao parar a sessão ao vivo, o fim da gravação sumia sem rastro (#636).** O
+  `stop_session` esvaziava as filas de uma vez: até ~600 quadros capturados (~20 s)
+  não entravam no MP4 nem ganhavam linha no `6_FrameLedger`, quebrando a promessa
+  de "uma linha por quadro capturado". Agora a captura para primeiro e a thread de
+  vídeo escreve o que está na fila, por até 2 s dentro do mesmo orçamento de 5 s
+  do encerramento; o que sobrar entra no ledger como `dropped_on_stop`.
+  Cancelamento manual não espera, porque a pasta é apagada.
 - **O ByteTrack media o buffer de trilha perdida com o fps das configurações, não
   o do vídeo (#630).** `track_buffer` é contado em quadros e convertido com
   `frame_rate / 30`; com `settings.video_processing.fps` (30) num vídeo de Barnes

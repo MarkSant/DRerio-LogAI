@@ -20,7 +20,10 @@ frame:
                           que sabe desse descarte);
 ``write_failed``        — o frame saiu da fila mas ``write_video_frame`` falhou
                           (``OSError``); o contador do MP4 NÃO avança;
-``not_recording``       — a sessão não estava gravando vídeo nesse instante.
+``not_recording``       — a sessão não estava gravando vídeo nesse instante;
+``dropped_on_stop``     — o frame estava na fila de vídeo quando a sessão parou
+                          e o prazo de drenagem acabou antes de ele ser escrito
+                          (#636). O fim da sessão nunca some sem rastro.
 
 O schema de ``3_CoordMovimento`` é IMUTÁVEL por contrato (CLAUDE.md), então
 nenhuma coluna é acrescentada lá: a correção da base de tempo é feita no
@@ -66,6 +69,7 @@ OUTCOME_WRITTEN = "written"
 OUTCOME_DROPPED_QUEUE_FULL = "dropped_queue_full"
 OUTCOME_WRITE_FAILED = "write_failed"
 OUTCOME_NOT_RECORDING = "not_recording"
+OUTCOME_DROPPED_ON_STOP = "dropped_on_stop"
 
 VALID_OUTCOMES: frozenset[str] = frozenset(
     {
@@ -73,6 +77,7 @@ VALID_OUTCOMES: frozenset[str] = frozenset(
         OUTCOME_DROPPED_QUEUE_FULL,
         OUTCOME_WRITE_FAILED,
         OUTCOME_NOT_RECORDING,
+        OUTCOME_DROPPED_ON_STOP,
     }
 )
 

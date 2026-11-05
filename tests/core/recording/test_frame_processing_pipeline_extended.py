@@ -124,21 +124,25 @@ class TestFrameProcessingPipelineExtended2:
         assert mixin._maybe_create_closed_loop_log() is None
 
     def test_clear_queues(self):
+        """Both queues end empty; a video item with metadata gets its ledger row (#636)."""
         mixin = object.__new__(FrameProcessingMixin)
         mixin.frame_queue = queue.Queue()
         mixin.video_queue = queue.Queue()
+        recorded: list[tuple] = []
+        mixin._ledger_record = lambda *args, **kwargs: recorded.append((args, kwargs))  # type: ignore[method-assign]
 
         mixin.frame_queue.put("frame1")
         mixin.frame_queue.put("frame2")
-        mixin.video_queue.put("vid1")
-
-        assert not mixin.frame_queue.empty()
-        assert not mixin.video_queue.empty()
+        mixin.video_queue.put("vid1")  # legacy item: no metadata, no row
+        mixin.video_queue.put((7, 1.5, 100.5, True, True, "vid2"))
 
         mixin._clear_queues()
 
         assert mixin.frame_queue.empty()
         assert mixin.video_queue.empty()
+        ((args, kwargs),) = recorded
+        assert args == (7, 1.5, 100.5, "dropped_on_stop")
+        assert kwargs["is_analysis_frame"] is True
 
     def test_arduino_zone_session_end_sweep_disabled(self):
         mixin = object.__new__(FrameProcessingMixin)
