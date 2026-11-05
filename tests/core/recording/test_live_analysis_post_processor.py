@@ -632,6 +632,24 @@ class TestMultiAquariumLive:
         assert kwargs["session_video"] is True
         assert kwargs["base_name"] == "sessao"
 
+    def test_more_than_two_aquariums_are_refused(self, tmp_path):
+        """The recorder supports two; a third would be silently lost."""
+        import dataclasses
+
+        from zebtrack.core.detection import MultiAquariumZoneData
+
+        recorder = MagicMock()
+        host = _MultiHost(tmp_path, recorder, SimpleNamespace())
+        two = _two_aquariums()
+        extra = dataclasses.replace(two.aquariums[1], id=2)
+        host._live_multi_zone_data = MultiAquariumZoneData(
+            aquariums=[*two.aquariums, extra], video_width=640, video_height=480
+        )
+
+        assert host._start_live_recorder(None, "sessao") is False
+        recorder.start_recording_multi_aquarium.assert_not_called()
+        recorder.start_recording.assert_not_called()
+
     def test_without_aquariums_the_single_recorder_starts(self, tmp_path):
         from zebtrack.core.detection import ZoneData
 
@@ -743,3 +761,53 @@ class TestMultiAquariumPostAnalysis:
 
         windows = service.run_multi_aquarium_analysis.call_args.kwargs["windows"]
         assert windows == {0: None, 1: None}
+
+
+class TestLiveRoiBuilder:
+    """ROIs of the window/analysis built from the stored zone lists."""
+
+    def test_names_and_colours_fall_back_per_index(self):
+        square = [[0, 0], [10, 0], [10, 10], [0, 10]]
+        rois, colors = LiveAnalysisPostProcessorMixin._build_live_rois(
+            [square, square], ["Centro"], [(1, 2, 3)]
+        )
+
+        assert [roi.name for roi in rois] == ["Centro", "ROI_1"]
+        assert colors == {"Centro": (1, 2, 3), "ROI_1": (255, 0, 0)}
+        assert rois[0].geometry.area == 100.0
+
+    def test_no_polygons_no_rois(self):
+        assert LiveAnalysisPostProcessorMixin._build_live_rois(None, None, None) == ([], {})
+
+
+class TestPostAnalysisEdges:
+    def test_an_empty_trajectory_reports_no_detections(self, tmp_path, monkeypatch):
+        import pandas as pd
+
+        output_dir = tmp_path / "live_20261105_150000"
+        output_dir.mkdir()
+        pd.DataFrame(columns=["timestamp", "frame", "track_id"]).to_parquet(
+            output_dir / "3_CoordMovimento_adhoc_exp.parquet"
+        )
+        host = PostAnalysisHost(output_dir, project_data={}, analysis_params={})
+        root = MagicMock()
+        host.root = root
+        service = MagicMock()
+        service.collect_analysis_parameters.return_value = {}
+        host._build_post_analysis_service = lambda: service  # type: ignore[method-assign]
+        monkeypatch.setattr(
+            "zebtrack.core.recording.live_analysis_post_processor.threading.Thread",
+            _ImmediateThread,
+        )
+
+        host._on_session_complete(output_dir, keep_data=True)
+
+        service.run_full_analysis_as_dto.assert_not_called()
+        args = root.after.call_args.args
+        assert args[2:] == (output_dir, False, None, "no_detections")
+
+    def test_an_unreadable_window_is_reported_per_aquarium(self, tmp_path, monkeypatch):
+        harness = TestMultiAquariumPostAnalysis()
+        _service, results = harness._run(tmp_path, monkeypatch, {"start": "not a condition"})
+
+        assert any("analysis window" in w for w in results[0].validation_warnings)
