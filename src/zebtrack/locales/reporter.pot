@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-09-05 11:25-0300\n"
+"POT-Creation-Date: 2026-11-04 21:00-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,214 +18,271 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:101
+#: src/zebtrack/analysis/reporters/word_reporter.py:108
 #, python-brace-format
 msgid "Analysis Report - {experiment_id}"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:121
+#: src/zebtrack/analysis/reporters/word_reporter.py:128
 msgid "Report saved"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:185
+#: src/zebtrack/analysis/reporters/word_reporter.py:192
 msgid "Experiment Metadata"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:199
+#: src/zebtrack/analysis/reporters/word_reporter.py:206
 msgid "Metadata added"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:202
+#: src/zebtrack/analysis/reporters/word_reporter.py:211
 msgid "Metrics Summary"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:239
+#: src/zebtrack/analysis/reporters/word_reporter.py:250
 msgid "Metric"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:240
+#: src/zebtrack/analysis/reporters/word_reporter.py:251
 msgid "Value"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:251
+#: src/zebtrack/analysis/reporters/word_reporter.py:262
 msgid "N/A"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:264
+#: src/zebtrack/analysis/reporters/word_reporter.py:275
 msgid "Summary table added"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:280
+#: src/zebtrack/analysis/reporters/word_reporter.py:305
+msgid "Analysis Window"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/word_reporter.py:312
+#, python-brace-format
+msgid ""
+"The metrics in this report cover only the analysis window, from START "
+"({start_s:.2f} s, frame {start_frame}) to STOP ({stop_s:.2f} s, frame "
+"{stop_frame}): {duration:.2f} s. Rates and percentages use this duration;"
+" ROI latencies are measured from START. Times in the event log and in the"
+" plots are relative to START."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/word_reporter.py:328
+msgid ""
+"The analysis window never started and its rule asks for empty metrics in "
+"that case: the window metrics of this report are empty."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/word_reporter.py:335
+#, python-brace-format
+msgid ""
+"The analysis window could not be applied (status: {status}); the metrics "
+"cover the whole recording."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/word_reporter.py:339
+#, python-brace-format
+msgid "Window status: {status}"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/word_reporter.py:341
+#, python-brace-format
+msgid "Window end reason: {reason}"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/word_reporter.py:345
+msgid ""
+"The STOP condition was not met before the recording ended; the window was"
+" closed at the end of the recording (censored)."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/word_reporter.py:352
+#, python-brace-format
+msgid "Rule ({spec_hash}): START = {start}; STOP = {stop}"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/word_reporter.py:358
+#, python-brace-format
+msgid "Clock: {clock}"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/word_reporter.py:367
 msgid "ROI Reference Map"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:292
+#: src/zebtrack/analysis/reporters/word_reporter.py:379
 msgid "ROI map added"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:301
+#: src/zebtrack/analysis/reporters/word_reporter.py:388
 msgid "Visualizations"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:307
+#: src/zebtrack/analysis/reporters/word_reporter.py:394
 msgid "Trajectory"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:317
+#: src/zebtrack/analysis/reporters/word_reporter.py:404
 msgid "Heatmap"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:319
+#: src/zebtrack/analysis/reporters/word_reporter.py:406
 msgid "Position vs. Time"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:322
-#: src/zebtrack/analysis/reporters/word_reporter.py:345
+#: src/zebtrack/analysis/reporters/word_reporter.py:409
+#: src/zebtrack/analysis/reporters/word_reporter.py:432
 msgid "Cumulative Distance"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:326
+#: src/zebtrack/analysis/reporters/word_reporter.py:413
 msgid "Angular Velocity"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:330
+#: src/zebtrack/analysis/reporters/word_reporter.py:417
 msgid "Thigmotaxis (Wall Distance)"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:338
+#: src/zebtrack/analysis/reporters/word_reporter.py:425
 msgid "Geotaxis (Bottom Distance)"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:351
+#: src/zebtrack/analysis/reporters/word_reporter.py:438
 #, python-brace-format
 msgid "Figure: {name}"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:355
+#: src/zebtrack/analysis/reporters/word_reporter.py:442
 #, python-brace-format
 msgid "Visualization added: {name}"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:379
+#: src/zebtrack/analysis/reporters/word_reporter.py:466
 msgid "ROI Coverage and Per-Animal Metrics"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:389
+#: src/zebtrack/analysis/reporters/word_reporter.py:476
 #, python-brace-format
 msgid ""
 "Unobserved time (tracking gaps not credited to any ROI): {value}. ROI "
 "durations do not cover this portion of the session."
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:400
+#: src/zebtrack/analysis/reporters/word_reporter.py:487
 msgid ""
 "ROI metrics at the top of this report are region OCCUPANCY (any_track). "
 "Per-animal totals follow; the full per-animal x ROI breakdown is in the "
 "'por_animal' sheet of the summary spreadsheet."
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:407
+#: src/zebtrack/analysis/reporters/word_reporter.py:494
 msgid "Animal (track_id)"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:408
+#: src/zebtrack/analysis/reporters/word_reporter.py:495
 msgid "Time in ROIs (s)"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:409
+#: src/zebtrack/analysis/reporters/word_reporter.py:496
 msgid "Entries"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:410
+#: src/zebtrack/analysis/reporters/word_reporter.py:497
 msgid "Distance in ROIs (cm)"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:411
+#: src/zebtrack/analysis/reporters/word_reporter.py:498
 msgid "Unobserved (s)"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:446
+#: src/zebtrack/analysis/reporters/word_reporter.py:533
 msgid "Appendix: ROI Event Log"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:450
+#: src/zebtrack/analysis/reporters/word_reporter.py:537
 msgid "Chronological log of all entries and exits from defined ROIs."
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:453
+#: src/zebtrack/analysis/reporters/word_reporter.py:540
 msgid "Event"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:461
+#: src/zebtrack/analysis/reporters/word_reporter.py:554
 msgid "Time (mm:ss)"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:476
+#: src/zebtrack/analysis/reporters/word_reporter.py:556
+msgid "Time from START (s)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/word_reporter.py:573
 msgid "No ROI entry or exit events were recorded."
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:477
+#: src/zebtrack/analysis/reporters/word_reporter.py:574
 msgid "Event log added"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:487
+#: src/zebtrack/analysis/reporters/word_reporter.py:584
 msgid "Appendix: Trajectory Validation"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:491
+#: src/zebtrack/analysis/reporters/word_reporter.py:588
 msgid "Quality Metrics"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:502
+#: src/zebtrack/analysis/reporters/word_reporter.py:599
 msgid "Total Frames Processed"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:507
+#: src/zebtrack/analysis/reporters/word_reporter.py:604
 msgid "Frame Range"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:513
+#: src/zebtrack/analysis/reporters/word_reporter.py:610
 msgid "Temporal Coverage"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:516
+#: src/zebtrack/analysis/reporters/word_reporter.py:613
 msgid "Unique Track IDs"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:521
+#: src/zebtrack/analysis/reporters/word_reporter.py:618
 msgid "Temporal Gaps"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:527
+#: src/zebtrack/analysis/reporters/word_reporter.py:624
 msgid "Expected Gap (interval)"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:531
+#: src/zebtrack/analysis/reporters/word_reporter.py:628
 msgid "Expected Temporal Gaps"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:535
+#: src/zebtrack/analysis/reporters/word_reporter.py:632
 msgid "Anomalous Temporal Gaps"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:539
+#: src/zebtrack/analysis/reporters/word_reporter.py:636
 msgid "Anomalous gap intervals:"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:556
+#: src/zebtrack/analysis/reporters/word_reporter.py:653
 msgid "Validation Details"
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:560
+#: src/zebtrack/analysis/reporters/word_reporter.py:657
 msgid ""
 "The following issues were detected during trajectory validation. These "
 "may affect the precision of the calculated metrics."
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:575
+#: src/zebtrack/analysis/reporters/word_reporter.py:672
 msgid "No significant issues were detected during trajectory validation."
 msgstr ""
 
-#: src/zebtrack/analysis/reporters/word_reporter.py:578
+#: src/zebtrack/analysis/reporters/word_reporter.py:675
 msgid "Validation details added"
 msgstr ""

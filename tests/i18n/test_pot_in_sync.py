@@ -69,10 +69,6 @@ def test_extraction_finds_known_msgids(domain_msgids: tuple[str, set[str]]) -> N
     assert known in msgids, f"extraction of {domain} did not find {known!r}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="v8 msgids not catalogued yet; the catalogue commit removes this marker",
-)
 def test_every_source_msgid_is_in_the_template(domain_msgids: tuple[str, set[str]]) -> None:
     domain, msgids = domain_msgids
     template = {entry.msgid for entry in polib.pofile(str(LOCALES_DIR / f"{domain}.pot"))}
