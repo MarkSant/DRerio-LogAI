@@ -1,7 +1,7 @@
 # DRerio LogAI Documentation Index
 
-**Last Updated:** September 7, 2026
-**Version:** 7.2.0
+**Last Updated:** November 4, 2026
+**Version:** 8.0.0
 
 ---
 
