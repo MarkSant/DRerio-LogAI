@@ -1403,6 +1403,11 @@ class LiveAnalysisPostProcessorMixin:
                         h,
                     )
 
+            # The capture instant the processing thread declared (#654): every
+            # aquarium's lost tracks age on the camera's clock.
+            set_frame_time = getattr(self._multi_aq_detector, "set_frame_time", None)
+            if callable(set_frame_time):
+                set_frame_time(getattr(self, "_tracker_frame_time_s", None))
             all_detections = self._multi_aq_detector.detect_partitioned_optimized(
                 frame=frame,
             )

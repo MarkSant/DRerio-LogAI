@@ -33,6 +33,7 @@ import json
 import os
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -324,3 +325,37 @@ def test_bytetrack_is_built_with_the_video_fps_not_the_settings_one(tmp_path, mo
 
     assert frame_rates, "the pipeline never built a ByteTrack"
     assert frame_rates == pytest.approx([float(FPS)] * len(frame_rates))
+
+
+@pytest.mark.integration
+def test_bytetrack_ages_lost_tracks_on_the_video_pts(tmp_path, monkeypatch) -> None:
+    """Issue #654: every tracker update carries the frame's PTS.
+
+    With the PTS the lost-track lifetime is ``track_buffer / 30`` seconds of
+    VIDEO time, whatever ``analysis_interval_frames`` is; counting updates
+    multiplied the interval in twice. The fixture runs at 10 fps.
+    """
+    from tests.helpers.prerecorded_pipeline import FPS
+    from zebtrack.tracker.byte_tracker import BYTETracker
+
+    instants: list[float | None] = []
+    real_update = BYTETracker.update
+
+    def spy(self, *args, **kwargs):
+        instants.append(kwargs.get("frame_time_s"))
+        return real_update(self, *args, **kwargs)
+
+    monkeypatch.setattr(BYTETracker, "update", spy)
+    try:
+        outcome = run_prerecorded_pipeline(tmp_path, load_pristine_settings())
+    except RuntimeError as exc:
+        pytest.skip(f"Cannot build the golden fixture video: {exc}")
+
+    assert instants, "the pipeline never updated a ByteTrack"
+    assert None not in instants
+    clock = np.asarray(instants, dtype=float)
+    steps = np.diff(clock)
+    assert steps == pytest.approx(np.full(len(steps), 1.0 / FPS), abs=1e-3)
+    # The same clock the trajectory is written with.
+    recorded = outcome.trajectory["timestamp"].to_numpy(dtype=float)
+    assert set(np.round(recorded, 6)) <= set(np.round(clock, 6))

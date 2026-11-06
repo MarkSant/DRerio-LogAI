@@ -358,6 +358,21 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   absorvendo detecções, de modo que `max_time_lost` não tinha efeito algum. O
   `SingleDetector` mascarava a perda (ID 1 forçado no modo sujeito único,
   `track_id=None` no multi-sujeito). Os goldens pré-gravado e Barnes não mudam.
+- **Uma trilha perdida vivia `track_buffer × intervalo² / 30` s, e ao vivo
+  dependia de quantos quadros a fila descartava (#654).** O buffer era contado em
+  chamadas de `update()` e ainda multiplicado por `processing_interval`, mas cada
+  chamada já avança `intervalo` quadros: com `track_buffer=60` (o dos plugins) e
+  intervalo 10, 200 s em vez de 2 s; no modo sujeito único, ~20 min. Agora
+  `update(..., frame_time_s=)` mede a idade da trilha perdida em **segundos** do
+  relógio do quadro — o PTS no worker de lote e no pipeline em processo, o
+  instante de captura ao vivo — e a vida útil é `track_buffer / 30` s, qualquer
+  que seja o fps, o intervalo de análise ou os quadros perdidos no caminho. Os
+  detectores recebem o instante por `set_frame_time()`, consumido por um único
+  quadro; sem instante (ou com um relógio que não avança) a contagem cai em
+  `fps / 30 × track_buffer / intervalo` updates. O fator do modo sujeito único
+  (antes ×3 e ×2 espalhados) virou `SINGLE_ANIMAL_LOST_FACTOR = 6`, aplicado uma
+  vez e mantido de propósito (ressurreição do ID). Os goldens pré-gravado e
+  Barnes (`analysis_interval_frames=1`) não mudam.
 - **Pesos que não são de zebrafish rastreavam o objeto errado sem avisar.** As
   classes eram reconhecidas por duas listas fixas de nomes (aquário e peixe),
   duplicadas em `DetectionPostProcessor` e `DetectorService`; um nome fora delas

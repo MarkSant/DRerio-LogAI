@@ -289,6 +289,13 @@ failure.
   `MultiAquariumDetector(source_fps=...)`, resolved by
   `DetectionPostProcessor.resolve_tracker_fps()`), never
   `settings.video_processing.fps` except as a warned fallback (#630).
+  `track_buffer / 30` is the lost-track lifetime in SECONDS (#654): callers
+  declare each frame's instant with `set_frame_time()` (PTS in the batch worker
+  and `TrackingSessionRunner`, the capture `t_perf` live) and
+  `BYTETracker.update(..., frame_time_s=)` ages lost tracks on it. Without an
+  instant it counts `frame_rate / 30 * track_buffer / processing_interval`
+  updates. Single-animal mode keeps them `SINGLE_ANIMAL_LOST_FACTOR` (6) times
+  longer.
 - `max_center_distance: float` - Max distance for hybrid matching (pixels)
 - `iou_threshold: float` - IoU threshold for hybrid matching [0, 1)
 
@@ -1610,7 +1617,10 @@ loop end → finish() (end-of-stream STOP), 7_AnalysisWindow_<base>.json (online
 10. **ByteTrack Sparse Frame Tuning (Critical Fix Jan 2025):** When using `processing_interval > 1`:
     - The Kalman Filter `dt` is now automatically set to `processing_interval` in `detector.py`
     - This correctly models motion predictions over larger time steps
-    - The `track_buffer` is scaled by `processing_interval` to maintain equivalent temporal window
+    - The lost-track lifetime is `track_buffer / 30` seconds on the frame clock
+      (`set_frame_time()` → `BYTETracker.update(frame_time_s=)`, #654). Counted in
+      updates (fallback) it is DIVIDED by `processing_interval`: each update
+      already spans that many frames, and multiplying (as until #654) squared it.
     - Position/velocity weights scale with `sqrt(dt)` for proper uncertainty propagation
     - Without this fix, track IDs will jump erratically on sparse frames.
 11. **Coordinator Callbacks Must Have Defaults (Fixed Dec 2025):** When calling Coordinator methods that accept callbacks (e.g., `create_project`, `open_project`), the Coordinator MUST provide safe default implementations using its injected dependencies (`state_manager`, `detector_service`). If callbacks are passed as `None` to adapters that require them, it will cause `TypeError: 'NoneType' object is not callable`. This was fixed by adding `detector_service` as an optional dependency to `ProjectLifecycleCoordinator` and implementing default callback factories in `create_project()` and `open_project()`.

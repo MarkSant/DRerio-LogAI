@@ -170,3 +170,133 @@ class TestLostTrackLifecycle:
 
         assert tracker.removed_stracks == []
         assert tracker.lost_stracks == []
+
+
+class TestLostTrackAge:
+    """How long a lost track survives, in REAL seconds (issue #654).
+
+    ``track_buffer`` is a number of frames at the 30 fps reference, so
+    ``track_buffer=30`` means 1 s. Before #654 the update count was scaled by
+    ``processing_interval`` while each ``update()`` already spanned that many
+    frames: the interval entered twice (``track_buffer * interval**2 / 30`` s).
+    """
+
+    BOX = np.array([[100.0, 100.0, 140.0, 140.0, 0.95]])
+    EMPTY = np.empty((0, 5))
+    SIZE = (480, 640)
+
+    @pytest.fixture(autouse=True)
+    def _fresh_ids(self):
+        from zebtrack.tracker.basetrack import BaseTrack
+
+        BaseTrack.reset_id_counter()
+
+    @staticmethod
+    def _tracker(*, frame_rate=30, interval=1, track_buffer=30, single=False) -> BYTETracker:
+        args = SimpleNamespace(
+            track_thresh=0.5, match_thresh=0.8, track_buffer=track_buffer, mot20=False
+        )
+        return BYTETracker(
+            args=args,
+            frame_rate=frame_rate,
+            processing_interval=interval,
+            single_animal_mode=single,
+        )
+
+    def _updates_until_removed(self, tracker, *, period_s=None, limit=10_000):
+        """Confirm one track, then feed empty updates; return (updates, seconds) to removal.
+
+        With ``period_s`` every update carries its instant (``frame_time_s``);
+        without it the tracker has to fall back to counting updates.
+        """
+        clock = 0.0
+
+        def stamp():
+            return None if period_s is None else clock
+
+        for _ in range(3):
+            tracker.update(self.BOX.copy(), self.SIZE, self.SIZE, frame_time_s=stamp())
+            clock += period_s or 0.0
+        last_seen = clock - (period_s or 0.0)
+        for updates in range(1, limit):
+            tracker.update(self.EMPTY, self.SIZE, self.SIZE, frame_time_s=stamp())
+            if tracker.removed_stracks:
+                return updates, clock - last_seen
+            clock += period_s or 0.0
+        raise AssertionError("the lost track was never removed")
+
+    def test_sparse_detection_without_clock_does_not_square_the_interval(self):
+        # interval=10 at 30 fps: one update every 1/3 s. 1 s of buffer = 3 updates.
+        tracker = self._tracker(frame_rate=30, interval=10, track_buffer=30)
+
+        updates, _ = self._updates_until_removed(tracker)
+
+        assert tracker.max_time_lost == 3
+        assert updates == tracker.max_time_lost + 1
+        real_seconds = updates * 10 / 30
+        # One update of slack: removal is on the first update PAST the limit.
+        assert real_seconds <= 1.0 + 10 / 30
+
+    def test_with_a_clock_the_buffer_is_the_configured_seconds_whatever_the_cadence(self):
+        # 30 fps capture, 1 frame in 2 analysed: the tracker sees 15 updates/s
+        # but still believes the source runs at 30 fps.
+        tracker = self._tracker(frame_rate=30, interval=1, track_buffer=30)
+
+        updates, seconds = self._updates_until_removed(tracker, period_s=1 / 15)
+
+        assert seconds == pytest.approx(1.0, abs=1 / 15 + 1e-9)
+        assert updates < 30  # counting updates would have kept it 2 s
+
+    def test_with_a_clock_a_gap_without_updates_still_ages_the_track(self):
+        # Nothing called update() for 5 s (frames dropped, aquarium empty): the
+        # next update must not re-find a track that expired in between.
+        tracker = self._tracker(frame_rate=30, interval=1, track_buffer=30)
+        for i in range(3):
+            out = tracker.update(self.BOX.copy(), self.SIZE, self.SIZE, frame_time_s=i / 30)
+        original_id = out[0].track_id
+        tracker.update(self.EMPTY, self.SIZE, self.SIZE, frame_time_s=3 / 30)
+
+        tracker.update(self.BOX.copy(), self.SIZE, self.SIZE, frame_time_s=5.0)
+        out = tracker.update(self.BOX.copy(), self.SIZE, self.SIZE, frame_time_s=5.0 + 1 / 30)
+
+        assert [t.track_id for t in out] != [original_id]
+        assert all(t.track_id != original_id for t in tracker.lost_stracks)
+
+    def test_with_a_clock_a_track_refound_within_the_buffer_keeps_its_id(self):
+        tracker = self._tracker(frame_rate=30, interval=1, track_buffer=30)
+        for i in range(3):
+            out = tracker.update(self.BOX.copy(), self.SIZE, self.SIZE, frame_time_s=i / 30)
+        original_id = out[0].track_id
+        tracker.update(self.EMPTY, self.SIZE, self.SIZE, frame_time_s=3 / 30)
+
+        out = tracker.update(self.BOX.copy(), self.SIZE, self.SIZE, frame_time_s=0.9)
+
+        assert [t.track_id for t in out] == [original_id]
+
+    def test_single_animal_mode_keeps_the_track_six_buffers_by_clock_and_by_count(self):
+        from zebtrack.tracker.byte_tracker import SINGLE_ANIMAL_LOST_FACTOR
+
+        assert SINGLE_ANIMAL_LOST_FACTOR == 6
+        timed = self._tracker(frame_rate=30, interval=1, track_buffer=30, single=True)
+        _, seconds = self._updates_until_removed(timed, period_s=1 / 15)
+        assert seconds == pytest.approx(6.0, abs=1 / 15 + 1e-9)
+
+        counted = self._tracker(frame_rate=10, interval=1, track_buffer=30, single=True)
+        updates, _ = self._updates_until_removed(counted)
+        # 10 updates (1 s at 10 fps) x 6, removed on the first update past it.
+        assert updates == 61
+
+    def test_a_clock_that_stands_still_falls_back_to_counting(self):
+        # A backend whose CAP_PROP_POS_MSEC is always 0: trusting it would keep
+        # every age at 0 s and the lost track alive forever.
+        tracker = self._tracker(frame_rate=30, interval=1, track_buffer=30)
+        for _ in range(3):
+            tracker.update(self.BOX.copy(), self.SIZE, self.SIZE, frame_time_s=0.0)
+        removed_after = None
+        for n in range(1, 200):
+            tracker.update(self.EMPTY, self.SIZE, self.SIZE, frame_time_s=0.0)
+            if tracker.removed_stracks:
+                removed_after = n
+                break
+
+        assert removed_after == tracker.max_time_lost + 1

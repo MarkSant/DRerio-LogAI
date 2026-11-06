@@ -178,9 +178,10 @@ bytetrack:
   # like zebrafish that can move significantly between processed frames.
   max_center_distance: 400.0  # pixels, ~13 body lengths for 30px zebrafish
 
-  # Track buffer: frames to keep lost tracks before removing (scaled by processing_interval)
+  # Track buffer: lost-track lifetime as frames at 30 fps, i.e. track_buffer / 30 seconds
+  # of video time whatever the source fps or the analysis interval (#654).
   # Higher values allow re-identification after longer occlusions
-  track_buffer: 150  # With interval=10, survives ~50 detection cycles (~5s at 30fps)
+  track_buffer: 150  # 5 s
 
   # IoU threshold for hybrid matching: below this, use center distance instead
   # Lower values (0.0-0.1) work better for small objects with little overlap

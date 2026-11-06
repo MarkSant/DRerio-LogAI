@@ -76,6 +76,10 @@ class MultiAquariumDetector:
         self.zone_scaler = zone_scaler
         self.post_processor = post_processor
         self._source_fps: float | None = source_fps
+        #: Instant (s) of the frame about to be tracked, declared by
+        #: ``set_frame_time``; every aquarium of that frame ages its lost
+        #: tracks on it, then it is cleared (#654).
+        self._frame_time_s: float | None = None
         self.base_width = base_width
         self.base_height = base_height
 
@@ -155,6 +159,25 @@ class MultiAquariumDetector:
     def source_fps(self) -> float | None:
         """Real frame rate declared for the source (``None`` if unknown)."""
         return self._source_fps
+
+    def set_frame_time(self, t_s: float | None) -> None:
+        """Declare the instant of the frame the next ``detect_partitioned*`` tracks (#654).
+
+        Same contract as ``SingleDetector.set_frame_time``: ByteTrack ages lost
+        tracks in seconds on this clock, and the value serves ONE frame (all its
+        aquariums). It matters more here than in the single detector: an
+        aquarium with no detection skips ``update()`` altogether, so counting
+        updates froze the age of its lost track for as long as it stayed empty.
+
+        Args:
+            t_s: Frame instant in seconds, or ``None`` when unknown.
+        """
+        self._frame_time_s = None if t_s is None else float(t_s)
+
+    def _take_frame_time(self) -> float | None:
+        """The declared frame instant, cleared so it serves one frame only."""
+        frame_time_s, self._frame_time_s = self._frame_time_s, None
+        return frame_time_s
 
     def _tracker_frame_rate(self) -> float:
         """Frame rate to build a ByteTrack with; warns when it is the settings fallback."""
@@ -748,6 +771,7 @@ class MultiAquariumDetector:
                 )
                 return aq_id, [], f"Aquarium {aq_id}: {e!s}"
 
+        frame_time_s = self._take_frame_time()
         start_time = time.perf_counter()
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(process_aquarium, aq.id): aq.id for aq in self._aquariums}
@@ -772,7 +796,7 @@ class MultiAquariumDetector:
                             results[aq_id] = []
                             continue
 
-                        tracked = self._apply_byte_tracking_multi(detections, tracker)
+                        tracked = self._apply_byte_tracking_multi(detections, tracker, frame_time_s)
                         results[aq_id] = self._offset_track_ids(tracked, aq_id)
                     else:
                         results[aq_id] = []
@@ -830,6 +854,7 @@ class MultiAquariumDetector:
         pp = DetectionPostProcessor
         use_bytetrack = pp.should_use_bytetrack(self.settings)
         results: dict[int, list[tuple]] = {}
+        frame_time_s = self._take_frame_time()
 
         # Runaway-bbox gate applied HERE because all three ``detect_partitioned*``
         # variants funnel through this method, and it sits before tracking — so
@@ -853,7 +878,7 @@ class MultiAquariumDetector:
                             f"ByteTracker not initialised for aquarium {aq_id}. "
                             "Call set_multi_aquarium_zones() first."
                         )
-                    tracked = self._apply_byte_tracking_multi(detections, tracker)
+                    tracked = self._apply_byte_tracking_multi(detections, tracker, frame_time_s)
                 else:
                     simple = self._single_subject_trackers_multi.get(aq_id)
                     if simple is None:
@@ -911,12 +936,14 @@ class MultiAquariumDetector:
         self,
         detections: list[tuple],
         tracker: BYTETracker,
+        frame_time_s: float | None = None,
     ) -> list[tuple]:
         """Apply ByteTracker to detections for one aquarium.
 
         Args:
             detections: List of detection tuples.
             tracker: ByteTracker instance for this aquarium.
+            frame_time_s: Instant of the frame (``set_frame_time``), or ``None``.
 
         Returns:
             List of detections with updated track_ids.
@@ -930,6 +957,7 @@ class MultiAquariumDetector:
             det_array,
             [self._last_height or 720, self._last_width or 1280],
             [self._last_height or 720, self._last_width or 1280],
+            frame_time_s=frame_time_s,
         )
 
         tracked = []

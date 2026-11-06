@@ -253,7 +253,7 @@ class TestClassRolesInTheMultiAquariumDetector:
     def test_parallel_path_tracks_every_subject_class(self):
         plugin = _FullFramePlugin(self._BOXES)
         detector = _multi(plugin, _TWO_SUBJECTS)
-        detector._apply_byte_tracking_multi = lambda dets, _tracker: [  # type: ignore[method-assign,assignment]
+        detector._apply_byte_tracking_multi = lambda dets, _tracker, *_: [  # type: ignore[method-assign,assignment]
             (d[0], d[1], d[2], d[3], d[4], i + 1, d[6]) for i, d in enumerate(dets)
         ]
         plugin.offsets = [(90, 90), (290, 90)]
@@ -360,3 +360,57 @@ class TestMultiAquariumByteTrackFps:
 
         assert all(t.buffer_size == 30 for t in detector._byte_trackers_multi.values())
         assert "multi_aquarium_detector.bytetrack.fps_fallback_to_settings" in warnings
+
+
+# ---------------------------------------------------------------------------
+# Issue #654: lost tracks age on the frame clock, per aquarium.
+# ---------------------------------------------------------------------------
+
+
+class TestMultiAquariumFrameClock:
+    # Each aquarium runs single_animal_mode: track_buffer=30 -> 1 s x 6 = 6 s.
+
+    @staticmethod
+    def _box(aq_polygon):
+        x0, y0 = aq_polygon[0]
+        return (x0 + 30, y0 + 30, x0 + 50, y0 + 50, 0.95, None, 1)
+
+    def _lost_in_both(self):
+        detector = _fps_multi(30.0)
+        for i in range(3):
+            detector.set_frame_time(i / 30)
+            detector._track_partitioned({0: [self._box(_AQ0)], 1: [self._box(_AQ1)]})
+        detector.set_frame_time(3 / 30)
+        # Aquarium 1 gets only a box below ByteTrack's 0.1 floor: its tracker
+        # runs with no usable detection, so its track goes lost (an aquarium
+        # with NO detection skips ``update()`` altogether).
+        faint = (*self._box(_AQ1)[:4], 0.05, None, 1)
+        detector._track_partitioned({0: [self._box(_AQ0)], 1: [faint]})
+        return detector
+
+    def test_an_empty_aquarium_still_ages_its_lost_track(self):
+        detector = self._lost_in_both()
+        tracker = detector._byte_trackers_multi[1]
+        assert tracker.lost_stracks  # lost, waiting
+        lost = tracker.lost_stracks[0]
+
+        # Aquarium 1 stays empty for 10 s: ``update()`` is never called for it.
+        detector.set_frame_time(10.0)
+        detector._track_partitioned({0: [self._box(_AQ0)], 1: [self._box(_AQ1)]})
+
+        assert lost in tracker.removed_stracks
+
+    def test_the_instant_serves_every_aquarium_of_the_frame_then_is_cleared(self):
+        detector = self._lost_in_both()
+        tracker = detector._byte_trackers_multi[1]
+        lost = tracker.lost_stracks[0]
+
+        # The instant is consumed by the frame, not reused: a later frame
+        # without one counts updates, so the track is NOT removed by a stale
+        # 10 s instant.
+        detector.set_frame_time(10.0)
+        detector._track_partitioned({0: [self._box(_AQ0)], 1: []})
+        detector._track_partitioned({0: [self._box(_AQ0)], 1: [self._box(_AQ1)]})
+
+        assert lost not in tracker.removed_stracks
+        assert lost in tracker.lost_stracks or lost in tracker.tracked_stracks

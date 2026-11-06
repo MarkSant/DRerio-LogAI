@@ -2053,6 +2053,112 @@ modules:
         find: 'source_fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)'
         replace: 'source_fps = 0.0'
 
+  # Issue #654: a lost track lives track_buffer / 30 SECONDS on the frame clock
+  # (PTS in batch and in-process, capture instant live), whatever the fps, the
+  # analysis interval or the frames dropped; counted in updates it is divided
+  # by the interval, never multiplied.
+  byte_tracker_lost_age:
+    source: src/zebtrack/tracker/byte_tracker.py
+    tests:
+      - tests/test_byte_tracker_single_animal.py
+    mutations:
+      - id: interval-squared
+        description: "buffer multiplicado pelo intervalo: vida track_buffer x intervalo^2 / 30 s"
+        find: 'self.buffer_size = max(1, int(frame_rate / REFERENCE_FPS * args.track_buffer / interval))'
+        replace: 'self.buffer_size = max(1, int(frame_rate / REFERENCE_FPS * args.track_buffer * interval))'
+      - id: clock-ignored
+        description: "idade da trilha perdida contada em updates mesmo com relogio"
+        find: 'return frame_time_s - track.last_seen_s > self.max_time_lost_s'
+        replace: 'return self.frame_id - track.end_frame > self.max_time_lost'
+      - id: no-prune-before-association
+        description: "trilha vencida durante uma lacuna sem updates e reencontrada"
+        find: 'expired = [t for t in self.lost_stracks if self._lost_too_long(t, frame_time_s)]'
+        replace: 'expired = []'
+      - id: single-factor-dropped-on-clock
+        description: "modo sujeito unico perde o fator 6 no relogio"
+        find: 'self.max_time_lost_s *= SINGLE_ANIMAL_LOST_FACTOR'
+        replace: 'self.max_time_lost_s *= 1'
+      - id: single-factor-back-to-x3
+        description: "modo sujeito unico volta a x3 sem o x2 da remocao"
+        find: 'self.max_time_lost = self.buffer_size * SINGLE_ANIMAL_LOST_FACTOR'
+        replace: 'self.max_time_lost = self.buffer_size * 3'
+      - id: still-clock-trusted
+        description: "relogio que nao avanca (POS_MSEC sempre 0) congela a idade"
+        find: 'self._last_frame_time_s is not None and frame_time_s <= self._last_frame_time_s'
+        replace: 'False'
+
+  single_detector_frame_time:
+    source: src/zebtrack/core/detection/single_detector.py
+    tests:
+      - tests/core/detection/test_single_detector_extended.py
+    mutations:
+      - id: instant-not-passed-with-detections
+        description: "instante declarado nao chega ao update com deteccoes"
+        find: 'tracks = tracker.update(det_array, frame_dims, frame_dims, frame_time_s=frame_time_s)'
+        replace: 'tracks = tracker.update(det_array, frame_dims, frame_dims, frame_time_s=None)'
+      - id: instant-not-passed-without-detections
+        description: "instante declarado nao chega ao update vazio"
+        find: 'tracker.update(empty, frame_dims, frame_dims, frame_time_s=frame_time_s)'
+        replace: 'tracker.update(empty, frame_dims, frame_dims, frame_time_s=None)'
+
+  multi_aquarium_detector_frame_time:
+    source: src/zebtrack/core/detection/multi_aquarium_detector.py
+    tests:
+      - tests/core/detection/test_multi_aquarium_detector_extended.py
+    mutations:
+      - id: instant-not-passed-to-tracker
+        description: "aquario envelhece a trilha perdida por contagem, nao pelo relogio"
+        find: '            frame_time_s=frame_time_s,'
+        replace: '            frame_time_s=None,'
+      - id: sequential-path-drops-instant
+        description: "caminho sequencial nao repassa o instante do quadro"
+        find: |-
+          tracked = self._apply_byte_tracking_multi(detections, tracker, frame_time_s)
+                          else:
+        replace: |-
+          tracked = self._apply_byte_tracking_multi(detections, tracker)
+                          else:
+
+  processing_worker_frame_time:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/integration/test_prerecorded_golden.py
+    mutations:
+      - id: worker-does-not-declare-pts
+        description: "worker de lote nao entrega o PTS ao ByteTrack"
+        find: '                        set_frame_time(timestamp)'
+        replace: '                        set_frame_time(None)'
+
+  tracking_session_runner_frame_time:
+    source: src/zebtrack/core/video/tracking_session_runner.py
+    tests:
+      - tests/core/test_video_processing_service_tracking.py
+    mutations:
+      - id: runner-does-not-declare-pts
+        description: "pipeline em processo nao entrega o PTS ao ByteTrack"
+        find: '                set_frame_time(timestamp)'
+        replace: '                set_frame_time(None)'
+
+  live_capture_frame_time:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_frame_processing_pipeline_extended.py
+    mutations:
+      - id: capture-instant-not-declared
+        description: "ao vivo o ByteTrack envelhece pela contagem e pelo fps do driver"
+        find: '            set_frame_time(capture_ts)'
+        replace: '            set_frame_time(None)'
+
+  live_multi_aquarium_frame_time:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: multi-capture-instant-not-declared
+        description: "ao vivo multi-aquario nao entrega o instante de captura"
+        find: 'set_frame_time(getattr(self, "_tracker_frame_time_s", None))'
+        replace: 'set_frame_time(None)'
+
   # Issue #635: live multi-aquarium recording. The parent recorder owns the
   # session clock, folder and the ONE full-frame MP4; stop_recording() reaches
   # the sub-recorders; the session's aquariums (never the aquarium-0 shim)

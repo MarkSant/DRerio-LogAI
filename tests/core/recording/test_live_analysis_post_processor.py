@@ -540,6 +540,25 @@ class TestMultiAquariumLive:
 
         assert created.call_args.kwargs["class_role_map"] is role_map
 
+    def test_capture_instant_reaches_the_multi_aquarium_tracker(self, tmp_path):
+        """#654: every aquarium ages its lost tracks on the frame's capture clock."""
+        import numpy as np
+
+        fake = MagicMock()
+        fake.detect_partitioned_optimized.return_value = {}
+        host = _MultiHost(tmp_path, MagicMock(start_time=0.0), SimpleNamespace(plugin=object()))
+        host._multi_aq_detector = fake
+        host_any: Any = host
+        host_any._tracker_frame_time_s = 512.25
+
+        host._run_multi_aquarium_detection(
+            np.zeros((480, 640, 3), dtype=np.uint8), 5, SimpleNamespace(aquariums=[])
+        )
+
+        names = [c[0] for c in fake.mock_calls]
+        assert names.index("set_frame_time") < names.index("detect_partitioned_optimized")
+        fake.set_frame_time.assert_called_once_with(512.25)
+
     def test_live_multi_aquarium_records_trajectory_rows(self, tmp_path, monkeypatch):
         """Was ``xfail(strict=True)``: 0 rows. Three defects stacked: the parent's
         ``start_time`` stayed 0, the partitioned write had invalid kwargs (the

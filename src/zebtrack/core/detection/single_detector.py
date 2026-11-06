@@ -100,6 +100,9 @@ class SingleDetector:
         #: camera's rate). ``None`` until the caller knows it; ByteTrack then
         #: falls back to ``settings.video_processing.fps`` with a warning (#630).
         self._source_fps: float | None = None
+        #: Instant (s) of the frame about to be tracked, declared by
+        #: ``set_frame_time`` and consumed by the next ByteTrack update (#654).
+        self._frame_time_s: float | None = None
 
         # Máscaras do frame corrente, indexadas pela bbox JÁ no espaço do frame
         # inteiro. A bbox é a chave porque ela é o único identificador que
@@ -659,6 +662,26 @@ class SingleDetector:
         """Real frame rate declared by ``set_source_fps`` (``None`` if unknown)."""
         return self._source_fps
 
+    def set_frame_time(self, t_s: float | None) -> None:
+        """Declare the instant of the frame the next ``detect()`` will track (#654).
+
+        ByteTrack then ages lost tracks in SECONDS on this clock (PTS for a
+        video, the capture instant for a camera), so the lost-track lifetime no
+        longer depends on the frame rate, the analysis interval or the frames
+        dropped on the way. Call it before every ``detect()``. The value is
+        consumed by ONE tracker update: a caller that stops declaring falls back
+        to counting updates instead of freezing every age at a stale instant.
+
+        Args:
+            t_s: Frame instant in seconds, or ``None`` when unknown.
+        """
+        self._frame_time_s = None if t_s is None else float(t_s)
+
+    def _take_frame_time(self) -> float | None:
+        """The declared frame instant, cleared so it is used for one update only."""
+        frame_time_s, self._frame_time_s = self._frame_time_s, None
+        return frame_time_s
+
     def is_single_subject_mode(self) -> bool:
         """Expose the current single-subject tracking flag."""
         return self._single_subject_mode
@@ -734,12 +757,13 @@ class SingleDetector:
             frame_shape=frame_shape,
         )
 
+        frame_time_s = self._take_frame_time()
         if not detections:
             tracker = self._ensure_byte_tracker()
             if tracker is not None:
                 empty = np.empty((0, 5), dtype=np.float32)
                 frame_dims = (frame_shape[0], frame_shape[1])
-                tracker.update(empty, frame_dims, frame_dims)
+                tracker.update(empty, frame_dims, frame_dims, frame_time_s=frame_time_s)
             log.debug(
                 "single_detector.bytetrack.output",
                 num_tracks=0,
@@ -786,7 +810,7 @@ class SingleDetector:
             img_size_passed=frame_dims,
         )
 
-        tracks = tracker.update(det_array, frame_dims, frame_dims)
+        tracks = tracker.update(det_array, frame_dims, frame_dims, frame_time_s=frame_time_s)
 
         log.debug(
             "single_detector.bytetrack.update_result",
