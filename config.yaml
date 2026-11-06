@@ -400,6 +400,8 @@ roi_inclusion_rule: "bbox_intersects"
 # Cap on the time credited to an ROI for a single trajectory step. Without it,
 # a 5 s tracking gap is credited IN FULL to whichever ROI the animal reappeared
 # in. The discarded excess is reported as analise_roi.tempo_nao_observado_s.
+# The same cap defines a tracking gap for behaviour: no freezing/inactivity/burst
+# episode, smoothing window or distance step crosses an interval above it.
 #   - null (default): automatic, 3x the median observed interval
 #   - a number:       explicit cap, in seconds
 #   - .inf:           no cap (historical behaviour)

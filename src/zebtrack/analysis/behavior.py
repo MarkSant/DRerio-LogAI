@@ -10,6 +10,8 @@ import shapely
 from scipy.signal import savgol_filter
 from shapely.geometry import Polygon
 
+from zebtrack.analysis.gap_policy import resolve_max_gap_s
+
 #: Slack on window edges. START/STOP come from the event clock and the index
 #: from the trajectory clock; both are ``POS_MSEC / 1000`` pre-recorded (or the
 #: same capture instant live), but each went through its own float -> ns
@@ -66,6 +68,7 @@ class BehavioralAnalyzer(ABC):
         min_displacement_threshold_cm: float = 0.5,
         angle_calculation_window: int = 1,
         angular_velocity_smoothing_window: int = 3,
+        max_gap_s: float | None = None,
     ):
         """
         Initialize the BehavioralAnalyzer and performs preprocessing.
@@ -97,6 +100,14 @@ class BehavioralAnalyzer(ABC):
             angular_velocity_smoothing_window (int, optional): Window size for
                 moving average smoothing of angular velocities. Must be odd or 1
                 (1 disables smoothing). Defaults to 3.
+            max_gap_s (float | None, optional): Longest interval between two
+                samples of the same subject that still counts as continuous,
+                in seconds. Longer intervals are tracking gaps: no smoothing
+                window, freezing/inactivity/burst episode or (through
+                :attr:`gap_threshold_s`) distance step crosses them. ``None``
+                (default) is automatic, the same cap the ROI analysis uses
+                (``roi_max_gap_s``, see :mod:`zebtrack.analysis.gap_policy`);
+                ``math.inf`` disables it.
         """
         if polyorder is not None and window_length is not None and polyorder >= window_length:
             raise ValueError("polyorder must be less than window_length.")
@@ -124,6 +135,14 @@ class BehavioralAnalyzer(ABC):
         self._track_labels: np.ndarray = np.zeros(0, dtype=np.int64)
         self._track_keys: list[Any] = []
         self._is_multi_track: bool = False
+
+        # Tracking gaps (#632): one flag per row, set by ``_mark_gaps`` on the
+        # WHOLE recording, before smoothing, and cut with the rows by
+        # ``restrict_to_window``. A flagged row is the first one after a gap:
+        # the interval that ends on it was not observed.
+        self._max_gap_s_config = max_gap_s
+        self._gap_threshold_s: float = float(np.inf)
+        self._gap_rows: np.ndarray = np.zeros(0, dtype=bool)
 
         # Analysis window (ADR-011), set once by ``restrict_to_window``.
         self._window_bounds: tuple[float, float] | None = None
@@ -168,6 +187,20 @@ class BehavioralAnalyzer(ABC):
         return [
             np.flatnonzero(self._track_labels == label) for label in range(len(self._track_keys))
         ]
+
+    @property
+    def gap_threshold_s(self) -> float:
+        """Interval above which two samples of a subject are not continuous (s).
+
+        Pass it to :meth:`calculate_total_distance` as ``max_time_gap`` so the
+        jump across a gap is not counted. ``inf`` when there is no cap.
+        """
+        return self._gap_threshold_s
+
+    @property
+    def gap_rows(self) -> np.ndarray:
+        """Per row (positional): ``True`` on the first row after a tracking gap."""
+        return self._gap_rows.copy()
 
     def diff_by_track(self, series: pd.Series) -> pd.Series:
         """``series.diff()`` que NÃO atravessa a fronteira entre animais.
@@ -276,6 +309,10 @@ class BehavioralAnalyzer(ABC):
         self._trajectory_data = df[keep].copy()
         if self._track_labels.size == keep.size:
             self._track_labels = self._track_labels[keep]
+        if self._gap_rows.size == keep.size:
+            # Measured on the whole recording: the first row of the window may
+            # close a gap that began before START.
+            self._gap_rows = self._gap_rows[keep]
         self._window_angular = angular_keep
         self._window_bounds = bounds
         self._window_empty = empty
@@ -373,6 +410,7 @@ class BehavioralAnalyzer(ABC):
         # Os rótulos de track precisam existir ANTES da suavização: com vários
         # animais o Savitzky-Golay tem de rodar por sujeito.
         self._assign_track_labels(df)
+        self._mark_gaps(df)
 
         self._smooth_trajectory(df, window_length, polyorder)
 
@@ -394,18 +432,68 @@ class BehavioralAnalyzer(ABC):
         self._track_keys = list(uniques)
         self._is_multi_track = len(uniques) > 1
 
-    def _smooth_trajectory(self, df: pd.DataFrame, window_length: int, polyorder: int) -> None:
-        """Aplica o Savitzky-Golay adaptativo, por sujeito quando há mais de um."""
+    def _positions_by_track(self) -> list[np.ndarray]:
+        """Positional rows of each subject, from ``_track_labels`` alone.
+
+        Unlike :attr:`track_positions` it works while ``_trajectory_data`` is
+        still being built.
+        """
         if not self._is_multi_track:
-            self._smooth_slice(df, np.arange(len(df)), window_length, polyorder)
+            return [np.arange(self._track_labels.size)]
+        return [
+            np.flatnonzero(self._track_labels == label) for label in range(len(self._track_keys))
+        ]
+
+    def _mark_gaps(self, df: pd.DataFrame) -> None:
+        """Flag the first row after each tracking gap, per subject.
+
+        The interval is measured to the previous row of the SAME subject; a
+        subject's first row has none and is never a gap row (it has no
+        velocity either, which the episode detectors handle separately).
+        """
+        if df.empty:
+            self._gap_rows = np.zeros(0, dtype=bool)
+            self._gap_threshold_s = resolve_max_gap_s(np.zeros(0), self._max_gap_s_config)
+            return
+        dt = self.diff_by_track(df.index.to_series())
+        dt_s = (
+            dt.dt.total_seconds().to_numpy(dtype=float)
+            if pd.api.types.is_timedelta64_dtype(dt)
+            else pd.to_numeric(dt, errors="coerce").to_numpy(dtype=float)
+        )
+        cap = resolve_max_gap_s(dt_s, self._max_gap_s_config)
+        self._gap_threshold_s = cap
+        with np.errstate(invalid="ignore"):
+            self._gap_rows = np.isfinite(dt_s) & (dt_s > cap)
+
+    def _continuous_segments(self) -> list[np.ndarray]:
+        """Positional rows of each subject, split where a tracking gap begins."""
+        segments: list[np.ndarray] = []
+        for positions in self._positions_by_track():
+            if positions.size == 0:
+                continue
+            starts = np.flatnonzero(self._gap_rows[positions])
+            segments.extend(np.split(positions, starts[starts > 0]))
+        return segments
+
+    def _smooth_trajectory(self, df: pd.DataFrame, window_length: int, polyorder: int) -> None:
+        """Aplica o Savitzky-Golay adaptativo por trecho contínuo de cada sujeito.
+
+        O filtro nunca atravessa uma lacuna de rastreio (#632): com a janela
+        cruzando-a, o salto de posição se espalhava pelas linhas vizinhas como
+        movimento observado — e cortar só o passo da lacuna na distância
+        deixava esses centímetros para trás. Sem lacunas e com um só sujeito o
+        caminho é o histórico, bit a bit.
+        """
+        segments = self._continuous_segments()
+        if len(segments) == 1 and segments[0].size == len(df):
+            self._smooth_slice(df, segments[0], window_length, polyorder)
             return
 
         df["x_cm_smoothed"] = np.nan
         df["y_cm_smoothed"] = np.nan
-        for label in range(len(self._track_keys)):
-            positions = np.flatnonzero(self._track_labels == label)
-            if positions.size:
-                self._smooth_slice(df, positions, window_length, polyorder)
+        for positions in segments:
+            self._smooth_slice(df, positions, window_length, polyorder)
 
     def _smooth_slice(
         self,
@@ -830,7 +918,9 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         dy = self.diff_by_track(df["y_cm_smoothed"])
         distances = np.sqrt(dx**2 + dy**2)
 
-        if max_time_gap is not None:
+        # ``inf`` is "no cap" (``roi_max_gap_s: .inf``, or a single sample with
+        # no interval to derive one from) and has no Timedelta.
+        if max_time_gap is not None and np.isfinite(max_time_gap):
             time_diffs = self.diff_by_track(df.index.to_series())
             # Compare Timedelta with a Timedelta
             valid_segments = time_diffs <= pd.to_timedelta(max_time_gap, unit="s")
@@ -888,10 +978,11 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
             'track_id' when there is more than one animal).
         """
         self.calculate_velocity_timeseries()
-        v_mag = self._trajectory_data["v_mag"].fillna(0.0)
+        v_mag = self._trajectory_data["v_mag"]
+        usable = self._usable_velocity_rows()
 
         if threshold_method == "relative":
-            threshold = v_mag.quantile(quantile)
+            threshold = v_mag[usable].quantile(quantile)
         elif threshold_method == "absolute":
             if vel_threshold is None:
                 raise ValueError("vel_threshold must be set for 'absolute' method.")
@@ -899,53 +990,60 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         else:
             raise ValueError(f"Unknown threshold_method: {threshold_method}")
 
-        is_freezing = (v_mag <= threshold).to_numpy(dtype=bool)
-        # Blocos POSICIONAIS: com vários animais o índice tem timestamps
-        # repetidos, e um ``groupby`` por rótulo alinharia linhas de sujeitos
-        # diferentes dentro do mesmo episódio.
-        block_ids = self._block_ids(is_freezing)
-        freezing_rows = self._trajectory_data[is_freezing]
-        freezing_blocks = freezing_rows.groupby(block_ids[is_freezing], sort=True)
-        labels_in_mask = self._track_labels[is_freezing] if self._is_multi_track else None
+        is_freezing = (v_mag.to_numpy(dtype=float) <= threshold) & usable
 
+        index = self._trajectory_data.index
         episodes = []
-        offset = 0
-        for _, block in freezing_blocks:
-            size = len(block)
-            if size:
-                start_time = block.index[0]
-                end_time = block.index[-1]
-                duration = end_time - start_time
-                if duration.total_seconds() >= min_duration:
-                    episode: Episode = {
-                        "start_time": start_time,
-                        "end_time": end_time,
-                        "duration": duration.total_seconds(),
-                    }
-                    if labels_in_mask is not None:
-                        # O bloco nunca cruza sujeitos, então o rótulo da
-                        # primeira linha identifica o episódio inteiro.
-                        episode["track_id"] = self._track_keys[int(labels_in_mask[offset])]
-                    episodes.append(episode)
-            offset += size
+        for run in self._runs(is_freezing):
+            start_time = index[run[0]]
+            end_time = index[run[-1]]
+            duration = end_time - start_time
+            if duration.total_seconds() >= min_duration:
+                episode: Episode = {
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "duration": duration.total_seconds(),
+                }
+                if self._is_multi_track:
+                    # A corrida nunca cruza sujeitos, então o rótulo da
+                    # primeira linha identifica o episódio inteiro.
+                    episode["track_id"] = self._track_keys[int(self._track_labels[run[0]])]
+                episodes.append(episode)
         return episodes
 
-    def _block_ids(self, mask: np.ndarray) -> np.ndarray:
-        """IDs de bloco contíguo de mesmo valor que NÃO atravessam sujeitos.
+    def _usable_velocity_rows(self) -> np.ndarray:
+        """Rows whose velocity describes OBSERVED motion (positional mask).
 
-        Sem o corte por sujeito, um episódio de congelamento "contíguo" poderia
-        conter frames de dois peixes diferentes e ter a duração medida entre
-        eles.
+        Excluded: rows without a velocity (each subject's first row — it is not
+        zero, it is unknown) and the first row after a tracking gap, whose
+        velocity averages over time nobody saw. Both used to be read as a
+        standstill or as a burst (#632).
         """
-        if mask.size == 0:
-            return np.zeros(0, dtype=np.int64)
+        v_mag = self._trajectory_data["v_mag"]
+        usable = v_mag.notna().to_numpy(dtype=bool)
+        if self._gap_rows.size == usable.size:
+            usable &= ~self._gap_rows
+        return usable
 
-        changed = np.empty(mask.size, dtype=bool)
-        changed[0] = True
-        changed[1:] = mask[1:] != mask[:-1]
-        if self._is_multi_track:
-            changed[1:] |= self._track_labels[1:] != self._track_labels[:-1]
-        return np.cumsum(changed) - 1
+    def _runs(self, mask: np.ndarray) -> list[np.ndarray]:
+        """Maximal runs of ``True`` rows of ONE subject, in chronological order.
+
+        Each run is an array of positional rows. Runs are taken per subject: a
+        row-adjacency test over the whole frame broke on every row once two
+        animals were interleaved by timestamp (which ``_preprocess_data``
+        does), so no multi-animal episode ever lasted more than one row. A row
+        excluded from ``mask`` (a gap row, for instance) ends the run.
+        """
+        runs: list[np.ndarray] = []
+        by_track = self._positions_by_track() if self._is_multi_track else [np.arange(mask.size)]
+        for positions in by_track:
+            selected = np.flatnonzero(mask[positions])
+            if selected.size == 0:
+                continue
+            breaks = np.flatnonzero(np.diff(selected) != 1) + 1
+            runs.extend(positions[chunk] for chunk in np.split(selected, breaks))
+        runs.sort(key=lambda run: int(run[0]))
+        return runs
 
     def get_angular_velocity(self, unit: str = "degrees") -> pd.Series:
         """Calculate the angular velocity of the trajectory using a robust method.
@@ -1242,11 +1340,13 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
                 "episodes": [],
             }
 
-        v_mag = self._trajectory_data["v_mag"].fillna(0.0)
+        v_mag = self._trajectory_data["v_mag"]
         if threshold_cm_s is None:
             if not 0 < quantile < 1:
                 raise ValueError("quantile must be between 0 and 1 when used.")
-            threshold_cm_s = float(v_mag.quantile(quantile))
+            # Undefined velocities are unknown, not zero: they stay out of the
+            # distribution the threshold is read from.
+            threshold_cm_s = float(v_mag[self._usable_velocity_rows()].quantile(quantile))
 
         mask = v_mag >= float(threshold_cm_s)
         episodes = self._extract_velocity_episodes(mask, min_duration)
@@ -1288,7 +1388,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
                 "episodes": [],
             }
 
-        v_mag = self._trajectory_data["v_mag"].fillna(0.0)
+        v_mag = self._trajectory_data["v_mag"]
         mask = v_mag <= float(velocity_threshold_cm_s)
         episodes = self._extract_velocity_episodes(mask, min_duration)
         total_duration = float(sum(ep["duration"] for ep in episodes))
@@ -1385,17 +1485,15 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
                 .fillna(False)
                 .to_numpy(dtype=bool)
             )
-        change_groups = self._block_ids(aligned_values)
+        if "v_mag" in self._trajectory_data.columns:
+            aligned_values &= self._usable_velocity_rows()
         min_duration_td = pd.to_timedelta(min_duration, unit="s")
 
+        index = self._trajectory_data.index
         episodes: list[Episode] = []
-        selected = self._trajectory_data[aligned_values]
-        for _, block in selected.groupby(change_groups[aligned_values], sort=True):
-            if block.empty:
-                continue
-
-            start_time = block.index[0]
-            end_time = block.index[-1]
+        for run in self._runs(aligned_values):
+            start_time = index[run[0]]
+            end_time = index[run[-1]]
             duration_td = end_time - start_time
 
             if duration_td < min_duration_td:

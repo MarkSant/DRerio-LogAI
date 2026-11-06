@@ -962,6 +962,18 @@ much of the session the per-ROI numbers do not cover. `null` means automatic
 (`3 ×` the median observed interval); `.inf` disables the cap and restores the
 historical attribution.
 
+**The same cap is the behavioural definition of a gap (#632).** The rule lives
+in `analysis/gap_policy.resolve_max_gap_s()` and `AnalysisService` hands the
+resolved `roi_max_gap_s` to the `BehavioralAnalyzer` as `max_gap_s`. The
+analyser flags, per subject and on the whole recording (before a window cut),
+the first row after each interval above the cap (`gap_rows`). Savitzky-Golay
+runs per continuous segment, so the jump is never smeared into observed rows;
+freezing, inactivity and burst episodes never include a gap row or a row
+without velocity (each subject's first row is unknown, not still), and are
+extracted per subject; `distancia_total_cm` passes
+`max_time_gap=gap_threshold_s`. Without gaps (and with one subject) the
+smoothing path is the historical one, bit for bit.
+
 A visit's duration is the time **credited to the visit's own frames** — the
 same sum `get_time_spent_in_rois` reports — read off an *exclusive* prefix-sum
 clock (`_clock_s`, length `n+1`). So `roi_min_visit_s` means literally
@@ -1742,6 +1754,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
+| Nov 6, 2026 | v5.3 | § 5.10.2 the ROI `dt` cap also defines a behavioural tracking gap — `analysis/gap_policy.py`, per-segment smoothing, gap-aware and per-subject episodes, gap-cut distance (#632) |
 | Aug 23, 2026 | v5.2 | § 5.14 ad-hoc live session — `live_calibration_scale` px→cm resolver (dialog dimensions were dropped, reports read pixels as cm), `stop_session(keep_data=...)` + `stop_live_session(discard=...)` + `finish_session_early()`, new `LIVE_SESSION_FINISH_REQUESTED` event and the "⏹ Finish and Save" / confirmed-Cancel pair, live frames marshalled to the Tk thread (drop-latest), `live_output_paths.default_live_sessions_dir()`, non-destructive session-folder cleanup |
 | Aug 15, 2026 | v5.1 | § 5.6 closed-loop `fps` corrected to the rate measured from capture timestamps (`FrameLedger.current_fps_measured()`), replacing the configured value that had been logged as achieved; configured value kept in new `fps_configured` / `sampling_interval_ms_configured` columns (release v6.0.0 archival snapshot) |
 | Aug 8, 2026 | v5.0 | § 5.11 external trigger reaches the Progress grid (`external_trigger_gate`, two coordinators unified, `on_arduino_event` routing); § 5.12 per-subject recording duration (`session_duration_resolver`, `session_duration_overrides`, heterogeneity warning in partial/batch reports) |
