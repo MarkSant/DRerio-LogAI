@@ -83,6 +83,9 @@ EXPECTED_V8_CHANGES: dict[str, tuple[object, object]] = {
     "analysis_window/status": (ABSENT, "none"),
     # Recording length from the time base, next to the row count.
     "validacao/estatisticas/duration_s": (ABSENT, 12.0),
+    # #632: the first row has no velocity. It used to enter the 90th-percentile
+    # burst threshold as a 0 cm/s sample; unknown is not zero. Bursts: still 0.
+    "comportamento_geral/rajadas_velocidade/threshold_cm_s": (28.71767409, 28.988636252),
 }
 
 #: Coordinates are integers in pixels and metrics are derived from them, so the

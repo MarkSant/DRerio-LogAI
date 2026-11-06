@@ -19,6 +19,7 @@ from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
 
 from zebtrack.analysis.behavior import BehavioralAnalyzer, Episode
+from zebtrack.analysis.gap_policy import resolve_max_gap_s
 from zebtrack.core.services.roi_rule_resolver import (
     DEFAULT_BBOX_OVERLAP_BASIS,
     DEFAULT_BUFFER_RADIUS_VALUE,
@@ -30,7 +31,6 @@ from zebtrack.core.services.roi_rule_resolver import (
     DEFAULT_ROI_MAX_GAP_S,
     DEFAULT_ROI_MIN_GAP_S,
     DEFAULT_ROI_MIN_VISIT_S,
-    MAX_GAP_AUTO_FACTOR,
     VALID_ROI_INCLUSION_RULES,
     RoiRuleConfig,
 )
@@ -786,16 +786,12 @@ class ROIAnalyzer:
                 self._unobserved_by_track[self._track_keys[label]] = float(excess[positions].sum())
 
     def _resolve_max_gap(self, dt_seconds: np.ndarray) -> float:
-        """Teto efetivo de ``dt``, em segundos (``inf`` = sem teto)."""
-        if self._max_gap_s is not None:
-            return float(self._max_gap_s)
+        """Teto efetivo de ``dt``, em segundos (``inf`` = sem teto).
 
-        positive = dt_seconds[dt_seconds > 0.0]
-        if positive.size == 0:
-            # Série de um frame só (ou timestamps repetidos): não há intervalo
-            # nominal do qual derivar um teto.
-            return float(np.inf)
-        return float(MAX_GAP_AUTO_FACTOR * np.median(positive))
+        A regra é a de :func:`zebtrack.analysis.gap_policy.resolve_max_gap_s`,
+        a mesma que o ``BehavioralAnalyzer`` usa para cortar episódios.
+        """
+        return resolve_max_gap_s(dt_seconds, self._max_gap_s)
 
     def _apply_flutter_filter(self, raw_presence: pd.Series) -> pd.Series:
         """Debounce de presença COM RETRODATAÇÃO.

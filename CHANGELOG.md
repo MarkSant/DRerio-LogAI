@@ -218,6 +218,7 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   | Chaves `analysis_window`, `latency_censored`, `latency_present_at_start` e colunas `window_*` sempre presentes | janela de análise | Quem consome o relatório unificado ou o `.xlsx` vê colunas novas no FIM da tabela; nenhuma coluna antiga muda de posição. |
   | Novo arquivo `3c_Objetos_` por vídeo | ADR-010 | A pasta de saída ganha um arquivo; scripts que listam a pasta por prefixo não são afetados (nenhum arquivo novo começa com `3_CoordMovimento`). |
   | Reanálise de sessão ao vivo redatada pelo `6_FrameLedger` | o `timestamp` ao vivo é relógio de processamento, não de captura | Tempos e durações de sessões ao vivo reanalisadas passam a refletir o instante real de captura; sem ledger, o relatório avisa e mantém o relógio antigo. |
+  | Lacunas de rastreio cortam episódios, suavização e distância (#632) | o intervalo que termina na 1ª linha depois de uma lacuna (rato oculto pela mão, peixe atrás de um reflexo) não foi observado; o 1º quadro de cada trilha não tem velocidade | Congelamento, inatividade e rajadas não atravessam mais a lacuna, e o tempo oculto sai da duração. A 1ª linha de cada trilha deixa de contar como parada (um episódio que começava em 0,0 s começa no 2º quadro) e deixa de entrar como 0 cm/s nos limiares por quantil (no golden, o limiar de rajadas foi de 28,72 para 28,99 cm/s; contagem 0 nos dois). O Savitzky-Golay é aplicado por trecho contínuo e `distancia_total_cm` não soma o salto da lacuna. "Lacuna" é o mesmo teto do tempo em ROI (`roi_max_gap_s`, automático = 3 × o intervalo mediano; `.inf` volta ao comportamento antigo), agora em `analysis/gap_policy.py`. Gravações sem lacunas não mudam. |
 
 - Relatórios individuais, sumários parquet e o reporter do pipeline tiravam a
   taxa de quadros de `settings.video_processing.fps`; agora usam
@@ -289,6 +290,12 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
 
 ### Fixed
 
+- **Episódios de mais de um animal (#632).** O detector de congelamento,
+  inatividade e rajadas emendava linhas pela adjacência no quadro inteiro, e o
+  pré-processamento intercala os animais por timestamp: o bloco quebrava a cada
+  linha, então com dois animais visíveis nenhum episódio durava mais de um
+  quadro (dois animais parados por 7 s davam zero episódios). Os episódios agora
+  são extraídos por animal.
 - **Ao vivo, a base de tempo dos quadros (#637).** Três defeitos na mesma linha do
   tempo. (1) O laço de captura sondava `camera.get_frame()` — que devolve o quadro
   mais recente sem consumi-lo — a 1,5× o fps configurado: o mesmo quadro do sensor
