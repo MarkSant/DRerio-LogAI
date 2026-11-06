@@ -297,6 +297,14 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   linha, então com dois animais visíveis nenhum episódio durava mais de um
   quadro (dois animais parados por 7 s davam zero episódios). Os episódios agora
   são extraídos por animal.
+- **Relatório HTML interativo (#639).** Com qualquer episódio de congelamento o
+  `HtmlReporter` caía em `KeyError`: lia `start_frame`/`duration_s`, chaves que os
+  episódios não têm (`start_time`/`duration`). O eixo do tempo dividia o índice —
+  que já é o relógio da gravação, um `Timedelta` — por `metadata["fps"]` (que
+  ninguém preenche, logo 30). Agora o tempo sai do índice, com o mesmo zero e o
+  mesmo rótulo das figuras do `.docx` (`analysis/time_axis.py`): o INÍCIO da
+  janela de análise, quando há uma, senão a primeira amostra. O
+  `HtmlReporter.build_figure()` devolve a figura antes de gravá-la.
 - **Ao vivo, a base de tempo dos quadros (#637).** Três defeitos na mesma linha do
   tempo. (1) O laço de captura sondava `camera.get_frame()` — que devolve o quadro
   mais recente sem consumi-lo — a 1,5× o fps configurado: o mesmo quadro do sensor

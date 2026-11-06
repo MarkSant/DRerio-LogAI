@@ -1822,6 +1822,42 @@ modules:
         find: 'combined_data[f"latency_censored_{roi_name}"] = censored.get(roi_name)'
         replace: 'combined_data[f"latency_censored_{roi_name}"] = present_at_start.get(roi_name)'
 
+  html_report_time:
+    source: src/zebtrack/analysis/reporters/html_reporter.py
+    tests:
+      - tests/analysis/reporters/test_html_reporter.py
+    mutations:
+      - id: time-back-to-index-over-fps
+        description: "o eixo de velocidade volta a dividir o indice por um fps fixo (#639)"
+        find: 'seconds_on_axis(velocity_ts.index, origin) if origin is not None else []'
+        replace: 'velocity_ts.index.total_seconds() / 30.0 if origin is not None else []'
+      - id: freezing-start-from-the-end
+        description: "o marcador de congelamento passa a ler o fim do episodio como inicio"
+        find: 'seconds_on_axis([ep["start_time"] for ep in freezing_list], origin)'
+        replace: 'seconds_on_axis([ep["end_time"] for ep in freezing_list], origin)'
+      - id: freezing-duration-wrong-key
+        description: "a duracao do congelamento deixa de ler a chave duration"
+        find: 'freeze_durations = [float(ep["duration"]) for ep in freezing_list]'
+        replace: 'freeze_durations = [1.0 for ep in freezing_list]'
+
+  report_time_axis:
+    source: src/zebtrack/analysis/time_axis.py
+    tests:
+      - tests/analysis/reporters/test_html_reporter.py
+    mutations:
+      - id: origin-ignores-window
+        description: "com janela, o zero do eixo volta a ser a 1a amostra e nao o START"
+        find: |-
+          if bounds is not None:
+                  return pd.to_timedelta(float(bounds[0]), unit="s")
+        replace: |-
+          if False:
+                  return pd.to_timedelta(float(bounds[0]), unit="s")
+      - id: label-ignores-window
+        description: "o rotulo do eixo deixa de dizer que o tempo conta do START"
+        find: 'if _window_bounds(b_analyzer) is not None:'
+        replace: 'if False:'
+
   word_report_window:
     source: src/zebtrack/analysis/reporters/word_reporter.py
     tests:
@@ -1849,7 +1885,8 @@ modules:
         replace: '_to_seconds(value) for value in event_log_df["timestamp"]'
 
   visualization_window_axes:
-    source: src/zebtrack/analysis/visualization_generator.py
+    # The rule moved to time_axis.py (#639); the Word figures still read it.
+    source: src/zebtrack/analysis/time_axis.py
     tests:
       - tests/analysis/test_visualization_generator.py
     mutations:
