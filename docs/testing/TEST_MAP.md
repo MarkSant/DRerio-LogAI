@@ -151,6 +151,8 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `analysis/window_observations.py` | `tests/analysis/test_window_observations.py` (3c heartbeat → observations, report ROI rule, external events, trajectory-only fallback, `missing_inputs`) + `--module window_observations` |
 | `analysis/analysis_window_service.py` | `tests/analysis/test_analysis_window_service.py` (reuse by spec/input hashes, offline vs online, external events kept, not-met policies, spec lookup) + `--module analysis_window_service` |
 | `analysis/behavior.py` (`restrict_to_window`) | `tests/analysis/test_behavior.py::TestRestrictToWindow` + hypothesis properties + `--module analysis_window_cut` |
+| `analysis/trajectory_validator.py` (`total_frames`, `temporal_coverage`, `count_unique_frames`) | `tests/analysis/test_trajectory_validator.py::TestFramesAndCoverageCountFrames` + `--module frames_not_rows_validator` |
+| `analysis/analysis_service.py` (`total_frames_analisados` with a window) | `tests/analysis/test_analysis_service.py` (`*frames_analysed*`) + `--module frames_not_rows_service` |
 | `analysis/roi.py` (`restrict_to_window`, `from_rule`, `presence_timeline`) | `tests/analysis/test_roi_analyzer.py::TestRestrictToWindow*` + `--module analysis_window_cut_roi` |
 | `analysis/analysis_service.py` (`window=`) | `tests/analysis/test_analysis_service.py` (window block) + `--module analysis_window_cut_service` |
 | `analysis/metrics_cache.py` (window key) | `tests/analysis/test_metrics_cache.py` + `--module metrics_cache_window` |

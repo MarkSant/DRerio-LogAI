@@ -25,7 +25,10 @@ from zebtrack.analysis.metrics_cache import MetricsCache
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.analysis.time_base import resolve_time_base
-from zebtrack.analysis.trajectory_validator import TrajectoryQualityValidator
+from zebtrack.analysis.trajectory_validator import (
+    TrajectoryQualityValidator,
+    count_unique_frames,
+)
 from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig, resolve_roi_rule
 from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
@@ -139,7 +142,7 @@ def resolve_mask_sidecar(trajectory_path: str | Path | None) -> Path | None:
 def _window_row_mask(trajectory_df: pd.DataFrame, window: WindowResolution | None) -> np.ndarray:
     """Rows of the raw trajectory inside the window's cut (all rows without one).
 
-    Only for COUNTING rows: the analysers are never built from these rows, or
+    Only for COUNTING (the frames of those rows): the analysers are never built from these rows, or
     smoothing, velocity and ROI debounce would lose the samples before START.
     """
     cut = None if window is None else window.cut
@@ -539,7 +542,7 @@ class AnalysisService:
         r_analyzer: ROIAnalyzer | None,
         trajectory_df: pd.DataFrame,
     ) -> int | None:
-        """Restrict both analysers to the window; return the rows inside it.
+        """Restrict both analysers to the window; return the frames inside it.
 
         Nothing is cut (and ``None`` is returned) when the window did not start
         and the spec asked for the whole recording.
@@ -549,7 +552,8 @@ class AnalysisService:
             b_analyzer.restrict_to_window(cut[0], cut[1])
             if r_analyzer is not None:
                 r_analyzer.restrict_to_window(cut[0], cut[1])
-            return int(_window_row_mask(trajectory_df, window).sum())
+            # Frames, not rows: two animals on a frame are one frame (#641).
+            return count_unique_frames(trajectory_df[_window_row_mask(trajectory_df, window)])
         if window.is_empty:
             b_analyzer.restrict_to_window(None, None, empty=True)
             if r_analyzer is not None:

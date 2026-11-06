@@ -695,6 +695,50 @@ modules:
           if False:
                       report["analysis_window"] = window.to_report()
 
+  frames_not_rows_service:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_service.py
+    mutations:
+      - id: window-frames-back-to-rows
+        description: "total_frames_analisados com janela volta a contar linhas (2 animais dobram) (#641)"
+        find: 'return count_unique_frames(trajectory_df[_window_row_mask(trajectory_df, window)])'
+        replace: 'return int(_window_row_mask(trajectory_df, window).sum())'
+
+  frames_not_rows_validator:
+    source: src/zebtrack/analysis/trajectory_validator.py
+    tests:
+      - tests/analysis/test_trajectory_validator.py
+    mutations:
+      - id: total-frames-back-to-rows
+        description: "total_frames volta a contar linhas (deteccoes), nao quadros (#641)"
+        find: '"total_frames": count_unique_frames(df),'
+        replace: '"total_frames": len(df),'
+      - id: coverage-rows-over-span
+        description: "cobertura volta a dividir linhas pelo vao de quadros (2 animais = 200%)"
+        find: 'return float(min(frames.size / expected, 1.0))'
+        replace: 'return float(min(len(df) / expected, 1.0))'
+      - id: coverage-ignores-analysis-step
+        description: "cobertura ignora o intervalo de analise (intervalo 10 perfeito vira 10%)"
+        find: 'expected = (float(frames[-1]) - float(frames[0])) // step + 1.0'
+        replace: 'expected = (float(frames[-1]) - float(frames[0])) // 1.0 + 1.0'
+      - id: coverage-not-capped
+        description: "quadros fora do passo nominal levam a cobertura acima de 100%"
+        find: 'return float(min(frames.size / expected, 1.0))'
+        replace: 'return float(frames.size / expected)'
+      - id: short-warning-counts-rows
+        description: "o aviso de trajetoria curta volta a contar linhas"
+        find: 'if frames < self.min_trajectory_frames:'
+        replace: 'if len(df) < self.min_trajectory_frames:'
+      - id: no-frame-column-counts-rows
+        description: "sem coluna frame, quadros voltam a ser linhas em vez de instantes"
+        find: 'for column in ("frame", "timestamp"):'
+        replace: 'for column in ("frame",):'
+      - id: time-coverage-counts-rows
+        description: "sem coluna frame, a cobertura pela base de tempo volta a contar linhas"
+        find: 'return float(min(instants * median_dt / duration_s, 1.0))'
+        replace: 'return float(min(len(df) * median_dt / duration_s, 1.0))'
+
   report_fps:
     source: src/zebtrack/coordinators/report_generation_coordinator.py
     tests:
