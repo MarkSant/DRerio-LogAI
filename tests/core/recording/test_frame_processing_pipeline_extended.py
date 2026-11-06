@@ -976,3 +976,75 @@ class TestMultiAquariumObjectSidecarDegrades:
         self._host(recorder)._write_object_frame(0.1, 3, T0 + 1.0, [], multi_zone_data=self._ZONES)
 
         recorder.write_object_data.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Issue #654: ByteTrack ages lost tracks on the CAPTURE clock, not the driver fps.
+# ---------------------------------------------------------------------------
+
+
+class _ClockedTrackerDetector(_FakeDetector):
+    """A real ByteTrack behind the loop: one box per scripted frame, then none.
+
+    The tracker is built for the DRIVER's 30 fps, while the loop only analyses
+    one captured frame in two (15 Hz). It ages lost tracks on whatever instant
+    the loop declares through ``set_frame_time``.
+    """
+
+    def __init__(self, box_frames):
+        super().__init__({})
+        from zebtrack.tracker.basetrack import BaseTrack
+        from zebtrack.tracker.byte_tracker import BYTETracker
+
+        BaseTrack.reset_id_counter()
+        args = SimpleNamespace(track_thresh=0.5, match_thresh=0.8, track_buffer=30, mot20=False)
+        self.tracker = BYTETracker(args=args, frame_rate=30)  # 30 frames = 1 s
+        self.box_frames = set(box_frames)
+        self.declared: list[float | None] = []
+        self._frame_time_s: float | None = None
+        self.removed_at: float | None = None
+
+    def set_frame_time(self, t_s):
+        self.declared.append(t_s)
+        self._frame_time_s = t_s
+
+    def detect(self, frame, context, conf_threshold=None):
+        current = self.frames.pop(0)
+        boxes = (
+            np.array([[100.0, 100.0, 140.0, 140.0, 0.95]])
+            if current in self.box_frames
+            else np.empty((0, 5))
+        )
+        t_s, self._frame_time_s = self._frame_time_s, None
+        self.tracker.update(boxes, (480, 640), (480, 640), frame_time_s=t_s)
+        if self.tracker.removed_stracks and self.removed_at is None:
+            self.removed_at = t_s
+        return [], None
+
+
+class TestTrackerAgesOnTheCaptureClock:
+    def test_capture_instant_is_declared_before_each_detection(self, tmp_path):
+        h = _LoopHarness(tmp_path)
+        h.detector = _ClockedTrackerDetector(box_frames=[])
+        harness: Any = h
+        harness.detector_service = SimpleNamespace(detector=h.detector)
+
+        h.run([(0, T0), (2, T0 + 2 / 30), (4, T0 + 4 / 30)])
+
+        assert h.detector.declared == [T0, T0 + 2 / 30, T0 + 4 / 30]
+
+    def test_buffer_in_seconds_is_the_configured_one_with_a_1_in_2_cadence(self, tmp_path):
+        # 30 fps capture, every other frame analysed (queue drops / skip 1:2).
+        h = _LoopHarness(tmp_path)
+        last_hit = 4
+        h.detector = _ClockedTrackerDetector(box_frames=range(0, last_hit + 1))
+        harness: Any = h
+        harness.detector_service = SimpleNamespace(detector=h.detector)
+
+        h.run([(f, T0 + f / 30) for f in range(0, 200, 2)])
+
+        assert h.detector.removed_at is not None
+        lost_for_s = h.detector.removed_at - (T0 + last_hit / 30)
+        # 1 s configured; one analysed frame (2/30 s) of slack. Counting
+        # updates against the driver's 30 fps would have kept it 2 s.
+        assert lost_for_s == pytest.approx(1.0, abs=2 / 30 + 1e-9)

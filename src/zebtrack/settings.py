@@ -498,9 +498,10 @@ class ByteTrackSettings(BaseModel):
         ge=10,
         le=1000,
         description=(
-            "Number of frames to keep a lost track before removing it. Higher values "
-            "allow re-identification after longer occlusions. Scaled by processing_interval "
-            "internally. Default 90 with interval=5 means track survives ~18 detection cycles."
+            "Lost-track lifetime as frames at the 30 fps reference: a lost track is "
+            "removed after track_buffer / 30 seconds of video (or capture) time, "
+            "whatever the source fps or the analysis interval. Higher values allow "
+            "re-identification after longer occlusions."
         ),
     )
     iou_threshold: float = Field(

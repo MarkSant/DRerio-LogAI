@@ -407,3 +407,61 @@ class TestByteTrackFollowsTheSourceFps:
         assert second is not first
         assert second is not None
         assert second.max_time_lost == 10
+
+
+# ---------------------------------------------------------------------------
+# Issue #654: lost tracks age on the frame clock declared by the caller.
+# ---------------------------------------------------------------------------
+
+_BOX = (100, 100, 140, 140, 0.95, None, 1)
+
+
+class TestByteTrackFrameClock:
+    """``set_frame_time`` reaches ByteTrack, once per frame."""
+
+    @staticmethod
+    def _confirmed_then_lost():
+        detector = _fps_detector(_fps_settings(track_buffer=30))  # 1 s buffer
+        detector.set_source_fps(30.0)
+        for i in range(3):
+            detector.set_frame_time(i / 30)
+            detector._apply_byte_tracking([_BOX], (480, 640, 3))
+        detector.set_frame_time(3 / 30)
+        detector._apply_byte_tracking([], (480, 640, 3))
+        tracker = detector._ensure_byte_tracker()
+        assert tracker is not None
+        assert len(tracker.lost_stracks) == 1
+        return detector, tracker, tracker.lost_stracks[0]
+
+    def test_the_declared_instant_ages_the_lost_track_in_seconds(self):
+        detector, tracker, lost = self._confirmed_then_lost()
+
+        # One update, 5 s later (frames dropped): far past the 1 s buffer.
+        detector.set_frame_time(5.0)
+        detector._apply_byte_tracking([], (480, 640, 3))
+
+        assert lost in tracker.removed_stracks
+
+    def test_without_an_instant_the_age_is_counted_in_updates(self):
+        detector, tracker, lost = self._confirmed_then_lost()
+
+        detector._apply_byte_tracking([], (480, 640, 3))
+
+        assert lost not in tracker.removed_stracks
+
+    def test_the_instant_is_used_once_so_a_stale_one_never_freezes_the_age(self):
+        detector, tracker, lost = self._confirmed_then_lost()
+        detector.set_frame_time(4 / 30)
+        detector._apply_byte_tracking([], (480, 640, 3))
+
+        # The caller stops declaring. A reused 4/30 instant would keep the age
+        # at 2/30 s forever; the count fallback removes it past 30 updates.
+        removed_after = None
+        for n in range(1, 100):
+            detector._apply_byte_tracking([], (480, 640, 3))
+            if lost in tracker.removed_stracks:
+                removed_after = n
+                break
+
+        assert removed_after is not None
+        assert removed_after <= tracker.max_time_lost + 1

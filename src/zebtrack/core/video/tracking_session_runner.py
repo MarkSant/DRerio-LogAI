@@ -187,10 +187,15 @@ class TrackingSessionRunnerMixin:
         detected_count_increment = 0
 
         if should_process:
+            # The PTS is both the row's timestamp and the clock ByteTrack ages
+            # lost tracks on (#654); declare it before tracking this frame.
+            timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+            set_frame_time = getattr(detector, "set_frame_time", None)
+            if callable(set_frame_time):
+                set_frame_time(timestamp)
             # NOT `detections, _ =`: binding `_` locally shadows the gettext
             # alias for the WHOLE function.
             detections, _annotated = detector.detect(frame, project_type="pre-recorded")
-            timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
             recorder.write_detection_data(timestamp, frame_num, detections)
             if getattr(recorder, "persist_masks", False) and hasattr(detector, "pop_track_masks"):
                 recorder.write_mask_data(frame_num, detector.pop_track_masks(detections))

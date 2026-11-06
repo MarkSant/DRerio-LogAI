@@ -718,3 +718,35 @@ class TestInProcessObjectSidecar:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestInProcessFrameClock:
+    """``_process_tracking_frame`` hands ByteTrack the frame's PTS (#654)."""
+
+    def test_the_pts_is_declared_before_the_frame_is_detected(self, video_processing_service):
+        calls: list[tuple[str, float | None]] = []
+
+        class _ClockDetector:
+            def set_frame_time(self, t_s):
+                calls.append(("set_frame_time", t_s))
+
+            def detect(self, frame, project_type=None):
+                calls.append(("detect", None))
+                return [], None
+
+        recorder = Mock()
+        recorder.persist_object_sidecar = False
+        recorder.persist_masks = False
+
+        video_processing_service._process_tracking_frame(
+            frame=np.zeros((4, 4, 3), dtype=np.uint8),
+            frame_num=3,
+            analysis_interval_frames=3,
+            cap=FakeCap(),  # reports 1000 ms
+            recorder=recorder,
+            detector=_ClockDetector(),
+        )
+
+        assert calls == [("set_frame_time", 1.0), ("detect", None)]
+        # The row is dated on the same clock.
+        assert recorder.write_detection_data.call_args.args[0] == 1.0

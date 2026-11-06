@@ -566,8 +566,10 @@ class DetectionPostProcessor:
     ) -> tuple[float, str]:
         """Frame rate the ByteTrack lost-track buffer must be scaled with (issue #630).
 
-        ``BYTETracker`` counts its buffer in FRAMES and converts ``track_buffer``
-        (configured as frames at 30 fps) with ``frame_rate / 30``. Feeding it the
+        When the caller declares each frame's instant (``set_frame_time``, #654)
+        ``BYTETracker`` ages lost tracks in seconds and this rate no longer sets
+        their lifetime. Without an instant it counts updates and converts
+        ``track_buffer`` (configured as frames at 30 fps) with ``frame_rate / 30``. Feeding it the
         nominal ``settings.video_processing.fps`` instead of the source's real
         rate makes the buffer cover ``30 / real_fps`` times the intended real
         time: a 9.9 fps Barnes video kept a lost track alive ~3x too long, long

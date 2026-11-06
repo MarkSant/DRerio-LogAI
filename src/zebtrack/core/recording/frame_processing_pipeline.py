@@ -133,6 +133,7 @@ class FrameProcessingMixin:
     _live_detected_frames: int
     _analysis_lag_frames: int
     _last_analyzed_frame: int
+    _tracker_frame_time_s: float | None
     _last_captured_frame: int
     _analysis_lag_warning_threshold: int
     _dropped_frames_processing: int
@@ -241,6 +242,25 @@ class FrameProcessingMixin:
         if super_method is None:
             raise NotImplementedError("_run_multi_aquarium_detection is not implemented")
         return super_method(frame, frame_number, zone_data)
+
+    def _declare_tracker_frame_time(self, detector: Any, capture_ts: float | None) -> None:
+        """Hand the frame's CAPTURE instant to ByteTrack before detecting it (#654).
+
+        Lost tracks then age in seconds of the camera's clock. The driver's fps
+        (what ``set_source_fps`` gets) says nothing about the frames this thread
+        actually analyses: a full queue drops analysis frames, the capture loop
+        misses sensor frames, and webcams declaring 30 fps deliver 39-41. The
+        multi-aquarium detector is created lazily, so it reads
+        ``_tracker_frame_time_s`` itself (``_run_multi_aquarium_detection``).
+
+        Args:
+            detector: The detector about to run, or ``None`` for the multi path.
+            capture_ts: ``t_perf`` of the frame's capture, ``None`` if unknown.
+        """
+        self._tracker_frame_time_s = capture_ts
+        set_frame_time = getattr(detector, "set_frame_time", None)
+        if detector is not None and callable(set_frame_time):
+            set_frame_time(capture_ts)
 
     def get_last_detections(self) -> list: ...  # type: ignore[empty-body]
     def set_last_detections(self, detections: list) -> None: ...
@@ -823,6 +843,7 @@ class FrameProcessingMixin:
                         # NOT `detections, _ =`: binding `_` locally shadows the
                         # gettext alias for the WHOLE function, including the
                         # status message a few lines above.
+                        self._declare_tracker_frame_time(detector, capture_ts)
                         detections, _annotated = detector.detect(frame, "live", conf_threshold=0.05)
 
                     # Collect aquarium bboxes
@@ -1017,10 +1038,12 @@ class FrameProcessingMixin:
                         )
 
                         if is_multi_aquarium:
+                            self._declare_tracker_frame_time(None, capture_ts)
                             detections = self._run_multi_aquarium_detection(
                                 frame, frame_number, zone_data
                             )
                         else:
+                            self._declare_tracker_frame_time(detector, capture_ts)
                             detections, _command = detector.detect(
                                 frame, "live", conf_threshold=0.05
                             )

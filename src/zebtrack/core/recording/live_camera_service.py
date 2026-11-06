@@ -282,6 +282,9 @@ class LiveCameraService(
 
         # Phase 4.3: Lazily-created MultiAquariumDetector (shares plugin w/ SingleDetector)
         self._multi_aq_detector: MultiAquariumDetector | None = None
+        # Capture instant of the frame being analysed: the clock ByteTrack ages
+        # lost tracks on (#654). Set by the processing thread before detection.
+        self._tracker_frame_time_s: float | None = None
         # Aquariums of the current session when it films 2+ (#635); resolved
         # at start_session, read by the recorder start and the processing thread.
         self._live_multi_zone_data: MultiAquariumZoneData | None = None

@@ -1336,6 +1336,19 @@ class _WorkerProcess(multiprocessing.Process):
 
                     log.debug("worker.frame.read_success", frame=frame_num, shape=frame.shape)
 
+                    # The frame's PTS: the trajectory's ``timestamp`` and the
+                    # clock ByteTrack ages lost tracks on (#654), so a lost
+                    # track lives ``track_buffer / 30`` s whatever the interval.
+                    timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+                    tracking_detector = (
+                        multi_aq_detector
+                        if is_multi_aquarium and multi_aq_detector is not None
+                        else detector
+                    )
+                    set_frame_time = getattr(tracking_detector, "set_frame_time", None)
+                    if callable(set_frame_time):
+                        set_frame_time(timestamp)
+
                     # Detect
                     if is_multi_aquarium and multi_aq_detector is not None:
                         log.debug("worker.detect_multi.start", frame=frame_num)
@@ -1362,8 +1375,7 @@ class _WorkerProcess(multiprocessing.Process):
                     if self._check_cancellation(wait_s=0.0):
                         return False
 
-                    # Record
-                    timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+                    # Record (``timestamp``: the PTS read before detection)
                     if is_multi_aquarium:
                         recorder.write_partitioned_detection_data(
                             timestamp, frame_num, partitioned_detections
