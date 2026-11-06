@@ -517,3 +517,26 @@ def test_report_gap_follows_the_project_roi_cap(settings_obj: Settings):
     )
 
     assert report["comportamento_geral"]["distancia_total_cm"] > 30.0
+
+
+def _two_animals() -> pd.DataFrame:
+    frames = range(45)
+    timestamps = [round(f / 10, 9) for f in frames]
+    return pd.concat(
+        [_moving_track(frames, timestamps, 1, 100.0), _moving_track(frames, timestamps, 2, 300.0)]
+    ).reset_index(drop=True)
+
+
+def test_frames_analysed_counts_frames_not_animals(settings_obj: Settings):
+    """#641: two animals on 45 frames analysed 45 frames, not 90."""
+    report = _run(settings_obj, _two_animals(), fps=10.0)
+
+    assert report["comportamento_geral"]["total_frames_analisados"] == 45
+    assert report["validacao"]["estatisticas"]["temporal_coverage"] == pytest.approx(1.0)
+
+
+def test_frames_analysed_in_a_window_counts_frames_not_animals(settings_obj: Settings):
+    report = _run(settings_obj, _two_animals(), fps=10.0, window=_window(1.0, 4.0))
+
+    # Frames 10..40 inclusive.
+    assert report["comportamento_geral"]["total_frames_analisados"] == 31

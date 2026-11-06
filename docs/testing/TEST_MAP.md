@@ -153,6 +153,8 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `analysis/behavior.py` (`restrict_to_window`) | `tests/analysis/test_behavior.py::TestRestrictToWindow` + hypothesis properties + `--module analysis_window_cut` |
 | `analysis/behavior.py` + `analysis/gap_policy.py` (tracking gaps, episodes per subject) | `tests/analysis/test_behavior.py::TestTrackingGaps` + `--module behavior_tracking_gaps` |
 | `analysis/analysis_service.py` (gap-cut distance, `roi_max_gap_s` → behaviour) | `tests/analysis/test_analysis_service.py` (`*tracking_gap*`, `*roi_cap*`) + `--module analysis_service_tracking_gaps` |
+| `analysis/trajectory_validator.py` (`total_frames`, `temporal_coverage`, `count_unique_frames`) | `tests/analysis/test_trajectory_validator.py::TestFramesAndCoverageCountFrames` + `--module frames_not_rows_validator` |
+| `analysis/analysis_service.py` (`total_frames_analisados` with a window) | `tests/analysis/test_analysis_service.py` (`*frames_analysed*`) + `--module frames_not_rows_service` |
 | `analysis/roi.py` (`restrict_to_window`, `from_rule`, `presence_timeline`) | `tests/analysis/test_roi_analyzer.py::TestRestrictToWindow*` + `--module analysis_window_cut_roi` |
 | `analysis/analysis_service.py` (`window=`) | `tests/analysis/test_analysis_service.py` (window block) + `--module analysis_window_cut_service` |
 | `analysis/metrics_cache.py` (window key) | `tests/analysis/test_metrics_cache.py` + `--module metrics_cache_window` |

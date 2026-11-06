@@ -21,6 +21,21 @@ from zebtrack.core.detection.multi_aquarium_detector import (
 log = structlog.get_logger()
 
 
+def count_unique_frames(df: pd.DataFrame) -> int:
+    """Number of distinct analysed frames in a trajectory (#641).
+
+    A trajectory has one row per DETECTION: two animals on a frame are two
+    rows, and a frame where nothing was detected has none. The frame count is
+    therefore the number of distinct ``frame`` values, falling back to distinct
+    timestamps when there are no frame numbers, and to rows only when neither
+    column exists.
+    """
+    for column in ("frame", "timestamp"):
+        if column in df.columns:
+            return int(df[column].dropna().nunique())
+    return len(df)
+
+
 class TrajectoryQualityValidator:
     """
     Validate trajectory data quality and detect issues.
@@ -125,10 +140,11 @@ class TrajectoryQualityValidator:
         }
 
     def _check_trajectory_length(self, df: pd.DataFrame, warnings: list[str]) -> None:
-        """Check minimum trajectory length."""
-        if len(df) < self.min_trajectory_frames:
+        """Check minimum trajectory length, in frames (not detections)."""
+        frames = count_unique_frames(df)
+        if frames < self.min_trajectory_frames:
             warnings.append(
-                f"Trajectory is short: {len(df)} frames "
+                f"Trajectory is short: {frames} frames "
                 f"(recommended minimum: {self.min_trajectory_frames}). "
                 f"Results may be less reliable."
             )
@@ -330,15 +346,17 @@ class TrajectoryQualityValidator:
     def _calculate_base_stats(self, df: pd.DataFrame) -> dict[str, Any]:
         """Calculate overall quality metrics.
 
-        ``total_frames`` is a ROW count (one per detection) and must never be
-        divided by a frame rate to get a duration: it doubles with two tracks
-        and shrinks with ``analysis_interval_frames``. ``duration_s`` is the
-        recording length from the time base (unique timestamps), with this
-        validator's ``fps`` only as the warned fallback.
+        ``total_frames`` counts distinct analysed FRAMES
+        (:func:`count_unique_frames`), not rows: two animals on a frame are one
+        frame (#641). It is still not a duration: with
+        ``analysis_interval_frames`` it counts only the analysed frames.
+        ``duration_s`` is the recording length from the time base (unique
+        timestamps), with this validator's ``fps`` only as the warned fallback.
+        ``temporal_coverage`` is in :meth:`_temporal_coverage`.
         """
         time_base = resolve_time_base(df, fallback_fps=self.fps)
         base_stats: dict[str, Any] = {
-            "total_frames": len(df),
+            "total_frames": count_unique_frames(df),
             "unique_tracks": int(df["track_id"].nunique()) if "track_id" in df.columns else 1,
             "duration_s": time_base.duration_s,
         }
@@ -349,11 +367,46 @@ class TrajectoryQualityValidator:
                 "max": int(df["frame"].max()),
                 "span": int(df["frame"].max() - df["frame"].min() + 1),
             }
-            base_stats["temporal_coverage"] = float(
-                len(df) / (df["frame"].max() - df["frame"].min() + 1)
-            )
+        coverage = self._temporal_coverage(df, time_base.median_dt, time_base.duration_s)
+        if coverage is not None:
+            base_stats["temporal_coverage"] = coverage
 
         return base_stats
+
+    @staticmethod
+    def _temporal_coverage(
+        df: pd.DataFrame, median_dt: float | None, duration_s: float | None
+    ) -> float | None:
+        """Fraction of the analysed samples in which the subject was found (#641).
+
+        With frame numbers: distinct frames seen over the frames the analysis
+        visited, ``span // step + 1``, where ``step`` is the analysis interval
+        (the most common gap between distinct frames). Dividing ROWS by the
+        whole frame span, as before, read 10 % for a perfect run with
+        ``analysis_interval_frames=10`` and 200 % with two animals.
+
+        Without frame numbers: distinct instants times the median interval over
+        the time-base duration. It is the weaker estimate, because that median
+        comes from the detected rows themselves.
+
+        Capped at 1.0: frames off the nominal step (a variable frame rate)
+        cannot make the subject "more than always" visible.
+        """
+        if "frame" in df.columns:
+            frames = pd.to_numeric(df["frame"], errors="coerce").dropna().unique()
+            if frames.size == 0:
+                return None
+            frames = np.sort(frames)
+            steps = np.diff(frames)
+            positive = steps[steps > 0]
+            step = float(pd.Series(positive).mode().iloc[0]) if positive.size else 1.0
+            expected = (float(frames[-1]) - float(frames[0])) // step + 1.0
+            return float(min(frames.size / expected, 1.0))
+
+        if median_dt is None or not duration_s or duration_s <= 0:
+            return None
+        instants = count_unique_frames(df)
+        return float(min(instants * median_dt / duration_s, 1.0))
 
     def _log_validation_result(
         self,
