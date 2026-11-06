@@ -32,6 +32,7 @@ from shapely.geometry import Polygon as ShapelyPolygon
 
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
+from zebtrack.analysis.time_axis import time_axis_label, time_origin
 from zebtrack.constants import DEFAULT_MAX_PARALLEL_PLOTS
 
 __all__ = ["VisualizationGenerator"]
@@ -137,18 +138,12 @@ class VisualizationGenerator:
         self.behavioral_config = behavioral_config or {}
 
     def _time_origin(self, index: pd.Index) -> Any:
-        """Zero of the time axes: START with an analysis window, else the first sample."""
-        bounds = getattr(self.b_analyzer, "window_bounds", None)
-        if isinstance(bounds, tuple) and len(bounds) == 2:
-            return pd.to_timedelta(float(bounds[0]), unit="s")
-        return index[0]
+        """Zero of the time axes (:func:`zebtrack.analysis.time_axis.time_origin`)."""
+        return time_origin(self.b_analyzer, index)
 
     def _time_axis_label(self) -> str:
-        """English, like every other axis label of these figures."""
-        bounds = getattr(self.b_analyzer, "window_bounds", None)
-        if isinstance(bounds, tuple) and len(bounds) == 2:
-            return "Time since window START (s)"
-        return "Time (s)"
+        """Axis label (:func:`zebtrack.analysis.time_axis.time_axis_label`)."""
+        return time_axis_label(self.b_analyzer)
 
     def _roi_geometry_to_cm(self, roi: ROI):
         """Convert ROI geometry from pixels to cm coordinates.

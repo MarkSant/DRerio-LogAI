@@ -7,10 +7,11 @@ be shared via email or web hosting.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
 import structlog
+
+from zebtrack.analysis.time_axis import seconds_on_axis, time_axis_label, time_origin
 
 if TYPE_CHECKING:
     from zebtrack.analysis.reporters.reporter_context import ReporterContext
@@ -45,6 +46,50 @@ class HtmlReporter:
             ImportError: If ``plotly`` is not installed.
             ValueError: If ``BehaviorAnalyzer`` is not available.
         """
+        output_path = Path(output_path) if isinstance(output_path, str) else output_path
+        fig = self.build_figure()
+
+        metadata = self._ctx.metadata or {}
+        experiment_id = metadata.get("experiment_id", "Unknown")
+
+        html_path = str(output_path).replace(".html", "") + ".html"
+        fig.write_html(
+            html_path,
+            config={
+                "displayModeBar": True,
+                "toImageButtonOptions": {
+                    "format": "png",
+                    "filename": f"report_{experiment_id}",
+                    "height": 900,
+                    "width": 1400,
+                    "scale": 2,
+                },
+                "modeBarButtonsToAdd": ["hoverclosest", "hovercompare"],
+            },
+            include_plotlyjs="cdn",
+        )
+
+        log.info(
+            "reporter.interactive_html_exported",
+            path=html_path,
+            experiment_id=experiment_id,
+        )
+
+    def build_figure(self) -> Any:
+        """The report's Plotly figure, before it is written to disk.
+
+        Time is read from the analyser's index, which already IS the recording
+        clock (PTS pre-recorded, the ledger-redated capture instant live) —
+        never an index divided by a frame rate (#639). The zero and the label
+        follow the Word figures (:mod:`zebtrack.analysis.time_axis`): START with
+        an analysis window, the first sample without one. With a window the
+        analysers in the context are already restricted to it, so every panel
+        shows the window only.
+
+        Raises:
+            ImportError: If ``plotly`` is not installed.
+            ValueError: If ``BehaviorAnalyzer`` is not available.
+        """
         try:
             import plotly.graph_objects as go
             from plotly.subplots import make_subplots
@@ -56,12 +101,13 @@ class HtmlReporter:
             )
             raise ImportError("Plotly is not installed. Run: pip install plotly") from None
 
-        output_path = Path(output_path) if isinstance(output_path, str) else output_path
-
         if self._ctx.b_analyzer is None:
             raise ValueError("BehaviorAnalyzer not available. Cannot generate HTML report.")
 
-        trajectory_df = self._ctx.b_analyzer.trajectory_data
+        b_analyzer = self._ctx.b_analyzer
+        trajectory_df = b_analyzer.trajectory_data
+        axis_label = time_axis_label(b_analyzer)
+        origin = time_origin(b_analyzer, trajectory_df.index) if len(trajectory_df) else None
 
         fig = make_subplots(
             rows=2,
@@ -110,8 +156,7 @@ class HtmlReporter:
 
         # 2. Velocity over time (top-right)
         velocity_ts = self._ctx.b_analyzer.calculate_velocity_timeseries()["v_mag"]
-        fps = float((self._ctx.metadata or {}).get("fps", 30.0) or 30.0)
-        time_seconds = trajectory_df.index.to_numpy() / fps
+        time_seconds = seconds_on_axis(velocity_ts.index, origin) if origin is not None else []
         fig.add_trace(
             go.Scatter(
                 x=time_seconds,
@@ -136,7 +181,7 @@ class HtmlReporter:
             row=1,
             col=2,
         )
-        fig.update_xaxes(title_text="Time (seconds)", row=1, col=2)
+        fig.update_xaxes(title_text=axis_label, row=1, col=2)
         fig.update_yaxes(title_text="Velocity (cm/s)", row=1, col=2)
 
         # 3. ROI time spent (bottom-left)
@@ -165,12 +210,11 @@ class HtmlReporter:
             min_duration=self._ctx.freezing_duration or 1.0,
             vel_threshold=freezing_threshold,
         )
-        freezing_episodes = pd.DataFrame(freezing_list)
-
-        if not freezing_episodes.empty:
-            fps = float((self._ctx.metadata or {}).get("fps", 30.0) or 30.0)
-            freeze_times = freezing_episodes["start_frame"].to_numpy() / fps
-            freeze_durations = freezing_episodes["duration_s"].to_numpy()
+        if freezing_list and origin is not None:
+            # ``Episode`` keys: ``start_time`` is an index label (Timedelta) and
+            # ``duration`` is in seconds.
+            freeze_times = list(seconds_on_axis([ep["start_time"] for ep in freezing_list], origin))
+            freeze_durations = [float(ep["duration"]) for ep in freezing_list]
 
             fig.add_trace(
                 go.Scatter(
@@ -187,7 +231,7 @@ class HtmlReporter:
                 row=2,
                 col=2,
             )
-            fig.update_xaxes(title_text="Time (seconds)", row=2, col=2)
+            fig.update_xaxes(title_text=axis_label, row=2, col=2)
             fig.update_yaxes(title_text="Duration (seconds)", row=2, col=2)
 
         # Layout
@@ -203,26 +247,4 @@ class HtmlReporter:
             width=1400,
             hovermode="closest",
         )
-
-        html_path = str(output_path).replace(".html", "") + ".html"
-        fig.write_html(
-            html_path,
-            config={
-                "displayModeBar": True,
-                "toImageButtonOptions": {
-                    "format": "png",
-                    "filename": f"report_{experiment_id}",
-                    "height": 900,
-                    "width": 1400,
-                    "scale": 2,
-                },
-                "modeBarButtonsToAdd": ["hoverclosest", "hovercompare"],
-            },
-            include_plotlyjs="cdn",
-        )
-
-        log.info(
-            "reporter.interactive_html_exported",
-            path=html_path,
-            experiment_id=experiment_id,
-        )
+        return fig
