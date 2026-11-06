@@ -1394,7 +1394,10 @@ class Settings(BaseModel):
             "Cap on the time credited to an ROI for a single trajectory step, "
             "in seconds. Tracking gaps would otherwise credit the whole gap to "
             "whichever ROI the animal reappeared in. The excess is reported as "
-            "analise_roi.tempo_nao_observado_s. null (default) means automatic: "
+            "analise_roi.tempo_nao_observado_s. The same cap defines a tracking "
+            "gap for behaviour: no freezing, inactivity or burst episode, "
+            "smoothing window or distance step crosses a longer interval. "
+            "null (default) means automatic: "
             "3x the median observed interval between analysed frames. Use .inf "
             "to disable the cap (historical behaviour)"
         ),

@@ -1557,6 +1557,62 @@ modules:
         find: '            self._track_labels = self._track_labels[keep]'
         replace: '            pass'
 
+  behavior_tracking_gaps:
+    source: src/zebtrack/analysis/behavior.py
+    tests:
+      - tests/analysis/test_behavior.py
+    mutations:
+      - id: episodes-cross-gaps
+        description: "episodios de congelamento/inatividade/rajada voltam a atravessar a lacuna (#632)"
+        find: '            usable &= ~self._gap_rows'
+        replace: '            pass'
+      - id: undefined-velocity-is-zero
+        description: "a 1a linha (velocidade indefinida) volta a contar como parada"
+        find: 'is_freezing = (v_mag.to_numpy(dtype=float) <= threshold) & usable'
+        replace: 'is_freezing = np.nan_to_num(v_mag.to_numpy(dtype=float)) <= threshold'
+      - id: quantile-reads-undefined-as-zero
+        description: "o limiar de rajadas por quantil volta a ler a velocidade indefinida como 0"
+        find: 'threshold_cm_s = float(v_mag[self._usable_velocity_rows()].quantile(quantile))'
+        replace: 'threshold_cm_s = float(v_mag.fillna(0.0).quantile(quantile))'
+      - id: smoothing-straddles-gap
+        description: "o Savitzky-Golay volta a atravessar a lacuna e espalha o salto como distancia"
+        find: 'segments.extend(np.split(positions, starts[starts > 0]))'
+        replace: 'segments.append(positions)'
+      - id: gaps-measured-inside-window
+        description: "a lacuna passa a ser medida so dentro da janela e o START perde o predecessor real"
+        find: '            self._gap_rows = self._gap_rows[keep]'
+        replace: '            self._gap_rows = np.zeros(int(keep.sum()), dtype=bool)'
+      - id: gap-edge-inclusive
+        description: "um intervalo igual ao teto passa a ser lacuna (o ROI so corta acima dele)"
+        find: 'self._gap_rows = np.isfinite(dt_s) & (dt_s > cap)'
+        replace: 'self._gap_rows = np.isfinite(dt_s) & (dt_s >= cap)'
+      - id: gap-measured-across-animals
+        description: "o intervalo passa a ser medido contra a linha anterior de OUTRO animal"
+        find: 'dt = self.diff_by_track(df.index.to_series())'
+        replace: 'dt = df.index.to_series().diff()'
+      - id: runs-across-animals
+        description: "episodios voltam a ser emendados pela adjacencia no quadro inteiro (animais intercalados)"
+        find: 'by_track = self._positions_by_track() if self._is_multi_track else [np.arange(mask.size)]'
+        replace: 'by_track = [np.arange(mask.size)]'
+      - id: configured-cap-ignored
+        description: "o roi_max_gap_s do projeto deixa de definir a lacuna do comportamento"
+        find: 'cap = resolve_max_gap_s(dt_s, self._max_gap_s_config)'
+        replace: 'cap = resolve_max_gap_s(dt_s, None)'
+
+  analysis_service_tracking_gaps:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_service.py
+    mutations:
+      - id: distance-crosses-gaps
+        description: "distancia_total_cm volta a somar o salto sobre a lacuna (#632)"
+        find: 'max_time_gap=b_analyzer.gap_threshold_s'
+        replace: 'max_time_gap=None'
+      - id: project-cap-not-passed
+        description: "o teto do projeto (roi_max_gap_s) deixa de chegar ao comportamento"
+        find: '            max_gap_s=roi_rule.max_gap_s,'
+        replace: '            max_gap_s=None,'
+
   analysis_window_cut_roi:
     source: src/zebtrack/analysis/roi.py
     tests:

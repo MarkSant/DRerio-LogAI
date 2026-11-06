@@ -460,3 +460,60 @@ def test_dto_carries_the_window(settings_obj: Settings):
 
     assert result.report["analysis_window"]["status"] == "complete"
     assert result.behavioral_analyzer.window_bounds == (1.0, 4.0)
+
+
+def _still(frames, x: float) -> pd.DataFrame:
+    frames = list(frames)
+    return pd.DataFrame(
+        {
+            "timestamp": [round(f / 10, 9) for f in frames],
+            "frame": frames,
+            "track_id": [1] * len(frames),
+            "x1": [x - 5] * len(frames),
+            "y1": [95.0] * len(frames),
+            "x2": [x + 5] * len(frames),
+            "y2": [105.0] * len(frames),
+            "x_center_px": [x] * len(frames),
+            "y_center_px": [100.0] * len(frames),
+        }
+    )
+
+
+def test_report_does_not_walk_or_freeze_across_a_tracking_gap(settings_obj: Settings):
+    """#632: still 0-2 s, hidden 2-5 s, reappears 30 cm away and stays still."""
+    df = pd.concat([_still(range(0, 21), 100.0), _still(range(50, 71), 400.0)])
+
+    report = _run(settings_obj, df.reset_index(drop=True), fps=10.0)
+
+    general = report["comportamento_geral"]
+    assert general["distancia_total_cm"] == pytest.approx(0.0, abs=1e-9)
+    spans = [
+        (ep["start_time"].total_seconds(), ep["end_time"].total_seconds())
+        for ep in general["episodios_congelamento"]
+    ]
+    assert spans == pytest.approx([(0.1, 2.0), (5.1, 7.0)])
+
+
+def test_report_gap_follows_the_project_roi_cap(settings_obj: Settings):
+    """A ``roi_max_gap_s`` longer than the gap makes it continuous again."""
+    from zebtrack.core.services.roi_rule_resolver import resolve_roi_rule
+
+    df = pd.concat([_still(range(0, 21), 100.0), _still(range(50, 71), 400.0)])
+    service = AnalysisService(
+        settings_obj=settings_obj,
+        roi_rule=resolve_roi_rule({"roi_settings": {"roi_max_gap_s": 10.0}}, settings_obj),
+    )
+
+    report, *_ = service.run_full_analysis(
+        trajectory_df=df.reset_index(drop=True),
+        pixelcm_x=10.0,
+        pixelcm_y=10.0,
+        video_height_px=400,
+        arena_polygon_px=_ARENA,
+        rois=[],
+        fps=10.0,
+        freezing_vel_threshold=1.0,
+        freezing_min_duration=1.0,
+    )
+
+    assert report["comportamento_geral"]["distancia_total_cm"] > 30.0
