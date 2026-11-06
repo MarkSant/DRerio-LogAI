@@ -446,10 +446,17 @@ jobs:
       # nightly --all run in stress-tests.yml. Being cheap is also what lets this
       # block instead of running with continue-on-error: a check that cannot fail
       # is a check nobody reads. Baseline and rules: docs/testing/MUTATION_BASELINE.md
+      #
+      # --jobs 4: the runner has 4 vCPUs and 16 GB, and each pytest that imports
+      # torch peaks at ~1.5 GB. Every mutant runs in a private copy of the tree,
+      # so parallel workers cannot see each other's mutants and a cancelled job
+      # leaves nothing mutated. A change to the runner itself no longer forces
+      # the whole catalogue: it runs the runner's tests plus the first mutation
+      # of every block (the nightly --all still runs all of them).
       - name: "Mutation check (Linux, modules this change touches)"
         if: runner.os == 'Linux' && matrix.suite == 'core'
         run: |
-          xvfb-run --auto-servernum poetry run python scripts/mutation_check.py --changed-since HEAD^
+          xvfb-run --auto-servernum poetry run python scripts/mutation_check.py --changed-since HEAD^ --jobs 4
         timeout-minutes: 20
 
       - name: "Run GUI tests (Linux - with xvfb)"
