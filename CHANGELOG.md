@@ -406,6 +406,30 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   relatório unificado nem na grade. Além disso, o aviso "nota salva" saía antes
   de salvar o projeto, então uma falha de gravação mostrava sucesso e erro em
   seguida.
+- **Um vídeo de Barnes com um rato saía como relatório de três animais (#649).**
+  Três defeitos empilhados:
+  - **ids novos para o animal já rastreado.** Em modo multi-sujeito, quando o
+    ByteTrack emitia menos trilhas que detecções (uma caixa fraca, uma trilha
+    ainda não confirmada), o `SingleDetector` dava um id novo a **todas** as
+    detecções do quadro, inclusive ao animal já rastreado: o rato virava id 2 por
+    uma linha e a caixa, id 3. O detector agora grava só o que o ByteTrack emite.
+  - **flag migrado a partir das settings.** O modo sujeito único podia ficar
+    desligado num projeto de 1 animal: a migração gravava
+    `tracking.use_single_subject_tracker` a partir das settings globais (False),
+    e esse flag vencia `calibration.animals_per_aquarium`. A regra mora agora num
+    lugar só, `core/services/single_subject_policy.resolve_project_single_subject()`,
+    usada pelos coordenadores, pelo `DetectorService`, pelo rótulo ao vivo e pela
+    migração: a contagem de animais vence o flag guardado.
+  - **trilhas de glitch contadas como animais.** Uma trilha mais curta que
+    `min_track_duration_s` (novo, 0,5 s), ao lado de uma mais longa, sai da
+    análise com aviso (`analysis/track_significance.screen_short_tracks`), antes
+    do validador e do analisador de comportamento. Assim `unique_tracks`, a
+    semântica `any_track`, `n_animais` e `por_animal` concordam. O
+    `3_CoordMovimento` não muda.
+
+  O e2e do Barnes passa a rodar o detector em modo sujeito único, como o worker
+  faz para um projeto de 1 animal. Rodando em multi, a primeira linha do rato
+  saía sem id e o relatório sem janela contava 2 animais. As asserções não mudam.
 
 ## [7.2.0] - 2026-09-15
 

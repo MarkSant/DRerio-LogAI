@@ -941,132 +941,34 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
     def _resolve_live_processing_mode(self):
         """Determine SINGLE_SUBJECT vs MULTI_TRACK from project data.
 
-        Mirrors ``MultiAquariumCoordinator._resolve_single_animal_mode``
-        but without the cross-coordinator import. Reads
-        ``animals_per_aquarium`` from project_data → calibration →
-        single_animal_per_aquarium flag, returning the mode.
-
-        Audit Erro 2 round 6 (2026-05-25): logs which key resolved the
-        mode (or which were checked when no value was found) so the next
-        runtime can pinpoint why the label still shows "multi-animais"
-        with 1 animal/aquarium. Also accepts the multi-aquarium
-        ``animals_per_aquarium_list`` (used by wizard wide-multi flow).
+        Delegates to ``single_subject_policy.resolve_project_single_subject``,
+        the rule the tracker itself is configured with (#649). Logs which key
+        resolved the mode, or which keys were present when none did.
         """
+        from zebtrack.core.services.single_subject_policy import (
+            resolve_project_single_subject,
+        )
         from zebtrack.core.video.processing_mode import ProcessingMode
 
         project_data = getattr(self.project_manager, "project_data", {}) or {}
-
-        def _to_mode_from_count(value: object):
-            if value in (None, ""):
-                return None
-            try:
-                return (
-                    ProcessingMode.SINGLE_SUBJECT
-                    if int(str(value)) <= 1
-                    else ProcessingMode.MULTI_TRACK
-                )
-            except (TypeError, ValueError):
-                return None
-
-        # 1. Explicit flag at top level
-        flag = project_data.get("single_animal_per_aquarium")
-        if flag is not None:
-            mode = ProcessingMode.SINGLE_SUBJECT if bool(flag) else ProcessingMode.MULTI_TRACK
-            log.info(
-                "live_camera.processing_mode.resolved",
-                source="single_animal_per_aquarium",
-                value=flag,
-                mode=str(mode),
+        # The same rule the tracker is configured with (#649), so the label
+        # never says "single subject" while the tracker runs multi, or back.
+        decision = resolve_project_single_subject(project_data)
+        if decision is None:
+            log.warning(
+                "live_camera.processing_mode.keys_checked_no_match",
+                keys_present=sorted(project_data),
             )
-            return mode
+            return None
 
-        # 2. Top-level animals_per_aquarium
-        top_animals = project_data.get("animals_per_aquarium")
-        mode = _to_mode_from_count(top_animals)
-        if mode is not None:
-            log.info(
-                "live_camera.processing_mode.resolved",
-                source="top.animals_per_aquarium",
-                value=top_animals,
-                mode=str(mode),
-            )
-            return mode
-
-        # 3. tracking.use_single_subject_tracker (wizard)
-        tracking = project_data.get("tracking")
-        if isinstance(tracking, dict):
-            tracker_pref = tracking.get("use_single_subject_tracker")
-            if tracker_pref is not None:
-                mode = (
-                    ProcessingMode.SINGLE_SUBJECT
-                    if bool(tracker_pref)
-                    else ProcessingMode.MULTI_TRACK
-                )
-                log.info(
-                    "live_camera.processing_mode.resolved",
-                    source="tracking.use_single_subject_tracker",
-                    value=tracker_pref,
-                    mode=str(mode),
-                )
-                return mode
-
-        # 4. calibration.animals_per_aquarium (wizard)
-        calibration = project_data.get("calibration")
-        calib_value = None
-        if isinstance(calibration, dict):
-            calib_value = calibration.get("animals_per_aquarium")
-            mode = _to_mode_from_count(calib_value)
-            if mode is not None:
-                log.info(
-                    "live_camera.processing_mode.resolved",
-                    source="calibration.animals_per_aquarium",
-                    value=calib_value,
-                    mode=str(mode),
-                )
-                return mode
-
-        # 5. multi-aquarium list (e.g. [1, 1, 2]) — single-subject iff all
-        # entries are 1. Reading either the calibration sub-dict or the
-        # _wizard_metadata depending on what survived the wizard adapter.
-        list_values = None
-        if isinstance(calibration, dict):
-            list_values = calibration.get("animals_per_aquarium_list")
-        if list_values is None:
-            wizard_meta = project_data.get("_wizard_metadata")
-            if isinstance(wizard_meta, dict):
-                list_values = wizard_meta.get("animals_per_aquarium_list")
-        if isinstance(list_values, list) and list_values:
-            try:
-                max_animals = max(int(v) for v in list_values)
-                mode = (
-                    ProcessingMode.SINGLE_SUBJECT
-                    if max_animals <= 1
-                    else ProcessingMode.MULTI_TRACK
-                )
-                log.info(
-                    "live_camera.processing_mode.resolved",
-                    source="animals_per_aquarium_list",
-                    value=list_values,
-                    max_animals=max_animals,
-                    mode=str(mode),
-                )
-                return mode
-            except (TypeError, ValueError):
-                pass
-
-        log.warning(
-            "live_camera.processing_mode.keys_checked_no_match",
-            keys_present={
-                "single_animal_per_aquarium": flag,
-                "top.animals_per_aquarium": top_animals,
-                "tracking.use_single_subject_tracker": tracking.get("use_single_subject_tracker")
-                if isinstance(tracking, dict)
-                else None,
-                "calibration.animals_per_aquarium": calib_value,
-                "animals_per_aquarium_list": list_values,
-            },
+        mode = ProcessingMode.SINGLE_SUBJECT if decision.single else ProcessingMode.MULTI_TRACK
+        log.info(
+            "live_camera.processing_mode.resolved",
+            source=decision.source,
+            value=decision.value,
+            mode=str(mode),
         )
-        return None
+        return mode
 
     def validate_dependencies(self) -> bool:
         """Validate that required dependencies are present.

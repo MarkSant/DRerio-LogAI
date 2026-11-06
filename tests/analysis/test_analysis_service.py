@@ -540,3 +540,55 @@ def test_frames_analysed_in_a_window_counts_frames_not_animals(settings_obj: Set
 
     # Frames 10..40 inclusive.
     assert report["comportamento_geral"]["total_frames_analisados"] == 31
+
+
+# ---------------------------------------------------------------------------
+# #649: one-row tracks from a tracker glitch never make a one-animal report
+# multi-animal.
+# ---------------------------------------------------------------------------
+
+
+def _rat_with_two_glitches() -> pd.DataFrame:
+    """The ``Exemp_2`` shape: one rat on 60 frames plus ids 2 and 3, one row each."""
+    frames = list(range(60))
+    rat = _moving_track(frames, [f / 10 for f in frames], 1, 100.0)
+    rat = rat[rat["frame"] != 30]  # the rat's row of that frame went to id 2
+    glitch_rat = _moving_track([30], [3.0], 2, 100.0)
+    glitch_box = _moving_track([30], [3.0], 3, 300.0)
+    return pd.concat([rat, glitch_rat, glitch_box]).sort_values("frame").reset_index(drop=True)
+
+
+def test_one_row_tracks_do_not_turn_the_report_multi_animal(settings_obj: Settings):
+    service = AnalysisService(settings_obj=settings_obj)
+    report, b_analyzer, *_ = service.run_full_analysis(
+        trajectory_df=_rat_with_two_glitches(),
+        pixelcm_x=10.0,
+        pixelcm_y=10.0,
+        video_height_px=400,
+        arena_polygon_px=_ARENA,
+        rois=[],
+        fps=10.0,
+        freezing_vel_threshold=1.0,
+        freezing_min_duration=1.0,
+    )
+
+    assert b_analyzer.is_multi_track is False
+    assert report["validacao"]["estatisticas"]["unique_tracks"] == 1
+    warnings = report["validacao"]["avisos"]
+    assert not any("animals (track_ids)" in w for w in warnings)
+    assert any("track_id 2, 3; 2 row(s)" in w for w in warnings)
+
+
+def test_the_screening_can_be_disabled(settings_obj: Settings):
+    settings_obj.min_track_duration_s = 0.0
+
+    report = _run(settings_obj, _rat_with_two_glitches(), fps=10.0)
+
+    assert report["validacao"]["estatisticas"]["unique_tracks"] == 3
+
+
+def test_two_real_animals_stay_two(settings_obj: Settings):
+    report = _run(settings_obj, _two_animals(), fps=10.0)
+
+    assert report["validacao"]["estatisticas"]["unique_tracks"] == 2
+    assert any("animals (track_ids)" in w for w in report["validacao"]["avisos"])

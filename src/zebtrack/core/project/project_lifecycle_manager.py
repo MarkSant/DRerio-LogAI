@@ -612,6 +612,27 @@ class ProjectLifecycleManager:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _migrated_single_subject_flag(loaded_data: dict, settings_obj: Any) -> bool:
+        """``tracking.use_single_subject_tracker`` for a project that lacks it.
+
+        The project's own animal count first (#649): the global setting (False
+        by default) turned a one-rat project into a multi-subject one the
+        moment it was opened without a ``tracking`` stanza.
+        """
+        from zebtrack.core.services.single_subject_policy import (
+            resolve_project_single_subject,
+        )
+
+        decision = resolve_project_single_subject(
+            {k: v for k, v in loaded_data.items() if k != "tracking"}
+        )
+        if decision is not None:
+            return decision.single
+        if settings_obj and hasattr(settings_obj, "tracking"):
+            return bool(settings_obj.tracking.use_single_subject_tracker)
+        return False
+
+    @staticmethod
     def apply_project_migrations(
         loaded_data: dict,
         log_context: Any,
@@ -693,10 +714,9 @@ class ProjectLifecycleManager:
             migration_applied = True
             migrated_fields.append("analysis_profiles")
 
-        # Use settings if available, otherwise default to False
-        tracker_flag = False
-        if settings_obj and hasattr(settings_obj, "tracking"):
-            tracker_flag = settings_obj.tracking.use_single_subject_tracker
+        tracker_flag = ProjectLifecycleManager._migrated_single_subject_flag(
+            loaded_data, settings_obj
+        )
         tracking_defaults = {"use_single_subject_tracker": tracker_flag}
         if "tracking" not in loaded_data or not isinstance(loaded_data.get("tracking"), dict):
             loaded_data["tracking"] = dict(tracking_defaults)
