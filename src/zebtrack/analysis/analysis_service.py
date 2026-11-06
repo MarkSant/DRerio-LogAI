@@ -377,6 +377,10 @@ class AnalysisService:
         ]
         trajectory_subset = trajectory_df[available_cols].copy()
 
+        # One definition of a tracking gap for the whole report (#632): the
+        # ROI time cap (``roi_max_gap_s``, automatic by default) also cuts
+        # behaviour episodes, smoothing and distance.
+        roi_rule = self.resolve_roi_rule()
         b_analyzer = ConcreteBehavioralAnalyzer(
             trajectory_df=trajectory_subset,  # Use column subset to reduce memory
             pixelcm_x=pixelcm_x,
@@ -389,6 +393,7 @@ class AnalysisService:
             min_displacement_threshold_cm=angular_settings.min_displacement_threshold_cm,
             angle_calculation_window=angular_settings.angle_calculation_window,
             angular_velocity_smoothing_window=angular_settings.angular_velocity_smoothing_window,
+            max_gap_s=roi_rule.max_gap_s,
         )
 
         # Resolve behavioral config
@@ -409,7 +414,7 @@ class AnalysisService:
         r_analyzer: ROIAnalyzer | None = None
         if rois:
             r_analyzer = ROIAnalyzer.from_rule(
-                b_analyzer, rois, self.resolve_roi_rule(), mask_source=mask_sidecar_path
+                b_analyzer, rois, roi_rule, mask_source=mask_sidecar_path
             )
         frames_analysed = validation_result["stats"].get("total_frames")
         if window is not None:
@@ -421,7 +426,10 @@ class AnalysisService:
         # 2. Initialize the behavioral report
         report: dict[str, Any] = {
             "comportamento_geral": {
-                "distancia_total_cm": b_analyzer.calculate_total_distance(),
+                # The jump across a tracking gap is not distance travelled.
+                "distancia_total_cm": b_analyzer.calculate_total_distance(
+                    max_time_gap=b_analyzer.gap_threshold_s
+                ),
                 "estatisticas_velocidade": b_analyzer.get_velocity_stats(),
                 "estatisticas_velocidade_angular": b_analyzer.get_angular_velocity_stats(),
                 "rajadas_velocidade": b_analyzer.calculate_speed_bursts(),
