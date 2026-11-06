@@ -222,6 +222,21 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
   folder (parent recorder, `session_video=True`) and one trajectory per `aquarium_N/`.
 - See [`docs/reference/DOMAIN_GLOSSARY.md`](docs/reference/DOMAIN_GLOSSARY.md) and [`docs/archive/PHASES.md`](docs/archive/PHASES.md) for full data model.
 
+### 🐀 Um animal é um animal (#649)
+
+- **`core/services/single_subject_policy.resolve_project_single_subject()` é a regra única** de
+  "um animal por aquário?" (modo sujeito único do ByteTrack). A CONTAGEM de animais (topo,
+  `calibration`, listas por aquário) vence `tracking.use_single_subject_tracker`, que uma
+  migração antiga preenchia a partir das settings globais. Coordenadores, `DetectorService`,
+  rótulo ao vivo e migração leem dela; nunca re-derive a ordem num call site.
+- **O detector grava só o que o ByteTrack emite.** Detecção que ele segura (score baixo,
+  trilha não confirmada) não ganha id novo: até a 8.0 o `SingleDetector` renumerava TODAS as
+  detecções do quadro, e o rato rastreado virava uma trilha de 1 linha.
+- **Trilha curta não é animal.** `analysis/track_significance.screen_short_tracks()` tira da
+  ANÁLISE (nunca do `3_CoordMovimento`) as trilhas abaixo de `min_track_duration_s` (0,5 s), com
+  aviso, se houver uma mais longa. Roda uma vez no topo de `run_full_analysis`, antes de qualquer
+  contagem de `track_id`.
+
 ### 🔑 Identidade do vídeo: o caminho, nunca o basename
 
 - **`experiment_id` NÃO é chave única.** Ele cai no stem do arquivo, e um projeto

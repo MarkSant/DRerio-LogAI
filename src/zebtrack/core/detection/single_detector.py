@@ -938,27 +938,18 @@ class SingleDetector:
                     for det in detections
                 ]
 
-        if len(results) < len(detections) and not self._single_subject_mode:
-            from zebtrack.tracker.basetrack import BaseTrack
-
-            log.warning(
-                "single_detector.bytetrack.fallback_simple_ids",
+        if 0 < len(results) < len(detections):
+            # ByteTrack holds back what it is not sure of (a box below
+            # ``track_thresh``, a track not yet confirmed); it emits it on a
+            # later frame if it persists. Writing it now with a fresh id -- as
+            # this branch did, and for EVERY detection of the frame, the tracked
+            # animal included -- produced the one-row tracks that made a
+            # one-rat Barnes video report three animals (#649).
+            log.debug(
+                "single_detector.bytetrack.unemitted_detections",
                 num_tracks=len(results),
                 num_detections=len(detections),
-                reason="bytetrack_returned_fewer_tracks_than_detections",
             )
-            results = [
-                (
-                    int(det[0]),
-                    int(det[1]),
-                    int(det[2]),
-                    int(det[3]),
-                    float(det[4]),
-                    BaseTrack.next_id(),
-                    int(det[6]),
-                )
-                for det in detections
-            ]
 
         # Re-filter tracked positions by polygon
         if self.zone_scaler.scaled_polygon.size > 0:

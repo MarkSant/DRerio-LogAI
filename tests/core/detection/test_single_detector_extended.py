@@ -465,3 +465,54 @@ class TestByteTrackFrameClock:
 
         assert removed_after is not None
         assert removed_after <= tracker.max_time_lost + 1
+
+
+# ---------------------------------------------------------------------------
+# Issue #649: a box ByteTrack does not emit never re-ids the tracked animal.
+# ---------------------------------------------------------------------------
+
+
+class TestUnemittedDetectionsKeepTheTrackedIds:
+    """Multi-subject mode: one rat tracked as 1, then a spurious faint box.
+
+    ByteTrack emits only the rat (the faint box is below ``track_thresh`` and
+    nothing is lost for it to re-find). The detector used to answer "fewer
+    tracks than detections" by giving EVERY detection of the frame a fresh id:
+    the rat became id 2 for one row and the box id 3 -- the two one-row tracks
+    that made the Barnes ``Exemp_2`` report count three animals.
+    """
+
+    RAT = (100, 100, 140, 140, 0.95, None, 1)
+    FAINT = (400, 300, 420, 320, 0.3, None, 1)
+
+    @pytest.fixture(autouse=True)
+    def _fresh_ids(self):
+        from zebtrack.tracker.basetrack import BaseTrack
+
+        BaseTrack.reset_id_counter()
+
+    def _tracked_rat(self):
+        detector = _fps_detector(_fps_settings())
+        detector.set_source_fps(30.0)
+        out: list[tuple] = []
+        for _ in range(3):
+            out = detector._apply_byte_tracking([self.RAT], (480, 640, 3))
+        assert [d[5] for d in out] == [1]
+        return detector
+
+    def test_the_rat_keeps_its_id_and_no_new_id_appears(self):
+        detector = self._tracked_rat()
+
+        out = detector._apply_byte_tracking([self.RAT, self.FAINT], (480, 640, 3))
+
+        assert [d[5] for d in out] == [1]
+        assert out[0][:4] == self.RAT[:4]
+
+    def test_over_a_whole_run_only_the_rat_id_is_ever_written(self):
+        detector = self._tracked_rat()
+        ids: set = set()
+        for frame in range(30):
+            dets = [self.RAT, self.FAINT] if frame % 7 == 3 else [self.RAT]
+            ids.update(d[5] for d in detector._apply_byte_tracking(dets, (480, 640, 3)))
+
+        assert ids == {1}

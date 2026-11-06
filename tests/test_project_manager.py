@@ -789,11 +789,34 @@ class TestProjectManager(unittest.TestCase):
             },
         )
         self.assertIn("tracking", pm.project_data)
-        self.assertIn("use_single_subject_tracker", pm.project_data["tracking"])
-        self.assertEqual(
-            pm.project_data["tracking"]["use_single_subject_tracker"],
-            self.settings_obj.tracking.use_single_subject_tracker,
-        )
+        # #649: the flag follows the project's (migrated) count of 1 animal, not
+        # the global setting -- which is False by default and used to turn a
+        # one-animal project into a multi-subject one on its first load.
+        self.assertFalse(self.settings_obj.tracking.use_single_subject_tracker)
+        self.assertIs(pm.project_data["tracking"]["use_single_subject_tracker"], True)
+
+    def test_load_project_without_tracking_derives_the_flag_from_the_animal_count(self):
+        """#649: a 1-rat project opened without ``tracking`` tracks ONE subject."""
+        pm = ProjectManager(settings_obj=self.settings_obj)
+        self.assertFalse(self.settings_obj.tracking.use_single_subject_tracker)
+        results = {}
+        for animals in (1, 3):
+            project_path = os.path.join(self.test_dir, f"no_tracking_{animals}")
+            os.makedirs(project_path, exist_ok=True)
+            with open(os.path.join(project_path, CONFIG_FILE_NAME), "w") as f:
+                json.dump(
+                    {
+                        "project_name": f"no_tracking_{animals}",
+                        "project_type": "pre-recorded",
+                        "calibration": {"num_aquariums": 1, "animals_per_aquarium": animals},
+                        "batches": [],
+                    },
+                    f,
+                )
+            pm.load_project(project_path)
+            results[animals] = pm.project_data["tracking"]["use_single_subject_tracker"]
+
+        self.assertEqual(results, {1: True, 3: False})
 
     def test_load_project_migrates_missing_camera_and_interval_fields(self):
         """Legacy projects missing interval/camera fields should gain safe defaults."""

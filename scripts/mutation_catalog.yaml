@@ -2410,3 +2410,104 @@ modules:
         description: "cancelamento manual espera drenar uma pasta que sera apagada"
         find: 'if not (cancelled and not keep_data):'
         replace: 'if True:'
+
+  # Issue #649: a one-animal recording is reported as one animal. The detector
+  # writes only what ByteTrack emits; the animal COUNT decides single-animal
+  # mode over a migrated flag; tracks shorter than min_track_duration_s leave
+  # the analysis before anything counts track ids.
+  single_detector_no_relabel:
+    source: src/zebtrack/core/detection/single_detector.py
+    tests:
+      - tests/core/detection/test_single_detector_extended.py
+    mutations:
+      - id: unemitted-detections-get-fresh-ids
+        description: "deteccao nao emitida pelo ByteTrack renumera todo o quadro (rato vira id 2)"
+        find: |-
+          log.debug(
+                          "single_detector.bytetrack.unemitted_detections",
+        replace: |-
+          from zebtrack.tracker.basetrack import BaseTrack
+
+                      results = [(*d[:5], BaseTrack.next_id(), d[6]) for d in detections]
+                      log.debug(
+                          "single_detector.bytetrack.unemitted_detections",
+
+  single_subject_policy:
+    source: src/zebtrack/core/services/single_subject_policy.py
+    tests:
+      - tests/core/services/test_single_subject_policy.py
+    mutations:
+      - id: tracking-flag-beats-the-count
+        description: "flag tracking (migrado das settings) volta a vencer a contagem de animais"
+        find: '    for source, value, reader in counts:'
+        replace: '    for source, value, reader in counts if _section(project_data, "tracking").get("use_single_subject_tracker") is None else ():'
+      - id: calibration-count-ignored
+        description: "calibration.animals_per_aquarium deixa de decidir"
+        find: '            calibration.get("animals_per_aquarium"),'
+        replace: '            None,'
+      - id: count-of-two-is-single
+        description: "contagem 2 vira sujeito unico"
+        find: 'return int(str(value)) <= 1'
+        replace: 'return int(str(value)) <= 2'
+
+  project_lifecycle_single_subject_migration:
+    source: src/zebtrack/core/project/project_lifecycle_manager.py
+    tests:
+      - tests/test_project_manager.py
+    mutations:
+      - id: migration-ignores-the-count
+        description: "migracao grava o flag das settings globais, ignorando a contagem do projeto"
+        find: |-
+          if decision is not None:
+                      return decision.single
+                  if settings_obj
+        replace: |-
+          if False:
+                      return decision.single
+                  if settings_obj
+
+  multi_aquarium_coordinator_single_subject:
+    source: src/zebtrack/coordinators/multi_aquarium_coordinator.py
+    tests:
+      - tests/coordinators/test_multi_aquarium_coordinator.py
+    mutations:
+      - id: coordinator-skips-the-policy
+        description: "coordenador nao consulta a regra unica do projeto"
+        find: 'return None if decision is None else decision.single'
+        replace: 'return None'
+
+  track_significance:
+    source: src/zebtrack/analysis/track_significance.py
+    tests:
+      - tests/analysis/test_track_significance.py
+    mutations:
+      - id: threshold-inclusive
+        description: "trilha com exatamente o limiar sai da analise"
+        find: 'short = durations[durations < min_duration_s]'
+        replace: 'short = durations[durations <= min_duration_s]'
+      - id: drops-even-without-a-long-track
+        description: "todas as trilhas curtas saem: sobra uma trajetoria vazia"
+        find: 'if len(short) == len(durations):'
+        replace: 'if False:'
+      - id: interval-not-counted
+        description: "trilha de 1 linha dura 0 s: amostragem esparsa descarta trilhas reais"
+        find: 'durations = (groups.max() - groups.min()).astype(float) + step'
+        replace: 'durations = (groups.max() - groups.min()).astype(float)'
+      - id: rows-without-id-kept
+        description: "linhas sem track_id escapam da triagem e contam como animal"
+        find: 'dropped |= trajectory_df["track_id"].isna()'
+        replace: 'dropped |= False'
+
+  analysis_service_track_screening:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_service.py
+    mutations:
+      - id: screening-result-unused
+        description: "triagem calculada mas a trajetoria original segue para a analise"
+        find: 'trajectory_df = screening.trajectory'
+        replace: 'trajectory_df = trajectory_df'
+      - id: screening-warning-dropped
+        description: "trilhas somem da analise sem aviso no relatorio"
+        find: 'validation_warnings.extend(screening.warnings)'
+        replace: 'pass'

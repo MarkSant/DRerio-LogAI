@@ -228,6 +228,26 @@ msgid ""
 "session was not re-timed and keeps the processing clock."
 msgstr ""
 
+#: src/zebtrack/analysis/track_significance.py:72
+msgid "no id"
+msgstr ""
+
+#: src/zebtrack/analysis/track_significance.py:130
+#, python-brace-format
+msgid ""
+"Every track in this trajectory lasts less than {min_s:g} s, so short "
+"tracker glitches cannot be told apart from animals; all {count} tracks "
+"were kept."
+msgstr ""
+
+#: src/zebtrack/analysis/track_significance.py:151
+#, python-brace-format
+msgid ""
+"{count} track(s) shorter than {min_s:g} s were left out of the analysis "
+"as tracker glitches, not animals (track_id {ids}; {rows} row(s)). The "
+"trajectory file keeps them."
+msgstr ""
+
 #: src/zebtrack/analysis/window_observations.py:100
 msgid ""
 "No object sidecar (3c_Objetos_) was found for this recording: the "
