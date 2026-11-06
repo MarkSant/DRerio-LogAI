@@ -453,11 +453,15 @@ jobs:
       # leaves nothing mutated. A change to the runner itself no longer forces
       # the whole catalogue: it runs the runner's tests plus the first mutation
       # of every block (the nightly --all still runs all of them).
+      #
+      # 30 min: a release PR touches nearly every catalogued module (release/8.0
+      # selected 79 blocks and needed ~21 min with --jobs 4). The steps before
+      # this one take ~13 min, so 30 still fits inside the job's 45.
       - name: "Mutation check (Linux, modules this change touches)"
         if: runner.os == 'Linux' && matrix.suite == 'core'
         run: |
           xvfb-run --auto-servernum poetry run python scripts/mutation_check.py --changed-since HEAD^ --jobs 4
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: "Run GUI tests (Linux - with xvfb)"
         if: runner.os == 'Linux' && matrix.suite == 'gui'

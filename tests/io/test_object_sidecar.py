@@ -559,6 +559,22 @@ class TestTrajectorySidecars:
             "7_AnalysisWindow_CECT_4.json",
         ]
 
+    def test_never_adopts_a_prefixed_subjects_set(self, tmp_path):
+        # Only CECT_40 has artifacts: CECT_4's set must stay empty. Unlike the
+        # mixed listing above, this does not depend on directory order -- a
+        # prefix glob would pick CECT_40 here on every filesystem.
+        for name in (
+            "3b_Mascaras_CECT_40.parquet",
+            "3c_Objetos_CECT_40.parquet",
+            "6_FrameLedger_CECT_40.csv",
+            "6_FrameLedger_CECT_40.parquet",
+            "6_FrameLedger_CECT_40_anchor.json",
+            "7_AnalysisWindow_CECT_40.json",
+        ):
+            (tmp_path / name).write_bytes(b"x")
+
+        assert trajectory_sidecars(tmp_path / "3_CoordMovimento_CECT_4.parquet") == []
+
     def test_window_prefix_matches_the_condition_artifact(self):
         from zebtrack.core.conditions.artifact import ARTIFACT_PREFIX
 
