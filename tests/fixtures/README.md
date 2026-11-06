@@ -53,6 +53,16 @@ prevent. If you did not intend a change, read
 `tests/integration/test_flow_isolation.py`: something probably leaked through the
 shared `Settings` object.
 
+### `conditions/barnes_window.json`
+
+The Barnes-maze analysis window (ADR-011) as a `WindowSpec`: START once
+`start_box` and `experimenter` are absent and `rat` present for 3 frames; STOP
+at the first of end of video, `rat` absent for 2 s, or 240 s after START.
+
+- Read by: `tests/core/conditions/test_model.py`
+- Purpose: the spec is a persistence contract stored in projects; a renamed
+  `kind` or field must fail here before it fails to load a user's project.
+
 ## Why the videos are generated, not committed
 
 A committed `.mp4` is a binary blob whose contents nobody can review, and its

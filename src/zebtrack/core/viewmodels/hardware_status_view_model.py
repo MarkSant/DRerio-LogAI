@@ -286,10 +286,10 @@ class HardwareStatusViewModel:
         language no matter what ``ui.language`` said.
         """
         return {
-            ("det", "aquarium"): (_("🐠 Aquarium (det)"), "det", "aquarium"),
-            ("seg", "aquarium"): (_("🐠 Aquarium (seg)"), "seg", "aquarium"),
-            ("det", "zebrafish"): (_("🐟 Animal (det)"), "det", "zebrafish"),
-            ("seg", "zebrafish"): (_("🐟 Animal (seg)"), "seg", "zebrafish"),
+            ("det", "aquarium"): (_("🔲 Arena (det)"), "det", "aquarium"),
+            ("seg", "aquarium"): (_("🔲 Arena (seg)"), "seg", "aquarium"),
+            ("det", "zebrafish"): (_("🐾 Animal (det)"), "det", "zebrafish"),
+            ("seg", "zebrafish"): (_("🐾 Animal (seg)"), "seg", "zebrafish"),
         }
 
     def get_default_weights_summary(

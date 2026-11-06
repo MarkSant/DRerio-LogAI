@@ -227,7 +227,7 @@ print(distance_summary)
 ggplot(data, aes(x = x_cm, y = y_cm, color = as.factor(subject_id))) +
   geom_path(alpha = 0.5) +
   labs(
-    title = "Zebrafish Trajectories",
+    title = "Animal Trajectories",
     x = "X Position (cm)",
     y = "Y Position (cm)",
     color = "Subject"
@@ -316,7 +316,7 @@ for subject_id in df["subject_id"].unique():
 
 ax.set_xlabel("X Position (cm)")
 ax.set_ylabel("Y Position (cm)")
-ax.set_title("Zebrafish Trajectories")
+ax.set_title("Animal Trajectories")
 ax.legend()
 ax.set_aspect("equal")
 plt.tight_layout()

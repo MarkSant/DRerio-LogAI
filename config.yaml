@@ -85,6 +85,10 @@ recorder:
   # takes effect with a segmentation model (model_selection.animal_method: "seg").
   # See docs/guides/developer/performance-tuning.md § 1.1 for the measured cost.
   persist_masks: false
+  # Persist subject + context detections (and one heartbeat row per processed
+  # frame) to the 3c_Objetos_<base>.parquet sidecar. Analysis-window start/stop
+  # conditions are evaluated from it. Kill switch only (ADR-010).
+  persist_object_sidecar: true
 
 # -----------------------------------------------------------------------------
 # YOLO Model Settings (Object Detection)
@@ -174,9 +178,10 @@ bytetrack:
   # like zebrafish that can move significantly between processed frames.
   max_center_distance: 400.0  # pixels, ~13 body lengths for 30px zebrafish
 
-  # Track buffer: frames to keep lost tracks before removing (scaled by processing_interval)
+  # Track buffer: lost-track lifetime as frames at 30 fps, i.e. track_buffer / 30 seconds
+  # of video time whatever the source fps or the analysis interval (#654).
   # Higher values allow re-identification after longer occlusions
-  track_buffer: 150  # With interval=10, survives ~50 detection cycles (~5s at 30fps)
+  track_buffer: 150  # 5 s
 
   # IoU threshold for hybrid matching: below this, use center distance instead
   # Lower values (0.0-0.1) work better for small objects with little overlap
@@ -234,6 +239,27 @@ model_selection:
   # Set to true to force OpenVINO, false to force PyTorch
   # If left at default, the system will auto-detect optimal backend
   use_openvino: false
+
+  # Class names → roles. Each weight's classes are matched BY NAME to the arena
+  # and the animal (case-insensitive; spaces/hyphens = underscore). Built-in:
+  #   arena : aqua, aquarium, tank, agua, arena, maze, labirinto, open_field, apparatus
+  #   animal: zebrafish, fish, peixe, rat, rato, mouse, camundongo, rodent, roedor,
+  #           animal, subject
+  # These lists only ADD names for weights that use other labels. Classes that
+  # match neither role (e.g. experimenter, start_box) are ignored by tracking.
+  class_aliases:
+    arena: []
+    animal: []
+
+  # Context classes (experimenter, start box, ...) are only searched when the
+  # weight's class-role map declares one; otherwise the arena crop is unchanged.
+  #   arena_crop        : same crop as the subject
+  #   arena_crop_margin : arena box grown by context_crop_margin_frac on each side
+  #   full_frame        : whole frame (subject keeps the arena polygon filter)
+  context_inference_scope: "arena_crop_margin"
+  context_crop_margin_frac: 0.15
+  # Confidence floor for context classes; null = animal confidence threshold.
+  context_min_confidence: null
 
 # -----------------------------------------------------------------------------
 # OpenVINO Settings (Hardware Acceleration)
@@ -375,6 +401,8 @@ roi_inclusion_rule: "bbox_intersects"
 # Cap on the time credited to an ROI for a single trajectory step. Without it,
 # a 5 s tracking gap is credited IN FULL to whichever ROI the animal reappeared
 # in. The discarded excess is reported as analise_roi.tempo_nao_observado_s.
+# The same cap defines a tracking gap for behaviour: no freezing/inactivity/burst
+# episode, smoothing window or distance step crosses an interval above it.
 #   - null (default): automatic, 3x the median observed interval
 #   - a number:       explicit cap, in seconds
 #   - .inf:           no cap (historical behaviour)

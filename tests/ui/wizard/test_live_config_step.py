@@ -11,7 +11,11 @@ import pytest
 
 from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.wizard.enums import WizardStepID
-from zebtrack.ui.wizard.live_config_step import LiveConfigStep, pick_default_arduino_port
+from zebtrack.ui.wizard.live_config_step import (
+    LiveConfigStep,
+    analysis_window_hint,
+    pick_default_arduino_port,
+)
 
 
 @pytest.mark.gui
@@ -27,6 +31,17 @@ class TestLiveConfigStep:
         step = LiveConfigStep(self.root, wizard_data)
         step.build_ui()
         assert step.step_id == WizardStepID.LIVE_CONFIG
+
+    def test_legacy_trigger_checkbox_stays_and_points_at_the_window_editor(self):
+        """v8 keeps the legacy checkbox and adds a hint to the analysis-window panel."""
+        step = LiveConfigStep(self.root, {})
+        step.build_ui()
+
+        assert step.external_trigger_cb.cget("text") == "External Trigger Mode"
+        hint = str(step.analysis_window_hint_label.cget("text"))
+        assert hint == analysis_window_hint()
+        assert "'Analysis Window' panel of the Zone Configuration tab" in hint
+        assert step.analysis_window_hint_label.winfo_manager() == "pack"
 
     def test_get_data_omits_experimental_metadata_fields(self):
         """`get_data()` must not expose the legacy experimental design keys.

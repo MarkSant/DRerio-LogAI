@@ -190,6 +190,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
 
         try:
             from zebtrack.core.detection.aquarium_detector import AquariumDetector
+            from zebtrack.core.detection.class_aliases import ClassAliases
             from zebtrack.core.services.arena_detection_policy import resolve_arena_detection
             from zebtrack.utils.geometry import resolve_polygon_epsilon_factor
 
@@ -258,7 +259,11 @@ class MultiAquariumCoordinator(BaseCoordinator):
                 )
                 return None
 
-            detector = AquariumDetector(model_path=model_path, mode=detection_method)
+            detector = AquariumDetector(
+                model_path=model_path,
+                mode=detection_method,
+                class_aliases=ClassAliases.from_settings(self.settings),
+            )
 
             if multi_aquarium:
                 # The arena policy applies to TWO aquariums exactly as it does to

@@ -153,7 +153,7 @@ class CalibrationStep(WizardStep):
         ToolTip(
             animals_entry,
             _(
-                "🐟 Animals per Aquarium\n\n"
+                "🐾 Animals per Aquarium\n\n"
                 "How many animals will be present in EACH video/aquarium.\n\n"
                 "Impact on the analysis:\n"
                 "  • 1 animal: simplified individual tracking\n"
@@ -162,8 +162,8 @@ class CalibrationStep(WizardStep):
                 "  • 2-5 animals: moderate multi-animal tracking\n"
                 "    → Ideal for: social interaction, small-group behaviour\n"
                 "    → Recommended method: segmentation (seg)\n\n"
-                "  • 6+ animals: shoal tracking\n"
-                "    → Ideal for: shoal dynamics, collective behaviour\n"
+                "  • 6+ animals: group tracking (e.g. a zebrafish shoal)\n"
+                "    → Ideal for: group dynamics, collective behaviour\n"
                 "    → Recommended method: segmentation (seg) with high confidence\n\n"
                 "⚠️ IMPORTANT: this value must be the SAME for every video in the project.\n"
                 "If you have videos with different animal counts, "
@@ -175,7 +175,7 @@ class CalibrationStep(WizardStep):
 
         # Physical dimensions
         dimensions_frame = LabelFrame(
-            left_panel, text=_("Physical Aquarium Dimensions"), padx=10, pady=8
+            left_panel, text=_("Physical Arena Dimensions"), padx=10, pady=8
         )
         dimensions_frame.pack(fill="x", pady=(0, 8))
 
@@ -189,17 +189,17 @@ class CalibrationStep(WizardStep):
         ToolTip(
             width_entry,
             _(
-                "📏 Aquarium Width (horizontal axis)\n\n"
+                "📏 Arena Width (horizontal axis)\n\n"
                 "The REAL physical size of the arena visible in the video, in centimetres.\n\n"
                 "How to measure:\n"
                 "  1. Identify the area visible in the video (inside the field of view)\n"
                 "  2. Measure the HORIZONTAL width of that area with a ruler/tape\n"
                 "  3. Measure in a straight line, from the left side to the right\n\n"
                 "Typical values:\n"
-                "  • Larvae (Petri dish): 5-10 cm\n"
-                "  • Adults (small tank): 15-30 cm\n"
-                "  • Adults (medium tank): 30-50 cm\n"
-                "  • Large experimental setup: 50-100 cm\n\n"
+                "  • Zebrafish larvae (Petri dish): 5-10 cm\n"
+                "  • Adult zebrafish (small to medium tank): 15-50 cm\n"
+                "  • Rodent open field (top view): 40-100 cm\n"
+                "  • Barnes maze (top view): the table diameter, 120-185 cm\n\n"
                 "Use in the analysis:\n"
                 "  • Converts pixel coordinates → centimetres\n"
                 "  • Allows real travelled distances to be computed\n"
@@ -220,24 +220,25 @@ class CalibrationStep(WizardStep):
         ToolTip(
             height_entry,
             _(
-                "📏 Aquarium Height (vertical axis)\n\n"
+                "📏 Arena Height (vertical axis)\n\n"
                 "The REAL physical size of the arena visible in the video, in centimetres.\n\n"
                 "How to measure:\n"
                 "  1. Identify the area visible in the video (inside the field of view)\n"
                 "  2. Measure the VERTICAL height of that area with a ruler/tape\n"
                 "  3. Measure in a straight line, from top to bottom\n\n"
                 "Typical values:\n"
-                "  • Larvae (Petri dish): 5-10 cm\n"
-                "  • Adults (small tank): 10-20 cm\n"
-                "  • Adults (medium tank): 20-40 cm\n"
-                "  • Large experimental setup: 40-80 cm\n\n"
+                "  • Zebrafish larvae (Petri dish): 5-10 cm\n"
+                "  • Adult zebrafish, side view of the tank: 10-40 cm\n"
+                "  • Rodent open field (top view): 40-100 cm\n"
+                "  • Barnes maze (top view): the table diameter, 120-185 cm\n\n"
                 "Use in the analysis:\n"
                 "  • Converts pixel coordinates → centimetres\n"
                 "  • Allows real vertical distances to be computed\n"
                 "  • Essential for heatmaps at real scale\n"
                 "  • Required for spatial metrics (time in zones, etc.)\n\n"
                 "⚠️ IMPORTANT: width and height must describe the SAME arena.\n"
-                "Use the dimensions of the area VISIBLE in the video, not of the whole tank.\n\n"
+                "Use the dimensions of the area VISIBLE in the video, "
+                "not of the whole apparatus.\n\n"
                 "💡 Tip: for a top-down camera, width ≈ height "
                 "(a square/rectangular field of view)."
             ),

@@ -23,6 +23,7 @@ from zebtrack.core.services.roi_rule_resolver import resolve_roi_rule
 from zebtrack.i18n import _
 
 if TYPE_CHECKING:
+    from zebtrack.core.detection import MultiAquariumZoneData
     from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
     from zebtrack.core.main_view_model import MainViewModel
     from zebtrack.core.project.project_manager import ProjectManager
@@ -73,6 +74,9 @@ class LiveAnalysisPostProcessorMixin:
     _detected_aquarium_bboxes: list
     _arena_defined_event: threading.Event
     _multi_aq_detector: MultiAquariumDetector | None
+    #: This session's aquariums when it films 2+ of them (``None`` otherwise),
+    #: resolved once at session start by ``_resolve_session_multi_zone_data``.
+    _live_multi_zone_data: MultiAquariumZoneData | None
 
     # Properties from facade
     camera: Camera | None
@@ -85,6 +89,11 @@ class LiveAnalysisPostProcessorMixin:
         self, *, cancelled: bool = False, keep_data: bool = False
     ) -> bool: ...
     def _setup_session_timer(self, duration_s: float, output_dir: Path) -> None: ...
+
+    if TYPE_CHECKING:
+        # Defined by FrameProcessingMixin (earlier in the MRO); type-checker only.
+        def _live_object_metadata(self) -> Any: ...
+        def _live_recording_fps(self) -> float | None: ...
 
     def _build_post_analysis_service(self) -> Any:
         """AnalysisService da pós-análise ao vivo, já com a regra de ROI resolvida.
@@ -227,10 +236,10 @@ class LiveAnalysisPostProcessorMixin:
                 "Scale differs by {percent:.0f}% between the axes "
                 "({px_x:.1f} px/cm horizontally against {px_y:.1f} vertically). "
                 "A camera facing the apparatus should give nearly the same value "
-                "on both, so the aquarium dimensions entered probably do not "
+                "on both, so the arena dimensions entered probably do not "
                 "match the real proportions. Distances and velocities are "
                 "affected UNEVENLY by direction, which no single correction "
-                "factor can undo — re-measure the aquarium and regenerate the "
+                "factor can undo — re-measure the arena and regenerate the "
                 "report."
             ).format(percent=(ratio - 1) * 100, px_x=pixelcm_x, px_y=pixelcm_y)
         )
@@ -397,9 +406,15 @@ class LiveAnalysisPostProcessorMixin:
             return None
 
         aquarium_data_map: dict[int, tuple[pd.DataFrame, Any]] = {}
+        windows: dict[int, Any] = {}
+        warnings_by_aquarium: dict[int, list[str]] = {}
         total_frames = 0
         total_detections = 0
         total_tracks = 0
+        # Every aquarium was filmed by the same camera: ONE frame ledger, in the
+        # session folder, named after the session MP4 (the parent recorder's
+        # base) — not next to each aquarium's trajectory.
+        ledger_dir, ledger_base = output_dir, Path(video_path).stem
 
         for aq_id, output in trajectory_outputs.items():
             aquarium = multi_zone_data.get_aquarium(aq_id)
@@ -414,6 +429,30 @@ class LiveAnalysisPostProcessorMixin:
             df = pd.read_parquet(output["trajectory_path"])
             if df.empty:
                 continue
+
+            # ``fps`` is rebound on purpose: the recording's own rate, measured on
+            # the shared ledger, replaces the camera's nominal value (same rule as
+            # the single-aquarium path) and is the same for every aquarium.
+            df, fps, time_warnings = self._retime_live_trajectory(
+                df, output["trajectory_path"], ledger_dir=ledger_dir, ledger_base=ledger_base
+            )
+            rois, _roi_colors = self._build_live_rois(
+                aquarium.roi_polygons, aquarium.roi_names, aquarium.roi_colors
+            )
+            # ADR-011: one offline window per aquarium, from that aquarium's own
+            # 3c sidecar (the live runtime does not run with 2+ aquariums).
+            window, window_unreadable = self._resolve_live_window(
+                Path(output["trajectory_path"]), df, rois, analysis_service, aquarium_id=aq_id
+            )
+            windows[aq_id] = window
+            if window_unreadable:
+                time_warnings.append(
+                    _(
+                        "The session's analysis window could not be read; the metrics "
+                        "cover the whole recording."
+                    )
+                )
+            warnings_by_aquarium[aq_id] = time_warnings
 
             aquarium_data_map[aq_id] = (df, aquarium)
             total_frames += int(df["frame"].nunique())
@@ -449,7 +488,11 @@ class LiveAnalysisPostProcessorMixin:
             smoothing_window_length=params["smoothing_window_length"],
             smoothing_polyorder=params["smoothing_polyorder"],
             behavioral_config=params["behavioral_config"],
+            windows=windows,
         )
+        for aq_id, result in results_by_aquarium.items():
+            if result is not None:
+                result.validation_warnings.extend(warnings_by_aquarium.get(aq_id, []))
 
         report_paths = export_multi_aquarium_reports(
             results_by_aquarium=results_by_aquarium,
@@ -563,31 +606,22 @@ class LiveAnalysisPostProcessorMixin:
                     WordReporter,
                 )
 
-                # Find generated trajectory parquet
+                # Find generated trajectory parquet. A multi-aquarium session keeps
+                # one per ``aquarium_N/`` subfolder and none at the top level, so
+                # it is looked for FIRST: the top-level search alone answered
+                # "no trajectory" and the per-aquarium analysis below was never
+                # reached (#635).
+                multi_trajectory_outputs = self._collect_multi_aquarium_trajectory_outputs(
+                    output_dir
+                )
                 trajectory_files = glob.glob(str(output_dir / "3_CoordMovimento_*.parquet"))
 
-                if not trajectory_files:
+                if not trajectory_files and not multi_trajectory_outputs:
                     log.warning(
                         "live_camera_service.no_trajectory_found", output_dir=str(output_dir)
                     )
                     if self.root:
                         self.root.after(0, self._show_completion_message, output_dir, False)
-                    return
-
-                trajectory_file = Path(trajectory_files[0])
-                df = pd.read_parquet(trajectory_file)
-
-                if df.empty:
-                    log.warning("live_camera_service.empty_trajectory")
-                    if self.root:
-                        self.root.after(
-                            0,
-                            self._show_completion_message,
-                            output_dir,
-                            False,
-                            None,
-                            "no_detections",
-                        )
                     return
 
                 # --- FULL BEHAVIORAL ANALYSIS ---
@@ -629,9 +663,6 @@ class LiveAnalysisPostProcessorMixin:
                 fps = self._actual_fps
                 video_path = self._resolve_live_session_video_path(output_dir)
 
-                multi_trajectory_outputs = self._collect_multi_aquarium_trajectory_outputs(
-                    output_dir
-                )
                 if multi_trajectory_outputs:
                     stats = self._run_multi_aquarium_post_analysis(
                         output_dir=output_dir,
@@ -665,29 +696,36 @@ class LiveAnalysisPostProcessorMixin:
                             )
                     return
 
+                trajectory_file = Path(trajectory_files[0])
+                df = pd.read_parquet(trajectory_file)
+
+                if df.empty:
+                    log.warning("live_camera_service.empty_trajectory")
+                    if self.root:
+                        self.root.after(
+                            0,
+                            self._show_completion_message,
+                            output_dir,
+                            False,
+                            None,
+                            "no_detections",
+                        )
+                    return
+
+                # Live ``timestamp`` is a PROCESSING clock: re-date the trajectory
+                # with the capture instant of its 6_FrameLedger before analysing
+                # (in memory only; the Parquet is untouched), and take the fps
+                # from the recording rather than the camera's nominal value.
+                df, fps, time_warnings = self._retime_live_trajectory(df, trajectory_file)
+
                 zone_data = self.project_manager.get_zone_data()
                 arena_polygon = zone_data.polygon or []
                 arena_polygon_tuples = [(float(p[0]), float(p[1])) for p in arena_polygon]
 
                 # Build ROI objects
-                from zebtrack.analysis.roi import ROI
-
-                rois = []
-                roi_colors = {}
-                if zone_data.roi_polygons:
-                    for i, poly in enumerate(zone_data.roi_polygons):
-                        name = (
-                            zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i}"
-                        )
-                        color = (
-                            zone_data.roi_colors[i]
-                            if i < len(zone_data.roi_colors)
-                            else (255, 0, 0)
-                        )
-                        from shapely.geometry import Polygon
-
-                        rois.append(ROI(name=name, geometry=Polygon(poly), coordinate_space="px"))
-                        roi_colors[name] = color
+                rois, roi_colors = self._build_live_rois(
+                    zone_data.roi_polygons, zone_data.roi_names, zone_data.roi_colors
+                )
 
                 # Run full analysis
                 metadata = {
@@ -702,6 +740,13 @@ class LiveAnalysisPostProcessorMixin:
                     for key in ["group", "day", "subject_id"]:
                         if key in self._analysis_params:
                             metadata[key] = self._analysis_params[key]
+
+                # Analysis window (ADR-011): the OFFLINE window, recomputed from
+                # what was recorded, governs the metrics; the online one written
+                # by the processing thread is kept in the artifact and compared.
+                window, window_unreadable = self._resolve_live_window(
+                    trajectory_file, df, rois, analysis_service
+                )
 
                 analysis_result = analysis_service.run_full_analysis_as_dto(
                     trajectory_df=df,
@@ -720,7 +765,18 @@ class LiveAnalysisPostProcessorMixin:
                     sharp_turn_threshold=resolve_sharp_turn_threshold(params, self.settings),
                     behavioral_config=params["behavioral_config"],
                     video_path=str(video_path),
+                    window=window,
                 )
+
+                # Clock warnings (no ledger, partial ledger) go into the report.
+                analysis_result.validation_warnings.extend(time_warnings)
+                if window_unreadable:
+                    analysis_result.validation_warnings.append(
+                        _(
+                            "The session's analysis window could not be read; the metrics "
+                            "cover the whole recording."
+                        )
+                    )
 
                 # Escala desconhecida: o aviso precisa entrar ANTES de
                 # ``ReporterContext.from_analysis`` — ``validation_warnings`` e
@@ -876,6 +932,136 @@ class LiveAnalysisPostProcessorMixin:
         lines = "\n".join(f"  • {describe_session_output(path)}" for path in files)
         return _("\n💡 Files generated:\n{lines}\n").format(lines=lines)
 
+    @staticmethod
+    def _build_live_rois(
+        roi_polygons: Any, roi_names: Any, roi_colors: Any
+    ) -> tuple[list[Any], dict[str, Any]]:
+        """``ROI`` objects (raw pixels) and their colours from stored zone lists."""
+        from shapely.geometry import Polygon
+
+        from zebtrack.analysis.roi import ROI
+
+        names = list(roi_names or [])
+        colors_in = list(roi_colors or [])
+        rois: list[Any] = []
+        colors: dict[str, Any] = {}
+        for i, poly in enumerate(roi_polygons or []):
+            name = names[i] if i < len(names) else f"ROI_{i}"
+            rois.append(ROI(name=name, geometry=Polygon(poly), coordinate_space="px"))
+            colors[name] = colors_in[i] if i < len(colors_in) else (255, 0, 0)
+        return rois, colors
+
+    def _resolve_live_window(
+        self,
+        trajectory_file: Path,
+        df: pd.DataFrame,
+        rois: list[Any],
+        analysis_service: Any,
+        *,
+        aquarium_id: int | None = None,
+    ) -> tuple[Any, bool]:
+        """Offline window of the session (ADR-011) and whether its rule was unreadable.
+
+        ``df`` is already re-timed on the capture clock, the clock of the
+        artifact's ``online`` instants and ``external_events``. The service
+        reads ``7_AnalysisWindow_<base>.json`` next to ``trajectory_file`` (the
+        processing thread wrote ``online`` there), fills ``offline``, keeps
+        ``online`` and warns when they diverge by more than one frame.
+
+        Returns:
+            ``(None, False)`` without a window; ``(None, True)`` when the stored
+            rule does not validate (the live runtime ran without it too, so the
+            whole recording is analysed and the report says why).
+        """
+        from zebtrack.analysis.analysis_window_service import AnalysisWindowService
+        from zebtrack.core.recording.condition_runtime import parse_window_spec
+        from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig
+
+        raw = getattr(self, "_analysis_window_raw", None)
+        spec = parse_window_spec(raw)
+        if spec is None:
+            return None, bool(raw)
+        rule = analysis_service.resolve_roi_rule()
+        window = AnalysisWindowService(
+            roi_rule=rule if isinstance(rule, RoiRuleConfig) else None
+        ).resolve(
+            trajectory_file,
+            spec,
+            aquarium_id=aquarium_id,
+            trajectory_df=df,
+            rois=rois,
+            clock="capture_perf",
+        )
+        log.info(
+            "live_camera_service.analysis_window.resolved",
+            aquarium_id=aquarium_id,
+            status=window.status,
+            applied=window.applied,
+            reused=window.reused,
+        )
+        return window, False
+
+    def _retime_live_trajectory(
+        self,
+        df: pd.DataFrame,
+        trajectory_file: Path,
+        *,
+        ledger_dir: Path | None = None,
+        ledger_base: str | None = None,
+    ) -> tuple[pd.DataFrame, float, list[str]]:
+        """Re-date a live trajectory on the capture clock of its frame ledger.
+
+        Same rule as ``ReportGenerationCoordinator`` (F1): ``timestamp`` becomes
+        ``t_capture_perf - anchor.t0_perf`` through ``pipeline_frame == frame``,
+        in memory. The live post-analysis did not go through that coordinator,
+        so its reports were computed on the processing clock.
+
+        Args:
+            ledger_dir, ledger_base: Where the ledger is when it is not next to
+                the trajectory under the same base — a multi-aquarium session has
+                one ledger in the session folder for every ``aquarium_N/``.
+
+        Returns:
+            The (possibly) re-timed frame, the fps to analyse it with (the
+            recording's own rate when it can be measured, else the camera's
+            nominal fps) and the clock warnings to put in the report.
+        """
+        from zebtrack.analysis.time_base import (
+            TIME_WARNINGS_ATTR,
+            resolve_time_base,
+            retime_from_ledger,
+        )
+        from zebtrack.core.recording.frame_ledger import load_anchor, load_ledger
+
+        prefix = "3_CoordMovimento_"
+        fallback_fps = float(self._actual_fps or 0.0) or 30.0
+        stem = Path(trajectory_file).stem
+        rows: list = []
+        anchor: dict = {}
+        if ledger_dir is not None and ledger_base:
+            rows = load_ledger(ledger_dir, ledger_base)
+            anchor = load_anchor(ledger_dir, ledger_base) if rows else {}
+        elif stem.startswith(prefix):
+            base = stem[len(prefix) :]
+            rows = load_ledger(Path(trajectory_file).parent, base)
+            anchor = load_anchor(Path(trajectory_file).parent, base) if rows else {}
+        retimed = retime_from_ledger(df, rows, anchor)
+        warnings = [str(w) for w in retimed.attrs.get(TIME_WARNINGS_ATTR, [])]
+        time_base = resolve_time_base(retimed, ledger=rows or None, fallback_fps=fallback_fps)
+        fps = (
+            float(time_base.fps_video)
+            if time_base.fps_video and time_base.fps_video > 0
+            else fallback_fps
+        )
+        log.info(
+            "live_camera_service.post_analysis.time_base",
+            source=time_base.source,
+            fps_video=time_base.fps_video,
+            ledger_rows=len(rows),
+            warnings=len(warnings),
+        )
+        return retimed, fps, warnings
+
     def _show_completion_message(
         self,
         output_dir: Path,
@@ -936,68 +1122,102 @@ class LiveAnalysisPostProcessorMixin:
             ),
         )
 
+    def _resolve_session_multi_zone_data(self) -> MultiAquariumZoneData | None:
+        """Resolve and cache this session's aquariums (``None`` for one aquarium).
+
+        ``project_manager.get_zone_data()`` is the aquarium-0 compatibility shim
+        and NEVER carries ``aquariums``: every multi-aquarium decision of the
+        live session that was taken from it was always "single" (#635). This is
+        the one place that asks ``get_multi_aquarium_zone_data`` instead; the
+        recorder start, the processing thread and the analysis-window probe
+        all read the cached result.
+
+        A stored ``MultiAquariumZoneData`` with a single aquarium stays on the
+        single-aquarium path: same output layout as before for those sessions.
+        """
+        from zebtrack.core.detection import MultiAquariumZoneData
+
+        multi: Any = None
+        if self.current_output_dir is not None:
+            video_path = self._resolve_live_session_video_path(self.current_output_dir)
+            multi = self._resolve_live_multi_aquarium_zone_data(video_path)
+        if not isinstance(multi, MultiAquariumZoneData) or len(multi.aquariums) < 2:
+            multi = None
+        self._live_multi_zone_data = multi
+        log.info(
+            "live_camera_service.session_aquariums_resolved",
+            aquarium_count=len(multi.aquariums) if multi is not None else 1,
+        )
+        return multi
+
+    def _start_live_recorder(self, zone_data: Any, base_name: str) -> bool:
+        """Start the session's recorder; multi-aquarium when the session has 2+ aquariums.
+
+        Both live start paths go through here (zones already defined at
+        ``start_session``, or defined by the arena-detection phase), so a
+        multi-aquarium project no longer records aquarium 0 over the whole
+        frame when its zones were validated up front.
+        """
+        width = self.camera.actual_width if self.camera else 640
+        height = self.camera.actual_height if self.camera else 480
+        # The MP4 is written at the rate the camera really delivers (#637).
+        fps = self._live_recording_fps()
+        multi = getattr(self, "_live_multi_zone_data", None)
+        if multi is not None:
+            if len(multi.aquariums) > 2:
+                log.error(
+                    "live_camera_service.multi_aquarium_limit_exceeded",
+                    count=len(multi.aquariums),
+                    max=2,
+                )
+                return False
+            zones_by_aquarium = {aq.id: aq.to_zone_data() for aq in multi.aquariums}
+            started = self.recorder.start_recording_multi_aquarium(
+                output_folder=str(self.current_output_dir),
+                width=width,
+                height=height,
+                zones_by_aquarium=zones_by_aquarium,
+                base_name=base_name,
+                object_metadata=self._live_object_metadata(),
+                session_video=True,
+                fps=fps,
+            )
+            log.info(
+                "live_camera_service.recorder_started_multi_aquarium",
+                aquarium_count=len(zones_by_aquarium),
+                started=bool(started),
+            )
+            return bool(started)
+        return bool(
+            self.recorder.start_recording(
+                output_folder=str(self.current_output_dir),
+                frame_width=width,
+                frame_height=height,
+                zones=zone_data,
+                is_video_file=False,
+                base_name=base_name,
+                object_metadata=self._live_object_metadata(),
+                fps=fps,
+            )
+        )
+
     def _start_recording_after_arena(self) -> None:
         """Start recorder and timer AFTER arena has been defined.
 
         Ensures we only record animal detections, not the aquarium detection phase.
         """
-        from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
+        from zebtrack.core.detection import ZoneData
 
-        video_path = (
-            self._resolve_live_session_video_path(self.current_output_dir)
-            if self.current_output_dir
-            else None
-        )
-        multi_zone_data = (
-            self._resolve_live_multi_aquarium_zone_data(video_path)
-            if video_path is not None
-            else None
-        )
+        multi_zone_data = self._resolve_session_multi_zone_data()
         zone_data = (
             multi_zone_data
             if multi_zone_data is not None
             else (self.project_manager.get_zone_data() if self.project_manager else ZoneData())
         )
 
-        is_multi_aquarium = isinstance(zone_data, MultiAquariumZoneData)
-
         if self.is_capturing_for_video and self.recorder:
             try:
-                if isinstance(zone_data, MultiAquariumZoneData):
-                    if len(zone_data.aquariums) <= 2:
-                        zones_by_aquarium = {
-                            aq_data.id: aq_data.to_zone_data() for aq_data in zone_data.aquariums
-                        }
-
-                        recorder_started = self.recorder.start_recording_multi_aquarium(
-                            output_folder=str(self.current_output_dir),
-                            width=self.camera.actual_width if self.camera else 640,
-                            height=self.camera.actual_height if self.camera else 480,
-                            zones_by_aquarium=zones_by_aquarium,
-                            base_name=f"{self._experiment_id}",
-                        )
-
-                        log.info(
-                            "live_camera_service.recorder_started_multi_aquarium",
-                            aquarium_count=len(zones_by_aquarium),
-                        )
-                    elif len(zone_data.aquariums) > 2:
-                        log.error(
-                            "live_camera_service.multi_aquarium_limit_exceeded",
-                            count=len(zone_data.aquariums),
-                            max=2,
-                        )
-                        return
-                else:
-                    recorder_started = self.recorder.start_recording(
-                        output_folder=str(self.current_output_dir),
-                        frame_width=self.camera.actual_width if self.camera else 640,
-                        frame_height=self.camera.actual_height if self.camera else 480,
-                        zones=zone_data,
-                        is_video_file=False,
-                        base_name=f"{self._experiment_id}",
-                    )
-
+                recorder_started = self._start_live_recorder(zone_data, f"{self._experiment_id}")
                 if not recorder_started:
                     log.error("live_camera_service.recorder_start_failed_after_arena")
                     return
@@ -1005,7 +1225,7 @@ class LiveAnalysisPostProcessorMixin:
                 log.info(
                     "live_camera_service.recorder_started_after_arena",
                     output_dir=str(self.current_output_dir),
-                    multi_aquarium=is_multi_aquarium,
+                    multi_aquarium=multi_zone_data is not None,
                 )
 
             # except Exception justified: recording subsystem boundary — heterogeneous I/O
@@ -1168,6 +1388,12 @@ class LiveAnalysisPostProcessorMixin:
                     base_width=detector.base_width,
                     base_height=detector.base_height,
                     settings_obj=detector.settings,
+                    # The roles the live detector resolved (project > weight >
+                    # aliases, ADR-009). Without them the multi detector fell
+                    # back to the aliases and could track another class.
+                    class_role_map=getattr(detector, "class_role_map", None),
+                    # Camera's real rate scales ByteTrack's buffer (issue #630).
+                    source_fps=float(getattr(self, "_actual_fps", 0.0) or 0.0),
                 )
                 if hasattr(zone_data, "aquariums") and zone_data.aquariums:
                     h, w = frame.shape[:2]
@@ -1177,6 +1403,11 @@ class LiveAnalysisPostProcessorMixin:
                         h,
                     )
 
+            # The capture instant the processing thread declared (#654): every
+            # aquarium's lost tracks age on the camera's clock.
+            set_frame_time = getattr(self._multi_aq_detector, "set_frame_time", None)
+            if callable(set_frame_time):
+                set_frame_time(getattr(self, "_tracker_frame_time_s", None))
             all_detections = self._multi_aq_detector.detect_partitioned_optimized(
                 frame=frame,
             )
@@ -1188,8 +1419,8 @@ class LiveAnalysisPostProcessorMixin:
                 if hasattr(self.recorder, "write_partitioned_detection_data"):
                     self.recorder.write_partitioned_detection_data(
                         timestamp=timestamp,
-                        frame=frame_number,
-                        aquarium_detections=all_detections,
+                        frame_number=frame_number,
+                        partitioned_detections=all_detections,
                     )
                 else:
                     flat_detections = []

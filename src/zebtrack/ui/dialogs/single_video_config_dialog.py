@@ -194,7 +194,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             dim_frame,
             _(
                 "Number of Aquariums\n\n"
-                "Sets whether the video contains 1 or 2 independent tanks.\n"
+                "Sets whether the video contains 1 or 2 independent arenas (e.g. tanks).\n"
                 "• 1: standard analysis.\n"
                 "• 2: lets you draw two arenas and process them together."
             ),
@@ -211,7 +211,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             dim_frame,
             _(
                 "Animals per Aquarium\n\n"
-                "How many fish are in each tank.\n"
+                "How many animals are in each arena.\n"
                 "• 1: enables the tracker optimized for a single subject.\n"
                 "• >1: requires Segmentation (seg) mode to avoid ID swaps."
             ),
@@ -221,14 +221,14 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         )
 
         # Width
-        ttk.Label(dim_frame, text=_("Aquarium Width (cm):")).grid(
+        ttk.Label(dim_frame, text=_("Arena Width (cm):")).grid(
             row=2, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             dim_frame,
             _(
                 "Real Width (cm)\n\n"
-                "Horizontal size of the tank in centimetres.\n"
+                "Horizontal size of the arena in centimetres.\n"
                 "• Essential to compute speed in cm/s and total distance."
             ),
         ).grid(row=2, column=1, padx=2)
@@ -237,12 +237,12 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         )
 
         # Height
-        ttk.Label(dim_frame, text=_("Aquarium Height (cm):")).grid(
+        ttk.Label(dim_frame, text=_("Arena Height (cm):")).grid(
             row=3, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             dim_frame,
-            _("Real Height (cm)\n\nVertical size of the tank in centimetres."),
+            _("Real Height (cm)\n\nVertical size of the arena in centimetres."),
         ).grid(row=3, column=1, padx=2)
         ttk.Entry(dim_frame, textvariable=self.aquarium_height_var, width=8).grid(
             row=3, column=2, sticky="w", padx=5
@@ -281,7 +281,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             behavior_frame,
             _(
                 "Freezing Threshold (Speed)\n\n"
-                "Speed below which the fish is considered motionless.\n"
+                "Speed below which the animal is considered motionless.\n"
                 "• Lower it: if small breathing movements are counting as swimming.\n"
                 "• Default: 0.5 cm/s."
             ),
@@ -298,7 +298,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             behavior_frame,
             _(
                 "Minimum Freezing Duration\n\n"
-                "How long the fish must stay still for the event to be recorded.\n"
+                "How long the animal must stay still for the event to be recorded.\n"
                 "• E.g. 1.0s means brief pauses (<1s) are ignored."
             ),
         ).grid(row=2, column=1, padx=2)
@@ -400,13 +400,13 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         method_frame.columnconfigure(2, weight=1)
 
         # Aquarium Method
-        ttk.Label(method_frame, text=_("Aquarium AI:")).grid(
+        ttk.Label(method_frame, text=_("Arena AI:")).grid(
             row=0, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             method_frame,
             _(
-                "Model for Aquarium Detection\n\n"
+                "Model for Arena Detection\n\n"
                 "• seg: segmentation (more precise at the corners).\n"
                 "• det: box detection (faster)."
             ),
@@ -427,7 +427,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         # accepting a choice that cannot take effect.
         self._preserve_real_shape_check = ttk.Checkbutton(
             method_frame,
-            text=_("Preserve the real aquarium shape (mask)"),
+            text=_("Preserve the real arena shape (mask)"),
             variable=self.preserve_real_shape_var,
         )
         self._preserve_real_shape_check.grid(
@@ -436,11 +436,11 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         create_help_label(
             method_frame,
             _(
-                "Aquarium Outline\n\n"
+                "Arena Outline\n\n"
                 "• Checked: keeps the segmentation mask outline, for round, "
-                "hexagonal or perspective-skewed tanks.\n"
+                "hexagonal or perspective-skewed arenas.\n"
                 "• Unchecked: reduces the detection to a 4-corner rectangle.\n\n"
-                "Requires the 'seg' aquarium model."
+                "Requires the 'seg' arena model."
             ),
         ).grid(row=1, column=1, padx=2, sticky="e")
         aquarium_method_combo.bind(
@@ -449,15 +449,15 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self._sync_preserve_real_shape_state()
 
         # Animal Method
-        ttk.Label(method_frame, text=_("Fish AI:")).grid(
+        ttk.Label(method_frame, text=_("Animal AI:")).grid(
             row=2, column=0, sticky="w", padx=(5, 2), pady=2
         )
         create_help_label(
             method_frame,
             _(
-                "Model for Fish Tracking\n\n"
-                "• seg: recommended for several fish (avoids confusion).\n"
-                "• det: recommended for 1 fish (very fast)."
+                "Model for Animal Tracking\n\n"
+                "• seg: recommended for several animals (avoids confusion).\n"
+                "• det: recommended for 1 animal (very fast)."
             ),
         ).grid(row=2, column=1, padx=2)
         animal_method_combo = ttk.Combobox(

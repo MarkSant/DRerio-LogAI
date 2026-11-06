@@ -28,6 +28,7 @@ from zebtrack.coordinators._video_completion_mixin import VideoCompletionMixin
 from zebtrack.coordinators._video_selection_mixin import VideoSelectionMixin
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.project.project_manager import ProjectManager
+from zebtrack.core.services.worker_model_resolution import WorkerModelSpec, resolve_worker_model
 from zebtrack.core.video.processing_worker import (
     ProcessingCallbacks,
     ProcessingContext,
@@ -792,6 +793,21 @@ class VideoProcessingCoordinator(
             apply_project_settings_func=apply_project_settings_func,
             determine_intervals_func=(mac._determine_processing_intervals if mac else None),
             retry_strategy=settings_snapshot.video_processing.batch_retry_strategy,
+            model_spec=self._resolve_worker_model_spec(settings_snapshot),
+        )
+
+    def _resolve_worker_model_spec(self, settings_obj: Any) -> WorkerModelSpec:
+        """Effective weight for the worker, resolved HERE where the project lives.
+
+        The worker process sees neither the project overrides nor the weight
+        registry; without this spec it loaded the global default weight even
+        when the project had chosen another one (ADR-009).
+        """
+        project_data = getattr(self.project_manager, "project_data", None)
+        return resolve_worker_model(
+            self.weight_manager,
+            settings_obj,
+            project_data if isinstance(project_data, dict) else None,
         )
 
     def create_processing_callbacks(

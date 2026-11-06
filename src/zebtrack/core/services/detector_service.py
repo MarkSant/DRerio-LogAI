@@ -16,6 +16,12 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal
 import structlog
 
 from zebtrack.core.detection import Detector, MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection.class_aliases import ClassAliases
+from zebtrack.core.detection.class_roles import (
+    ClassRoleMap,
+    ClassRolesUnresolvedError,
+    resolve_class_role_map,
+)
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.zone_scaler import ZoneScaler, arena_membership_rule_from_settings
 from zebtrack.i18n import _
@@ -189,8 +195,14 @@ class DetectorService:
             else:
                 plugin_instance = plugin_class(model_path=model_path, settings_obj=self.settings)
 
-            # MELHORIA #2: Validar classes esperadas pelo sistema
-            self._validate_model_classes(plugin_instance, model_path)
+            # Class roles by NAME (ADR-009). Raises ClassRolesUnresolvedError
+            # for a multi-class weight where nothing can be the subject.
+            class_role_map = self._validate_model_classes(
+                plugin_instance,
+                model_path,
+                weight_name=weight_name,
+                weight_details=weight_details,
+            )
 
             # Apply per-project detector hyperparameter overrides (Phase 2 / A1).
             # Plugins read conf_threshold / nms_threshold at inference time, so
@@ -214,6 +226,7 @@ class DetectorService:
                 base_width=base_w,
                 base_height=base_h,
                 settings_obj=self.settings,
+                class_role_map=class_role_map,
             )
 
             # Update detector state in StateManager. When the caller does
@@ -259,6 +272,15 @@ class DetectorService:
             log.info("detector_service.initialize.success", method=animal_method)
             return True, None
 
+        except ClassRolesUnresolvedError as e:
+            # User-facing boundary: the message is already translated and says
+            # how to fix it (assign a subject role or add an alias).
+            log.error(
+                "detector_service.initialize.class_roles_unresolved",
+                class_names=e.class_names,
+                model_path=model_path,
+            )
+            return False, str(e)
         except (ValueError, FileNotFoundError, IntegrityError) as e:
             log.error("detector_service.initialize.failed", error=str(e), exc_info=True)
             error_msg = _("Failed to initialize the detector: {error}").format(error=e)
@@ -1053,9 +1075,48 @@ class DetectorService:
 
         return None
 
+    def resolve_class_role_map(
+        self,
+        plugin_instance: Any,
+        *,
+        weight_name: str | None = None,
+        weight_details: dict[str, Any] | None = None,
+    ) -> ClassRoleMap:
+        """Roles of the loaded model's classes (project > weight > aliases).
+
+        The project's ``model_overrides.class_roles`` only count while their
+        recorded sha matches the weight being loaded.
+
+        Raises:
+            ClassRolesUnresolvedError: multi-class weight with no subject.
+        """
+        project_data = getattr(self.project_manager, "project_data", None)
+        overrides = project_data.get("model_overrides") if isinstance(project_data, dict) else None
+        overrides = overrides if isinstance(overrides, dict) else {}
+        sha: str | None = None
+        getter = getattr(self.weight_manager, "get_weight_sha256", None)
+        if weight_name and callable(getter):
+            candidate = getter(weight_name)
+            sha = candidate if isinstance(candidate, str) and candidate else None
+        recorded = overrides.get("class_roles_weight_sha256")
+        return resolve_class_role_map(
+            getattr(plugin_instance, "class_names", None),
+            project_override=overrides.get("class_roles"),
+            project_override_sha=recorded if isinstance(recorded, str) else None,
+            weight_entry=weight_details if isinstance(weight_details, dict) else None,
+            weight_sha256=sha,
+            aliases=ClassAliases.from_settings(self.settings),
+            strict=True,
+        )
+
     def _validate_model_classes(
-        self, plugin_instance: DetectorPlugin, model_path: Path | str
-    ) -> None:
+        self,
+        plugin_instance: DetectorPlugin,
+        model_path: Path | str,
+        *,
+        weight_name: str | None = None,
+        weight_details: dict[str, Any] | None = None,
+    ) -> ClassRoleMap | None:
         """
         Validate that model has expected classes for DRerio LogAI.
 
@@ -1063,8 +1124,12 @@ class DetectorService:
             plugin_instance: The instantiated detector plugin
             model_path: Path to the model (for logging)
 
+        Returns:
+            The resolved class-role map, or ``None`` when the plugin exposes no
+            class names (the detector then resolves positionally).
+
         Raises:
-            ValueError: If model is missing required classes
+            ClassRolesUnresolvedError: multi-class weight with no subject class.
         """
         plugin_classes = getattr(plugin_instance, "class_names", {})
 
@@ -1074,22 +1139,20 @@ class DetectorService:
                 model_path=model_path,
                 message="Plugin has no class_names attribute. Validation skipped.",
             )
-            return
+            return None
 
-        # Define expected names (case-insensitive)
-        aquarium_names = ["aqua", "aquarium", "tank", "agua"]
-        animal_names = ["zebrafish", "fish", "peixe"]
+        # The gate (ADR-009): a multi-class weight where nothing can be the
+        # subject raises here instead of being tracked by position.
+        role_map = self.resolve_class_role_map(
+            plugin_instance, weight_name=weight_name, weight_details=weight_details
+        )
 
-        # Check what we have
-        has_aquarium = False
-        has_animal = False
-
-        for _class_id, name in plugin_classes.items():
-            name_lower = name.lower()
-            if name_lower in aquarium_names:
-                has_aquarium = True
-            if name_lower in animal_names:
-                has_animal = True
+        # Same vocabularies the detectors use (built-in + settings), so the
+        # validation can never disagree with the tracking about the roles.
+        aliases = ClassAliases.from_settings(self.settings)
+        roles = {aliases.role_of(name) for name in plugin_classes.values()}
+        has_aquarium = "arena" in roles
+        has_animal = "animal" in roles
 
         # Logic:
         # 1. We MUST have an animal class (unless it's a purely aquarium segmentation model,
@@ -1105,9 +1168,9 @@ class DetectorService:
                 model_path=model_path,
                 message="No recognized aquarium or animal classes found. Tracking may fail.",
             )
-            # We don't raise here to allow custom models with weird names,
-            # but we log a strong warning.
-            return
+            # Fewer than three classes keeps the 7.2 positional guess (the
+            # resolver above raised for the multi-class case); log it loudly.
+            return role_map
 
         if not has_animal:
             # If we are loading the ANIMAL detection model, we really need an animal class.
@@ -1117,7 +1180,10 @@ class DetectorService:
                 "detector_service.validate_classes.no_animal_class",
                 plugin_classes=plugin_classes,
                 model_path=model_path,
-                message="Model does not seem to have a 'zebrafish' class.",
+                message=(
+                    "Model has no class recognised as the animal "
+                    "(see model_selection.class_aliases)."
+                ),
             )
 
         log.info(
@@ -1126,4 +1192,6 @@ class DetectorService:
             plugin_classes=plugin_classes,
             has_aquarium=has_aquarium,
             has_animal=has_animal,
+            class_roles_source=role_map.source.value,
         )
+        return role_map

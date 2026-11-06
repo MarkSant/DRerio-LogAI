@@ -428,10 +428,10 @@ class ConfigEditorWidget(BaseWidget):
             roi_frame,
             _(
                 "ROI Inclusion Logic\n\n"
-                "Defines when the fish counts as 'inside' a zone.\n"
+                "Defines when the animal counts as 'inside' a zone.\n"
                 "• Centroid (centroid_in): only if the centre point is in the zone.\n"
                 "• Centroid w/ Buffer: expands the zone virtually for the calculation.\n"
-                "• BBox Intersection: if any part of the fish's box touches the zone.\n"
+                "• BBox Intersection: if any part of the animal's box touches the zone.\n"
                 "• Seg Overlap: based on the pixel mask (most accurate).\n\n"
                 "'seg_overlap' needs two more things besides this rule: "
                 "recorder.persist_masks enabled (the 'Save Masks' option above) and "
@@ -503,7 +503,7 @@ class ConfigEditorWidget(BaseWidget):
             _(
                 "Basis (denominator) of the Overlap Fraction\n\n"
                 "Defines WHAT the fraction is measured against.\n"
-                "• bbox: fraction of the fish's box that is in the zone (historical).\n"
+                "• bbox: fraction of the animal's box that is in the zone (historical).\n"
                 "• roi: fraction of the zone that is covered by the box.\n"
                 "• max: the larger of the two — recommended for small zones, where "
                 "'bbox' underestimates (a box 4x bigger than the zone, covering it "

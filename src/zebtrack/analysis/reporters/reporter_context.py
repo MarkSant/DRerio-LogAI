@@ -18,6 +18,7 @@ import pandas as pd
 import structlog
 
 from zebtrack.analysis.analysis_service import AnalysisService
+from zebtrack.analysis.analysis_window_service import WindowResolution
 from zebtrack.analysis.data_transformer import DataTransformer
 from zebtrack.analysis.models import AnalysisResult
 from zebtrack.analysis.roi import ROI
@@ -98,6 +99,8 @@ class ReporterContext:
         behavioral_config: dict | None = None,
         # Modern path: DTO-based construction
         analysis: AnalysisResult | None = None,
+        # Analysis window (ADR-011), from resolve_analysis_window
+        window: WindowResolution | None = None,
     ):
         """Create ReporterContext.
 
@@ -125,6 +128,7 @@ class ReporterContext:
             settings_obj: Settings instance (optional)
             behavioral_config: Behavioural config dict (optional)
             analysis: AnalysisResult DTO (RECOMMENDED)
+            window: Analysis window to apply (``None`` = whole recording)
         """
         # Modern path: delegate to from_analysis
         if analysis is not None:
@@ -200,6 +204,7 @@ class ReporterContext:
             smoothing_window_length=smoothing_window_length,
             smoothing_polyorder=smoothing_polyorder,
             behavioral_config=behavioral_config,
+            window=window,
         )
 
         # Analysis parameters

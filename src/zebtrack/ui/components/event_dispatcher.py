@@ -283,6 +283,14 @@ class EventDispatcher:
 
         event_bus = self.event_bus
 
+        # Class roles (ADR-009) are saved from the global model configuration
+        # too, with no zone tab open, so this lives in the once-per-GUI wiring
+        # rather than in the zone-tab subscriptions.
+        event_bus.subscribe(
+            UIEvents.CLASS_ROLES_CHANGED,
+            self._on_class_roles_changed,
+        )
+
         # Handlers that need access to GUI instance
         # Example: self.gui.update_status(...)
         event_bus.subscribe(
@@ -622,6 +630,7 @@ class EventDispatcher:
             lambda d: gui.analysis_view_controller.update_detection_overlay(
                 detections=_payload_get(d, "detections"),
                 report=_payload_get(d, "report"),
+                class_roles=_payload_get(d, "class_roles"),
             ),
         )
 
@@ -1143,6 +1152,93 @@ class EventDispatcher:
         event_bus.subscribe(
             UIEvents.ZONE_APPLY_ROI_SETTINGS,
             self._on_persist_roi_settings,
+        )
+
+        # Analysis window (ADR-011) saved by the zone tab's panel.
+        event_bus.subscribe(
+            UIEvents.ANALYSIS_WINDOW_SPEC_CHANGED,
+            self._on_analysis_window_spec_changed,
+        )
+
+        # -- v8 F5: live analysis window phase (ADR-011) --
+        event_bus.subscribe(
+            UIEvents.ANALYSIS_WINDOW_STATE_CHANGED,
+            self._on_analysis_window_state_changed,
+        )
+
+    def _on_class_roles_changed(self, data: payloads.EventPayload) -> None:
+        """Re-resolve the zone tab's view of the weight and say when it applies.
+
+        The roles are read when the detector loads (live) and when the worker
+        starts (pre-recorded), so a recording already running keeps the old ones;
+        the status bar says so. The zone tab's context re-reads the project's
+        effective weight, which recolours the overlays and refreshes the class
+        names offered by the analysis-window editor.
+        """
+        gui = self._require_gui()
+        if _payload_get(data, "class_roles") is None:
+            message = _("Class roles back to automatic. They apply from the next detection run.")
+        else:
+            message = _("Class roles saved. They apply from the next detection run.")
+        self.log.info(
+            "event_dispatcher.class_roles_changed",
+            scope=_payload_get(data, "scope"),
+            weight=_payload_get(data, "weight_name"),
+            source=_payload_get(data, "source"),
+        )
+
+        def _apply() -> None:
+            gui.status_var.set(message)
+            context = getattr(gui, "class_roles_context", None)
+            refresh = getattr(context, "refresh", None)
+            if callable(refresh):
+                refresh()
+
+        self._run_on_ui_thread(_apply)
+
+    def _on_analysis_window_spec_changed(self, data: payloads.EventPayload) -> None:
+        """Tell the researcher what saving the analysis window changes — and when.
+
+        The window is read by the NEXT analysis run; results already on disk keep
+        the window they were computed with. Saying so on the status bar is what
+        stops a researcher from reopening an old report and expecting it to have
+        moved. Published on the Tk thread by the panel, but routed through
+        ``_run_on_ui_thread`` like every other status write.
+        """
+        gui = self._require_gui()
+        if _payload_get(data, "spec") is None:
+            message = _("Analysis window removed: the whole recording will be analysed.")
+        else:
+            message = _("Analysis window saved. Run the analysis again to apply it.")
+        self.log.info(
+            "event_dispatcher.analysis_window_spec_changed",
+            spec_hash=_payload_get(data, "spec_hash"),
+        )
+        self._run_on_ui_thread(lambda: gui.status_var.set(message))
+
+    def _on_analysis_window_state_changed(self, data: payloads.EventPayload) -> None:
+        """Show the live window's phase on the trigger banner and the status bar.
+
+        Published on the Tk thread by the live pipeline (``root.after``), but
+        routed through ``_run_on_ui_thread`` like every other widget write.
+        """
+        gui = self._require_gui()
+        state = str(_payload_get(data, "state", "") or "")
+        t_s = _payload_get(data, "t_s")
+        on_start_not_met = _payload_get(data, "on_start_not_met")
+        self.log.info(
+            "event_dispatcher.analysis_window_state_changed",
+            state=state,
+            t_s=t_s,
+            reason=_payload_get(data, "reason"),
+        )
+        dialog_manager = getattr(gui, "dialog_manager", None)
+        if dialog_manager is None:
+            return
+        self._run_on_ui_thread(
+            lambda: dialog_manager.show_analysis_window_state(
+                state, t_s=t_s, on_start_not_met=on_start_not_met
+            )
         )
 
     def _on_apply_roi_settings(self, data: payloads.EventPayload) -> None:

@@ -445,6 +445,187 @@ class TestWriteVideoFrameMultiAquarium:
         assert (tmp_path / "aquarium_2" / "aquarium_2.mp4").exists()
 
 
+_TWO_AQUARIUMS = {
+    0: ZoneData(polygon=[(0, 0), (60, 0), (60, 48), (0, 48)]),
+    1: ZoneData(polygon=[(64, 0), (124, 0), (124, 48), (64, 48)]),
+}
+
+
+def _mp4_frame_count(path) -> int:
+    import cv2
+
+    capture = cv2.VideoCapture(str(path))
+    try:
+        return int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
+    finally:
+        capture.release()
+
+
+class TestLiveSessionVideo:
+    """#635: a live camera films every aquarium, so the session has ONE MP4.
+
+    The parent recorder owns it; before, each sub-recorder opened its own
+    writer that nothing ever wrote to, and the parent had none, so a
+    multi-aquarium live session ended with no usable video at all.
+    """
+
+    def _start(self, tmp_path) -> Recorder:
+        recorder = Recorder()
+        assert recorder.start_recording_multi_aquarium(
+            output_folder=str(tmp_path),
+            width=128,
+            height=48,
+            zones_by_aquarium=_TWO_AQUARIUMS,
+            base_name="sessao",
+            session_video=True,
+        )
+        return recorder
+
+    def test_frames_go_to_one_full_frame_mp4_in_the_session_folder(self, tmp_path):
+        recorder = self._start(tmp_path)
+        frame = np.zeros((48, 128, 3), dtype=np.uint8)
+
+        assert recorder.is_capturing_video() is True
+        for _ in range(5):
+            recorder.write_video_frame(frame)
+        recorder.stop_recording()
+
+        assert _mp4_frame_count(tmp_path / "sessao.mp4") == 5
+        # No per-aquarium video: those writers were never fed.
+        assert not list(tmp_path.glob("aquarium_*/*.mp4"))
+        assert recorder.is_capturing_video() is False
+
+    def test_parent_carries_the_session_clock_and_folder(self, tmp_path):
+        """The live pipeline reads these to timestamp rows and bind the ledger."""
+        recorder = self._start(tmp_path)
+
+        assert recorder.start_time > 0
+        assert recorder.output_folder == str(tmp_path)
+        assert recorder.base_name == "sessao"
+
+        recorder.stop_recording()
+
+    def test_without_session_video_the_parent_writes_nothing(self, tmp_path):
+        """Pre-recorded keeps its layout: no parent MP4, sub-recorder videos as asked."""
+        recorder = Recorder()
+        recorder.start_recording_multi_aquarium(
+            output_folder=str(tmp_path),
+            width=128,
+            height=48,
+            zones_by_aquarium=_TWO_AQUARIUMS,
+            write_video=False,
+        )
+
+        assert recorder.is_capturing_video() is False
+        recorder.write_video_frame(np.zeros((48, 128, 3), dtype=np.uint8))
+        recorder.stop_recording()
+
+        assert not list(tmp_path.rglob("*.mp4"))
+
+
+class TestLiveSessionVideoFailures:
+    """A failed start never leaves a half-open session behind."""
+
+    def test_unopenable_session_mp4_refuses_the_start(self, tmp_path, monkeypatch):
+        import cv2
+
+        class _Closed:
+            def isOpened(self):
+                return False
+
+        monkeypatch.setattr(cv2, "VideoWriter", lambda *_a, **_k: _Closed())
+        recorder = Recorder()
+
+        started = recorder.start_recording_multi_aquarium(
+            output_folder=str(tmp_path),
+            width=128,
+            height=48,
+            zones_by_aquarium=_TWO_AQUARIUMS,
+            session_video=True,
+        )
+
+        assert started is False
+        assert not recorder.is_multi_aquarium_mode()
+        assert recorder.is_capturing_video() is False
+        assert recorder.get_aquarium_recorders() == {}
+
+    def test_a_failing_aquarium_releases_the_session_mp4(self, tmp_path, monkeypatch):
+        recorder = Recorder()
+        original = Recorder.start_recording
+
+        def _second_fails(self, *args, **kwargs):
+            if kwargs.get("base_name", "").endswith("aquarium_2"):
+                return False
+            return original(self, *args, **kwargs)
+
+        monkeypatch.setattr(Recorder, "start_recording", _second_fails)
+
+        started = recorder.start_recording_multi_aquarium(
+            output_folder=str(tmp_path),
+            width=128,
+            height=48,
+            zones_by_aquarium=_TWO_AQUARIUMS,
+            base_name="sessao",
+            session_video=True,
+        )
+
+        assert started is False
+        assert recorder.video_writer is None
+        assert recorder.is_capturing_video() is False
+        assert not recorder.is_multi_aquarium_mode()
+
+
+class TestStopRecordingDispatch:
+    """#635: ``stop_recording()`` is what the live ``stop_session`` calls.
+
+    It returned at ``if not self.is_recording`` on the parent of a
+    multi-aquarium session, so the per-aquarium buffers were never flushed.
+    """
+
+    def test_plain_stop_flushes_every_aquarium(self, tmp_path):
+        recorder = Recorder()
+        recorder.start_recording_multi_aquarium(
+            output_folder=str(tmp_path),
+            width=128,
+            height=48,
+            zones_by_aquarium=_TWO_AQUARIUMS,
+            base_name="sessao",
+            write_video=False,
+        )
+        recorder.write_partitioned_detection_data(
+            timestamp=0.5,
+            frame_number=15,
+            partitioned_detections={
+                0: [(10, 10, 30, 30, 0.9, 1, 1)],
+                1: [(70, 10, 90, 30, 0.85, 1001, 1)],
+            },
+        )
+
+        recorder.stop_recording()
+
+        rows = {
+            path.parent.name: len(pd.read_parquet(path))
+            for path in tmp_path.glob("aquarium_*/3_CoordMovimento_*.parquet")
+        }
+        assert rows == {"aquarium_1": 1, "aquarium_2": 1}
+        assert not recorder.is_multi_aquarium_mode()
+
+    def test_forced_stop_reaches_the_sub_recorders(self, tmp_path):
+        recorder = Recorder()
+        recorder.start_recording_multi_aquarium(
+            output_folder=str(tmp_path),
+            width=128,
+            height=48,
+            zones_by_aquarium=_TWO_AQUARIUMS,
+            write_video=False,
+        )
+        subs = list(recorder.get_aquarium_recorders().values())
+
+        recorder.stop_recording(force_stop=True, reason="thread_hang")
+
+        assert [sub.is_recording for sub in subs] == [False, False]
+
+
 class TestDetermineParquetColumns:
     """Tests for _determine_parquet_columns method."""
 

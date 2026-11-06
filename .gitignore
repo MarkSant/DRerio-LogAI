@@ -71,6 +71,8 @@ weights/
 
 # Configuration files
 weights_config.json
+# ...except frozen legacy registries used as test fixtures (v8 compatibility guards)
+!tests/fixtures/legacy/**/weights_config.json
 
 # Local configuration overrides
 config.local.yaml

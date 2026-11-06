@@ -15,14 +15,20 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import pandas as pd
 import structlog
 
+from zebtrack.analysis.analysis_window_service import WindowResolution
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.metrics_cache import MetricsCache
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
-from zebtrack.analysis.trajectory_validator import TrajectoryQualityValidator
+from zebtrack.analysis.time_base import resolve_time_base
+from zebtrack.analysis.trajectory_validator import (
+    TrajectoryQualityValidator,
+    count_unique_frames,
+)
 from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig, resolve_roi_rule
 from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
@@ -45,6 +51,9 @@ log = structlog.get_logger()
 #: because ``config.yaml`` always sets the key and ``load_settings`` requires
 #: that file to exist.
 DEFAULT_SHARP_TURN_THRESHOLD_DEG_S = 90.0
+
+#: Slack on the window edges when counting rows (float -> ns rounding).
+_WINDOW_EDGE_S = 1e-6
 
 # v2.2: Memory optimization - only copy columns needed for analysis
 REQUIRED_TRAJECTORY_COLUMNS = [
@@ -130,6 +139,20 @@ def resolve_mask_sidecar(trajectory_path: str | Path | None) -> Path | None:
     return sidecar if sidecar.exists() else None
 
 
+def _window_row_mask(trajectory_df: pd.DataFrame, window: WindowResolution | None) -> np.ndarray:
+    """Rows of the raw trajectory inside the window's cut (all rows without one).
+
+    Only for COUNTING (the frames of those rows): the analysers are never built from these rows, or
+    smoothing, velocity and ROI debounce would lose the samples before START.
+    """
+    cut = None if window is None else window.cut
+    if cut is None:
+        return np.ones(len(trajectory_df), dtype=bool)
+    times = pd.to_numeric(trajectory_df["timestamp"], errors="coerce")
+    inside = (times >= cut[0] - _WINDOW_EDGE_S) & (times <= cut[1] + _WINDOW_EDGE_S)
+    return inside.to_numpy(dtype=bool)
+
+
 class AnalysisService:
     """
     A unified service layer that orchestrates behavioral and ROI analysis.
@@ -212,6 +235,7 @@ class AnalysisService:
         sharp_turn_threshold: float = DEFAULT_SHARP_TURN_THRESHOLD_DEG_S,
         behavioral_config: dict[str, Any] | None = None,
         mask_sidecar_path: str | Path | None = None,
+        window: WindowResolution | None = None,
     ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None, list, dict]:
         """
         Run a complete analysis pipeline on the given trajectory data.
@@ -226,7 +250,11 @@ class AnalysisService:
             video_height_px: Height of the video in pixels.
             arena_polygon_px: Vertices of the arena in pixels.
             rois: A list of ROI objects for analysis.
-            fps: Frames per second of the video.
+            fps: Frames per second of the video. Only the FALLBACK of the time
+                base: the recording length and rates come from the trajectory's
+                own timestamps (:func:`zebtrack.analysis.time_base.resolve_time_base`),
+                and this value is used — with a warning in the report — only
+                when they cannot date the recording.
             freezing_vel_threshold: Velocity threshold for detecting freezing.
             freezing_min_duration: Minimum duration for a freezing episode.
             behavioral_config: Configuration for behavioral metrics (thigmotaxis, geotaxis).
@@ -235,6 +263,18 @@ class AnalysisService:
                 exist) that rule degrades to ``bbox_intersects`` and the
                 downgrade is appended to the validation warnings — the analysis
                 never fails because of a missing sidecar.
+            window: Analysis window (ADR-011), from
+                :func:`zebtrack.analysis.analysis_window_service.resolve_analysis_window`.
+                ``None`` analyses the whole recording and reports
+                ``analysis_window = {"status": "none"}``. With a window the cut
+                is HYBRID: validation, smoothing, velocity and ROI presence
+                (debounce included) run on the whole trajectory, then both
+                analysers are restricted to [START, STOP] with the absolute
+                index kept; rates use STOP - START and ROI latency is measured
+                from START (censored at the window length). A window that did
+                not start follows its ``on_start_not_met`` (whole recording or
+                empty metrics); its warnings join ``validation_warnings`` here,
+                before any report is generated.
 
         Returns:
             A tuple containing:
@@ -248,6 +288,13 @@ class AnalysisService:
                 "AnalysisService requires settings_obj parameter in constructor. "
                 "Use: AnalysisService(settings_obj=load_settings()) or "
                 "AnalysisService(settings_obj=create_mock_settings())"
+            )
+        if window is not None and not isinstance(window, WindowResolution):
+            # Silently analysing the whole recording when a window was asked
+            # for would publish numbers for the wrong interval.
+            raise TypeError(
+                "AnalysisService.run_full_analysis: window must be a WindowResolution "
+                f"(from resolve_analysis_window), got {type(window).__name__}."
             )
 
         # IMPROVEMENT #5: Validate trajectory quality before analysis
@@ -280,6 +327,11 @@ class AnalysisService:
         # Log warnings even if validation passed
         validation_warnings = validation_result["warnings"]
         validation_stats = validation_result["stats"]
+
+        # The recording length comes from the time base (unique timestamps),
+        # never from rows / fps. ``fps`` is only its warned fallback.
+        time_base = resolve_time_base(trajectory_df, fallback_fps=fps)
+        validation_warnings.extend(time_base.warnings)
         if validation_warnings:
             self.log.info(
                 "analysis_service.trajectory_validation_warnings",
@@ -325,6 +377,10 @@ class AnalysisService:
         ]
         trajectory_subset = trajectory_df[available_cols].copy()
 
+        # One definition of a tracking gap for the whole report (#632): the
+        # ROI time cap (``roi_max_gap_s``, automatic by default) also cuts
+        # behaviour episodes, smoothing and distance.
+        roi_rule = self.resolve_roi_rule()
         b_analyzer = ConcreteBehavioralAnalyzer(
             trajectory_df=trajectory_subset,  # Use column subset to reduce memory
             pixelcm_x=pixelcm_x,
@@ -337,6 +393,7 @@ class AnalysisService:
             min_displacement_threshold_cm=angular_settings.min_displacement_threshold_cm,
             angle_calculation_window=angular_settings.angle_calculation_window,
             angular_velocity_smoothing_window=angular_settings.angular_velocity_smoothing_window,
+            max_gap_s=roi_rule.max_gap_s,
         )
 
         # Resolve behavioral config
@@ -351,10 +408,28 @@ class AnalysisService:
             }
         behavioral_config = behavioral_config or {}
 
+        # Hybrid cut (ADR-011): every derivative and the ROI presence are
+        # computed on the WHOLE recording before the analysers are restricted.
+        b_analyzer.calculate_velocity_timeseries()
+        r_analyzer: ROIAnalyzer | None = None
+        if rois:
+            r_analyzer = ROIAnalyzer.from_rule(
+                b_analyzer, rois, roi_rule, mask_source=mask_sidecar_path
+            )
+        frames_analysed = validation_result["stats"].get("total_frames")
+        if window is not None:
+            validation_warnings.extend(window.warnings)
+            inside = self._apply_window(window, b_analyzer, r_analyzer, trajectory_df)
+            if inside is not None:
+                frames_analysed = inside
+
         # 2. Initialize the behavioral report
         report: dict[str, Any] = {
             "comportamento_geral": {
-                "distancia_total_cm": b_analyzer.calculate_total_distance(),
+                # The jump across a tracking gap is not distance travelled.
+                "distancia_total_cm": b_analyzer.calculate_total_distance(
+                    max_time_gap=b_analyzer.gap_threshold_s
+                ),
                 "estatisticas_velocidade": b_analyzer.get_velocity_stats(),
                 "estatisticas_velocidade_angular": b_analyzer.get_angular_velocity_stats(),
                 "rajadas_velocidade": b_analyzer.calculate_speed_bursts(),
@@ -365,18 +440,22 @@ class AnalysisService:
                 "tortuosidade": b_analyzer.get_tortuosity(),
                 "periodos_inatividade": b_analyzer.calculate_inactivity_periods(),
                 "curvas_acentuadas": b_analyzer.calculate_sharp_turns(sharp_turn_threshold),
-                "total_frames_analisados": validation_result["stats"].get("total_frames"),
-                "duracao_video_s": (
-                    validation_result["stats"].get("total_frames", 0) / fps
-                    if fps and fps > 0
-                    else None
-                ),
+                "total_frames_analisados": frames_analysed,
+                "duracao_video_s": time_base.duration_s,
             },
             "validacao": {
                 "avisos": validation_warnings,
                 "estatisticas": validation_result["stats"],
             },
+            # New in v8, English on purpose: the Portuguese keys are a
+            # persistence contract. Always present so every report has the same
+            # shape and the unified report never sees a schema mismatch.
+            "analysis_window": {"status": "none"},
+            "latency_censored": {},
+            "latency_present_at_start": {},
         }
+        if window is not None:
+            report["analysis_window"] = window.to_report()
 
         # Calculate Thigmotaxis (if configured)
         thigmo_dist = behavioral_config.get("thigmotaxis_distance_cm")
@@ -416,37 +495,28 @@ class AnalysisService:
                 self.log.warning("analysis.geotaxis.failed", error=str(e))
 
         # 3. If ROIs are provided, perform ROI analysis and append to the report
-        if not rois:
+        # (the analyser was built above, from the resolved rule: the debounce
+        # comes from the config and backdates, so filtering costs no bias).
+        if r_analyzer is None:
             return report, b_analyzer, None, validation_warnings, validation_stats
 
-        roi_rule = self.resolve_roi_rule()
-        # O debounce vem da config resolvida, não mais fixado em 1. O valor
-        # fixo existia porque o filtro antigo atrasava as transições
-        # proporcionalmente a N; agora ele retrodata, então filtrar o ruído não
-        # custa mais viés nas métricas temporais.
-        r_analyzer = ROIAnalyzer(
-            behavior_analyzer=b_analyzer,
-            rois=rois,
-            inclusion_rule=roi_rule.rule,
-            buffer_radius_value=roi_rule.buffer_radius_value,
-            min_bbox_overlap_ratio=roi_rule.min_bbox_overlap_ratio,
-            bbox_overlap_basis=roi_rule.bbox_overlap_basis,
-            flutter_enter_frames=roi_rule.flutter_enter_frames,
-            flutter_exit_frames=roi_rule.flutter_exit_frames,
-            min_visit_s=roi_rule.min_visit_s,
-            min_gap_s=roi_rule.min_gap_s,
-            max_gap_s=roi_rule.max_gap_s,
-            min_seg_overlap_ratio=roi_rule.min_seg_overlap_ratio,
-            mask_source=mask_sidecar_path,
-        )
         # A degradação de ``seg_overlap`` precisa entrar na lista ANTES de
         # ``_generate_reports_for_video`` — ``validation_warnings`` e
         # ``report["validacao"]["avisos"]`` são o MESMO objeto, e um append
         # depois disso não aparece no documento.
         validation_warnings.extend(r_analyzer.degradation_warnings)
+        # With a window: t0 = START, t_end = STOP (the analyser's defaults).
+        latencies = r_analyzer.get_latency_details()
+        report["latency_censored"] = {name: lat.censored for name, lat in latencies.items()}
+        report["latency_present_at_start"] = {
+            name: lat.present_at_start for name, lat in latencies.items()
+        }
         report["analise_roi"] = {
             "tempo_gasto_por_roi": r_analyzer.get_time_spent_in_rois(),
-            "latencia_primeira_entrada": r_analyzer.get_latency_to_first_entry(),
+            # 0.0 when the subject is already inside at the start
+            # (``latency_present_at_start``); None when it never enters
+            # (``latency_censored``).
+            "latencia_primeira_entrada": {name: lat.latency_s for name, lat in latencies.items()},
             "contagem_entradas": r_analyzer.get_entry_counts(),
             "contagem_saidas": r_analyzer.get_exit_counts(),
             "distancia_por_roi": r_analyzer.get_distance_in_rois(),
@@ -473,6 +543,32 @@ class AnalysisService:
 
         return report, b_analyzer, r_analyzer, validation_warnings, validation_stats
 
+    @staticmethod
+    def _apply_window(
+        window: WindowResolution,
+        b_analyzer: ConcreteBehavioralAnalyzer,
+        r_analyzer: ROIAnalyzer | None,
+        trajectory_df: pd.DataFrame,
+    ) -> int | None:
+        """Restrict both analysers to the window; return the frames inside it.
+
+        Nothing is cut (and ``None`` is returned) when the window did not start
+        and the spec asked for the whole recording.
+        """
+        cut = window.cut
+        if cut is not None:
+            b_analyzer.restrict_to_window(cut[0], cut[1])
+            if r_analyzer is not None:
+                r_analyzer.restrict_to_window(cut[0], cut[1])
+            # Frames, not rows: two animals on a frame are one frame (#641).
+            return count_unique_frames(trajectory_df[_window_row_mask(trajectory_df, window)])
+        if window.is_empty:
+            b_analyzer.restrict_to_window(None, None, empty=True)
+            if r_analyzer is not None:
+                r_analyzer.restrict_to_window(None, None, empty=True)
+            return 0
+        return None
+
     def run_full_analysis_as_dto(
         self,
         trajectory_df: pd.DataFrame,
@@ -497,6 +593,7 @@ class AnalysisService:
         frame_crop_box: tuple[int, int, int, int] | None = None,
         behavioral_config: dict[str, Any] | None = None,
         mask_sidecar_path: str | Path | None = None,
+        window: WindowResolution | None = None,
     ) -> AnalysisResult:
         """Run complete analysis and return results as DTO (RECOMMENDED).
 
@@ -521,6 +618,7 @@ class AnalysisService:
             video_path: Optional path to source video file
             calibration: Optional Calibration object
             sharp_turn_threshold: Sharp turn detection threshold (deg/s)
+            window: Analysis window (see :meth:`run_full_analysis`).
 
         Returns:
             AnalysisResult DTO with all analysis data
@@ -563,6 +661,7 @@ class AnalysisService:
             sharp_turn_threshold=sharp_turn_threshold,
             behavioral_config=behavioral_config,
             mask_sidecar_path=mask_sidecar_path,
+            window=window,
         )
 
         # Wrap in DTO
@@ -611,6 +710,7 @@ class AnalysisService:
         max_plausible_speed_cm_s: float = 50.0,
         sharp_turn_threshold: float = DEFAULT_SHARP_TURN_THRESHOLD_DEG_S,
         behavioral_config: dict[str, Any] | None = None,
+        windows: dict[int, WindowResolution | None] | None = None,
     ) -> dict[int, AnalysisResult | None]:
         """
         Execute complete analysis for each aquarium in multi-aquarium mode.
@@ -634,6 +734,8 @@ class AnalysisService:
             max_plausible_speed_cm_s: Maximum plausible speed for validation.
             sharp_turn_threshold: Sharp turn detection threshold (deg/s).
             behavioral_config: Behavioral analysis configuration (thigmotaxis, geotaxis).
+            windows: Analysis window of each aquarium (ADR-011: one evaluator
+                per aquarium); a missing key analyses the whole recording.
 
         Returns:
             Dictionary mapping aquarium_id to AnalysisResult (or None if failed).
@@ -705,6 +807,7 @@ class AnalysisService:
                     max_plausible_speed_cm_s=max_plausible_speed_cm_s,
                     sharp_turn_threshold=sharp_turn_threshold,
                     behavioral_config=behavioral_config,
+                    window=(windows or {}).get(aq_id),
                 )
 
                 results[aq_id] = analysis_result

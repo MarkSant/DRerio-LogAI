@@ -57,17 +57,27 @@ from zebtrack.settings import Settings, load_settings
 
 __all__ = [
     "ARENA_POLYGON",
+    "BARNES_FPS",
+    "BARNES_ID",
+    "BARNES_NAMES",
+    "BARNES_ROI_NAMES",
+    "BARNES_ROLES",
+    "BARNES_TOCA",
     "EXPERIMENT_ID",
     "FPS",
     "ROI_LEFT",
     "ROI_NAMES",
     "ROI_RIGHT",
     "TRAJECTORY_COLUMNS",
+    "BarnesDeterministicPlugin",
+    "BarnesRun",
     "GoldenDeterministicPlugin",
     "PipelineOutcome",
     "load_pristine_settings",
     "normalize_report",
+    "run_barnes_pipeline",
     "run_prerecorded_pipeline",
+    "write_barnes_video",
     "write_golden_video",
 ]
 
@@ -381,4 +391,183 @@ def run_prerecorded_pipeline(
         report=result.report,
         output_dir=output_dir,
         analysis_parameters=params,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Barnes maze (ADR-011 acceptance): several classes, context objects, a window
+# ---------------------------------------------------------------------------
+
+BARNES_ID = "BARNES_01"
+BARNES_FPS = 10
+BARNES_DURATION_S = 9
+#: Class names of the lab's Barnes weight; ``arena`` is never drawn.
+BARNES_NAMES: dict[int, str] = {0: "arena", 1: "experimenter", 2: "rat", 3: "start_box"}
+BARNES_ROLES: dict[str, str] = {
+    "arena": "arena",
+    "experimenter": "context",
+    "rat": "subject",
+    "start_box": "context",
+}
+#: The sha the role map is recorded with; no weight file exists.
+BARNES_WEIGHT_SHA = "f4b0" + "0" * 60
+BARNES_ARENA: list[tuple[float, float]] = [(20, 20), (620, 20), (620, 460), (20, 460)]
+#: The escape-hole ROI. Its left edge is where the rat's box arrives at frame 40.
+BARNES_TOCA: list[tuple[float, float]] = [(292, 150), (600, 150), (600, 330), (292, 330)]
+BARNES_ROI_NAMES = ["toca"]
+
+#: One colour channel per class (BGR), so detection is a channel threshold.
+_BARNES_COLOURS: dict[int, tuple[int, int, int]] = {
+    1: (255, 0, 0),  # experimenter: blue
+    2: (0, 255, 0),  # rat: green
+    3: (0, 0, 255),  # start box: red
+}
+
+#: Timeline, in frames (10 fps). START (start box and experimenter gone, rat
+#: visible) is first true at frame 25; the rat enters ``toca`` at frame 40 and
+#: vanishes into the escape box at frame 70.
+BARNES_START_BOX_UNTIL = 19
+BARNES_EXPERIMENTER_UNTIL = 24
+BARNES_RAT_FRAMES = range(15, 70)
+BARNES_RAT_SIZE = 60
+
+
+def barnes_rat_box(frame_index: int) -> tuple[int, int, int, int]:
+    """Rat bbox ``(x1, y1, x2, y2)``: 8 px/frame to the right, 60 x 60 px.
+
+    At frame 39 its right edge is ``x = 292`` (it only touches ``toca``); at
+    frame 40 it overlaps by 8 px (13 % of the box, above the 10 % default).
+    """
+    x1 = 40 + 8 * (frame_index - BARNES_RAT_FRAMES.start)
+    return x1, 210, x1 + BARNES_RAT_SIZE, 210 + BARNES_RAT_SIZE
+
+
+def write_barnes_video(path: Path) -> None:
+    """Synthetic Barnes trial: experimenter and start box leave, the rat escapes.
+
+    Raises:
+        RuntimeError: No usable codec (callers skip).
+    """
+    fourcc = cast(Any, cv2).VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(str(path), fourcc, BARNES_FPS, (WIDTH, HEIGHT))
+    if not writer.isOpened():
+        raise RuntimeError(f"Failed to open a VideoWriter for {path}; mp4v unavailable.")
+    try:
+        for i in range(BARNES_FPS * BARNES_DURATION_S):
+            frame = np.zeros((HEIGHT, WIDTH, 3), dtype=np.uint8)
+            if i <= BARNES_START_BOX_UNTIL:
+                cv2.rectangle(frame, (40, 340), (139, 439), _BARNES_COLOURS[3], -1)
+            if i <= BARNES_EXPERIMENTER_UNTIL:
+                cv2.rectangle(frame, (40, 40), (139, 139), _BARNES_COLOURS[1], -1)
+            if i in BARNES_RAT_FRAMES:
+                x1, y1, x2, y2 = barnes_rat_box(i)
+                cv2.rectangle(frame, (x1, y1), (x2 - 1, y2 - 1), _BARNES_COLOURS[2], -1)
+            writer.write(frame)
+    finally:
+        writer.release()
+    probe = cv2.VideoCapture(str(path))
+    readable = probe.isOpened()
+    probe.release()
+    if not readable:
+        raise RuntimeError(f"{path} was written but cannot be reopened; codec issue.")
+
+
+class BarnesDeterministicPlugin(GoldenDeterministicPlugin):
+    """Several classes per frame, one per colour channel (``findContours``)."""
+
+    class_names = BARNES_NAMES
+
+    def detect(
+        self, frame: np.ndarray, conf_threshold: float | None = None
+    ) -> list[tuple[int, int, int, int, float, int | None, int]]:
+        detections: list[tuple[int, int, int, int, float, int | None, int]] = []
+        for class_id, colour in _BARNES_COLOURS.items():
+            channel = int(np.argmax(colour))
+            others = [c for c in range(3) if c != channel]
+            mask = (frame[:, :, channel] > 150) & np.all(frame[:, :, others] < 100, axis=2)
+            contours, _ = cv2.findContours(
+                mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            for contour in contours:
+                if cv2.contourArea(contour) < 200:
+                    continue
+                x, y, w, h = cv2.boundingRect(contour)
+                detections.append((x, y, x + w, y + h, 0.95, None, class_id))
+        return detections
+
+    @staticmethod
+    def get_name() -> str:
+        return "BarnesDeterministicPlugin"
+
+
+@dataclass(frozen=True)
+class BarnesRun:
+    """Files one Barnes run produced."""
+
+    trajectory_path: Path
+    objects_path: Path
+    output_dir: Path
+
+
+def run_barnes_pipeline(workdir: Path, settings: Settings) -> BarnesRun:
+    """Run the REAL pre-recorded worker on the synthetic Barnes trial.
+
+    The weight has no file: the detector gets an explicit role map
+    (``class_roles`` from the weight registry, F2) with a recorded sha, which
+    is what the worker writes into the ``3c`` metadata (F3).
+    """
+    from zebtrack.core.detection.class_roles import resolve_class_role_map
+
+    workdir.mkdir(parents=True, exist_ok=True)
+    video_path = workdir / f"{BARNES_ID}.mp4"
+    write_barnes_video(video_path)
+    output_dir = workdir / "results"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    zone_dict = {
+        "polygon": _as_vertex_lists(BARNES_ARENA),
+        "roi_polygons": [_as_vertex_lists(BARNES_TOCA)],
+        "roi_names": list(BARNES_ROI_NAMES),
+        "roi_colors": [[255, 255, 0]],
+        "metadata": {"source_width": WIDTH, "source_height": HEIGHT},
+    }
+    task = {"path": str(video_path), "experiment_id": BARNES_ID, "zone_data": zone_dict}
+    config = WorkerConfig(
+        settings=settings,
+        output_base_dir=str(output_dir),
+        tasks=[task],
+        single_video_mode=True,
+        analysis_interval_frames=1,
+        display_interval_frames=10_000,
+        model_path="",
+        model_type="yolo",
+        zone_data=zone_dict,
+    )
+    worker = _WorkerProcess(config, cast(Any, _QueueStub()), cast(Any, _QueueStub()))
+    role_map = resolve_class_role_map(
+        BARNES_NAMES,
+        weight_entry={"class_roles": BARNES_ROLES},
+        weight_sha256=BARNES_WEIGHT_SHA,
+    )
+    detector = Detector(
+        plugin=BarnesDeterministicPlugin(),
+        base_width=WIDTH,
+        base_height=HEIGHT,
+        settings_obj=settings,
+        class_role_map=role_map,
+    )
+    succeeded = worker._process_single_video(
+        index=0,
+        total_videos=1,
+        video_path=str(video_path),
+        experiment_id=BARNES_ID,
+        detector=detector,
+        video_metadata=task,
+    )
+    if not succeeded:
+        raise AssertionError("the pre-recorded worker reported failure for the Barnes video")
+    return BarnesRun(
+        trajectory_path=output_dir / f"3_CoordMovimento_{BARNES_ID}.parquet",
+        objects_path=output_dir / f"3c_Objetos_{BARNES_ID}.parquet",
+        output_dir=output_dir,
     )

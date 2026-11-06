@@ -36,21 +36,24 @@ class TestHtmlReporter:
             reporter.export_interactive_html_report(tmp_path / "report.html")
 
     def test_export_interactive_html_report_success(self, tmp_path: Path):
+        index = pd.to_timedelta([0.0, 0.1, 0.2, 0.3], unit="s")
         traj_df = pd.DataFrame(
             {
                 "x_cm": [0.0, 1.0, 2.0, 3.0],
                 "y_cm": [0.0, 1.0, 0.0, 1.0],
             },
-            index=[0, 1, 2, 3],
+            index=index,
         )
 
         mock_b_analyzer = MagicMock()
         mock_b_analyzer.trajectory_data = traj_df
+        mock_b_analyzer.window_bounds = None
         mock_b_analyzer.calculate_velocity_timeseries.return_value = {
-            "v_mag": pd.Series([1.0, 2.0, 0.5, 3.0])
+            "v_mag": pd.Series([1.0, 2.0, 0.5, 3.0], index=index)
         }
+        # The keys ``Episode`` really has (the old mock pinned the wrong ones).
         mock_b_analyzer.detect_freezing_episodes.return_value = [
-            {"start_frame": 2, "duration_s": 1.5}
+            {"start_time": pd.Timedelta(seconds=0.2), "end_time": index[-1], "duration": 1.5}
         ]
 
         mock_r_analyzer = MagicMock()

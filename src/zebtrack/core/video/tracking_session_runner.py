@@ -23,6 +23,7 @@ import structlog
 if TYPE_CHECKING:
     from zebtrack.core.detection import Detector
     from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.core.video.video_processing_service import VideoContext
@@ -51,6 +52,7 @@ class TrackingSessionRunnerMixin:
     settings: Settings
     detector: Detector | None
     recorder: Recorder | None
+    weight_manager: WeightManager | None
 
     # ── Cross-mixin method stubs (implemented by other mixins) ──
     def ensure_arena_polygon(
@@ -103,11 +105,24 @@ class TrackingSessionRunnerMixin:
             frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
+        # ByteTrack's lost-track buffer is counted in frames: scale it with THIS
+        # video's rate, not settings.video_processing.fps (issue #630).
+        source_fps = (
+            float(video_context.fps)
+            if video_context is not None and video_context.fps
+            else float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+        )
+        set_source_fps = getattr(detector, "set_source_fps", None)
+        if callable(set_source_fps):
+            set_source_fps(source_fps)
+
         zone_data, arena_polygon = self._prepare_zone_data_for_tracking(
             frame_width, frame_height, detector
         )
 
         cal, pixel_per_cm_ratio = self._build_calibration_context(arena_polygon, calibration_data)
+
+        from zebtrack.io.object_sidecar import CLOCK_PTS, ObjectSidecarMetadata
 
         session_recorder.start_recording(
             output_folder=results_dir,
@@ -118,6 +133,12 @@ class TrackingSessionRunnerMixin:
             base_name=experiment_id,
             pixel_per_cm_ratio=pixel_per_cm_ratio,
             calibration=cal,
+            # The cadence is only known by the frame loop, hence ``None``.
+            object_metadata=ObjectSidecarMetadata.from_role_map(
+                getattr(detector, "class_role_map", None),
+                clock=CLOCK_PTS,
+                analysis_interval_frames=None,
+            ),
         )
 
         # Captura de máscaras: a conjunção das três condições mora em
@@ -166,13 +187,25 @@ class TrackingSessionRunnerMixin:
         detected_count_increment = 0
 
         if should_process:
+            # The PTS is both the row's timestamp and the clock ByteTrack ages
+            # lost tracks on (#654); declare it before tracking this frame.
+            timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+            set_frame_time = getattr(detector, "set_frame_time", None)
+            if callable(set_frame_time):
+                set_frame_time(timestamp)
             # NOT `detections, _ =`: binding `_` locally shadows the gettext
             # alias for the WHOLE function.
             detections, _annotated = detector.detect(frame, project_type="pre-recorded")
-            timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
             recorder.write_detection_data(timestamp, frame_num, detections)
             if getattr(recorder, "persist_masks", False) and hasattr(detector, "pop_track_masks"):
                 recorder.write_mask_data(frame_num, detector.pop_track_masks(detections))
+            # ``3c_Objetos_`` heartbeat on EVERY processed frame, detection or
+            # not; the event clock is the PTS (ADR-010). ``is True``: a Mock
+            # recorder's auto-attribute is not a decision to write.
+            if getattr(recorder, "persist_object_sidecar", False) is True:
+                pop = getattr(detector, "pop_class_observations", None)
+                observations = pop() if callable(pop) else []
+                recorder.write_object_data(timestamp, frame_num, timestamp, observations)
 
             if detections:
                 detected_count_increment = 1
@@ -299,6 +332,7 @@ class TrackingSessionRunnerMixin:
             )
         )
 
+        from zebtrack.core.services.worker_model_resolution import resolve_worker_model
         from zebtrack.core.video.processing_worker import (
             ProcessingCallbacks,
             ProcessingContext,
@@ -326,6 +360,7 @@ class TrackingSessionRunnerMixin:
             "experiment_id": experiment_id,
         }
 
+        project_data = getattr(self.project_manager, "project_data", None)
         context = ProcessingContext(
             videos_to_process=[task],
             output_base_dir=str(results_dir),
@@ -335,6 +370,11 @@ class TrackingSessionRunnerMixin:
             zone_data=zone_data,
             analysis_interval_frames=analysis_interval_frames,
             display_interval_frames=display_interval_frames,
+            model_spec=resolve_worker_model(
+                getattr(self, "weight_manager", None),
+                self.settings,
+                project_data if isinstance(project_data, dict) else None,
+            ),
         )
 
         result_status = {"success": False}

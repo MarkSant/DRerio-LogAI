@@ -112,8 +112,18 @@ class ProcessingCountPayload:
 
 @dataclass(frozen=True)
 class DetectionOverlayPayload:
+    """Detections to draw over the zone canvas.
+
+    ``class_roles`` maps a class id to its role token (``subject``/``arena``/
+    ``context``/``ignored``) when the publisher knows the weight's explicit role
+    map. ``None`` (every publisher today) lets the UI use the map it resolved for
+    the project's weight (``gui.overlay_class_roles``), and without one the 7.2
+    colours stay exactly as they were (class 0 = aquarium).
+    """
+
     detections: Sequence[Any]
     report: Mapping[str, Any] | None = None
+    class_roles: Mapping[int, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -191,6 +201,65 @@ class ExternalTriggerNoticePayload:
     cobaia: str | None = None
     port: str | None = None
     level: str | None = None
+
+
+@dataclass(frozen=True)
+class AnalysisWindowSpecChangedPayload:
+    """The project's analysis window was saved (ADR-011).
+
+    ``spec`` is ``WindowSpec.model_dump(mode="json")`` exactly as stored in
+    ``project_data["analysis_window"]``; ``None`` means "analyse the whole
+    recording". ``spec_hash`` is ``core.conditions.spec_hash`` of it (the key the
+    analysis cache and the ``7_AnalysisWindow_`` artifact use), ``None`` with it.
+    """
+
+    spec: Mapping[str, Any] | None = None
+    spec_hash: str | None = None
+
+
+# -- v8 F5: live analysis window (ADR-011) ------------------------------------
+@dataclass(frozen=True)
+class AnalysisWindowStatePayload:
+    """Phase of the live analysis window changed (published on the Tk thread).
+
+    ``state`` is a ``core.recording.condition_runtime.WindowPhase`` token:
+    ``"waiting_start"``, ``"in_analysis"``, ``"finished"`` or
+    ``"start_not_met"``. ``t_s`` is the START instant while in analysis and the
+    STOP instant once finished, on the session's capture clock (seconds since
+    the first captured frame); ``None`` while waiting or when never met.
+    ``on_start_not_met`` / ``on_stop`` echo the spec so the UI can say what
+    happens next without reading the project.
+    """
+
+    state: str = "waiting_start"
+    t_s: float | None = None
+    reason: str | None = None
+    on_start_not_met: str | None = None
+    on_stop: str | None = None
+    experiment_id: str | None = None
+
+
+# -- end v8 F5 ------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ClassRolesChangedPayload:
+    """The class roles of a weight, or of the project's weight, were saved (ADR-009).
+
+    ``scope`` is ``"weight"`` (stored on the ``weights_config.json`` entry, so
+    every project using that weight sees it) or ``"project"`` (stored in
+    ``project_data["model_overrides"]["class_roles"]``, trusted only while
+    ``weight_sha256`` matches the weight actually loaded). ``class_roles`` is the
+    ``{normalised class name: role token}`` just written, ``None`` when the
+    explicit map was removed ("restore automatic"). ``source`` is the
+    ``ClassRoleSource`` token the weight resolves to AFTER the save.
+    """
+
+    scope: str
+    weight_name: str | None = None
+    weight_sha256: str | None = None
+    class_roles: Mapping[str, str] | None = None
+    source: str | None = None
 
 
 @dataclass(frozen=True)

@@ -4,12 +4,21 @@ from __future__ import annotations
 
 from tkinter import BooleanVar, Label, LabelFrame, StringVar, TclError, ttk
 from tkinter import font as tkfont
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 from zebtrack.core.services.weight_manager import WeightManager
 from zebtrack.i18n import _
+from zebtrack.ui.collapsible_frame import CollapsibleFrame
+from zebtrack.ui.components.class_roles_panel import (
+    ClassRolesEditor,
+    ClassRolesPanel,
+    ClassRolesScope,
+    RoleMapError,
+    model_service_names_loader,
+    role_map_error_message,
+)
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
@@ -60,17 +69,29 @@ class ModelSelectionStep(WizardStep):
 
     _responsive_labels: dict[str, list[Label]]
 
-    def __init__(self, parent, wizard_data: dict, settings_obj: Settings | None = None):
+    def __init__(
+        self,
+        parent,
+        wizard_data: dict,
+        settings_obj: Settings | None = None,
+        model_service: Any = None,
+    ):
         """Initialize the model selection wizard step.
 
         Args:
             parent: Parent widget.
             wizard_data: Shared wizard data dictionary.
             settings_obj: Settings object with configuration.
+            model_service: Injected ``ModelService``; reads the class names of
+                the animal weight for the "Class roles" section. Without one the
+                step builds its own over its ``WeightManager``.
         """
         super().__init__(parent, wizard_data)
         self.step_id = WizardStepID.MODEL_SELECTION
         self.settings = settings_obj
+        self._model_service = model_service
+        self.class_roles_section: CollapsibleFrame | None = None
+        self.class_roles_panel: ClassRolesPanel | None = None
 
         self.weight_manager = WeightManager(settings_obj=settings_obj)
         self.seg_weight_names: list[str] = []
@@ -353,7 +374,7 @@ class ModelSelectionStep(WizardStep):
         subtitle = Label(
             self,
             text=_(
-                "Adjust how ZebTrack will use each detection model.\n"
+                "Adjust how DRerio LogAI will use each detection model.\n"
                 "If you prefer, keep the recommended defaults and move on."
             ),
             fg="gray",
@@ -407,7 +428,7 @@ class ModelSelectionStep(WizardStep):
         self._build_method_row(
             parent=methods_frame,
             row=0,
-            title=_("Aquarium (arena detection)"),
+            title=_("Arena (apparatus detection)"),
             method_var=self.aquarium_method_var,
             weight_var=self.aquarium_weight_var,
             combo_attr="_aquarium_weight_combo",
@@ -431,6 +452,8 @@ class ModelSelectionStep(WizardStep):
         )
         animal_hint.grid(row=2, column=0, columnspan=3, sticky="w", pady=(8, 0))
         self._responsive_labels["left"].append(animal_hint)
+
+        self._build_class_roles_section(left_column)
 
         acceleration_frame = LabelFrame(
             left_column,
@@ -583,7 +606,7 @@ class ModelSelectionStep(WizardStep):
                 "🔗 Match Threshold\n\n"
                 "Tolerance when associating boxes.\n"
                 "HIGH values (close to 1.0) are more permissive for fast movement.\n\n"
-                "💡 Default: 0.95 (for fast zebrafish)"
+                "💡 Default: 0.95 (for fast animals such as zebrafish)"
             ),
             param_key="match",
         )
@@ -626,7 +649,7 @@ class ModelSelectionStep(WizardStep):
             tooltip=_(
                 "🔳 IoU Threshold\n\n"
                 "Minimum overlap to prefer a box match over a distance match.\n"
-                "For small, fast fish, low values work better.\n\n"
+                "For small, fast animals, low values work better.\n\n"
                 "💡 Default: 0.1"
             ),
             param_key="iou_thresh",
@@ -640,8 +663,8 @@ class ModelSelectionStep(WizardStep):
             "📊 Quick Guide:\n"
             "• Track Thresh: ↓ to keep a weak trail\n"
             "• Match Thresh: ↑ to accept abrupt movements\n"
-            "• Buffer: ↑ to 'remember' the fish for longer\n"
-            "• Distance: ↑ for very fast fish"
+            "• Buffer: ↑ to 'remember' the animal for longer\n"
+            "• Distance: ↑ for very fast animals"
         )
 
         guide_label = Label(
@@ -720,6 +743,7 @@ class ModelSelectionStep(WizardStep):
 
         self.aquarium_method_var.trace_add("write", self._on_aquarium_method_change)
         self.animal_method_var.trace_add("write", self._on_animal_method_change)
+        self.animal_weight_var.trace_add("write", self._on_animal_weight_change)
 
         self._update_template_banner()
         self._refresh_weight_dropdowns()
@@ -732,6 +756,73 @@ class ModelSelectionStep(WizardStep):
         self.bind("<Configure>", self._on_resize)
         # Trigger an initial layout recalculation once geometry settles.
         self.after(0, self._refresh_layout_mode)
+
+    def _load_class_names(self, weight_name: str) -> dict[int, str]:
+        """Class names of a weight (runs on the panel's loader thread).
+
+        The service is built on first use: the section is lazy, and a wizard
+        nobody opens it in must not pay for the import.
+        """
+        model_service = self._model_service
+        if model_service is None:
+            from zebtrack.core.services.model_service import ModelService
+
+            model_service = ModelService(weight_manager=self.weight_manager)
+            self._model_service = model_service
+        return model_service_names_loader(model_service)(weight_name)
+
+    def _build_class_roles_section(self, parent: ttk.Frame) -> None:
+        """Collapsed "Class roles" section for the animal weight (ADR-009).
+
+        Collapsed by default and lazy: the model is only read when somebody
+        opens the section. Untouched, it stores nothing and the roles resolve
+        automatically (weight registry, then class names).
+        """
+        section = CollapsibleFrame(parent, title=_("Class roles (optional)"), start_collapsed=True)
+        section.pack(fill="x", pady=(0, 8))
+        content = section.get_content_frame()
+        # A tooltip, not a label: the expanded section must fit the 780 px wizard.
+        ToolTip(
+            section.title_label,
+            _(
+                "What each class of the animal weight is. Leave it untouched to resolve "
+                "the roles automatically; a change is saved in the project."
+            ),
+        )
+        editor = ClassRolesEditor(
+            scope=ClassRolesScope.WEIGHT,
+            weight_manager=self.weight_manager,
+            settings_obj=self.settings,
+            weight_name=self._strip_annotation(self.animal_weight_var.get()) or None,
+        )
+        self.class_roles_panel = ClassRolesPanel(
+            content,
+            editor=editor,
+            names_loader=self._load_class_names,
+            persist=False,
+            tree_height=3,
+            wraplength=520,
+            load_when_mapped=True,
+            compact=True,
+        )
+        self.class_roles_panel.pack(fill="x")
+        self.class_roles_section = section
+
+    def _on_animal_weight_change(self, *_args: Any) -> None:
+        panel = self.class_roles_panel
+        if panel is None:
+            return
+        panel.set_weight_name(self._strip_annotation(self.animal_weight_var.get()) or None)
+
+    def _class_roles_data(self) -> tuple[dict[str, str] | None, str | None]:
+        """The edited roles and the sha of the animal weight, or ``(None, None)``."""
+        panel = self.class_roles_panel
+        if panel is None:
+            return None, None
+        mapping = panel.draft_mapping()
+        if mapping is None:
+            return None, None
+        return mapping, panel.draft_weight_sha256()
 
     def _toggle_bytetrack_options(self) -> None:
         """Enable/Disable ByteTrack parameter inputs based on checkbox."""
@@ -752,7 +843,7 @@ class ModelSelectionStep(WizardStep):
                 _(
                     "ℹ️ ByteTrack disabled. The system will use a simplified hybrid "
                     "tracker that relies only on '{distance}' and '{iou}' to keep the ID "
-                    "stable. Ideal for 1 animal per aquarium."
+                    "stable. Ideal for 1 animal per arena."
                 ).format(
                     distance=_("Max distance (px):").rstrip(":"),
                     iou=_("IoU Threshold (0-1):").rstrip(":"),
@@ -767,7 +858,7 @@ class ModelSelectionStep(WizardStep):
             self.bytetrack_hint_var.set(
                 _(
                     "💡 ByteTrack uses a Kalman filter to predict positions even when the "
-                    "fish briefly disappears. Adjust the fields below for more stability."
+                    "animal briefly disappears. Adjust the fields below for more stability."
                 )
             )
 
@@ -793,8 +884,8 @@ class ModelSelectionStep(WizardStep):
         ToolTip(
             method_combo,
             _(
-                "Segmentation supports several animals per aquarium.\n"
-                "Detection is optimized for one animal per aquarium and uses ByteTrack."
+                "Segmentation supports several animals per arena.\n"
+                "Detection is optimized for one animal per arena and uses ByteTrack."
             ),
         )
 
@@ -1025,7 +1116,7 @@ class ModelSelectionStep(WizardStep):
         if method_key == "det" and animals_per_aquarium > 1:
             self.animal_method_hint_var.set(
                 _(
-                    "⚠️ Detection (det) is recommended for only 1 animal per aquarium."
+                    "⚠️ Detection (det) is recommended for only 1 animal per arena."
                     " Consider segmentation (seg) for several animals."
                 )
             )
@@ -1229,7 +1320,7 @@ class ModelSelectionStep(WizardStep):
 
         for role_message, method_var, weight_var in (
             (
-                _("Select a valid weight for the aquarium. The file must match the chosen method."),
+                _("Select a valid weight for the arena. The file must match the chosen method."),
                 self.aquarium_method_var,
                 self.aquarium_weight_var,
             ),
@@ -1248,6 +1339,11 @@ class ModelSelectionStep(WizardStep):
             if options and weight_name not in options:
                 return False, role_message
 
+        try:
+            self._class_roles_data()
+        except RoleMapError as exc:
+            return False, role_map_error_message(exc)
+
         return True, ""
 
     def get_data(self) -> dict:
@@ -1258,8 +1354,15 @@ class ModelSelectionStep(WizardStep):
         """
         aquarium_method = self._method_key_from_label(self.aquarium_method_var.get())
         animal_method = self._method_key_from_label(self.animal_method_var.get())
+        try:
+            class_roles, class_roles_sha = self._class_roles_data()
+        except RoleMapError:
+            # validate() runs first and refuses an invalid map; never store one.
+            class_roles, class_roles_sha = None, None
 
         return {
+            "class_roles": class_roles,
+            "class_roles_weight_sha256": class_roles_sha,
             "aquarium_method": aquarium_method,
             "animal_method": animal_method,
             "use_openvino": bool(self.use_openvino_var.get()),

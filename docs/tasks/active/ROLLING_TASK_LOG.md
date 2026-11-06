@@ -6,6 +6,104 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-05] Mutation check paralelo e isolado: o PR #629 estoura os 20 min do passo
+
+__ID:__ TASK-077
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (branch publicada; PR aguarda o mantenedor)
+__Branch:__ claude/mutation-check-parallel-3d4605 (a partir de `release/8.0`)
+__Description:__
+`scripts/mutation_check.py` roda um pytest por vez (~10,6 s cada, 55 min no `--all` local) e
+aplica o mutante NO ARQUIVO REAL: matar o processo no meio deixou mutantes no disco duas vezes na
+v8. No PR #629 (`release/8.0` → `main`) o passo "Mutation check" estoura os 20 min, também porque
+o PR altera o próprio runner e "runner alterado ⇒ catálogo inteiro".
+
+__Critério de pronto:__
+
+- Cada mutante numa cópia isolada da árvore, com `PYTHONPATH` no `src/` da cópia (o
+  `drerio_logai.pth` aponta para o repositório principal); matar o runner não deixa nada mutado.
+- `--jobs N` com padrão por núcleos e RAM livre; saída e `--json` determinísticos (ordem do
+  catálogo).
+- Runner alterado ⇒ testes do runner + 1 mutante por bloco + blocos que o diff seleciona; o
+  `--all` noturno continua inteiro e bloqueante.
+- `--all` medido antes e depois nesta máquina, score idêntico; números no `MUTATION_BASELINE.md`.
+
+__Resultado (2026-11-05):__
+
+- `--all`: 4010 s (série, árvore real) → 841 s (`--jobs 7`, cópias), 321/321 nos dois, JSON com
+  os mesmos vereditos na mesma ordem. Máquina compartilhada nas duas medições.
+- Emulação do runner de 4 vCPUs (afinidade 0xF, 6 blocos/48 pytests): 533 s → 169 s, 3,15×.
+  Estimativa para o PR #629 no CI: ~16 min (367 processos × 8,1 s ÷ 3,15). Limite do passo
+  mantido em 20 min; se ficar perto, 30 cabe no job de 45 (12 min antes do passo).
+- Baseline vermelho passou a sair com 2; a checagem final compara bytes com o snapshot inicial
+  (o `git status` acusava edição local do próprio dev como vazamento).
+- Fora do escopo: o custo de import de torch por processo (issue #643); um bloco do catálogo para
+  o próprio runner (os testes dele precisam do `.git`, que a cópia não tem).
+
+### [2026-10-30] v8.0.0: qualquer peso/qualquer classe e janelas de análise por condição
+
+__ID:__ TASK-076
+__Agent:__ Claude Code (Opus 5.5) + agentes de implementação por frente
+__Status:__ Ready for release 🟡 (código, catálogo e documentação prontos; tag, release e DOI
+aguardam o mantenedor)
+__Branch:__ release/8.0 (frentes `feat/v8-*`, ver `docs/tasks/v8/PLAN.md`)
+__Description:__
+O programa supunha dois papéis fixos (aquário e peixe) e um tempo zero implícito (a primeira
+detecção). A v8 mapeia cada classe de qualquer peso a um papel (sujeito, arena, contexto,
+ignorada) e permite condições de INÍCIO/FIM da análise. Caso de aceitação: rato no Labirinto
+de Barnes (`{0: arena, 1: experimenter, 2: rat, 3: start_box}`). Auditoria e decisões em
+`docs/tasks/v8/` (AUDIT + ADR-009…013).
+
+__Critério de pronto:__
+
+- Peso multiclasse em ordem alfabética resolve os papéis por nome; pesos de zebrafish e projetos
+  7.2.0 funcionam sem intervenção (golden `_v72` + allowlist; fixture legada).
+- Sidecar `3c_Objetos_*` e artefato `7_AnalysisWindow_*`; motor de condições puro com testes de
+  unidade e propriedades; E2E Barnes com vídeo sintético.
+- fps real, `duracao_video_s` por tempo e latência por borda de subida com t0 explícito.
+- Suíte completa (`pytest -m "" -n0`) verde; versão 8.0.0; branches no GitHub; sem PR nem merge
+  na `main` sem ordem do mantenedor.
+
+__Resultado (F7, i18n/docs/versão, 2026-11-04):__
+
+- Frentes F0–F6, F4a e F4b integradas em `release/8.0`; F7 em `feat/v8-i18n-docs-release`
+  (7 commits: teste de sincronia do `.pot`, catálogo, generalização da interface, CHANGELOG,
+  versão, CLAUDE.md, documentação técnica + este registro).
+- `tests/i18n/test_pot_in_sync.py` re-extrai as msgids com o Babel e falha em qualquer uma fora do
+  `.pot` (estavam faltando 262 no `zebtrack` e 10 no `reporter`).
+- Catálogo pt_BR completo: 228 msgids novas ou órfãs traduzidas no primeiro passo e 54 da
+  generalização (`_pairs/v8_*.json`), "All catalogues are complete".
+- Interface generalizada de peixe/aquário para animal/arena (assistente, calibração, diálogos de
+  vídeo único e ao vivo, diagnóstico, editor de configuração, slots de peso, título dos scripts
+  exportados); o parágrafo "Definitions" do Word passou a ser traduzido. Nenhuma chave persistida
+  mudou.
+- Versão 8.0.0 nos cinco lugares do `RELEASE.md` + `docs/INDEX.md`, datada de 2026-11-04;
+  `RELEASE_NOTES_v8.0.0.md`; CHANGELOG sob `[Unreleased]` ("8.0.0 (unreleased)").
+- Gates: `pytest -q` 7858 passed / 4 skipped / 1 xfailed; `pytest -m gui -n0` 1306 passed;
+  `mutation_check.py --all` 312/312 (65 blocos); ruff, ruff format e mypy limpos.
+
+__Verificação com vídeos reais (2026-11-04, peso `best_det_topdown_rat_v2`):__ `Exemp_1` e
+`Exemp_2` processados inteiros; base de tempo pelo batimento do `3c` (55,23 s / 186,71 s, fps
+9,89) bate com o PTS; INÍCIO em 8,18 s / 4,87 s (experimentador visível com confiança ~0,96 até
+8,08 s / 4,77 s, ~1,5 s depois da marcação manual do laboratório); FIM censurado no fim do
+vídeo nos dois (o rato fica visível até o último quadro).
+
+__Fica para depois — issues abertas (#630–#651):__
+
+- Barnes e roedores: #630 (ByteTrack com fps 30), #631 (padrões herdados do zebrafish), #632
+  (freezing e distância através de lacunas), #633 (métricas do Barnes, v8.1), #634 (editor de
+  janela no ao vivo ad hoc), #649 (sujeito único; trilhas de 1 linha), #650 (FIM pela entrada na
+  toca), #651 (rabo do rato move a bbox).
+- Ao vivo: #635 (multi-aquário não grava linhas; xfail estrito), #636 (`_clear_queues` sem
+  ledger), #637 (quadros duplicados, dupla cadência, MP4 a 30 fps), #638 (`processing_offset`
+  ignorado).
+- Relatórios e dados: #639 (HTML a 30 fps), #640 (espaço das máscaras `3b`), #641
+  (`total_frames_analisados` conta linhas), #642 (START/STOP no aviso traduzido).
+- Interface e infraestrutura: #643 (import de torch), #644 (`ArduinoBindingsPanel` com dict
+  descartável), #645 (overlay sem papéis), #646 (papéis fora dos templates), #647 (código morto
+  em `tracking_session_runner`), #648 (`bandit`/`pip-audit` no pre-push).
+- Sem issue: DOI de versão da 8.0.0 (só existe depois de publicar o release).
+
 ### [2026-09-15] README para quem nunca abriu um terminal, instalador que instala os pré-requisitos, release 7.2.0
 
 __ID:__ TASK-075

@@ -377,6 +377,9 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         """Set up test fixtures."""
         self.mock_project_manager = Mock()
         self.mock_model_service = Mock()
+        # create_project now persists model_selection, so project_data is never
+        # empty afterwards and apply_project_model_overrides lists the weights.
+        self.mock_model_service.get_all_weight_names.return_value = ["default_weight.pt"]
         self.mock_state_manager = Mock()
         self.mock_settings = Mock()
         self.mock_settings.model_selection.animal_method = "det"
@@ -468,6 +471,44 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
         assert result["wizard_metadata"] is not None
         assert result["import_success"] is True
         self.mock_project_manager.import_parquets_from_wizard.assert_called_once()
+
+    def test_create_project_persists_the_wizard_model_selection(self):
+        """The det/seg choice used to live only in _wizard_metadata (lost on reopen)."""
+        self.mock_settings.model_selection.animal_method = "det"
+        self.mock_settings.model_selection.aquarium_method = "det"
+        self.mock_project_manager.create_new_project.return_value = True
+        self.mock_project_manager.project_path = "/path/to/project"
+        self.mock_project_manager.project_data = {}
+        self.mock_project_manager.get_active_zone_video.return_value = None
+        self.mock_model_service.get_all_weight_names.return_value = ["default_weight.pt"]
+
+        result = self.service.create_project(
+            project_path="/path/to/project",
+            project_type="live",
+            animals_per_aquarium=2,
+            animal_method="seg",
+            aquarium_method="seg",
+            model_selection={"aquarium_method": "seg", "animal_method": "seg"},
+        )
+
+        assert result["success"] is True
+        assert self.mock_project_manager.project_data["model_selection"] == {
+            "aquarium_method": "seg",
+            "animal_method": "seg",
+        }
+        self.mock_project_manager.save_project.assert_called()
+
+    def test_project_method_drives_the_slot_pairs(self):
+        self.mock_settings.model_selection.animal_method = "det"
+        self.mock_settings.model_selection.aquarium_method = "det"
+        self.mock_project_manager.project_data = {
+            "model_selection": {"aquarium_method": "seg", "animal_method": "seg"}
+        }
+
+        assert self.service._get_project_slot_pairs() == [
+            ("seg", "aquarium"),
+            ("seg", "zebrafish"),
+        ]
 
     def test_prepare_project_input_generates_video_files_without_detected_design(self):
         """Pre-recorded flow must include video_files even when design detection is absent."""
@@ -804,6 +845,9 @@ class TestProjectWorkflowServiceZoneImportFailures(unittest.TestCase):
         """Set up test fixtures."""
         self.mock_project_manager = Mock()
         self.mock_model_service = Mock()
+        # create_project now persists model_selection, so project_data is never
+        # empty afterwards and apply_project_model_overrides lists the weights.
+        self.mock_model_service.get_all_weight_names.return_value = ["default_weight.pt"]
         self.mock_state_manager = Mock()
         self.mock_settings = Mock()
         self.mock_settings.model_selection.animal_method = "det"
@@ -1023,6 +1067,16 @@ class TestProjectWorkflowServiceParameterValidationEdgeCases(unittest.TestCase):
         assert "unknown_param1" not in filtered
         assert "unknown_param2" not in filtered
 
+    def test_prepare_parameters_keeps_the_analysis_window(self):
+        """The wizard's analysis window (v8) must survive the whitelist."""
+        window = {"version": 1, "start": {"kind": "external", "source": "arduino", "code": 1}}
+
+        filtered = self.service.prepare_controller_parameters(
+            project_path="/path", analysis_window=window
+        )
+
+        assert filtered["analysis_window"] is window
+
     def test_prepare_parameters_empty_input(self):
         """Test parameter preparation with empty input."""
         filtered = self.service.prepare_controller_parameters()
@@ -1038,6 +1092,9 @@ class TestProjectWorkflowServiceConcurrentOperations(unittest.TestCase):
         """Set up test fixtures."""
         self.mock_project_manager = Mock()
         self.mock_model_service = Mock()
+        # create_project now persists model_selection, so project_data is never
+        # empty afterwards and apply_project_model_overrides lists the weights.
+        self.mock_model_service.get_all_weight_names.return_value = ["default_weight.pt"]
         self.mock_state_manager = Mock()
         self.mock_settings = Mock()
         self.mock_settings.model_selection.animal_method = "det"
@@ -1143,3 +1200,89 @@ class TestProjectWorkflowServicePostCreationGuideEdgeCases(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+WIZARD_ROLES = {"arena": "arena", "experimenter": "context", "rat": "subject"}
+
+
+class TestWizardClassRoles(unittest.TestCase):
+    """Class roles edited in the wizard reach model_overrides with their sha (ADR-009)."""
+
+    def setUp(self):
+        self.pm = Mock()
+        self.pm.create_new_project.return_value = True
+        self.pm.project_path = "/path/to/project"
+        self.pm.project_data = {}
+        self.pm.get_active_zone_video.return_value = None
+        model_service = Mock()
+        model_service.get_all_weight_names.return_value = ["rat.pt"]
+        settings = Mock()
+        settings.model_selection.animal_method = "det"
+        settings.model_selection.aquarium_method = "det"
+        self.service = ProjectWorkflowService(
+            project_manager=self.pm,
+            model_service=model_service,
+            state_manager=Mock(),
+            settings_obj=settings,
+        )
+        self.service.set_global_model_defaults(active_weight="rat.pt", use_openvino=False)
+
+    def _create(self, **extra):
+        return self.service.create_project(
+            project_path="/path/to/project",
+            project_type="live",
+            animals_per_aquarium=1,
+            **extra,
+        )
+
+    def test_roles_and_sha_are_stored_in_model_overrides(self):
+        result = self._create(class_roles=WIZARD_ROLES, class_roles_weight_sha256="abc")
+
+        assert result["success"] is True
+        overrides = self.pm.project_data["model_overrides"]
+        assert overrides["class_roles"] == WIZARD_ROLES
+        assert overrides["class_roles_weight_sha256"] == "abc"
+        self.pm.save_project.assert_called()
+
+    def test_roles_never_reach_create_new_project(self):
+        self._create(class_roles=WIZARD_ROLES, class_roles_weight_sha256="abc")
+
+        kwargs = self.pm.create_new_project.call_args.kwargs
+        assert "class_roles" not in kwargs
+        assert "class_roles_weight_sha256" not in kwargs
+
+    def test_untouched_section_stores_nothing(self):
+        self._create(class_roles=None, class_roles_weight_sha256=None)
+
+        overrides = self.pm.project_data.get("model_overrides") or {}
+        assert overrides.get("class_roles") is None
+
+    def test_roles_without_sha_are_dropped(self):
+        roles, sha = ProjectWorkflowService._build_initial_class_roles(WIZARD_ROLES, None)
+        assert (roles, sha) == (None, None)
+        assert ProjectWorkflowService._build_initial_class_roles(WIZARD_ROLES, "") == (None, None)
+
+    def test_invalid_roles_are_dropped(self):
+        assert ProjectWorkflowService._build_initial_class_roles({"rat": "boss"}, "abc") == (
+            None,
+            None,
+        )
+
+    def test_valid_roles_are_normalised(self):
+        roles, sha = ProjectWorkflowService._build_initial_class_roles(
+            {"Lab Rat": "subject"}, "abc"
+        )
+        assert roles == {"lab_rat": "subject"}
+        assert sha == "abc"
+
+    def test_persist_writes_roles_only_with_their_sha(self):
+        self.pm.project_data = {}
+        self.service._persist_initial_project_overrides(
+            None, None, class_roles=WIZARD_ROLES, class_roles_weight_sha256=None
+        )
+        assert self.pm.project_data == {}
+
+        self.service._persist_initial_project_overrides(
+            None, None, class_roles=WIZARD_ROLES, class_roles_weight_sha256="abc"
+        )
+        assert self.pm.project_data["model_overrides"]["class_roles"] == WIZARD_ROLES

@@ -82,3 +82,132 @@ class TestDetectionPostProcessorExtended:
             animal_class_id=0,
         )
         assert not_corrected[0][6] == 1
+
+
+# ---------------------------------------------------------------------------
+# Class-role helpers (ADR-009)
+# ---------------------------------------------------------------------------
+
+
+def _barnes_map():
+    from zebtrack.core.detection.class_roles import resolve_class_role_map
+
+    return resolve_class_role_map(
+        {0: "arena", 1: "experimenter", 2: "rat", 3: "start_box"},
+        weight_entry={
+            "class_roles": {"arena": "arena", "experimenter": "context", "rat": "subject"}
+        },
+    )
+
+
+class TestContextHelpers:
+    _SQUARE = np.array([[100, 100], [200, 100], [200, 200], [100, 200]], dtype=np.int32)
+
+    @pytest.mark.parametrize("settings_obj", [None, object()])
+    def test_context_settings_defaults(self, settings_obj):
+        assert DetectionPostProcessor.context_settings(settings_obj) == (
+            "arena_crop_margin",
+            0.15,
+            None,
+        )
+
+    def test_context_settings_reads_and_validates(self):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+
+        good = SimpleNamespace(
+            model_selection=SimpleNamespace(
+                context_inference_scope="full_frame",
+                context_crop_margin_frac=0.3,
+                context_min_confidence=0.2,
+            )
+        )
+        bad = SimpleNamespace(
+            model_selection=SimpleNamespace(
+                context_inference_scope="everywhere",
+                context_crop_margin_frac=True,
+                context_min_confidence=1.5,
+            )
+        )
+        assert DetectionPostProcessor.context_settings(good) == ("full_frame", 0.3, 0.2)
+        assert DetectionPostProcessor.context_settings(bad) == ("arena_crop_margin", 0.15, None)
+        assert DetectionPostProcessor.context_settings(MagicMock()) == (
+            "arena_crop_margin",
+            0.15,
+            None,
+        )
+
+    def test_margin_expands_per_axis_and_never_below_the_padding(self):
+        box = DetectionPostProcessor.context_crop_box(
+            self._SQUARE, (300, 400, 3), scope="arena_crop_margin", margin_frac=0.15
+        )
+        tiny = DetectionPostProcessor.context_crop_box(
+            self._SQUARE, (300, 400, 3), scope="arena_crop_margin", margin_frac=0.01, padding=10
+        )
+
+        assert box == (85, 85, 216, 216)
+        assert tiny == (90, 90, 211, 211)
+
+    def test_arena_crop_keeps_the_box_and_full_frame_takes_all(self):
+        arena = DetectionPostProcessor.context_crop_box(
+            self._SQUARE, (300, 400, 3), scope="arena_crop", margin_frac=0.5
+        )
+        full = DetectionPostProcessor.context_crop_box(
+            self._SQUARE, (300, 400, 3), scope="full_frame", margin_frac=0.5
+        )
+
+        assert arena == (100, 100, 201, 201)
+        assert full == (0, 0, 400, 300)
+
+    def test_crop_box_is_clamped_to_the_frame(self):
+        edge = np.array([[0, 0], [100, 0], [100, 100], [0, 100]], dtype=np.int32)
+        box = DetectionPostProcessor.context_crop_box(
+            edge, (120, 110, 3), scope="arena_crop_margin", margin_frac=0.5
+        )
+        assert box == (0, 0, 110, 120)
+
+    def test_floors_use_the_lower_for_inference(self):
+        assert DetectionPostProcessor.role_confidence_floors(0.5, 0.1) == (0.1, 0.5, 0.1)
+        assert DetectionPostProcessor.role_confidence_floors(0.3, 0.6) == (0.3, 0.3, 0.6)
+        assert DetectionPostProcessor.role_confidence_floors(0.4, None) == (0.4, 0.4, 0.4)
+
+    def test_role_confidence_filter(self):
+        detections = [
+            (0, 0, 1, 1, 0.45, -1, 2),  # rat under the subject floor
+            (0, 0, 1, 1, 0.55, -1, 2),  # rat over it
+            (0, 0, 1, 1, 0.15, -1, 1),  # experimenter over the context floor
+            (0, 0, 1, 1, 0.15, -1, 0),  # arena keeps the subject floor
+        ]
+        kept = DetectionPostProcessor.filter_by_role_confidence(
+            detections, _barnes_map(), subject_floor=0.5, context_floor=0.1
+        )
+        assert [(d[4], d[6]) for d in kept] == [(0.55, 2), (0.15, 1)]
+
+    def test_class_observations_keep_only_subject_and_context(self):
+        detections = [
+            (1, 2, 3, 4, 0.9, -1, 2),
+            (5, 6, 7, 8, 0.8, -1, 1),
+            (0, 0, 9, 9, 0.7, -1, 0),
+            (0, 0, 9, 9, 0.6, -1, 3),
+        ]
+        observed = DetectionPostProcessor.class_observations(
+            detections, _barnes_map(), aquarium_id=1
+        )
+        assert observed == [
+            {
+                "class_id": 2,
+                "class_name": "rat",
+                "role": "subject",
+                "bbox": (1.0, 2.0, 3.0, 4.0),
+                "confidence": 0.9,
+                "aquarium_id": 1,
+            },
+            {
+                "class_id": 1,
+                "class_name": "experimenter",
+                "role": "context",
+                "bbox": (5.0, 6.0, 7.0, 8.0),
+                "confidence": 0.8,
+                "aquarium_id": 1,
+            },
+        ]

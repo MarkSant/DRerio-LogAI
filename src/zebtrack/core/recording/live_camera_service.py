@@ -32,6 +32,7 @@ from zebtrack.core.recording.live_session_manager import LiveSessionManagerMixin
 if TYPE_CHECKING:
     from tkinter import Misc
 
+    from zebtrack.core.detection import MultiAquariumZoneData
     from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
     from zebtrack.core.main_view_model import MainViewModel
     from zebtrack.core.project.project_manager import ProjectManager
@@ -281,6 +282,12 @@ class LiveCameraService(
 
         # Phase 4.3: Lazily-created MultiAquariumDetector (shares plugin w/ SingleDetector)
         self._multi_aq_detector: MultiAquariumDetector | None = None
+        # Capture instant of the frame being analysed: the clock ByteTrack ages
+        # lost tracks on (#654). Set by the processing thread before detection.
+        self._tracker_frame_time_s: float | None = None
+        # Aquariums of the current session when it films 2+ (#635); resolved
+        # at start_session, read by the recorder start and the processing thread.
+        self._live_multi_zone_data: MultiAquariumZoneData | None = None
 
         # Closed-loop latency logging (per live session; built lazily on the
         # first tracked Arduino trigger, finalized at session end).
@@ -291,6 +298,15 @@ class LiveCameraService(
         # instante de captura). Recriado a cada ``_start_threads`` e finalizado
         # em ``stop_session``, depois do join das threads produtoras.
         self._frame_ledger: Any = None
+
+        # Live analysis window (ADR-011, v8 F5): the raw spec handed to
+        # ``start_session`` and the runtime built from it by the processing loop.
+        self._analysis_window_raw: Any = None
+        self._condition_runtime: Any = None
+        self._condition_roi_evaluator: Any = None
+        self._condition_end_requested: bool = False
+        self._condition_clock_warned: bool = False
+        self._arduino_outputs_swept: bool = False
 
     # ── Thread-safe properties ──────────────────────────────────────────
 

@@ -283,7 +283,19 @@ failure.
 
 - All payload values are optional (None if not updated)
 - `use_bytetrack: bool` - Toggles between ByteTrack and SingleSubjectTracker
-- `track_buffer: int` - Frames to keep lost tracks (default: 300)
+- `track_buffer: int` - Frames to keep lost tracks (default: 300), expressed at
+  the 30 fps reference: `BYTETracker` converts it with `frame_rate / 30`, and
+  `frame_rate` is the SOURCE's real rate (`set_source_fps()` /
+  `MultiAquariumDetector(source_fps=...)`, resolved by
+  `DetectionPostProcessor.resolve_tracker_fps()`), never
+  `settings.video_processing.fps` except as a warned fallback (#630).
+  `track_buffer / 30` is the lost-track lifetime in SECONDS (#654): callers
+  declare each frame's instant with `set_frame_time()` (PTS in the batch worker
+  and `TrackingSessionRunner`, the capture `t_perf` live) and
+  `BYTETracker.update(..., frame_time_s=)` ages lost tracks on it. Without an
+  instant it counts `frame_rate / 30 * track_buffer / processing_interval`
+  updates. Single-animal mode keeps them `SINGLE_ANIMAL_LOST_FACTOR` (6) times
+  longer.
 - `max_center_distance: float` - Max distance for hybrid matching (pixels)
 - `iou_threshold: float` - IoU threshold for hybrid matching [0, 1)
 
@@ -297,6 +309,40 @@ failure.
 | `ERROR_OCCURRED`                  | `title`, `message` | `VideoProcessingService` | `ApplicationGUI` |
 | `EXTERNAL_TRIGGER_NOTICE`         | `context` (dict)   | `SessionCoordinator`     | `UICoordinator`  |
 | `EXTERNAL_TRIGGER_NOTICE_CLEARED` | -                  | `SessionCoordinator`     | `UICoordinator`  |
+
+### 3.8. Analysis Window Events (v8)
+
+| Event (UIEvents)               | Payload Keys        | Publishers            | Subscribers                    |
+| ------------------------------ | ------------------- | --------------------- | ------------------------------ |
+| `ANALYSIS_WINDOW_SPEC_CHANGED` | `spec`, `spec_hash` | `AnalysisWindowPanel` | `EventDispatcher` (status bar) |
+| `ANALYSIS_WINDOW_STATE_CHANGED` | `state`, `t_s`, `reason`, `on_start_not_met`, `on_stop`, `experiment_id` | live pipeline (`root.after`) | `EventDispatcher` → `DialogManager.show_analysis_window_state` (banner + status bar) |
+
+`spec` is `project_data["analysis_window"]` as just saved (`None` = whole recording). The
+panel lives in the Zone Configuration tab's left column and is rebound on
+`PROJECT_MANAGER_REPLACED` like the Arduino bindings panel.
+
+### 3.9. Class Role Events (v8)
+
+| Event (UIEvents)      | Payload Keys                                                          | Publishers                                    | Subscribers                                          |
+| --------------------- | --------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------- |
+| `CLASS_ROLES_CHANGED` | `scope`, `weight_name`, `weight_sha256`, `class_roles`, `source`      | `ClassRolesEditor` (`ClassRolesPanel`)        | `EventDispatcher` (status bar + `class_roles_context`) |
+
+Where the class-role editor is mounted and what it writes (ADR-009):
+
+| Mount point | Scope | Writes |
+| --- | --- | --- |
+| Global model configuration → weight catalogue → "Class roles…" (`ClassRolesDialog`) | weight | `weights_config.json[<weight>]["class_roles"]` via `WeightManager.set_weight_class_roles` |
+| "AI Model Config." tab (`ProjectModelConfigurationPanel`) | project | `model_overrides.class_roles` + `class_roles_weight_sha256` (sha of the effective weight from `resolve_worker_model`), then `save_project()`; undone in memory if the save fails |
+| Wizard `ModelSelectionStep` → collapsible "Class roles" | project (at creation) | `class_roles`/`class_roles_weight_sha256` in the step data → `ProjectWorkflowService._persist_initial_project_overrides` → `model_overrides` |
+
+The zone tab holds a `ProjectClassRolesContext` (`gui.class_roles_context`, built by
+`TabBuilder.build_zone_tab`, rebound on `PROJECT_MANAGER_REPLACED`). It resolves the project's
+effective weight on the Tk thread, reads the class names on a daemon thread
+(`ModelService.inspect_model`, cached by weight name + sha256) and, back on the Tk thread, sets
+`gui.overlay_class_roles` / `gui.overlay_class_names` (explicit maps only) and calls
+`AnalysisWindowPanel.refresh_class_names()`. Both overlays (`CanvasRenderer.update_overlay`,
+`VideoFrameManager._draw_detection_overlay_on_frame`) colour and label boxes by role through
+`ui/components/canvas/overlay_roles.py`; without an explicit map the 7.2 colours are kept.
 
 ---
 
@@ -662,6 +708,15 @@ map as a sidecar — the `3_CoordMovimento` schema stays **immutable**.
   thread — the frame was dequeued but `_video_frames_written` does **not**
   advance), and a failed `camera.get_frame()` (never counted at all, so it
   cannot desynchronize anything).
+- **The session tail (#636).** `stop_session` used to set `exit_event` and empty
+  both queues at once: up to `video_queue.maxsize` captured frames (~20 s) were
+  neither written nor logged. Now: `_drain_video_queue_for_stop` stops the
+  CAPTURE thread only (`_capture_stop_event`) and lets the video thread write the
+  queue until it is empty or `_stop_drain_timeout_s` (2 s) runs out — charged to
+  the same `_max_join_wait_s` budget as the join. `_clear_queues` then records
+  each video item still queued as `dropped_on_stop` (`video_frame_index = -1`).
+  A manual cancel skips the drain (its folder is deleted). Analysis-queue items
+  are still discarded: their ledger row comes from the video item.
 - **Queue item shape:** `video_queue` now carries
   `(frame_count, capture_perf, capture_wall, is_analysis_frame,
   queued_for_analysis, frame)`. `_unpack_video_item` tolerates the legacy bare
@@ -706,10 +761,27 @@ or to measure latency — the capture instant lives in the ledger.
 
 **Honest caveats (this will end up in a publication):**
 
-- `frame_t0`/`t_capture_perf` is stamped in the **capture** thread, right after
-  `camera.get_frame()` and before any `put` — verified. So queue wait is
-  attributed to `queue_wait_ms` and never smuggled into inference time.
-- But `perf_counter()` after `camera.get_frame()` measures when the frame became
+- `frame_t0`/`t_capture_perf` is the instant `cap.read` RETURNED the frame, stamped
+  by the camera's reader thread (`Camera.read_next_frame` → `CapturedFrame.t_perf`) —
+  the instant closest to the sensor that Python sees. Until #637 it was stamped in the
+  capture loop after `camera.get_frame()`, which returns the newest frame WITHOUT
+  consuming it: a loop polling at 1.5× the configured fps turned one sensor frame
+  into two pipeline frames, both stamped at the poll. Now each sensor frame is handed
+  out once; sensor frames the pipeline was too slow to take are counted
+  (`camera_frames_skipped` in the ledger anchor), never duplicated. Sources without
+  `read_next_frame` keep the old poll, stamped in the loop. The same value goes to the
+  ledger and the latency log (`frame_to_ack_ms` now starts at the read, so it can grow
+  by up to one frame interval compared with sessions recorded before #637).
+- **One sampling cadence (#637).** A frame is analysed iff `frame % N == 0` on its
+  PIPELINE number — exactly the ledger's `is_analysis_frame`. The processing thread
+  used to decimate again by the count of frames it RECEIVED (a subset), so the
+  effective cadence drifted from N to ~N². Opportunistic frames serve the display only.
+- **MP4 rate (#637).** The live MP4 is opened at `_live_recording_fps()`: the ledger's
+  measured rate (≥ 30 rows), else `Camera.measured_fps()` (last ~120 reads), else
+  `actual_fps` (driver), else the settings. It was the settings' 30 fps while cameras
+  delivered 39–41, so the video played slow and re-processing it re-dated everything.
+- Queue wait is attributed to `queue_wait_ms` and never smuggled into inference time.
+- But `perf_counter()` after `cap.read` measures when the frame became
   available **to Python**, not when the sensor exposed it. Driver/UVC buffering
   (typically 1–3 frames) is invisible and enters `frame_to_ack_ms` in full as if
   it were pipeline latency. It is not correctable in software without reference
@@ -896,6 +968,18 @@ summed into `ROIAnalyzer.unobserved_time_s` and published as
 much of the session the per-ROI numbers do not cover. `null` means automatic
 (`3 ×` the median observed interval); `.inf` disables the cap and restores the
 historical attribution.
+
+**The same cap is the behavioural definition of a gap (#632).** The rule lives
+in `analysis/gap_policy.resolve_max_gap_s()` and `AnalysisService` hands the
+resolved `roi_max_gap_s` to the `BehavioralAnalyzer` as `max_gap_s`. The
+analyser flags, per subject and on the whole recording (before a window cut),
+the first row after each interval above the cap (`gap_rows`). Savitzky-Golay
+runs per continuous segment, so the jump is never smeared into observed rows;
+freezing, inactivity and burst episodes never include a gap row or a row
+without velocity (each subject's first row is unknown, not still), and are
+extracted per subject; `distancia_total_cm` passes
+`max_time_gap=gap_threshold_s`. Without gaps (and with one subject) the
+smoothing path is the historical one, bit for bit.
 
 A visit's duration is the time **credited to the visit's own frames** — the
 same sum `get_time_spent_in_rois` reports — read off an *exclusive* prefix-sum
@@ -1092,7 +1176,23 @@ lives in `core/services/external_trigger_gate.py` and both paths consult it:
 ```python
 decide_external_trigger(project_data, arduino_manager=None) -> ExternalTriggerDecision
 # PROCEED | ARM_AND_WAIT | REJECT_NO_ARDUINO | REJECT_ARDUINO_OFFLINE
+# | REJECT_CONFLICTING_TRIGGERS (v8)
 ```
+
+**v8 (ADR-011).** The gate also reads `project_data["analysis_window"]`. A window with an
+`External(source="arduino")` node records EVERYTHING immediately and turns the code into a
+condition-engine event — it never arms (that would wait to record):
+
+| Situation | Decision |
+| --------- | -------- |
+| legacy `external_trigger_mode` on | `ARM_AND_WAIT` (unchanged) |
+| window with `External(arduino)`, `use_arduino` off | `REJECT_NO_ARDUINO` |
+| same, port offline | `REJECT_ARDUINO_OFFLINE` |
+| same, Arduino ready | `PROCEED` |
+| legacy trigger **and** an Arduino window | `REJECT_CONFLICTING_TRIGGERS` (`conflicting_triggers_message()`) |
+
+A window that does not validate counts as "no window". A converted v3 template turns the legacy
+flag off (F6); re-ticking it is the conflicting case.
 
 The function is pure (no I/O, no events) — each coordinator translates the
 decision into its own pending state and UI events. `use_arduino` is the source of
@@ -1124,10 +1224,18 @@ otherwise the Arduino can fire into a session with no arena. The two use separat
 slots (`_pending_live_context` for zones, `_pending_trigger_context` for the
 trigger) because a session can legitimately need both.
 
-`MainViewModel.on_arduino_event` routes to whichever coordinator actually has an
-armed session (probed on the reader thread, before the `root.after(0, ...)`
-marshalling), falling back to the legacy coordinator so unexpected start codes
-still get logged.
+`MainViewModel.on_arduino_event` routes to the grid coordinator while it
+`owns_arduino_events()` — a session armed waiting for code 1, OR the session code 1
+started, still running (its code 0 is the end of the protocol; until v8 the code 0 went
+to the legacy coordinator once the arm was cleared, and the grid session never stopped).
+Probed on the reader thread, before the `root.after(0, ...)` marshalling; otherwise the
+legacy coordinator gets it, so unexpected start codes still get logged. A grid session
+started any other way does not claim the codes.
+
+Codes an analysis window waits for never reach `MainViewModel`: the live pipeline
+registers `ArduinoManager.set_event_sink` for the session, the reader thread stamps each
+numeric line with `perf_counter` right after `readline()` and offers it to the sink first,
+and a claimed code stops there (§5.17).
 
 **Consequence for callers:** `start_live_project_session` returns `False` for
 three different reasons — genuine failure, awaiting zone confirmation, and armed
@@ -1438,6 +1546,58 @@ next project would never reconnect.
 
 ---
 
+### 5.17. Live Analysis Window (v8, ADR-011)
+
+`core/recording/condition_runtime.ConditionRuntime` wraps the condition engine for one live
+session. The spec comes from `start_session(analysis_window=...)`: the project's
+`analysis_window` (grid and legacy project paths) or the dialog config (ad hoc); it is never
+written to the shared `Settings`.
+
+```text
+capture thread  frame 1 → FrameLedger.pin_origin(t_perf, t_wall)  (before queueing)
+processing loop start → _reset_condition_runtime()  (spec, role map, ArduinoManager sink)
+each ANALYSED frame while recording:
+  trajectory row (only with detections, processing-clock timestamp, schema unchanged)
+  3c_Objetos_ heartbeat + observations, t_event_s = t_capture_perf − t0  (every frame)
+  ConditionRuntime.step(t_capture_perf, classes from pop_class_observations,
+                        subject ROIs by ArduinoRoiEvaluator.occupied_rois, externals)
+    STOP confirmed → Arduino exit sweep NOW
+    on_stop="end_session" → root.after(0, finish_session_early)   (keep_data=True)
+    phase changed → preview status + ANALYSIS_WINDOW_STATE_CHANGED via root.after
+  per-ROI Arduino commands — only while the window is open
+loop end → finish() (end-of-stream STOP), 7_AnalysisWindow_<base>.json (online +
+           external_events; offline belongs to the analysis), sink cleared,
+           session-end sweep only if the window opened and never swept
+```
+
+- **Clock.** `t_s = t_capture_perf − t0_perf` of the ledger anchor — the origin
+  `retime_from_ledger` uses. The trajectory `timestamp` (processing clock) dates nothing.
+  Holds are evaluated in capture seconds; a `Hold(frames=...)` is warned: a frame count
+  still depends on the camera's real rate and on sensor frames the pipeline skipped
+  (the duplicates and the double cadence are gone since #637).
+- **External events** (Arduino, "Mark start/stop" button) are stamped at their source and
+  delivered with the first analysed frame CAPTURED at or after the stamp.
+- **Session end by condition** never calls `_on_session_complete(output_dir)` raw: an early
+  stop without `keep_data` falls into the 50 % heuristic (`.cancelled` + polygon erased).
+- **Multi-aquarium live** skips the window DURING the session (warning): it neither
+  gates the Arduino commands nor ends the session. The post-analysis applies one
+  OFFLINE window per aquarium (`_resolve_live_window(..., aquarium_id=)`, from each
+  `aquarium_N/3c_Objetos_*`) and passes `windows=` to `run_multi_aquarium_analysis` (#635).
+- **Multi-aquarium live recording (#635).** The session's aquariums are resolved ONCE,
+  at `start_session`, by `LiveAnalysisPostProcessorMixin._resolve_session_multi_zone_data`
+  (`get_multi_aquarium_zone_data`; 2+ aquariums, else `None`) and cached in
+  `_live_multi_zone_data`. `get_zone_data()` is the aquarium-0 shim and never says
+  "multi": the recorder start (`_start_live_recorder`, both start paths), the processing
+  loop's detector choice and `_is_multi_aquarium_session()` all read the cache. The
+  parent recorder (`start_recording_multi_aquarium(session_video=True)`) owns the session
+  clock, folder and ONE full-frame `<base>.mp4`; the ledger binds to that folder; the
+  sub-recorders write `aquarium_N/3_CoordMovimento_*` and `3c_Objetos_*` and no video.
+  `Recorder.stop_recording()` dispatches to `stop_recording_multi_aquarium()`. The
+  post-analysis looks for `aquarium_N/` trajectories BEFORE the top-level one and re-times
+  each on the session ledger (`_retime_live_trajectory(ledger_dir=, ledger_base=)`).
+- The live post-analysis re-times the trajectory from `6_FrameLedger_` before analysing
+  (`LiveAnalysisPostProcessorMixin._retime_live_trajectory`) and takes the recording's fps.
+
 ## 6. Common Pitfalls for Agents
 
 1. **Missing Event Payloads:** Always check the **Event Registry** above. If you publish `UI_DISPLAY_FRAME` without the `frame` key, the UI will crash or show nothing.
@@ -1457,7 +1617,10 @@ next project would never reconnect.
 10. **ByteTrack Sparse Frame Tuning (Critical Fix Jan 2025):** When using `processing_interval > 1`:
     - The Kalman Filter `dt` is now automatically set to `processing_interval` in `detector.py`
     - This correctly models motion predictions over larger time steps
-    - The `track_buffer` is scaled by `processing_interval` to maintain equivalent temporal window
+    - The lost-track lifetime is `track_buffer / 30` seconds on the frame clock
+      (`set_frame_time()` → `BYTETracker.update(frame_time_s=)`, #654). Counted in
+      updates (fallback) it is DIVIDED by `processing_interval`: each update
+      already spans that many frames, and multiplying (as until #654) squared it.
     - Position/velocity weights scale with `sqrt(dt)` for proper uncertainty propagation
     - Without this fix, track IDs will jump erratically on sparse frames.
 11. **Coordinator Callbacks Must Have Defaults (Fixed Dec 2025):** When calling Coordinator methods that accept callbacks (e.g., `create_project`, `open_project`), the Coordinator MUST provide safe default implementations using its injected dependencies (`state_manager`, `detector_service`). If callbacks are passed as `None` to adapters that require them, it will cause `TypeError: 'NoneType' object is not callable`. This was fixed by adding `detector_service` as an optional dependency to `ProjectLifecycleCoordinator` and implementing default callback factories in `create_project()` and `open_project()`.
@@ -1601,6 +1764,7 @@ Heavy imports (pandas, pyarrow, openpyxl) are deferred in:
 
 | Date | Version | Changes |
 | ---- | ------- | ------- |
+| Nov 6, 2026 | v5.3 | § 5.10.2 the ROI `dt` cap also defines a behavioural tracking gap — `analysis/gap_policy.py`, per-segment smoothing, gap-aware and per-subject episodes, gap-cut distance (#632) |
 | Aug 23, 2026 | v5.2 | § 5.14 ad-hoc live session — `live_calibration_scale` px→cm resolver (dialog dimensions were dropped, reports read pixels as cm), `stop_session(keep_data=...)` + `stop_live_session(discard=...)` + `finish_session_early()`, new `LIVE_SESSION_FINISH_REQUESTED` event and the "⏹ Finish and Save" / confirmed-Cancel pair, live frames marshalled to the Tk thread (drop-latest), `live_output_paths.default_live_sessions_dir()`, non-destructive session-folder cleanup |
 | Aug 15, 2026 | v5.1 | § 5.6 closed-loop `fps` corrected to the rate measured from capture timestamps (`FrameLedger.current_fps_measured()`), replacing the configured value that had been logged as achieved; configured value kept in new `fps_configured` / `sampling_interval_ms_configured` columns (release v6.0.0 archival snapshot) |
 | Aug 8, 2026 | v5.0 | § 5.11 external trigger reaches the Progress grid (`external_trigger_gate`, two coordinators unified, `on_arduino_event` routing); § 5.12 per-subject recording duration (`session_duration_resolver`, `session_duration_overrides`, heterogeneity warning in partial/batch reports) |

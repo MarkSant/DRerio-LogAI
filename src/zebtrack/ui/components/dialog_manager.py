@@ -1337,6 +1337,56 @@ class DialogManager:
         except Exception:
             log.debug("dialog_manager.trigger_notice_clear.suppressed", exc_info=True)
 
+    # -- v8 F5: live analysis window (ADR-011) ----------------------------------
+    def show_analysis_window_state(
+        self,
+        state: str,
+        *,
+        t_s: float | None = None,
+        on_start_not_met: str | None = None,
+    ) -> str:
+        """Show the live analysis window's phase on the trigger banner + status bar.
+
+        The external-trigger notice becomes a generic "waiting for the start
+        condition" banner: highlighted while the window waits (the operator
+        must know the recording runs but the analysis has not started), plain
+        afterwards. The status bar carries the same sentence, so an ad hoc
+        session (which has no project banner) still shows it.
+
+        Returns:
+            The sentence shown (``""`` for an unknown state).
+        """
+        from zebtrack.core.recording.condition_runtime import WindowPhase, window_phase_message
+
+        try:
+            phase = WindowPhase(state)
+        except ValueError:
+            log.warning("dialog_manager.analysis_window_state.unknown", state=state)
+            return ""
+        message = window_phase_message(phase, t_s=t_s, on_start_not_met=on_start_not_met)
+
+        status_var = getattr(self.gui, "status_var", None)
+        if status_var is not None:
+            status_var.set(message)
+
+        label = self.gui.external_trigger_notice_label
+        if not label:
+            return message
+        self.gui.external_trigger_notice_var.set(message)
+        try:
+            if phase in (WindowPhase.WAITING_START, WindowPhase.START_NOT_MET):
+                label.config(background="#FFF7ED", foreground="#92400e")
+            else:
+                label.config(
+                    background=self.gui._external_notice_default_bg or label.cget("background"),
+                    foreground=self.gui._external_notice_default_fg or label.cget("foreground"),
+                )
+        except Exception:
+            log.debug("dialog_manager.analysis_window_state.style_suppressed", exc_info=True)
+        return message
+
+    # -- end v8 F5 ----------------------------------------------------------------
+
     # =========================================================================
     # Utility Dialogs & Helpers
     # =========================================================================

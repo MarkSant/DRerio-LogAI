@@ -44,7 +44,7 @@ Details: [`docs/guides/developer/impact_analysis.md`](docs/guides/developer/impa
 
 ## Quick Context
 
-**DRerio LogAI** (`zebtrack` package) — Python 3.12+ Tkinter app for zebrafish behavioral tracking and analysis.
+**DRerio LogAI** (`zebtrack` package) — Python 3.12+ Tkinter app for behavioral tracking and analysis, born for zebrafish and, since v8, for any YOLO weight (rodents, Barnes maze) through class roles.
 
 - **Architecture**: MVVM-S with Dependency Injection. Entry: `src/zebtrack/__main__.py` → `ApplicationBootstrapper` → `DependencyContainer`.
 - **Stack**: Poetry, Tkinter, YOLO/OpenVINO, Parquet, structlog, Pydantic v2.
@@ -214,6 +214,12 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
 - **Always use `ProjectManager.get_multi_aquarium_zone_data()`** in report-generation contexts. `get_zone_data()` returns only aquarium 0 (legacy compatibility shim).
 - Track IDs: `global_id = aquarium_id * 1000 + local_track_id`. Local IDs MUST stay <1000.
 - Sequential vs parallel processing toggle: `MultiAquariumZoneData.sequential_processing` (UI in `ui/components/zone_controls.py`).
+- **Live: the session's aquariums come from `_resolve_session_multi_zone_data()`, never
+  `get_zone_data()`.** Resolved once at `start_session` and cached in `_live_multi_zone_data`;
+  the recorder start, the processing loop and the window probe read it. Until #635 every
+  live "is it multi?" asked the aquarium-0 shim, so a 2-aquarium session recorded zero rows.
+  A live multi-aquarium session = one full-frame `<base>.mp4` + `6_FrameLedger` in the session
+  folder (parent recorder, `session_video=True`) and one trajectory per `aquarium_N/`.
 - See [`docs/reference/DOMAIN_GLOSSARY.md`](docs/reference/DOMAIN_GLOSSARY.md) and [`docs/archive/PHASES.md`](docs/archive/PHASES.md) for full data model.
 
 ### 🔑 Identidade do vídeo: o caminho, nunca o basename
@@ -287,6 +293,62 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
   quebra o `if` em silêncio, tomando o ramo errado. Use o tipo da exceção.
 - Guia completo: [`docs/guides/developer/i18n.md`](docs/guides/developer/i18n.md).
 
+### 🧩 Papéis de classe (v8, ADR-009)
+
+- **`core/detection/class_roles.resolve_class_role_map()` é a fonte única** do que cada classe de
+  um peso é: `subject` (rastreada), `arena`, `context` (observada, nunca rastreada) ou `ignored`.
+  Precedência: projeto (`model_overrides.class_roles`, só enquanto
+  `class_roles_weight_sha256` bater com o peso efetivo) > `class_roles` do peso em
+  `weights_config.json` > aliases (`class_aliases.py`) > posição (0/1, só sem nomes). Detector,
+  worker, diagnóstico e UI leem o mesmo `ClassRoleMap`; nunca re-derive papel a partir de
+  `class_id == 1` ou de uma lista de nomes num call site.
+- **Papéis são gravados pelo NOME normalizado da classe, nunca pelo id**: um retreino que insere
+  uma classe não pode deslocar o sujeito. Os quatro tokens são contrato de persistência e nunca são
+  traduzidos (traduz-se só onde são exibidos).
+- **Aliases nunca produzem `context`.** É isso que mantém um peso de zebrafish byte a byte igual à
+  7.2 (mesmo recorte, mesmo NMS, mesmo `apply_class_mismatch_fallback`) — guardado pela fixture
+  `tests/fixtures/legacy/project_7_2_0/` e pelo golden v7.2.
+- **Peso com nomes, ≥ 3 classes e nenhum sujeito resolvível ⇒ `ClassRolesUnresolvedError`**, ao
+  vivo e no worker. Nunca caia para a posição: no Barnes (`arena, experimenter, rat, start_box`)
+  a classe 1 é o experimentador. Capture pelo TIPO da exceção, nunca pelo texto.
+- **O worker de lote recebe o peso resolvido no processo principal**
+  (`core/services/worker_model_resolution.resolve_worker_model()`: caminho, sha256, exportação
+  OpenVINO, papéis). Histórico: até a 7.2 o worker lia `settings.weights.*` e processava o projeto
+  de rato com o peso de zebrafish.
+- **Detecções de contexto vão para o `3c_Objetos_<base>.parquet`, nunca para a trajetória.**
+  `core/services/object_capture.should_capture_objects()` decide se o sidecar é escrito (só um
+  `True` booleano liga); `io/object_sidecar.py` lê e valida — arquivo ausente ou incompatível vira
+  `None` com aviso. Uma linha de batimento (`class_id = -1`, `role = "frame"`) por quadro
+  PROCESSADO é o que distingue "ausente" de "não processado"; não a otimize.
+
+### 🪟 Janela de análise (v8, ADR-011)
+
+- **`analysis/analysis_window_service.resolve_analysis_window()` é a entrada única** para quem
+  analisa a partir do projeto (relatório individual, sumários, pipeline de lote/vídeo único);
+  `resolve_window_spec()` é a única leitura da regra e levanta `InvalidWindowSpecError` (traduzida)
+  em vez de analisar a gravação inteira em silêncio. Por baixo, `AnalysisWindowService.resolve()`
+  reaproveita ou recalcula o `7_AnalysisWindow_<base>.json` e é o que a pós-análise ao vivo chama
+  direto (a regra ao vivo vem da sessão, não do projeto).
+- **Um único avaliador** (`core/conditions/evaluator.py`): `evaluate_window()` é uma dobra sobre
+  o mesmo `step()` que o `ConditionRuntime` ao vivo usa. Nunca escreva uma segunda implementação de
+  condição "só para a análise".
+- **Relógio do evento: PTS no pré-gravado, instante de captura ao vivo.** O `timestamp` ao vivo é
+  relógio de PROCESSAMENTO; a análise redata pelo `6_FrameLedger` com
+  `analysis/time_base.retime_from_ledger()` (só em memória). fps e duração vêm de
+  `analysis/time_base.resolve_time_base()` (batimento do `3c` > ledger > PTS da trajetória >
+  `settings.video_processing.fps` com aviso). Nunca use `settings.video_processing.fps` como
+  verdade num relatório: o Barnes roda a ~9,9 fps com quadro variável e `frame / 30` erra até 125 s.
+- **A gravação é sempre completa; a janela só recorta as métricas.** Validação, suavização,
+  velocidade e debounce de ROI rodam na gravação inteira e só então `restrict_to_window()` corta,
+  com o índice absoluto preservado. O `offline` do artefato governa as métricas; o `online` só
+  dirige exibição e fim de sessão (divergência > 1 quadro vira aviso).
+- **Sem janela, `report["analysis_window"] == {"status": "none"}`** e as colunas `window_*` existem
+  vazias: o esquema do relatório unificado nunca diverge entre projetos com e sem janela.
+- **Gatilho externo + janela que espera o Arduino é configuração inválida**, recusada por
+  `core/services/external_trigger_gate.decide_external_trigger()` (mesma regra única dos dois
+  caminhos de início). Uma janela que espera o Arduino grava tudo desde já; o código só vira evento
+  do motor.
+
 ### 🧵 Threading & UI
 
 - **All UI updates from worker threads MUST use `root.after(0, ...)`** (Tkinter main thread only).
@@ -295,9 +357,16 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
 
 ### 🧙 Project Wizard
 
-- 5-step wizard in `ui/wizard/` is the primary project creation flow.
-- Layout: 1150×550 px; reserves 220 px for navigation buttons.
-- Backward compatibility shim: `wizard_adapter.adapt_wizard_data_to_controller_format()`.
+- The wizard in `ui/wizard/` is the primary project creation flow: **7 steps for a
+  pre-recorded project, 6 for a live one** (`WizardStepID`; `LIVE_CONFIG` and
+  `EXPERIMENTAL_DESIGN` only for live).
+- Layout: target 1050×780 px (`WIZARD_TARGET_WIDTH`/`HEIGHT` in `wizard_dialog.py`), capped
+  by the screen minus 220 px vertically for the taskbar and title bar.
+- Creation path: the wizard publishes `UIEvents.PROJECT_CREATE` →
+  `ProjectWorkflowService` (wizard-data enrichment, ex-`wizard_adapter.py`, which no longer
+  exists) → `ProjectLifecycleManager.create_new_project()`. Keys outside the
+  `prepare_controller_parameters` allowlist (slot weights, `class_roles`) are written by
+  `ProjectWorkflowService._persist_initial_project_overrides`.
 - Guide: [`docs/guides/developer/wizard.md`](docs/guides/developer/wizard.md).
 
 ---
@@ -355,7 +424,8 @@ Pattern: `domain.action.result`.
 - `ui/gui.py` — main window.
 - `ui/dialogs/` — ~25 dialog classes (incl. `LiveAnalysisDialog`, `LivePreviewWindow`).
 - `ui/components/canvas/` — canvas sub-package.
-- `ui/wizard/` — 5-step project wizard; `models.py` holds Pydantic validation models.
+- `ui/wizard/` — project wizard (7 steps pre-recorded, 6 live); `models.py` holds Pydantic
+  validation models; `templates.py` holds template schema v4 (with `analysis_window`).
 
 ### Configuration
 
@@ -366,18 +436,26 @@ Pattern: `domain.action.result`.
 ### Output Structure (per video)
 
 ```text
-<video>_results/
-  1_ArenaROI_<video>.parquet          # Arena/ROI definitions
-  2_Zones_<video>.parquet             # Zone metadata
-  3_CoordMovimento_<video>.parquet    # Trajectory (immutable schema)
+<results>/
+  1_ProcessingArea_<video>.parquet    # Arena (processing area) polygon
+  2_AreasOfInterest_<video>.parquet   # ROIs
+  3_CoordMovimento_<video>.parquet    # Trajectory (immutable schema), subjects only
   3b_Mascaras_<video>.parquet         # Segmentation masks (only with recorder.persist_masks)
-  <video>_summary.xlsx                # Sheet1: metrics per ROI; por_animal: long table
-                                      #   (experiment x track_id x roi), written only
-                                      #   when per-animal metrics exist
-  <video>_report.docx                 # Word report with plots
+  3c_Objetos_<video>.parquet          # Per-frame heartbeat + subject/context detections
+                                      #   (v8; recorder.persist_object_sidecar, default on)
+  7_AnalysisWindow_<video>.json       # Resolved START/STOP of the analysis window (v8)
+  4_Relatorio_<video>.{docx,xlsx}     # Individual report (project flow); the single-video
+                                      #   pipeline writes <video>_report.docx and
+                                      #   <video>_summary.xlsx instead. The xlsx has
+                                      #   Sheet1 (metrics per ROI) and por_animal (long
+                                      #   table, only when per-animal metrics exist)
 ```
 
-Multi-aquarium adds `aquarium_0/`, `aquarium_1/` subfolders mirroring this layout.
+No new file may start with `3_CoordMovimento`: several readers glob that prefix and take
+`[0]`. `start_recording` deletes stale `3b_`, `3c_` and `7_` files of the same base.
+
+Multi-aquarium adds `aquarium_{id+1}/` subfolders (`aquarium_1/`, `aquarium_2/`, …) mirroring
+this layout, with the base name suffixed `_aquarium_{id+1}`.
 
 Live sessions additionally produce, per session folder:
 
@@ -390,7 +468,9 @@ Live sessions additionally produce, per session folder:
 `6_FrameLedger` is what makes the session timeline reconstructible: it maps
 `3_CoordMovimento.frame` → real capture instant → real MP4 frame index, and
 records every frame loss (`dropped_queue_full`, `write_failed`,
-`not_recording`). **`3_CoordMovimento.timestamp` is a PROCESSING clock** — never
+`not_recording`, `dropped_on_stop`). At stop the capture thread ends first and the
+video thread drains its queue within the join budget (`_drain_video_queue_for_stop`);
+only what is left after that becomes `dropped_on_stop` — never a silent truncation (#636). **`3_CoordMovimento.timestamp` is a PROCESSING clock** — never
 use it for latency or to date an event. See
 [`docs/reference/system_integration.md`](docs/reference/system_integration.md)
 § 5.9.
@@ -416,6 +496,21 @@ failing assertion proves the line is CHECKED. Run
 a missing test. CI runs exactly that (as `--changed-since HEAD^`) and it **blocks**; the full
 `--all` catalogue runs nightly in `stress-tests.yml`.
 Baseline in [`docs/testing/MUTATION_BASELINE.md`](docs/testing/MUTATION_BASELINE.md).
+An edit to `scripts/mutation_catalog.yaml` selects **only the blocks it added or changed**
+(compared with the catalogue at the merge base), not the whole catalogue; append your blocks
+inside your module's section and expect the scoped run to exercise exactly those.
+An edit to `scripts/mutation_check.py` runs the runner's own tests plus **the first mutation of
+every block** (`mutations[0]`), on top of what the diff selects; only `tests/conftest.py` still
+forces the whole catalogue.
+
+**Mutants never touch your checkout.** Each one is applied in a private copy of the tree
+(`src/`, `tests/`, `scripts/`, `resources/` and the root files) that one worker reuses, with the
+copy's `src/` first on `PYTHONPATH` — otherwise the venv's `drerio_logai.pth` would import the
+main repo's unmutated code. Killing the runner leaves nothing to restore. `--jobs N` (default:
+cores, capped at ~1.5 GB of free RAM each) runs that many pytests at once; output and `--json`
+stay in catalogue order. A red baseline now exits **2**, not 0: it proves nothing about its
+block. A catalogued test that reads a directory outside that list fails its baseline in the copy;
+add the directory to `_WORKSPACE_DIRS`.
 
 Three shapes are rejected automatically by `tests/quality/test_no_hollow_tests.py`:
 

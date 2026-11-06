@@ -174,6 +174,11 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # esperar o sinal), e compartilhar o slot faria o segundo apagar o
         # primeiro. Ver ``_external_trigger_allows_start``.
         self._pending_trigger_context: dict[str, Any] | None = None
+        # Id of the live session the Arduino's code 1 started. While that
+        # session runs, its code 0 belongs HERE (end of protocol) — see
+        # ``owns_arduino_events``. Reset by every other start; a stopped session
+        # has no id, so it owns nothing.
+        self._triggered_session_id: str | None = None
 
         # Injetado por ``di_registrations`` DEPOIS do bootstrap (o manager é
         # criado lá, e este coordinator é construído antes). Serve para checar
@@ -222,6 +227,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         self._pending_live_kind = None
         self._pending_trigger_context = None
         self._active_live_session_id = None
+        self._triggered_session_id = None
         self._active_wizard_data = None
         self._restore_model_selection()
 
@@ -1174,6 +1180,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
             # Store active session ID
             self._active_live_session_id = experiment_id
+            self._triggered_session_id = None
             self._active_wizard_data = wizard_data or {}
 
             # Prepara a aba "Análise" (zera contadores, re-inscreve o canvas e
@@ -1241,6 +1248,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 zones_validated=True,
                 use_countdown=use_countdown,
                 countdown_duration_s=countdown_duration_s,
+                # Ad hoc: the window comes from the dialog config, never from Settings.
+                analysis_window=(wizard_data or {}).get("analysis_window"),
             )
 
             if not success:
@@ -1987,6 +1996,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # recording is about to start. Mirrors start_live_session so stop/cancel
         # and the UI live-context guards see a live session. Reverted on failure.
         self._active_live_session_id = experiment_id
+        self._triggered_session_id = None
         self._update_state(
             StateCategory.PROCESSING,
             is_live_session_active=True,
@@ -2072,6 +2082,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             zones_validated=True,
             use_countdown=use_countdown,
             countdown_duration_s=countdown_duration_s,
+            # Ad hoc: the window comes from the dialog config, never from Settings.
+            analysis_window=config.get("analysis_window"),
         )
 
         if not success:
@@ -2175,6 +2187,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         """
         from zebtrack.core.services.external_trigger_gate import (
             ExternalTriggerDecision,
+            conflicting_triggers_message,
             decide_external_trigger,
             normalize_arduino_port,
         )
@@ -2187,6 +2200,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         if decision in (
             ExternalTriggerDecision.REJECT_NO_ARDUINO,
             ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE,
+            ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS,
         ):
             offline = decision is ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE
             log.error(
@@ -2196,7 +2210,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             )
             if self.event_bus is not None:
                 port = normalize_arduino_port((project_data or {}).get("arduino_port"))
-                if offline:
+                if decision is ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS:
+                    message = conflicting_triggers_message()
+                elif offline:
                     port_suffix = _(" (port {port})").format(port=port) if port else ""
                     message = _(
                         "This project uses External Trigger Mode, but the Arduino "
@@ -2263,6 +2279,42 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
     def has_pending_external_trigger(self) -> bool:
         """True quando uma sessão está armada aguardando o sinal do Arduino."""
         return self._pending_trigger_context is not None
+
+    def mark_manual_window_event(self) -> bool:
+        """The "Mark start/stop" button: a manual event for the live analysis window.
+
+        Stamped with ``perf_counter`` at the click (Tk thread) and delivered to
+        the window with the first frame captured after it (ADR-011).
+
+        Returns:
+            ``False`` when no live analysis window is running.
+        """
+        push = getattr(self.live_camera_service, "push_manual_condition_event", None)
+        accepted = bool(push()) if callable(push) else False
+        log.info(
+            "live_camera_session_coordinator.analysis_window.manual_mark",
+            accepted=accepted,
+            session=self._active_live_session_id,
+        )
+        return accepted
+
+    def owns_arduino_events(self) -> bool:
+        """Whether the Arduino's 1/0 codes address THIS coordinator right now.
+
+        True while a session is armed waiting for code 1, AND while the session
+        that code 1 started is still running — its code 0 is the end of the
+        protocol. Before this, ``MainViewModel`` only checked the pending arm:
+        once code 1 cleared it, code 0 went to the legacy coordinator, which had
+        no recording of its own and ignored it, so the grid session never
+        stopped (AUDIT §2, ``main_view_model.py:421-446``).
+
+        A session started any other way does not claim the codes: a numeric
+        line from a sensor must not stop a recording nobody armed.
+        """
+        if self._pending_trigger_context is not None:
+            return True
+        session_id = self._active_live_session_id
+        return session_id is not None and session_id == self._triggered_session_id
 
     def clear_pending_external_trigger(self) -> None:
         """Desarma a espera pelo gatilho e limpa o aviso na UI."""
@@ -2508,6 +2560,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # project entrypoint never did) and the UI live-context guards reset the
         # analysis-tab metadata to defaults. Reverted below if the service fails.
         self._active_live_session_id = experiment_id
+        # Started by the Arduino's code 1: its code 0 must reach this session.
+        self._triggered_session_id = experiment_id if external_trigger_armed else None
         self._update_state(
             StateCategory.PROCESSING,
             is_live_session_active=True,
@@ -2596,6 +2650,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             zones_validated=True,
             use_countdown=use_countdown,
             countdown_duration_s=countdown_duration_s,
+            # Live project: the project's analysis window (ADR-011).
+            analysis_window=project_data.get("analysis_window"),
         )
 
         if not success:

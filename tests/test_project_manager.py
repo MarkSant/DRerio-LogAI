@@ -497,6 +497,20 @@ class TestProjectManager(unittest.TestCase):
             self.assertEqual(data["batches"][0]["videos"][0]["status"], "pending")
             self.assertEqual(data["batches"][0]["videos"][1]["status"], "processed")
 
+    def test_create_new_project_persists_the_wizard_analysis_window(self):
+        """A converted v3 template's window must reach project_config.json."""
+        from zebtrack.core.conditions.presets import external_trigger_preset
+
+        window = external_trigger_preset().model_dump(mode="json", by_alias=True)
+        pm = ProjectManager(settings_obj=self.settings_obj)
+        project_path = os.path.join(self.test_dir, "window_project")
+        pm.create_new_project(project_path, "live", use_arduino=True, analysis_window=window)
+
+        with open(os.path.join(project_path, CONFIG_FILE_NAME)) as f:
+            data = json.load(f)
+        self.assertEqual(data["analysis_window"], window)
+        self.assertFalse(data["external_trigger_mode"])
+
     def test_create_new_project_initial_model_overrides(self):
         """Project creation should initialize model overrides as inherited defaults."""
         pm = ProjectManager(settings_obj=self.settings_obj)
@@ -507,6 +521,7 @@ class TestProjectManager(unittest.TestCase):
         with open(config_path) as f:
             data = json.load(f)
 
+        self.assertIsNone(data["analysis_window"])
         self.assertIn("model_overrides", data)
         self.assertEqual(
             data["model_overrides"],
@@ -515,6 +530,9 @@ class TestProjectManager(unittest.TestCase):
                 "use_openvino": None,
                 "device": "AUTO",
                 "slot_weights": {},
+                # ADR-009/012: explicit class roles, inert until the user sets them.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
         )
         self.assertEqual(
@@ -524,6 +542,9 @@ class TestProjectManager(unittest.TestCase):
                 "use_openvino": None,
                 "device": "AUTO",
                 "slot_weights": {},
+                # ADR-009/012: explicit class roles, inert until the user sets them.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
         )
 
@@ -762,6 +783,9 @@ class TestProjectManager(unittest.TestCase):
                 "use_openvino": None,
                 "device": "AUTO",
                 "slot_weights": {},
+                # ADR-009/012: explicit class roles, inert until the user sets them.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
         )
         self.assertIn("tracking", pm.project_data)
@@ -825,6 +849,9 @@ class TestProjectManager(unittest.TestCase):
                 "use_openvino": None,
                 "device": "AUTO",
                 "slot_weights": {},
+                # ADR-009/012: explicit class roles, inert until the user sets them.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
         )
 

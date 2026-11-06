@@ -17,8 +17,10 @@ from shapely.geometry import Polygon
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.data_transformer import (
     RGB_COLOR_MATCH_THRESHOLD,
+    WINDOW_COLUMNS,
     DataTransformer,
     _rgb_to_color_name,
+    window_columns,
 )
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 
@@ -964,3 +966,141 @@ class TestNewMetricExtraction:
         assert "Angular Velocity" in DISPLAY_COLUMN_MAPPING["mean_angular_velocity_deg_s"]
         assert DISPLAY_COLUMN_MAPPING["video_duration_s"] == "Video Duration (s)"
         assert DISPLAY_COLUMN_MAPPING["total_frames_analyzed"] == "Total Frames Analyzed"
+
+
+# ============================================================================
+# Analysis window columns (ADR-011, F4b)
+# ============================================================================
+
+
+def _windowed(report: dict) -> dict:
+    return {
+        **report,
+        "analysis_window": {
+            "status": "censored",
+            "start": {"frame": 25, "t_s": 2.5, "reason": "persist"},
+            "stop": {"frame": 89, "t_s": 8.9, "reason": "end_of_stream"},
+            "reason": "end_of_stream",
+            "window_duration_s": 6.4,
+        },
+    }
+
+
+def test_window_columns_are_nan_without_a_window(transformer, behavior_analyzer, sample_report):
+    df = transformer.create_tidy_dataframe(
+        report={**sample_report, "analysis_window": {"status": "none"}},
+        metadata={"experiment_id": "e"},
+        b_analyzer=behavior_analyzer,
+    )
+
+    for column in WINDOW_COLUMNS:
+        assert column in df.columns
+        assert pd.isna(df[column].iloc[0])
+    # Last columns: the positions of every pre-v8 column stay put.
+    assert list(df.columns)[-len(WINDOW_COLUMNS) :] == list(WINDOW_COLUMNS)
+
+
+def test_window_columns_are_present_for_old_reports(transformer, behavior_analyzer, sample_report):
+    df = transformer.create_tidy_dataframe(
+        report=sample_report, metadata={"experiment_id": "e"}, b_analyzer=behavior_analyzer
+    )
+
+    assert set(WINDOW_COLUMNS) <= set(df.columns)
+
+
+def test_window_columns_carry_the_window(transformer, behavior_analyzer, sample_report):
+    df = transformer.create_tidy_dataframe(
+        report=_windowed(sample_report),
+        metadata={"experiment_id": "e"},
+        b_analyzer=behavior_analyzer,
+    )
+
+    row = df.iloc[0]
+    assert row["window_status"] == "censored"
+    assert row["window_start_s"] == 2.5
+    assert row["window_stop_s"] == 8.9
+    assert row["window_duration_s"] == 6.4
+    assert row["window_reason"] == "end_of_stream"
+
+
+def test_window_columns_survive_standardization(transformer, behavior_analyzer, sample_report):
+    df = transformer.create_tidy_dataframe(
+        report=_windowed(sample_report),
+        metadata={"experiment_id": "e"},
+        b_analyzer=behavior_analyzer,
+    )
+
+    standardized = transformer.standardize_tidy_dataframe(df, {"experiment_id": "e"})
+    display = transformer.prepare_for_display(standardized)
+
+    assert standardized["window_start_s"].iloc[0] == 2.5
+    assert "Analysis Window Start (s)" in display.columns
+    assert "Analysis Window Status" in display.columns
+
+
+def test_window_columns_helper():
+    assert window_columns({}) == dict.fromkeys(WINDOW_COLUMNS)
+    assert window_columns({"analysis_window": {"status": "start_not_met"}}) == {
+        "window_status": "start_not_met",
+        "window_start_s": None,
+        "window_stop_s": None,
+        "window_duration_s": None,
+        "window_reason": None,
+    }
+
+
+def test_latency_flags_are_columns_per_roi_after_the_legacy_ones():
+    transformer = DataTransformer()
+    r_analyzer = Mock()
+    r_analyzer.rois = {"A": object(), "B": object()}
+    report = {
+        "analise_roi": {"latencia_primeira_entrada": {"A": 0.0, "B": 3.0}},
+        "latency_censored": {"A": False, "B": True},
+        "latency_present_at_start": {"A": True, "B": False},
+    }
+
+    combined = transformer._collect_roi_metrics({}, report, r_analyzer, {})
+
+    assert combined["latency_censored_B"] is True
+    assert combined["latency_present_at_start_A"] is True
+    keys = list(combined)
+    assert keys.index("latency_censored_A") > keys.index("tempo_nao_observado_s")
+
+
+def test_latency_flags_are_padded_for_missing_rois(transformer):
+    df = pd.DataFrame([{"experiment_id": "e"}])
+
+    padded = transformer.standardize_roi_columns(df, ["A"])
+
+    assert "latency_censored_A" in padded.columns
+    assert "latency_present_at_start_A" in padded.columns
+    assert pd.isna(padded["latency_censored_A"].iloc[0])
+
+
+def test_latency_flag_display_names(transformer):
+    display = transformer.prepare_for_display(
+        pd.DataFrame([{"latency_censored_A": True, "latency_present_at_start_A": False}])
+    )
+
+    assert list(display.columns) == ["Latency to A Censored", "In A at Window Start"]
+
+
+def test_per_animal_table_carries_the_latency_flags(transformer):
+    report = {
+        "analise_roi": {
+            "por_animal": {
+                "1": {
+                    "tempo_gasto_por_roi": {"A": {"seconds": 1.0, "percentage": 10.0}},
+                    "latencia_primeira_entrada": {"A": 4.0},
+                    "latency_censored": {"A": True},
+                    "latency_present_at_start": {"A": False},
+                }
+            }
+        }
+    }
+
+    table = transformer.build_per_animal_dataframe(report, "e", "g")
+
+    assert list(table.columns)[-2:] == ["latency_censored", "latency_present_at_start"]
+    assert bool(table["latency_censored"].iloc[0]) is True
+    assert bool(table["latency_present_at_start"].iloc[0]) is False

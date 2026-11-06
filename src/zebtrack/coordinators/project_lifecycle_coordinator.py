@@ -615,7 +615,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                         detector_state = self.state_manager.get_detector_state()
                         use_openvino = detector_state.use_openvino
                     success, error = self.detector_service.initialize_detector(
-                        animal_method=None,  # Use settings default
+                        animal_method=self._project_animal_method(),
                         use_openvino=use_openvino,
                     )
                     if not success:
@@ -1130,7 +1130,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             return
 
         try:
-            animal_method = self.settings.model_selection.animal_method if self.settings else None
+            animal_method = self._project_animal_method()
             success, error = self.detector_service.initialize_detector(
                 animal_method=animal_method,
                 use_openvino=bool(resolved_openvino),
@@ -1186,6 +1186,21 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                 get_active_weight_name, get_use_openvino, refresh_callback
             )
         return None
+
+    def _project_animal_method(self) -> str:
+        """det/seg method of the open project, before the global setting.
+
+        Until 8.0 reopening a project always used ``settings.model_selection``,
+        so a project created with "seg" in the wizard came back as "det".
+        """
+        from zebtrack.core.services.worker_model_resolution import (
+            resolve_project_animal_method,
+        )
+
+        project_data = getattr(self.project_manager, "project_data", None)
+        return resolve_project_animal_method(
+            project_data if isinstance(project_data, dict) else None, self.settings
+        )
 
     def apply_project_model_overrides(
         self,

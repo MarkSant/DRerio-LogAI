@@ -229,6 +229,16 @@ class RecorderSettings(BaseModel):
             "segmentation model (model_selection.animal_method == 'seg')"
         ),
     )
+    persist_object_sidecar: bool = Field(
+        True,
+        description=(
+            "Persist every processed frame's subject and context detections, plus one "
+            "heartbeat row per frame, to the 3c_Objetos_<base>.parquet sidecar. Analysis "
+            "windows (start/stop conditions) are evaluated from it, so turning it off "
+            "means a window can only be computed from the trajectory. Kill switch only "
+            "(ADR-010)."
+        ),
+    )
 
 
 def resolve_animal_confidence(yolo_settings: Any) -> float:
@@ -488,9 +498,10 @@ class ByteTrackSettings(BaseModel):
         ge=10,
         le=1000,
         description=(
-            "Number of frames to keep a lost track before removing it. Higher values "
-            "allow re-identification after longer occlusions. Scaled by processing_interval "
-            "internally. Default 90 with interval=5 means track survives ~18 detection cycles."
+            "Lost-track lifetime as frames at the 30 fps reference: a lost track is "
+            "removed after track_buffer / 30 seconds of video (or capture) time, "
+            "whatever the source fps or the analysis interval. Higher values allow "
+            "re-identification after longer occlusions."
         ),
     )
     iou_threshold: float = Field(
@@ -860,6 +871,31 @@ class OpenVINOSettings(BaseModel):
     )
 
 
+class ClassAliasSettings(BaseModel):
+    """Extra class names mapped onto the arena and animal roles.
+
+    Built-in names (``aqua``/``aquarium``/``tank``/``agua``/``arena``… and
+    ``zebrafish``/``fish``/``peixe``/``rat``/``mouse``…) are always recognised;
+    these lists only ADD names, for weights whose classes use other labels.
+    See ``zebtrack.core.detection.class_aliases``.
+    """
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid",
+    )
+
+    arena: list[str] = Field(
+        default_factory=list,
+        description="Additional class names treated as the arena/container.",
+    )
+    animal: list[str] = Field(
+        default_factory=list,
+        description="Additional class names treated as the tracked animal.",
+    )
+
+
 class ModelSelectionSettings(BaseModel):
     """Settings for selecting which model type to use for different tasks."""
 
@@ -880,6 +916,39 @@ class ModelSelectionSettings(BaseModel):
     use_openvino: bool = Field(
         False,
         description="Whether to use OpenVINO for model inference (auto-detected if not set)",
+    )
+    class_aliases: ClassAliasSettings = Field(
+        default_factory=ClassAliasSettings,
+        description=(
+            "Extra class names for the arena and animal roles, on top of the "
+            "built-in species-agnostic aliases."
+        ),
+    )
+    context_inference_scope: Literal["arena_crop", "arena_crop_margin", "full_frame"] = Field(
+        "arena_crop_margin",
+        description=(
+            "Where context classes (experimenter, start box, ...) are looked for. Only "
+            "takes effect when the class-role map has at least one context class; "
+            "without one the arena crop is exactly the legacy one (ADR-009)."
+        ),
+    )
+    context_crop_margin_frac: float = Field(
+        0.15,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Fraction of the arena bounding box added on every side when "
+            "context_inference_scope is 'arena_crop_margin'."
+        ),
+    )
+    context_min_confidence: float | None = Field(
+        None,
+        gt=0.0,
+        lt=1.0,
+        description=(
+            "Confidence floor for context classes. None uses the animal confidence "
+            "threshold (resolve_animal_confidence)."
+        ),
     )
 
 
@@ -1326,7 +1395,10 @@ class Settings(BaseModel):
             "Cap on the time credited to an ROI for a single trajectory step, "
             "in seconds. Tracking gaps would otherwise credit the whole gap to "
             "whichever ROI the animal reappeared in. The excess is reported as "
-            "analise_roi.tempo_nao_observado_s. null (default) means automatic: "
+            "analise_roi.tempo_nao_observado_s. The same cap defines a tracking "
+            "gap for behaviour: no freezing, inactivity or burst episode, "
+            "smoothing window or distance step crosses a longer interval. "
+            "null (default) means automatic: "
             "3x the median observed interval between analysed frames. Use .inf "
             "to disable the cap (historical behaviour)"
         ),

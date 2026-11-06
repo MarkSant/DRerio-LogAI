@@ -10,6 +10,7 @@ All methods access the parent CanvasManager via self.canvas_manager back-referen
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 import cv2
@@ -18,6 +19,7 @@ import structlog
 from PIL import Image
 
 from zebtrack.i18n import _
+from zebtrack.ui.components.canvas.overlay_roles import frame_style
 from zebtrack.ui.sentinels import all_tracks_label
 
 if TYPE_CHECKING:
@@ -275,7 +277,12 @@ class VideoFrameManager:
                 selected_track = self._get_selected_analysis_track()
                 filtered_detections = self._filter_detections_by_track(detections, selected_track)
                 self._update_analysis_track_options_from_detections(detections)
-                self._draw_detection_overlay_on_frame(frame_for_display, filtered_detections)
+                self._draw_detection_overlay_on_frame(
+                    frame_for_display,
+                    filtered_detections,
+                    class_roles=getattr(self.gui, "overlay_class_roles", None),
+                    class_names=getattr(self.gui, "overlay_class_names", None),
+                )
 
             # Convert the frame for display (BGR -> RGB)
             frame_rgb = cv2.cvtColor(frame_for_display, cv2.COLOR_BGR2RGB)
@@ -364,8 +371,17 @@ class VideoFrameManager:
             synchronizer._update_track_options(options)
 
     @staticmethod
-    def _draw_detection_overlay_on_frame(frame: np.ndarray, detections: list) -> None:
-        """Draw detection rectangles and labels directly on frame."""
+    def _draw_detection_overlay_on_frame(
+        frame: np.ndarray,
+        detections: list,
+        class_roles: Mapping[int, str] | None = None,
+        class_names: Mapping[int, str] | None = None,
+    ) -> None:
+        """Draw detection rectangles and labels directly on frame.
+
+        With an explicit role map (``class_roles``) colour and label follow the
+        class ROLE; without one, the 7.2 colours (class 0 = aquarium) are kept.
+        """
         for det in detections:
             if not isinstance(det, tuple | list) or len(det) < 6:
                 continue
@@ -377,13 +393,11 @@ class VideoFrameManager:
                 class_id = int(det[6])
             confidence = float(det[4]) if len(det) >= 5 else None
 
-            color = (0, 255, 255) if class_id == 0 else (255, 0, 255)
+            color, label = frame_style(
+                class_id, track_id, class_roles=class_roles, class_names=class_names
+            )
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
-            if track_id is not None:
-                label = f"ID {track_id}"
-            else:
-                label = "Object"
             if confidence is not None:
                 label = f"{label} ({int(confidence * 100)}%)"
             cv2.putText(

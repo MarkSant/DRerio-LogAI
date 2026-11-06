@@ -30,16 +30,19 @@ import numpy as np
 import structlog
 
 from zebtrack.core.detection import Detector, MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection.class_aliases import ClassAliases
+from zebtrack.core.detection.class_roles import ClassRoleMap, resolve_class_role_map
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
 from zebtrack.core.detection.zone_scaler import ZoneScaler, arena_membership_rule_from_settings
 from zebtrack.core.video.shared_frame_buffer import SharedFrameBuffer
 from zebtrack.i18n import _
+from zebtrack.io.object_sidecar import CLOCK_PTS, ObjectSidecarMetadata
 from zebtrack.io.recorder import Recorder
 
 # Settings is used at runtime in WorkerConfig
 if TYPE_CHECKING:
-    pass
+    from zebtrack.core.services.worker_model_resolution import WorkerModelSpec
 
 log = structlog.get_logger()
 
@@ -60,6 +63,10 @@ class ProcessingContext:
     apply_project_settings_func: Callable | None = None
     determine_intervals_func: Callable | None = None
     retry_strategy: str = "stop"
+    # Effective weight resolved in the main process by
+    # ``worker_model_resolution.resolve_worker_model`` (ADR-009). ``None`` keeps
+    # the settings-only resolution, now a warned fallback.
+    model_spec: WorkerModelSpec | None = None
 
 
 @dataclass
@@ -91,6 +98,11 @@ class WorkerConfig:
     model_type: str = "yolo"  # 'yolo' or 'openvino'
     zone_data: dict | None = None  # serialized ZoneData
     shm_name: str = ""  # shared memory block name for preview frames
+    # Effective weight resolved in the main process (ADR-009). Empty/None means
+    # "not resolved by the caller": the worker falls back to the settings path.
+    weight_sha256: str = ""
+    class_roles: dict[str, str] | None = None  # normalised class name -> role token
+    class_roles_source: str = ""  # "project" | "weight" for an explicit map
 
 
 class ProcessingWorker:
@@ -165,12 +177,68 @@ class ProcessingWorker:
             self._shm_buffer = None
             shm_name = ""
 
-        # Resolve model type and path from settings snapshot
-        # The main process selects model via detector_service/weight_manager,
-        # but the worker needs to reconstruct the same selection from settings.
+        spec = self.context.model_spec
+        if spec is not None:
+            # The spec WINS over the settings: it was resolved in the main
+            # process from the project overrides and the weight registry.
+            resolved_model_type = spec.model_type
+            resolved_model_path = spec.model_path
+            log.info(
+                "worker.model.spec_used",
+                weight=spec.weight_name,
+                resolved_from=spec.resolved_from,
+                class_roles_source=spec.class_roles_source,
+            )
+        else:
+            log.warning(
+                "worker.model.spec_missing",
+                message=(
+                    "No WorkerModelSpec: rebuilding the model from the global settings. "
+                    "The project's weight choice is NOT honoured on this path."
+                ),
+            )
+            resolved_model_type, resolved_model_path = self._model_from_settings(
+                self.context.settings
+            )
+
+        log.info(
+            "worker.model.resolved",
+            model_type=resolved_model_type,
+            model_path=resolved_model_path,
+        )
+
+        # Create WorkerConfig
+        config = WorkerConfig(
+            settings=self.context.settings,
+            output_base_dir=self.context.output_base_dir,
+            tasks=self.context.videos_to_process,
+            single_video_mode=bool(self.context.single_video_config),
+            analysis_interval_frames=self.context.analysis_interval_frames,
+            display_interval_frames=self.context.display_interval_frames,
+            zone_data=z_dict,
+            shm_name=shm_name,
+            model_type=resolved_model_type,
+            model_path=resolved_model_path,
+            weight_sha256=spec.weight_sha256 if spec is not None else "",
+            class_roles=dict(spec.class_roles) if spec and spec.class_roles else None,
+            class_roles_source=(spec.class_roles_source or "") if spec is not None else "",
+        )
+
+        self.process = _WorkerProcess(config, self.result_queue, self.command_queue)
+        if self.process:  # Guard against None
+            self.process.start()
+
+        thread = threading.Thread(target=self._monitor_loop, name="ProcessingMonitor")
+        thread.daemon = True
+        thread.start()
+        self._monitor_thread = thread
+        return thread
+
+    @staticmethod
+    def _model_from_settings(settings: Any) -> tuple[str, str]:
+        """Legacy settings-only model resolution (fallback without a spec)."""
         resolved_model_type = "yolo"
         resolved_model_path = ""
-        settings = self.context.settings
         if hasattr(settings, "model_selection"):
             ms = settings.model_selection
             use_ov = getattr(ms, "use_openvino", False)
@@ -214,36 +282,7 @@ class ProcessingWorker:
                         fallback="yolo",
                     )
                     resolved_model_type = "yolo"
-
-        log.info(
-            "worker.model.resolved",
-            model_type=resolved_model_type,
-            model_path=resolved_model_path,
-        )
-
-        # Create WorkerConfig
-        config = WorkerConfig(
-            settings=self.context.settings,
-            output_base_dir=self.context.output_base_dir,
-            tasks=self.context.videos_to_process,
-            single_video_mode=bool(self.context.single_video_config),
-            analysis_interval_frames=self.context.analysis_interval_frames,
-            display_interval_frames=self.context.display_interval_frames,
-            zone_data=z_dict,
-            shm_name=shm_name,
-            model_type=resolved_model_type,
-            model_path=resolved_model_path,
-        )
-
-        self.process = _WorkerProcess(config, self.result_queue, self.command_queue)
-        if self.process:  # Guard against None
-            self.process.start()
-
-        thread = threading.Thread(target=self._monitor_loop, name="ProcessingMonitor")
-        thread.daemon = True
-        thread.start()
-        self._monitor_thread = thread
-        return thread
+        return resolved_model_type, resolved_model_path
 
     def cancel(self, timeout: float | None = None) -> bool:
         """Cancel processing."""
@@ -676,6 +715,7 @@ class _WorkerProcess(multiprocessing.Process):
             base_width=width,
             base_height=height,
             settings_obj=settings,
+            class_role_map=self._resolve_class_role_map(plugin),
         )
 
         # CRITICAL: Propagate single_subject_mode from settings
@@ -751,6 +791,39 @@ class _WorkerProcess(multiprocessing.Process):
             self._default_zone_data = ZoneData()
 
         return detector
+
+    def _resolve_class_role_map(self, plugin: Any) -> ClassRoleMap:
+        """Rebuild the main process's role decision against the LOADED model.
+
+        The config carries roles by class NAME (pickle-safe); ids only exist once
+        the plugin has read ``model.names``. With a spec (``weight_sha256`` set)
+        the resolution is strict: a multi-class weight with no subject raises
+        :class:`ClassRolesUnresolvedError` instead of tracking class 1 by
+        position. Without a spec this is the legacy, non-strict alias path.
+        """
+        names = getattr(plugin, "class_names", None)
+        aliases = ClassAliases.from_settings(self.config.settings)
+        sha = self.config.weight_sha256 or None
+        strict = bool(self.config.weight_sha256)
+        roles = self.config.class_roles
+        if roles and self.config.class_roles_source == "project":
+            return resolve_class_role_map(
+                names,
+                project_override=roles,
+                project_override_sha=sha,
+                weight_sha256=sha,
+                aliases=aliases,
+                strict=strict,
+            )
+        if roles:
+            return resolve_class_role_map(
+                names,
+                weight_entry={"class_roles": roles},
+                weight_sha256=sha,
+                aliases=aliases,
+                strict=strict,
+            )
+        return resolve_class_role_map(names, weight_sha256=sha, aliases=aliases, strict=strict)
 
     def _get_zone_data_for_video(
         self, video_metadata: dict[str, Any]
@@ -959,6 +1032,13 @@ class _WorkerProcess(multiprocessing.Process):
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        # Real rate of THIS video: ByteTrack's lost-track buffer is counted in
+        # frames and must be scaled with it, not with settings.video_processing.fps
+        # (issue #630). 0/NaN from a broken container falls back with a warning.
+        source_fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+        set_source_fps = getattr(detector, "set_source_fps", None)
+        if callable(set_source_fps):
+            set_source_fps(source_fps)
 
         # 2. Setup Zones & Calibration
         # Use per-video zone data if available (batch processing), otherwise use default
@@ -998,6 +1078,8 @@ class _WorkerProcess(multiprocessing.Process):
                 base_width=multi_base_width,
                 base_height=multi_base_height,
                 settings_obj=detector.settings,
+                class_role_map=getattr(detector, "class_role_map", None),
+                source_fps=source_fps,
             )
             multi_aq_detector.set_multi_aquarium_zones(
                 video_zone_data.aquariums,
@@ -1064,6 +1146,14 @@ class _WorkerProcess(multiprocessing.Process):
             )
 
         recorder = Recorder(settings_obj=self.config.settings)
+        # ``3c_Objetos_`` metadata, from the role map the detector RUNS with
+        # and the sha of the weight file this process loaded (ADR-010).
+        object_metadata = ObjectSidecarMetadata.from_role_map(
+            getattr(detector, "class_role_map", None),
+            clock=CLOCK_PTS,
+            analysis_interval_frames=self.config.analysis_interval_frames,
+            weight_sha256=self.config.weight_sha256 or None,
+        )
 
         # Initialize calibration
         calibration = None
@@ -1158,6 +1248,7 @@ class _WorkerProcess(multiprocessing.Process):
                 calibration=None,
                 calibration_by_aquarium=calibration_by_aquarium,
                 output_folders_by_aquarium=output_folders_by_aquarium,
+                object_metadata=object_metadata,
             )
 
         else:
@@ -1170,7 +1261,22 @@ class _WorkerProcess(multiprocessing.Process):
                 base_name=experiment_id,
                 pixel_per_cm_ratio=pixel_ratio,
                 calibration=calibration,
+                object_metadata=object_metadata,
             )
+
+        # Object sidecar: written on EVERY processed frame, detection or not.
+        # Multi-aquarium routes rows by position, so it needs the aquarium
+        # polygons in the same frame pixels as the observations.
+        capture_objects = recorder.persist_object_sidecar
+        aquarium_polygons: dict[int, Any] | None = None
+        if is_multi_aquarium and multi_aq_detector is not None:
+            assert isinstance(video_zone_data, MultiAquariumZoneData)
+            aquarium_polygons = {}
+            for aq in video_zone_data.aquariums:
+                polygon = multi_aq_detector.get_aquarium_polygon(aq.id)
+                if polygon is not None:
+                    aquarium_polygons[aq.id] = polygon
+        observation_source: Any = multi_aq_detector if multi_aq_detector is not None else detector
 
         if is_multi_aquarium and multi_aq_detector is not None:
             multi_aq_detector.reset_multi_aquarium_tracking()
@@ -1230,6 +1336,19 @@ class _WorkerProcess(multiprocessing.Process):
 
                     log.debug("worker.frame.read_success", frame=frame_num, shape=frame.shape)
 
+                    # The frame's PTS: the trajectory's ``timestamp`` and the
+                    # clock ByteTrack ages lost tracks on (#654), so a lost
+                    # track lives ``track_buffer / 30`` s whatever the interval.
+                    timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+                    tracking_detector = (
+                        multi_aq_detector
+                        if is_multi_aquarium and multi_aq_detector is not None
+                        else detector
+                    )
+                    set_frame_time = getattr(tracking_detector, "set_frame_time", None)
+                    if callable(set_frame_time):
+                        set_frame_time(timestamp)
+
                     # Detect
                     if is_multi_aquarium and multi_aq_detector is not None:
                         log.debug("worker.detect_multi.start", frame=frame_num)
@@ -1256,8 +1375,7 @@ class _WorkerProcess(multiprocessing.Process):
                     if self._check_cancellation(wait_s=0.0):
                         return False
 
-                    # Record
-                    timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+                    # Record (``timestamp``: the PTS read before detection)
                     if is_multi_aquarium:
                         recorder.write_partitioned_detection_data(
                             timestamp, frame_num, partitioned_detections
@@ -1271,6 +1389,10 @@ class _WorkerProcess(multiprocessing.Process):
                             recorder.write_mask_data(
                                 frame_num, detector.pop_track_masks(detections)
                             )
+                    if capture_objects:
+                        self._write_object_observations(
+                            recorder, observation_source, timestamp, frame_num, aquarium_polygons
+                        )
 
                     # Display Update?
                     if frame_num % self.config.display_interval_frames == 0:
@@ -1398,6 +1520,29 @@ class _WorkerProcess(multiprocessing.Process):
                 recorder.stop_recording()
 
         return True
+
+    @staticmethod
+    def _write_object_observations(
+        recorder: Recorder,
+        source: Any,
+        timestamp: float,
+        frame_num: int,
+        aquarium_polygons: dict[int, Any] | None,
+    ) -> None:
+        """Hand one processed frame's class observations to the ``3c_`` sidecar.
+
+        Pre-recorded, the event clock is the PTS, i.e. the same ``timestamp``
+        the trajectory gets. A source without ``pop_class_observations`` still
+        yields the heartbeat.
+        """
+        pop = getattr(source, "pop_class_observations", None)
+        observations = pop() if callable(pop) else []
+        if aquarium_polygons is not None:
+            recorder.write_partitioned_object_data(
+                timestamp, frame_num, timestamp, observations, aquarium_polygons
+            )
+        else:
+            recorder.write_object_data(timestamp, frame_num, timestamp, observations)
 
     def _check_cancellation(self, *, wait_s: float = 0.005) -> bool:
         """Check for cancellation messages.

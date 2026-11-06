@@ -53,6 +53,11 @@ class LiveSessionManagerMixin:
     #: ponta por ``test_stop_session_bounded_total_join_budget``.
     _max_join_wait_s: float = 5.0
 
+    #: Part of that same budget the video thread gets to write what is still
+    #: queued when the session stops (#636). Whatever it cannot write in time is
+    #: recorded in the ledger as ``dropped_on_stop`` instead of vanishing.
+    _stop_drain_timeout_s: float = 2.0
+
     # -- Typing stubs for attributes defined by LiveCameraService.__init__ --
     controller: MainViewModel | None
     state_manager: StateManager
@@ -107,6 +112,7 @@ class LiveSessionManagerMixin:
     current_output_dir: Path | None
     analysis_completed: bool
     _analysis_lag_frames: int
+    _analysis_window_raw: Any
 
     # Cross-mixin method stubs — visible to type checkers only so they
     # don't shadow the real implementations resolved through the MRO.
@@ -117,8 +123,12 @@ class LiveSessionManagerMixin:
         def _setup_camera(self, camera_index: int) -> bool: ...
         def _start_threads(self) -> bool: ...
         def _clear_queues(self) -> None: ...
+        def _drain_video_queue_for_stop(self, timeout_s: float) -> int: ...
         def _on_session_complete(self, output_dir: Path, *, keep_data: bool = False) -> None: ...
         def _finalize_frame_ledger(self) -> None: ...
+        def _live_object_metadata(self) -> Any: ...
+        def _resolve_session_multi_zone_data(self) -> Any: ...
+        def _start_live_recorder(self, zone_data: Any, base_name: str) -> bool: ...
 
     def _resolve_session_detector_config(self) -> tuple[str | None, bool, str]:
         """Resolve ``(active_weight, use_openvino, source)`` for the next session.
@@ -343,6 +353,7 @@ class LiveSessionManagerMixin:
         zones_validated: bool = False,
         use_countdown: bool = False,
         countdown_duration_s: int = 0,
+        analysis_window: Any = None,
     ) -> bool:
         """Start a live camera analysis session.
 
@@ -359,6 +370,10 @@ class LiveSessionManagerMixin:
             use_external_preview: Whether to use external preview window
             use_countdown: Whether to show countdown before recording starts
             countdown_duration_s: Countdown duration in seconds
+            analysis_window: The session's analysis window (ADR-011): the
+                project's ``analysis_window`` for a live project, the dialog
+                config's for an ad hoc session; ``None`` = no window. Kept on
+                this session only — never written to the shared ``Settings``.
 
         Returns:
             True if session started successfully, False otherwise
@@ -401,6 +416,7 @@ class LiveSessionManagerMixin:
         self._live_detected_frames = 0
         self._analysis_params = analysis_config or {}
         self._use_external_preview = use_external_preview
+        self._analysis_window_raw = analysis_window
 
         # Create preview window FIRST (so we can show status updates)
         if use_external_preview and not getattr(
@@ -568,8 +584,24 @@ class LiveSessionManagerMixin:
                 log.error("live_camera_service.detector_setup_failed")
                 return False
 
+        # ByteTrack's lost-track buffer is counted in frames: scale it with the
+        # camera's real rate, not settings.video_processing.fps (issue #630).
+        # ``actual_fps`` is the rate the driver reports (already falling back
+        # to the settings value when the driver reports 0).
+        detector = self.detector_service.detector
+        set_source_fps = getattr(detector, "set_source_fps", None)
+        if callable(set_source_fps):
+            set_source_fps(float(getattr(self, "_actual_fps", 0.0) or 0.0))
+
         # Check if we need aquarium detection phase
         zone_data = self.project_manager.get_zone_data() if self.project_manager else None
+        # The aquarium-0 shim above never says "multi-aquarium": resolve the
+        # session's aquariums here, BEFORE the threads start, because the
+        # processing thread and the analysis-window probe read this cache from
+        # their first frame (#635). The partitioned detector is rebuilt for the
+        # new zones on first use.
+        self._multi_aq_detector = None
+        self._resolve_session_multi_zone_data()
 
         log.info(
             "live_camera_service.zone_data_check",
@@ -754,13 +786,11 @@ class LiveSessionManagerMixin:
                     # for (it expects ``{_current_base_name}.mp4``). The
                     # report's frame-extraction silently skipped because the
                     # file didn't exist at the searched path.
-                    recorder_started = self.recorder.start_recording(
-                        output_folder=str(output_dir),
-                        frame_width=self.camera.actual_width if self.camera else 640,
-                        frame_height=self.camera.actual_height if self.camera else 480,
-                        zones=recorder_zones,
-                        is_video_file=False,
-                        base_name=self._current_base_name,
+                    # Multi-aquarium sessions branch inside (#635): with the
+                    # zones validated up front this used to record aquarium 0
+                    # over the whole frame.
+                    recorder_started = self._start_live_recorder(
+                        recorder_zones, self._current_base_name
                     )
 
                     if not recorder_started:
@@ -1015,10 +1045,20 @@ class LiveSessionManagerMixin:
         # crash that killed the program right after the 30s timer expired.
         #
         # Correct order:
+        #   (0) stop CAPTURE only and let the video thread drain its queue,
+        #       bounded (#636) — skipped on a manual cancel, whose folder is
+        #       deleted below anyway
         #   (1) exit_event.set()  — tell workers to stop NEW iterations
-        #   (2) clear_queues()    — unblock any worker stuck on queue.get
+        #   (2) clear_queues()    — unblock any worker stuck on queue.get; the
+        #       video frames still queued get a ``dropped_on_stop`` ledger row
         #   (3) join threads      — wait for workers to actually exit
         #   (4) recorder.stop_recording() — NOW safe to close writers
+        # The drain is charged to the same total budget as the join below, so
+        # a hung session still stops within ``_max_join_wait_s``.
+        MAX_JOIN_WAIT_S = self._max_join_wait_s
+        wait_start = time.time()
+        if not (cancelled and not keep_data):
+            self._drain_video_queue_for_stop(min(self._stop_drain_timeout_s, MAX_JOIN_WAIT_S))
         self.exit_event.set()
         self._clear_queues()
         log.info("live_camera_service.queues_cleared_before_join")
@@ -1052,10 +1092,8 @@ class LiveSessionManagerMixin:
         # gravacao. Os arquivos continuavam no disco (o ``rmtree`` obedece ao
         # parametro ``cancelled``, nao a esta variavel), o que tornava a perda
         # invisivel: pasta cheia, projeto vazio, nenhum erro para o operador.
-        MAX_JOIN_WAIT_S = self._max_join_wait_s
         TICK_S = 0.1
         threads_hung = False
-        wait_start = time.time()
         while any(t is not None and t.is_alive() for _, t in threads_to_join):
             if time.time() - wait_start > MAX_JOIN_WAIT_S:
                 still_alive = [n for n, t in threads_to_join if t is not None and t.is_alive()]

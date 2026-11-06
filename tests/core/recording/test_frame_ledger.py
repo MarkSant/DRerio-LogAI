@@ -17,6 +17,7 @@ import queue
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import numpy as np
@@ -400,7 +401,8 @@ def test_analysis_cadence_and_opportunistic_queueing(tmp_path):
 
     analysis = [r["pipeline_frame"] for r in rows if r["is_analysis_frame"]]
     assert analysis == [10]  # cadência determinística
-    # Enfileiramento oportunista: o parquet NÃO contém só múltiplos de 10.
+    # Enfileiramento oportunista: os outros quadros também vão à fila (exibição);
+    # desde o #637 só os múltiplos de 10 são ANALISADOS.
     assert all(r["queued_for_analysis"] for r in rows)
 
 
@@ -414,6 +416,39 @@ def test_opportunistic_queueing_marked_false_when_queue_is_full(tmp_path):
     queued = [r["pipeline_frame"] for r in rows if r["queued_for_analysis"]]
     assert queued == [1, 2]
     assert all(r["outcome"] == "written" for r in rows)  # o vídeo não é afetado
+
+
+def test_multi_aquarium_session_frames_are_written_to_the_session_mp4(tmp_path):
+    """#635: the parent of a multi-aquarium session never has ``is_recording``.
+
+    The video thread tested ``is_recording and video_writer``, so every frame
+    of such a session was logged ``not_recording`` and no MP4 existed; the
+    ledger did not even bind, the parent having no ``output_folder``.
+    """
+    from zebtrack.core.detection import ZoneData
+    from zebtrack.io.recorder import Recorder
+
+    recorder = Recorder()
+    assert recorder.start_recording_multi_aquarium(
+        output_folder=str(tmp_path),
+        width=4,
+        height=4,
+        zones_by_aquarium={
+            0: ZoneData(polygon=[(0, 0), (2, 0), (2, 4), (0, 4)]),
+            1: ZoneData(polygon=[(2, 0), (4, 0), (4, 4), (2, 4)]),
+        },
+        base_name="exp",
+        session_video=True,
+    )
+    harness = _PipelineHarness(tmp_path, n_frames=6)
+    harness.recorder = cast(Any, recorder)
+
+    rows = _run_pipeline(harness)
+    recorder.stop_recording()
+
+    assert {r["outcome"] for r in rows} == {"written"}
+    assert [r["video_frame_index"] for r in rows] == list(range(6))
+    assert load_ledger(tmp_path, "exp"), "the ledger must bind to the session folder"
 
 
 def test_ledger_written_without_arduino(tmp_path):
@@ -466,3 +501,269 @@ def _wait_for(predicate, timeout: float = 5.0, tick: float = 0.01) -> None:
             return
         time.sleep(tick)
     raise AssertionError("condição não atingida dentro do timeout")
+
+
+# ---------------------------------------------------------------------------
+# Pinned origin (v8 F5): the live analysis window and retime_from_ledger share t0
+# ---------------------------------------------------------------------------
+
+
+def test_pinned_origin_wins_over_row_order(tmp_path):
+    """Frame 1 is pinned by the capture thread; a racing row cannot move t0."""
+    ledger = _ledger(tmp_path, flush_interval_s=0.01)
+    ledger.pin_origin(100.0, 1_700_000_000.0)
+    ledger.record(2, 100.5, 1_700_000_000.5, "dropped_queue_full")  # appended first
+    ledger.record(1, 100.0, 1_700_000_000.0, "written", video_frame_index=0)
+
+    assert ledger.origin_perf == 100.0
+    anchor = ledger.build_anchor()
+    assert anchor["t0_perf"] == 100.0
+    assert anchor["t0_wall"] == 1_700_000_000.0
+    ledger.finalize()
+
+
+def test_origin_is_pinned_once(tmp_path):
+    ledger = _ledger(tmp_path, flush_interval_s=0.01)
+    ledger.pin_origin(100.0, 1.0)
+    ledger.pin_origin(200.0, 2.0)
+    assert ledger.origin_perf == 100.0
+    assert ledger.build_anchor()["t0_wall"] == 1.0
+    ledger.finalize()
+
+
+def test_origin_without_pin_is_the_first_timed_row(tmp_path):
+    ledger = _ledger(tmp_path, flush_interval_s=0.01)
+    assert ledger.origin_perf is None
+    ledger.record(1, None, None, "not_recording")
+    ledger.record(2, 50.0, 7.0, "not_recording")
+    assert ledger.origin_perf == 50.0
+    assert ledger.build_anchor()["t0_perf"] == 50.0
+    ledger.finalize()
+
+
+# --------------------------------------------------------------------------- #
+# Capture time base (#637)
+# --------------------------------------------------------------------------- #
+
+
+class _SensorCamera:
+    """A ``Camera`` look-alike: a sensor thread at ``fps``, newest frame kept.
+
+    ``get_frame`` behaves like the real one (newest frame, not consumed), so a
+    loop polling it faster than the sensor repeats frames. ``read_next_frame``
+    hands each frame out once, stamped at its read. Frame ``k`` carries ``k``
+    in pixel ``[0, 0, 0]``; ``stamps[k]`` is its read instant.
+    """
+
+    _camera_index = 0
+
+    def __init__(self, fps: float, n_frames: int, exit_event: threading.Event) -> None:
+        self._cond = threading.Condition()
+        self._seq = 0
+        self._frame = FRAME.copy()
+        self.stamps: dict[int, float] = {}
+        self._exit = exit_event
+        self._thread = threading.Thread(target=self._run, args=(fps, n_frames), daemon=True)
+        self._thread.start()
+
+    def _run(self, fps: float, n_frames: int) -> None:
+        for k in range(1, n_frames + 1):
+            time.sleep(1.0 / fps)
+            frame = FRAME.copy()
+            frame[0, 0, 0] = k
+            with self._cond:
+                self._seq, self._frame = k, frame
+                self.stamps[k] = time.perf_counter()
+                self._cond.notify_all()
+        time.sleep(0.3)
+        self._exit.set()
+
+    def get_frame(self):
+        with self._cond:
+            if self._seq == 0:
+                return False, None
+            return True, self._frame.copy()
+
+    def read_next_frame(self, after_seq: int, timeout: float = 0.5):
+        from zebtrack.io.camera import CapturedFrame
+
+        with self._cond:
+            if not self._cond.wait_for(lambda: self._seq > after_seq, timeout=timeout):
+                return None
+            return CapturedFrame(self._frame.copy(), self._seq, self.stamps[self._seq], time.time())
+
+
+def test_each_sensor_frame_becomes_one_pipeline_frame(tmp_path):
+    """The capture loop polled ``get_frame`` at 1.5x the configured 30 fps: with
+    a 20 fps camera most sensor frames became two pipeline frames (#637)."""
+    harness = _PipelineHarness(tmp_path)
+    camera = _SensorCamera(fps=20.0, n_frames=12, exit_event=harness.exit_event)
+    harness.camera = cast(Any, camera)
+
+    rows = _run_pipeline(harness)
+    recorder = cast(Any, harness.recorder)
+    marks = [int(frame[0, 0, 0]) for frame in recorder.written]
+
+    assert marks == sorted(set(marks)), "a sensor frame was recorded twice"
+    assert len(rows) == len(marks)
+
+
+def test_capture_instant_is_the_sensor_read(tmp_path):
+    """``t_capture_perf`` was the instant of the POLL, not of ``cap.read``."""
+    harness = _PipelineHarness(tmp_path)
+    camera = _SensorCamera(fps=20.0, n_frames=8, exit_event=harness.exit_event)
+    harness.camera = cast(Any, camera)
+
+    rows = _run_pipeline(harness)
+    recorder = cast(Any, harness.recorder)
+    marks = [int(frame[0, 0, 0]) for frame in recorder.written]
+
+    assert marks
+    for row, mark in zip(rows, marks, strict=True):
+        assert row["t_capture_perf"] == pytest.approx(camera.stamps[mark], abs=1e-9)
+
+
+def test_sensor_frames_the_pipeline_missed_are_counted(tmp_path):
+    from zebtrack.io.camera import CapturedFrame
+
+    harness = _PipelineHarness(tmp_path)
+    handed = iter(
+        [CapturedFrame(FRAME.copy(), seq, float(seq), float(seq)) for seq in (1, 2, 5, 6)]
+    )
+    camera = SimpleNamespace(read_next_frame=lambda *_args, **_kwargs: next(handed))
+    harness.camera = cast(Any, camera)
+    harness._last_camera_seq = 0
+    harness._camera_frames_skipped = 0
+
+    reads = [harness._read_camera_frame() for _ in range(4)]
+
+    assert all(read is not None and read.paced_by_camera for read in reads)
+    assert harness._camera_frames_skipped == 2  # sensor frames 3 and 4
+    assert harness._last_camera_seq == 6
+
+
+def test_a_source_without_read_next_frame_is_stamped_and_paced_here(tmp_path):
+    harness = _PipelineHarness(tmp_path, n_frames=1)
+    before = time.perf_counter()
+
+    read = harness._read_camera_frame()
+
+    assert read is not None
+    assert read.paced_by_camera is False
+    assert read.t_perf >= before
+
+
+def test_a_new_session_restarts_the_camera_cursor(tmp_path):
+    """A new ``Camera`` numbers its reads from 1 again; the previous session's
+    cursor would make ``read_next_frame`` wait forever for a "newer" frame."""
+    harness = _PipelineHarness(tmp_path)
+    harness._last_camera_seq = 500  # left by the previous session's camera
+    harness._camera_frames_skipped = 7
+    for loop in ("_capture_loop", "_processing_loop", "_video_recording_loop"):
+        setattr(harness, loop, lambda: None)
+
+    assert harness._start_threads() is True
+
+    assert harness._last_camera_seq == 0
+    assert harness._camera_frames_skipped == 0
+
+
+# --------------------------------------------------------------------------- #
+# Stop: the tail of the session (#636)
+# --------------------------------------------------------------------------- #
+
+
+class _SlowRecorder(_FakeRecorder):
+    """Writer that takes ``delay_s`` per frame, so the video queue backs up."""
+
+    def __init__(self, output_folder, delay_s: float) -> None:
+        super().__init__(output_folder)
+        self._delay_s = delay_s
+
+    def write_video_frame(self, frame) -> None:
+        time.sleep(self._delay_s)
+        super().write_video_frame(frame)
+
+
+def _stop_like_stop_session(harness: _PipelineHarness, run_s: float, drain_s: float):
+    """Run capture + video for ``run_s``, then stop in ``stop_session``'s order."""
+    harness._reset_frame_ledger()
+    harness._capture_stop_event = threading.Event()
+    harness.capture_thread = threading.Thread(target=harness._capture_loop, daemon=True)
+    harness.video_recording_thread = threading.Thread(
+        target=harness._video_recording_loop, daemon=True
+    )
+    harness.capture_thread.start()
+    harness.video_recording_thread.start()
+    time.sleep(run_s)
+
+    left = harness._drain_video_queue_for_stop(drain_s)
+    harness.exit_event.set()
+    harness._clear_queues()
+    harness.capture_thread.join(timeout=5)
+    harness.video_recording_thread.join(timeout=5)
+    ledger = harness._frame_ledger
+    assert ledger is not None
+    rows = sorted(ledger.rows_snapshot(), key=lambda r: r["pipeline_frame"])
+    harness._finalize_frame_ledger()
+    return rows, left
+
+
+def test_stop_writes_the_queued_tail_before_emptying_the_queues(tmp_path):
+    """The video thread drains the queue: every captured frame reaches the MP4."""
+    harness = _PipelineHarness(tmp_path, n_frames=10**9)
+    harness.recorder = cast(Any, _SlowRecorder(tmp_path, delay_s=0.03))
+
+    rows, left = _stop_like_stop_session(harness, run_s=0.4, drain_s=5.0)
+
+    assert left == 0
+    assert len(rows) == harness._last_captured_frame
+    assert {r["outcome"] for r in rows} == {"written"}
+    assert [r["video_frame_index"] for r in rows] == list(range(len(rows)))
+
+
+def test_frames_left_after_the_deadline_are_logged_dropped_on_stop(tmp_path):
+    """One ledger row per captured frame, to the very end of the session."""
+    harness = _PipelineHarness(tmp_path, n_frames=10**9)
+    harness.recorder = cast(Any, _SlowRecorder(tmp_path, delay_s=0.2))
+
+    rows, left = _stop_like_stop_session(harness, run_s=0.5, drain_s=0.1)
+
+    assert left > 0
+    assert [r["pipeline_frame"] for r in rows] == list(range(1, harness._last_captured_frame + 1))
+    by_outcome: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        by_outcome.setdefault(row["outcome"], []).append(row)
+    assert set(by_outcome) == {"written", "dropped_on_stop"}
+    assert len(by_outcome["dropped_on_stop"]) == left
+    assert all(r["video_frame_index"] == -1 for r in by_outcome["dropped_on_stop"])
+    # The tail is what was dropped: every dropped frame comes after every written one.
+    assert max(r["pipeline_frame"] for r in by_outcome["written"]) < min(
+        r["pipeline_frame"] for r in by_outcome["dropped_on_stop"]
+    )
+
+
+def test_capture_stops_before_the_drain(tmp_path):
+    """No new frame is captured once the drain starts."""
+    harness = _PipelineHarness(tmp_path, n_frames=10**9)
+    harness.recorder = cast(Any, _SlowRecorder(tmp_path, delay_s=0.01))
+
+    rows, _left = _stop_like_stop_session(harness, run_s=0.3, drain_s=1.0)
+    captured_at_stop = harness._last_captured_frame
+    time.sleep(0.1)
+
+    assert harness._last_captured_frame == captured_at_stop
+    assert len(rows) == captured_at_stop
+
+
+def test_a_new_session_captures_again_after_a_stop(tmp_path):
+    """The capture-only stop of the previous session must not leak into the next."""
+    harness = _PipelineHarness(tmp_path)
+    harness._capture_stop_event = threading.Event()
+    harness._capture_stop_event.set()  # what the previous stop left behind
+    for loop in ("_capture_loop", "_processing_loop", "_video_recording_loop"):
+        setattr(harness, loop, lambda: None)
+
+    assert harness._start_threads() is True
+
+    assert harness._capture_stop_requested() is False
