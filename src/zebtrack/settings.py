@@ -62,6 +62,14 @@ log = structlog.get_logger()
 _DEFAULT_CONFIG_PATH: Final[Path] = _resolve_config_path()
 _DEFAULT_LOCAL_CONFIG_PATH: Final[Path] = _resolve_local_config_path()
 
+#: Upper bound of the thigmotaxis "near wall" band (#631). 10 cm fitted a fish
+#: tank; the open-field periphery of a rat is 10-20 cm. Shared by the settings,
+#: the wizard model and the behavioural widget so the three never disagree.
+THIGMOTAXIS_MAX_DISTANCE_CM: Final[float] = 50.0
+
+#: Zebrafish ceiling for a plausible speed (cm/s); the setting's default (#631).
+DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S: Final[float] = 50.0
+
 
 # --- Pydantic Models for Configuration Structure ---
 
@@ -1205,7 +1213,7 @@ class BehavioralAnalysisSettings(BaseModel):
     default_thigmotaxis_distance_cm: float = Field(
         1.5,
         ge=0.1,
-        le=10.0,
+        le=THIGMOTAXIS_MAX_DISTANCE_CM,
         description="Default distance threshold (cm) for thigmotaxis 'near wall' calculation",
     )
     default_geotaxis_distance_cm: float = Field(
@@ -1233,6 +1241,16 @@ class BehavioralAnalysisSettings(BaseModel):
     geotaxis_mode: Literal["distance", "zones"] = Field(
         "zones",
         description="Default method for geotaxis calculation ('distance' or 'zones').",
+    )
+    max_plausible_speed_cm_s: float = Field(
+        DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S,
+        gt=0.0,
+        le=1000.0,
+        description=(
+            "Speed (cm/s) above which a frame is flagged as implausible by the trajectory "
+            "validator. 50 cm/s suits adult zebrafish; rodents sprint faster. A project can "
+            "override it with behavioral_config['max_plausible_speed_cm_s']."
+        ),
     )
 
 

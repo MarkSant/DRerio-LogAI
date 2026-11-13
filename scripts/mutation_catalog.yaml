@@ -245,6 +245,10 @@ modules:
         description: "sub-modelo recusado fica aplicado e corrompe o snapshot em silencio"
         find: 'snapshot.__dict__[name] = current'
         replace: 'pass'
+      - id: project-speed-ceiling-not-copied
+        description: "teto de velocidade do projeto deixa de chegar ao worker (#631)"
+        find: '("max_plausible_speed_cm_s", "max_plausible_speed_cm_s"),'
+        replace: '("max_plausible_speed_cm_s", "max_plausible_speed_cm_s_unused"),'
 
   weight_manager:
     source: src/zebtrack/core/services/weight_manager.py
@@ -2731,3 +2735,65 @@ _load_registry()"
         replace: |-
           log.debug("optional_deps.torch.unavailable")
                   raise
+
+  behavioral_policy:
+    source: src/zebtrack/analysis/behavioral_policy.py
+    tests:
+      - tests/analysis/test_behavioral_policy.py
+    mutations:
+      - id: top-down-keeps-geotaxis
+        description: "perspectiva top-down deixa de desligar a geotaxia (#631)"
+        find: '!= "lateral":'
+        replace: '== "top_down_view":'
+      - id: explicit-disable-ignored
+        description: "geotaxis_enabled=False numa vista lateral deixa de ser respeitado (#631)"
+        find: 'return config.get("geotaxis_enabled") is not False'
+        replace: 'return True'
+      - id: project-speed-skipped
+        description: "teto de velocidade do projeto deixa de vencer as settings (#631)"
+        find: '(behavioral_config or {}).get("max_plausible_speed_cm_s"),'
+        replace: 'None,'
+      - id: settings-speed-skipped
+        description: "teto de velocidade das settings deixa de vencer o padrao do zebrafish (#631)"
+        find: 'getattr(behavioral, "max_plausible_speed_cm_s", None),'
+        replace: 'None,'
+      - id: zero-speed-accepted
+        description: "teto zero passa a ser aceito e desliga a checagem de velocidade (#631)"
+        find: 'speed > 0 else None'
+        replace: 'speed >= 0 else None'
+      - id: infinite-speed-accepted
+        description: "teto infinito passa a ser aceito e desliga a checagem (#631)"
+        find: 'math.isfinite(speed) and '
+        replace: ''
+
+  analysis_service_rodent_defaults:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_service.py
+    mutations:
+      - id: geotaxis-computed-without-the-rule
+        description: "geotaxia volta a ser calculada em video top-down (#631)"
+        find: 'if geo_dist is not None and geotaxis_applies(behavioral_config):'
+        replace: 'if geo_dist is not None:'
+      - id: inherited-enabled-flag-survives
+        description: "projeto top-down herda o geotaxis_enabled=True do padrao lateral (#631)"
+        find: 'params["behavioral_config"]["geotaxis_enabled"] = geotaxis_applies('
+        replace: 'params["behavioral_config"]["geotaxis_enabled_unused"] = geotaxis_applies('
+      - id: speed-ceiling-hardcoded
+        description: "o validador volta a usar 50 cm/s fixo, ignorando projeto e settings (#631)"
+        find: 'max_plausible_speed_cm_s, behavioral_config, self.settings'
+        replace: 'None, None, None'
+
+  rodent_behavioral_bounds:
+    source: src/zebtrack/settings.py
+    tests:
+      - tests/core/test_project_settings_snapshot.py
+    mutations:
+      - id: thigmotaxis-cap-back-to-fish-tank
+        description: "faixa de tigmotaxia volta ao teto de 10 cm e descarta os 15 cm do projeto (#631)"
+        find: 'THIGMOTAXIS_MAX_DISTANCE_CM: Final[float] = 50.0'
+        replace: 'THIGMOTAXIS_MAX_DISTANCE_CM: Final[float] = 10.0'
+      - id: speed-default-changed
+        description: "padrao de velocidade plausivel do zebrafish deixa de ser 50 cm/s (#631)"
+        find: 'DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S: Final[float] = 50.0'
+        replace: 'DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S: Final[float] = 80.0'
