@@ -96,7 +96,10 @@ jobs:
           exit 1
 
       - name: Create issue on failure
-        if: failure()
+        # A job that hits timeout-minutes ends as CANCELLED, not failed, and then
+        # neither the gate nor failure() fires: the night goes red without an alarm.
+        # Scheduled runs only, so cancelling a manual run by hand files nothing.
+        if: failure() || (cancelled() && github.event_name == 'schedule')
         uses: actions/github-script@v8
         with:
           script: |
@@ -115,7 +118,10 @@ jobs:
   memory-leak-detection:
     name: Memory Leak Detection
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Setup takes ~4 min and the suite ~42 min under memray, which tracks every
+    # allocation. At 45 the first fully passing run (43428147257) was cancelled at
+    # 99% with 7987 passed and 0 failed. 75 leaves room for the suite to grow.
+    timeout-minutes: 75
 
     steps:
       - name: Checkout code
@@ -218,7 +224,10 @@ jobs:
           exit 1
 
       - name: Create issue on failure
-        if: failure()
+        # A job that hits timeout-minutes ends as CANCELLED, not failed, and then
+        # neither the gate nor failure() fires: the night goes red without an alarm.
+        # Scheduled runs only, so cancelling a manual run by hand files nothing.
+        if: failure() || (cancelled() && github.event_name == 'schedule')
         uses: actions/github-script@v8
         with:
           script: |
@@ -321,7 +330,10 @@ jobs:
           exit 1
 
       - name: Create issue on failure
-        if: failure()
+        # A job that hits timeout-minutes ends as CANCELLED, not failed, and then
+        # neither the gate nor failure() fires: the night goes red without an alarm.
+        # Scheduled runs only, so cancelling a manual run by hand files nothing.
+        if: failure() || (cancelled() && github.event_name == 'schedule')
         uses: actions/github-script@v8
         with:
           script: |
@@ -442,7 +454,10 @@ jobs:
           path: mutation-catalogue.json
 
       - name: Create issue on failure
-        if: failure()
+        # A job that hits timeout-minutes ends as CANCELLED, not failed, and then
+        # neither the gate nor failure() fires: the night goes red without an alarm.
+        # Scheduled runs only, so cancelling a manual run by hand files nothing.
+        if: failure() || (cancelled() && github.event_name == 'schedule')
         uses: actions/github-script@v8
         with:
           script: |
