@@ -196,9 +196,16 @@ class TestWriteRead:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         path = artifact_path(tmp_path, "rat_01")
+        real_replace = os.replace
 
+        # `artifact_module.os` IS the os module, so this patch is process-wide while
+        # the test runs. Only the artifact's own replace may explode: pytest-memray
+        # renames its result file with os.replace inside the same call phase, and
+        # a blanket patch failed the nightly profiled run with this very error.
         def exploding_replace(src: Any, dst: Any) -> None:
-            raise PermissionError("locked")
+            if Path(dst) == path:
+                raise PermissionError("locked")
+            real_replace(src, dst)
 
         monkeypatch.setattr(artifact_module.os, "replace", exploding_replace)
         with pytest.raises(PermissionError):
