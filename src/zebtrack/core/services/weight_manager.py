@@ -20,17 +20,27 @@ from zebtrack.paths import DEFAULT_WEIGHTS_DIR as DEFAULT_WEIGHTS_DIR
 from zebtrack.paths import repo_root, resolve_weights_dir
 from zebtrack.settings import Settings
 from zebtrack.utils import calculate_sha256
+from zebtrack.utils.optional_deps import YOLO_LOADERS, resolve_lazy_attribute
 
 YOLO: Any | None
+ULTRALYTICS_AVAILABLE: bool
 
-try:
-    from ultralytics import YOLO as _YOLO
 
-    YOLO = _YOLO
-    ULTRALYTICS_AVAILABLE = True
-except ImportError:
-    YOLO = None
-    ULTRALYTICS_AVAILABLE = False
+def __getattr__(name: str) -> Any:
+    """Resolve ``YOLO`` / ``ULTRALYTICS_AVAILABLE`` on first access (#643)."""
+    try:
+        return resolve_lazy_attribute(globals(), name, YOLO_LOADERS)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
+
+def _ultralytics_available() -> bool:
+    return bool(resolve_lazy_attribute(globals(), "ULTRALYTICS_AVAILABLE", YOLO_LOADERS))
+
+
+def _yolo_class() -> Any | None:
+    return resolve_lazy_attribute(globals(), "YOLO", YOLO_LOADERS)
+
 
 WEIGHTS_CONFIG_FILE = "weights_config.json"
 OPENVINO_CACHE_DIR = "openvino_model_cache"
@@ -1642,7 +1652,7 @@ class WeightManager:
         log.info("openvino.export.start", model=name)
         temp_export_path = None
 
-        if not ULTRALYTICS_AVAILABLE:
+        if not _ultralytics_available():
             details["openvino_status"] = OPENVINO_STATUS_FAILED
             details["last_conversion_error"] = "Ultralytics package is required for OpenVINO export"
             details["openvino_path"] = ""
@@ -1658,8 +1668,9 @@ class WeightManager:
         self.save_weights()
 
         try:
-            assert YOLO is not None  # Satisfy type checkers after availability guard
-            model = YOLO(pt_path)
+            yolo_cls = _yolo_class()
+            assert yolo_cls is not None  # Satisfy type checkers after availability guard
+            model = yolo_cls(pt_path)
             # The 'half=True' argument enables FP16 quantization.
             # The export will create a directory named e.g., 'yolov8n_openvino_model'.
             temp_export_path = model.export(format="openvino", half=True)
@@ -1821,7 +1832,7 @@ class WeightManager:
         log.info("openvino.export_int8.start", model=name)
         temp_export_path = None
 
-        if not ULTRALYTICS_AVAILABLE:
+        if not _ultralytics_available():
             details["openvino_int8_status"] = OPENVINO_STATUS_FAILED
             details["last_conversion_error"] = "Ultralytics package is required for INT8 export"
             self.save_weights()
@@ -1834,8 +1845,9 @@ class WeightManager:
         self.save_weights()
 
         try:
-            assert YOLO is not None
-            model = YOLO(pt_path)
+            yolo_cls = _yolo_class()
+            assert yolo_cls is not None
+            model = yolo_cls(pt_path)
             # int8=True enables INT8 quantization via NNCF with default calibration
             temp_export_path = model.export(format="openvino", int8=True)
 

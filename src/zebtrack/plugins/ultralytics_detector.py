@@ -6,17 +6,26 @@ import numpy as np
 
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.utils.hardware_detection import is_cuda_available
+from zebtrack.utils.optional_deps import YOLO_LOADERS, resolve_lazy_attribute
 
 YOLO: Any | None
+ULTRALYTICS_AVAILABLE: bool
 
-try:
-    from ultralytics import YOLO as _YOLO
 
-    YOLO = _YOLO
-    ULTRALYTICS_AVAILABLE = True
-except ImportError:
-    YOLO = None
-    ULTRALYTICS_AVAILABLE = False
+def __getattr__(name: str) -> Any:
+    """Resolve ``YOLO`` / ``ULTRALYTICS_AVAILABLE`` on first access (#643)."""
+    try:
+        return resolve_lazy_attribute(globals(), name, YOLO_LOADERS)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
+
+def _ultralytics_available() -> bool:
+    return bool(resolve_lazy_attribute(globals(), "ULTRALYTICS_AVAILABLE", YOLO_LOADERS))
+
+
+def _yolo_class() -> Any | None:
+    return resolve_lazy_attribute(globals(), "YOLO", YOLO_LOADERS)
 
 
 class UltralyticsDetectorPlugin(DetectorPlugin):
@@ -35,10 +44,11 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self._frame_masks: list[np.ndarray | None] = []
 
         model_path = str(Path(model_path) if isinstance(model_path, str) else model_path)
-        if not ULTRALYTICS_AVAILABLE:
+        if not _ultralytics_available():
             raise ImportError("Ultralytics is not available. Please install ultralytics package.")
-        assert YOLO is not None
-        self.model = YOLO(model_path)
+        yolo_cls = _yolo_class()
+        assert yolo_cls is not None
+        self.model = yolo_cls(model_path)
 
         # Extract class names directly from the model (Bug Fix #1)
         self.class_names = dict(self.model.names)  # {0: 'aqua', 1: 'zebrafish', ...}

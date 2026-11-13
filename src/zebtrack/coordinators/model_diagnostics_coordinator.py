@@ -12,6 +12,7 @@ import glob
 import os
 import shutil
 import threading
+from collections.abc import MutableMapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -26,20 +27,36 @@ from zebtrack.core.detection.class_roles import (
     resolve_class_role_map,
 )
 from zebtrack.i18n import _
-from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.payloads import MessagePayload, StatusPayload
 from zebtrack.ui.sentinels import both_models_label
+from zebtrack.utils.optional_deps import YOLO_LOADERS, resolve_lazy_attribute
 
-YOLO: Any | None = None
+YOLO: Any | None
+ULTRALYTICS_AVAILABLE: bool
+DETECTOR_PLUGINS: dict[str, Any]
 
-try:
-    from ultralytics import YOLO as _YOLO
 
-    YOLO = _YOLO
-    ULTRALYTICS_AVAILABLE = True
-except ImportError:
-    ULTRALYTICS_AVAILABLE = False
+def _install_detector_plugins(namespace: MutableMapping[str, Any]) -> None:
+    import zebtrack.plugins as plugins_pkg
+
+    namespace.setdefault("DETECTOR_PLUGINS", plugins_pkg.DETECTOR_PLUGINS)
+
+
+_LAZY_LOADERS = {**YOLO_LOADERS, "DETECTOR_PLUGINS": _install_detector_plugins}
+
+
+def __getattr__(name: str) -> Any:
+    """Resolve the heavy attributes on first access (#643)."""
+    try:
+        return resolve_lazy_attribute(globals(), name, _LAZY_LOADERS)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
+
+def _lazy(name: str) -> Any:
+    return resolve_lazy_attribute(globals(), name, _LAZY_LOADERS)
+
 
 if TYPE_CHECKING:
     import threading as _threading
@@ -476,7 +493,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
         if model_to_test not in ["YOLO (PyTorch)", both_models_label()]:
             return None
 
-        if not ULTRALYTICS_AVAILABLE:
+        if not _lazy("ULTRALYTICS_AVAILABLE"):
             log.error("diagnostic.yolo.unavailable")
             self._finish_progress_dialog(progress_dialog)
             if self.event_bus:
@@ -491,10 +508,11 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 )
             raise DiagnosticAbortError from None
 
-        if YOLO is None:  # Defensive guard for type checkers.
+        yolo_cls = _lazy("YOLO")
+        if yolo_cls is None:  # Defensive guard for type checkers.
             raise DiagnosticAbortError from None
 
-        yolo_ctor = cast(Any, YOLO)
+        yolo_ctor = cast(Any, yolo_cls)
         yolo_model = yolo_ctor(weight_details["path"])
         if hasattr(yolo_model, "set_context"):
             yolo_model.set_context("diagnostic")
@@ -550,7 +568,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                 )
             raise DiagnosticAbortError from None
 
-        plugin_class = DETECTOR_PLUGINS.get("OpenVINO")
+        plugin_class = _lazy("DETECTOR_PLUGINS").get("OpenVINO")
         if not plugin_class:
             log.error("diagnostic.thread.openvino_plugin_missing")
             self._finish_progress_dialog(progress_dialog)

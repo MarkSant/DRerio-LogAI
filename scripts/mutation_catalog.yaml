@@ -2632,3 +2632,59 @@ modules:
         description: "offset zero deixa de devolver o proprio caminho"
         find: 'if sidecar is None or (offset_x == 0 and offset_y == 0):'
         replace: 'if sidecar is None:'
+
+  # Issue #643: no zebtrack module imports torch/ultralytics/openvino at
+  # import time; the attributes that used to hold them are resolved on first
+  # access, and a test that patched them keeps control of the code path.
+  lazy_heavy_imports_plugins:
+    source: src/zebtrack/plugins/__init__.py
+    tests:
+      - tests/test_lazy_heavy_imports.py
+    mutations:
+      - id: registry-built-at-import
+        description: "registro de plugins volta a ser montado no import e puxa torch/openvino (#643)"
+        find: '    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")'
+        replace: "    raise AttributeError(f\"module {__name__!r} has no attribute {name!r}\")
+
+
+_load_registry()"
+
+  lazy_heavy_imports_utils:
+    source: src/zebtrack/utils/__init__.py
+    tests:
+      - tests/test_lazy_heavy_imports.py
+    mutations:
+      - id: torch-imported-by-utils
+        description: "zebtrack.utils volta a importar torch e todo modulo paga o custo (#643)"
+        find: |-
+          torch: Any | None
+          TORCH_AVAILABLE: bool
+        replace: |-
+          import torch as torch
+
+          TORCH_AVAILABLE: bool
+
+  lazy_heavy_imports_weight_manager:
+    source: src/zebtrack/core/services/weight_manager.py
+    tests:
+      - tests/test_lazy_heavy_imports.py
+    mutations:
+      - id: yolo-imported-by-weight-manager
+        description: "core.services volta a importar ultralytics no import (#643)"
+        find: |-
+          YOLO: Any | None
+          ULTRALYTICS_AVAILABLE: bool
+        replace: |-
+          from ultralytics import YOLO as YOLO
+
+          ULTRALYTICS_AVAILABLE: bool
+
+  lazy_heavy_imports_patch_wins:
+    source: src/zebtrack/core/detection/aquarium_detector.py
+    tests:
+      - tests/test_lazy_heavy_imports.py
+    mutations:
+      - id: patched-flag-ignored
+        description: "flag ULTRALYTICS_AVAILABLE corrigida por teste deixa de governar o caminho (#643)"
+        find: '    return bool(resolve_lazy_attribute(globals(), "ULTRALYTICS_AVAILABLE", YOLO_LOADERS))'
+        replace: '    return True'
