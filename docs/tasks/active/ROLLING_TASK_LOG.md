@@ -6,6 +6,31 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-13] Ao vivo: remover o frame skip dinâmico morto (#669)
+
+__ID:__ TASK-078
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (PR contra `release/8.0`)
+__Branch:__ claude/669-dead-fps-skip-bfbeb0 (a partir de `release/8.0`)
+__Description:__
+`FrameProcessingMixin._adjust_fps_dynamically` roda depois do `detect()` e o retorno só vai para
+um `log.debug`: nenhum quadro é pulado, `_current_fps` mede a vazão da inferência (não a taxa de
+quadros), `_target_fps` é fixo em 30 e ninguém lê `_frame_skip_count`. Remover o mecanismo e os
+testes que só exercitam o retorno; a cadência única do #637
+(`is_analysis_frame(frame - 1, analysis_interval_frames, offset)`) é quem decide o que é analisado.
+
+__Critério de pronto:__
+
+- Método, atributos (`_target_fps`, `_current_fps`, `_processing_times`, `_frame_skip_count`,
+  `_fps_adjustment_interval`) e chamada no `_processing_loop` removidos.
+- Teste novo: com inferência lenta, o laço real analisa exatamente os quadros da cadência e não
+  emite `fps_too_low`/`frame_skipped`; vermelho provado antes da remoção.
+- PR contra `release/8.0` com CI verde, "Closes #669".
+
+__Resultado (2026-11-13):__ mecanismo removido; teste novo vermelho→verde; suíte rápida 8161 passed;
+mypy limpo. De quebra, 4 `find` defasados do bloco `live_window_pipeline` (desde #656) atualizados:
+qualquer PR que tocasse `frame_processing_pipeline.py` era barrado pelo mutation check.
+
 ### [2026-11-05] Mutation check paralelo e isolado: o PR #629 estoura os 20 min do passo
 
 __ID:__ TASK-077
