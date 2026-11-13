@@ -13904,3 +13904,19 @@ msgstr ""
 #: src/zebtrack/utils/report_files.py:117
 msgid "recorded video"
 msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py
+msgid "Aquarium"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py
+msgid "Aquarium:"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py
+msgid "All = this ROI in any aquarium"
+msgstr ""
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py
+msgid "{roi} (aquarium {number})"
+msgstr ""
