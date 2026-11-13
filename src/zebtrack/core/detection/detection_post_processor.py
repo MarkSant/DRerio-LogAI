@@ -14,6 +14,7 @@ import structlog
 from zebtrack.core.detection.class_aliases import ClassAliases
 from zebtrack.core.detection.class_aliases import resolve_class_ids as _resolve_by_name
 from zebtrack.core.detection.class_roles import ClassRole, ClassRoleMap
+from zebtrack.settings import DEFAULT_TRACK_BUFFER
 
 if TYPE_CHECKING:
     from zebtrack.plugins.base import DetectorPlugin
@@ -464,25 +465,31 @@ class DetectionPostProcessor:
 
     @staticmethod
     def get_track_buffer(settings: "Settings | None", plugin: "DetectorPlugin | None") -> int:
-        """Get track buffer size from settings or plugin.
+        """Resolve ByteTrack's lost-track buffer (frames at the 30 fps reference).
+
+        Precedence (#666): ``settings.bytetrack.track_buffer`` > a ``track_buffer``
+        attribute on the plugin > ``DEFAULT_TRACK_BUFFER``. The settings are what
+        the UI, the project overrides (``DetectorService``) and ``config.yaml``
+        write, so they must win; the plugin is only a fallback for a caller with
+        no settings. Until #666 the plugin came first, and both production plugins
+        pinned 60, so every lost track lived 2 s whatever had been configured.
 
         Args:
             settings: Application settings (optional).
             plugin: Detector plugin (optional).
 
         Returns:
-            Track buffer size (default: 150).
+            Track buffer size in frames at 30 fps.
         """
-        if plugin is not None:
-            value = getattr(plugin, "track_buffer", None)
-            if value is not None:
-                try:
-                    return int(value)
-                except (TypeError, ValueError):
-                    return 150
-        if settings and hasattr(settings, "bytetrack"):
-            return int(getattr(settings.bytetrack, "track_buffer", 150))
-        return 150
+        for source in (getattr(settings, "bytetrack", None), plugin):
+            value = getattr(source, "track_buffer", None) if source is not None else None
+            if value is None:
+                continue
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                log.warning("detection_post_processor.track_buffer.invalid", value=repr(value))
+        return DEFAULT_TRACK_BUFFER
 
     @staticmethod
     def get_max_center_distance(settings: "Settings | None") -> float:

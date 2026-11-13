@@ -337,7 +337,8 @@ class OpenVINOPlugin(DetectorPlugin):
         else:
             self.track_threshold = 0.25
             self.match_threshold = 0.80  # Higher default for stable tracking
-        self.track_buffer = 60
+        # No ``track_buffer`` here (#666): ByteTrack's buffer comes from
+        # ``settings.bytetrack.track_buffer`` via DetectionPostProcessor.
 
         # Load metadata if exists (Bug Fix: improved fallback)
         metadata_path = os.path.join(model_path, "metadata.json")
