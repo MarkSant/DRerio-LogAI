@@ -6597,14 +6597,16 @@ msgid "Track Buffer:"
 msgstr ""
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:386
+#, python-brace-format
 msgid ""
 "Track Buffer (Memory)\n"
 "\n"
-"How many frames the system 'remembers' an animal after it disappears "
-"(occlusion/miss).\n"
-"• Raise it (e.g. 120) if the animal vanishes for a long time.\n"
+"How many frames the system 'remembers' an animal after it disappears"
+" (occlusion/miss).\n"
+"• Raise it (e.g. 300) if the animal vanishes for a long time.\n"
 "• Lower it to drop lost tracks quickly.\n"
-"• Default: 90 frames (~3s at 30fps)"
+"• Default: {frames} frames ({seconds:g} s; counted at 30 fps whatever the"
+" video's frame rate)"
 msgstr ""
 
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:397
@@ -13500,13 +13502,15 @@ msgid "Track Buffer (frames):"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:621
+#, python-brace-format
 msgid ""
 "🧠 Track Buffer\n"
 "\n"
-"The tracker's memory: how many frames an animal may 'vanish' for before "
-"its ID is forgotten.\n"
+"The tracker's memory: how many frames an animal may 'vanish' for before"
+" its ID is forgotten.\n"
 "\n"
-"💡 Default: 90 frames (~3 seconds at 30fps)"
+"💡 Default: {frames} frames ({seconds:g} s; counted at 30 fps whatever the"
+" video's frame rate)"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:630

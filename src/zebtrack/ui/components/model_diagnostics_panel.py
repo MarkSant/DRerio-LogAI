@@ -10,6 +10,7 @@ import structlog
 
 from zebtrack.core.exceptions import ValidationError, ZebTrackError
 from zebtrack.i18n import _
+from zebtrack.settings import DEFAULT_TRACK_BUFFER
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.payloads import ModelRunDiagnosticPayload, ModelSetWeightPayload
@@ -50,7 +51,7 @@ class ModelDiagnosticsPanel(ttk.Frame):
         self.use_bytetrack_var = BooleanVar(master=self, value=True)
         self.track_threshold_var = StringVar(master=self, value="0.25")
         self.match_threshold_var = StringVar(master=self, value="0.95")
-        self.track_buffer_var = StringVar(master=self, value="90")
+        self.track_buffer_var = StringVar(master=self, value=str(DEFAULT_TRACK_BUFFER))
         self.max_center_dist_var = StringVar(master=self, value="400.0")
         self.iou_threshold_var = StringVar(master=self, value="0.05")
         self.video_path_label_var = StringVar(master=self, value=_("No video selected."))
@@ -386,10 +387,11 @@ class ModelDiagnosticsPanel(ttk.Frame):
                 "Track Buffer (Memory)\n\n"
                 "How many frames the system 'remembers' an animal after it disappears "
                 "(occlusion/miss).\n"
-                "• Raise it (e.g. 120) if the animal vanishes for a long time.\n"
+                "• Raise it (e.g. 300) if the animal vanishes for a long time.\n"
                 "• Lower it to drop lost tracks quickly.\n"
-                "• Default: 90 frames (~3s at 30fps)"
-            ),
+                "• Default: {frames} frames ({seconds:g} s; counted at 30 fps "
+                "whatever the video's frame rate)"
+            ).format(frames=DEFAULT_TRACK_BUFFER, seconds=DEFAULT_TRACK_BUFFER / 30),
         ).grid(row=t_row, column=1, padx=2)
         self.buffer_entry = ttk.Entry(tracking_frame, textvariable=self.track_buffer_var, width=8)
         self.buffer_entry.grid(row=t_row, column=2, sticky="ew", padx=5)

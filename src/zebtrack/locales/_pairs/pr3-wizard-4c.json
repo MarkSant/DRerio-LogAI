@@ -77,7 +77,7 @@
   "Match Threshold (0-1):": "Match Threshold (0-1):",
   "🔗 Match Threshold\n\nTolerance when associating boxes.\nHIGH values (close to 1.0) are more permissive for fast movement.\n\n💡 Default: 0.95 (for fast zebrafish)": "🔗 Match Threshold\n\nTolerância para associação de caixas.\nValores ALTOS (perto de 1.0) são mais permissivos para movimento rápido.\n\n💡 Padrão: 0.95 (para zebrafish rápidos)",
   "Track Buffer (frames):": "Track Buffer (frames):",
-  "🧠 Track Buffer\n\nThe tracker's memory: how many frames an animal may 'vanish' for before its ID is forgotten.\n\n💡 Default: 90 frames (~3 seconds at 30fps)": "🧠 Track Buffer\n\nMemória do rastreador: quantos frames um animal pode 'sumir' antes que seu ID seja esquecido.\n\n💡 Padrão: 90 frames (~3 segundos a 30fps)",
+  "🧠 Track Buffer\n\nThe tracker's memory: how many frames an animal may 'vanish' for before its ID is forgotten.\n\n💡 Default: {frames} frames ({seconds:g} s; counted at 30 fps whatever the video's frame rate)": "🧠 Track Buffer\n\nMemória do rastreador: quantos frames um animal pode 'sumir' antes que seu ID seja esquecido.\n\n💡 Padrão: {frames} frames ({seconds:g} s; contados a 30 fps, qualquer que seja a taxa do vídeo)",
   "Max distance (px):": "Distância Máx (px):",
   "📏 Maximum Centre Distance\n\nThe furthest (in pixels) an animal may move between frames and still be considered the same one, when overlap fails.\n\n💡 Default: 200.0 px": "📏 Distância Máxima de Centro\n\nDistância máxima (em pixels) que o animal pode se mover entre frames para ser considerado o mesmo, quando a sobreposição falha.\n\n💡 Padrão: 200.0 px",
   "IoU Threshold (0-1):": "IoU Threshold (0-1):",
