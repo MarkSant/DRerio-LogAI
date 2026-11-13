@@ -159,7 +159,8 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `analysis/analysis_service.py` (`window=`) | `tests/analysis/test_analysis_service.py` (window block) + `--module analysis_window_cut_service` |
 | `analysis/metrics_cache.py` (window key) | `tests/analysis/test_metrics_cache.py` + `--module metrics_cache_window` |
 | `analysis/data_transformer.py` (`window_*`, latency flags) | `tests/analysis/test_data_transformer.py`, `tests/analysis/test_data_transformer_roi_metrics.py` + `--module report_window_columns` |
-| `analysis/reporters/html_reporter.py`, `analysis/time_axis.py` (time axis, freezing keys, window) | `tests/analysis/reporters/test_html_reporter.py::TestHtmlReporterTimeAndFreezing` + `--module html_report_time`, `report_time_axis` |
+| `analysis/time_axis.py` (time axis origin and label, window) | `tests/analysis/test_visualization_generator.py::TestWindowTimeAxes` + `--module report_time_axis`, `visualization_window_axes` |
+| `analysis/reporters/__init__.py` (every public reporter has a production caller) | `tests/analysis/reporters/test_reporters_package.py` + `--module reporters_production_callers` |
 | `analysis/reporters/word_reporter.py` (window note, event log) | `tests/analysis/reporters/test_word_reporter.py::TestAnalysisWindowSection` + `--module word_report_window` |
 | `analysis/visualization_generator.py` (time axes) | `tests/analysis/test_visualization_generator.py::TestWindowTimeAxes` + `--module visualization_window_axes` |
 | `analysis/reporters/reporter_context.py` (`window=`) | `tests/analysis/reporters/test_reporter_context.py::TestReporterContextWindow` + `--module reporter_context_window` |

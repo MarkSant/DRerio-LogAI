@@ -67,7 +67,6 @@ tomli = "^2.0.1"
 # docxcompose (used by docxtpl for Word reports) still uses deprecated pkg_resources
 # See: https://setuptools.pypa.io/en/latest/pkg_resources.html
 setuptools = "<81"
-plotly = "^6.0.0"
 punq = "^0.7.0"
 # DirectShow camera friendly names on Windows (used by WizardService.detect_available_cameras
 # to show "USB2.0 HD UVC WebCam" instead of just resolution). Windows-only by design.
@@ -200,7 +199,6 @@ module = [
     "seaborn.*",
     "docxtpl.*",
     "ttkbootstrap.*",
-    "plotly.*",
     "matplotlib.*",
     "pandas.*",
     "pyarrow.*",

@@ -289,6 +289,18 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   `reporter`. O parágrafo "Definições" da validação no `.docx` estava fora de
   `_()` e agora é traduzido.
 
+### Removed
+
+- **Relatório HTML interativo (`HtmlReporter`) e a dependência `plotly` (#662).**
+  Nenhum fluxo do app (relatório individual, lote, vídeo único, pós-análise ao
+  vivo) chamava o export, e nenhuma configuração o expunha; só os testes o
+  executavam, e foi assim que o `KeyError` de #639 passou despercebido. Saem
+  `analysis/reporters/html_reporter.py`, `time_axis.seconds_on_axis` (usado só
+  por ele), o `plotly` e o `narwhals` do lock. O `.docx` e o `.xlsx` não mudam.
+  Um guarda novo (`tests/analysis/reporters/test_reporters_package.py`) reprova
+  todo reporter público sem chamador fora do pacote; `ScriptExporter` está na
+  lista de órfãos conhecidos até #696 decidir o destino dele.
+
 ### Fixed
 
 - **Padrões de zebrafish num projeto de roedor (#631).** A geotaxia (proximidade do
