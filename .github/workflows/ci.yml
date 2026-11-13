@@ -153,6 +153,10 @@ jobs:
           # GHSA-78g4-xqwv-q3g8: Pillow, also fixed only in 13.0.0 -- same
           # ttkbootstrap ``pillow<13`` cap and same threat model as above.
           #
+          # PYSEC-2026-4363, CVE-2026-128066/128067: Pillow 12.3.0, fixed only
+          # in 13.0.0 -- same cap (ttkbootstrap 1.20.2 still requires
+          # ``pillow>=10,<13``) and same threat model as above.
+          #
           # GHSA-xmj3-9gf7-h52w: setuptools, fixed in 84.1.0 -- out of reach for
           # the same ``setuptools < 81`` pin (docxcompose / pkg_resources) as
           # PYSEC-2026-3447 above; build tool, not exposed at app runtime.
@@ -207,7 +211,7 @@ jobs:
             --ignore-vuln CVE-2026-96638 \
             --ignore-vuln CVE-2026-96640 \
             --ignore-vuln CVE-2026-96778 \
-            --ignore-vuln GHSA-78g4-xqwv-q3g8 \
+            --ignore-vuln GHSA-78g4-xqwv-q3g8             --ignore-vuln PYSEC-2026-4363             --ignore-vuln CVE-2026-128066             --ignore-vuln CVE-2026-128067 \
             --ignore-vuln GHSA-xmj3-9gf7-h52w \
             --ignore-vuln CVE-2025-3000
 
