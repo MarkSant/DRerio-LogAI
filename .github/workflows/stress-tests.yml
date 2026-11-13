@@ -54,9 +54,9 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+            const fileNightlyIssue = require('./.github/scripts/file_nightly_issue.js');
+            await fileNightlyIssue({
+              github, context, core,
               title: 'Nightly Stress Test Failed - Threading Tests',
               body: `## Threading Stress Test Failure\n\n` +
                     `**Workflow:** ${context.workflow}\n` +
@@ -64,7 +64,6 @@ jobs:
                     `**Commit:** ${context.sha}\n\n` +
                     `[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
               labels: ['stress-test-failure', 'needs-investigation', 'threading'],
-              assignees: []
             });
 
   memory-leak-detection:
@@ -86,17 +85,54 @@ jobs:
           curl -sSL https://install.python-poetry.org | python3 -
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      # The same environment ci.yml gives the suite it profiles. Without a display,
+      # tests/conftest.py falls back to a MagicMock Tk root -- a mode CI never runs.
+      # Every widget built over that mock climbed `.master` forever inside
+      # tkinter.Misc._root(), so from 2026-09-17 on this job died on pytest-timeout
+      # at ~90% of the suite, night after night (#576 and 55 duplicates).
+      - name: Install system dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -uo pipefail
+          packages="xvfb ffmpeg libavcodec-extra"
+          # Same retry as ci.yml: a stalled apt mirror never recovers on its own.
+          for attempt in 1 2 3; do
+            if timeout 120 sudo -E apt-get update \
+               && timeout 240 sudo -E apt-get install -y --no-install-recommends $packages; then
+              echo "apt: succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::warning::apt attempt ${attempt} stalled or failed; retrying"
+            sudo pkill -9 -f 'apt-get|dpkg' || true
+            sudo rm -f /var/lib/apt/lists/lock \
+                       /var/cache/apt/archives/lock \
+                       /var/lib/dpkg/lock \
+                       /var/lib/dpkg/lock-frontend
+            sudo dpkg --configure -a || true
+            sleep 5
+          done
+          echo "::error::apt failed after 3 attempts"
+          exit 1
+
       - name: Install dependencies + memray
         run: |
           poetry install --no-interaction
           poetry run pip install memray pytest-memray
+
+      - name: Build wizard template archive
+        run: poetry run python scripts/build_templates.py
+
+      - name: Compile translations
+        run: poetry run python scripts/compile_translations.py
 
       - name: Run tests with memory profiling
         id: profiled-run
         # continue-on-error so the artifacts below are still collected; the
         # outcome is enforced by the explicit gate after them.
         run: |
-          poetry run pytest --memray --memray-bin-path=./memray-results \
+          xvfb-run --auto-servernum poetry run pytest --memray \
+            --memray-bin-path=./memray-results \
             -v --tb=short --junit-xml=memory-leak-results.xml
         continue-on-error: true
 
@@ -140,9 +176,9 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+            const fileNightlyIssue = require('./.github/scripts/file_nightly_issue.js');
+            await fileNightlyIssue({
+              github, context, core,
               title: 'Nightly memory profiling run failed',
               body: `## The profiled test run did not pass\n\n` +
                     `**Workflow:** ${context.workflow}\n` +
@@ -153,7 +189,6 @@ jobs:
                     `by itself mean a memory leak was measured: read the log first, then ` +
                     `the memray-results tarball.`,
               labels: ['stress-test-failure', 'needs-investigation'],
-              assignees: []
             });
 
   flakiness-detection:
@@ -196,9 +231,9 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+            const fileNightlyIssue = require('./.github/scripts/file_nightly_issue.js');
+            await fileNightlyIssue({
+              github, context, core,
               title: 'Nightly Stress Test Failed - Flaky Tests Detected',
               body: `## Flakiness Detection Failure\n\n` +
                     `**Workflow:** ${context.workflow}\n` +
@@ -207,7 +242,6 @@ jobs:
                     `Some tests failed when run 3 times consecutively. This indicates flaky tests.\n\n` +
                     `[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
               labels: ['stress-test-failure', 'flaky-test', 'needs-investigation'],
-              assignees: []
             });
 
   mutation-testing:
@@ -318,9 +352,9 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+            const fileNightlyIssue = require('./.github/scripts/file_nightly_issue.js');
+            await fileNightlyIssue({
+              github, context, core,
               title: 'Nightly Mutation Catalogue Failed - surviving mutations',
               body: `## Curated mutation catalogue\n\n` +
                     `**Workflow:** ${context.workflow}\n` +
@@ -332,5 +366,4 @@ jobs:
                     `The per-mutation verdicts are in the \`mutation-catalogue-report\` artifact.\n\n` +
                     `[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
               labels: ['stress-test-failure', 'needs-investigation', 'test-quality'],
-              assignees: []
             });
