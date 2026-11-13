@@ -2632,3 +2632,28 @@ modules:
         description: "offset zero deixa de devolver o proprio caminho"
         find: 'if sidecar is None or (offset_x == 0 and offset_y == 0):'
         replace: 'if sidecar is None:'
+
+  # Issue #648: pip-audit runs from ONE script, in CI and in the pre-push hook,
+  # with ONE exception file. Locally an unreachable database only warns; an
+  # advisory without an exception always blocks.
+  run_pip_audit:
+    source: scripts/run_pip_audit.py
+    tests:
+      - tests/quality/test_run_pip_audit.py
+    mutations:
+      - id: offline-push-blocked
+        description: "sem rede o pre-push passa a bloquear em vez de avisar (#648)"
+        find: '        if fail_on_error:'
+        replace: '        if True:'
+      - id: any-tool-failure-passes
+        description: "qualquer falha do pip-audit vira aviso, nao so a de rede (#648)"
+        find: '    if is_network_failure(result):'
+        replace: '    if True:'
+      - id: alias-not-honoured
+        description: "excecao listada pelo alias deixa de valer (#648)"
+        find: 'names = {vuln.get("id", "")} | set(vuln.get("aliases", []) or [])'
+        replace: 'names = {vuln.get("id", "")}'
+      - id: cache-blind-to-exceptions
+        description: "cache do dia ignora mudanca na lista de excecoes (#648)"
+        find: '    digest.update(ignore_bytes)'
+        replace: '    digest.update(b"")'

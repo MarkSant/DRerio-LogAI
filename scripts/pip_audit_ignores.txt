@@ -1,0 +1,105 @@
+# pip-audit exceptions: the ONLY place they are listed (#648).
+#
+# Read by scripts/run_pip_audit.py, which both the CI `lint` job and the local
+# pre-push hook run, so the two gates can never disagree. One advisory id per
+# line; everything after `#` is a comment. Every entry needs its justification
+# next to it. Moved verbatim from .github/workflows/ci.yml: no id was added or
+# removed in the move.
+
+# Ignore torch CVEs that have no upstream fix in the 2.x line yet.
+# Re-evaluate when torch publishes a patched release within our
+# ``torch >=2.8.0,<3.0.0`` constraint and drop the corresponding
+# entries as they get addressed upstream.
+#
+# CVE-2025-3000: torch.jit.script memory corruption (CVSS 5.3,
+# MEDIUM, local-only segfault, no upstream fix in 2.x). ZebTrack
+# runs torch only for YOLO/OpenVINO inference and does not define
+# scripted classes with list attributes, so the attack surface is
+# not reachable here.
+CVE-2025-3000
+
+# Listed in ci.yml under the torch header above, without an individual
+# justification of their own; kept unchanged by the move (#648).
+PYSEC-2025-189
+PYSEC-2025-190
+PYSEC-2025-191
+PYSEC-2025-192
+PYSEC-2025-193
+PYSEC-2025-194
+PYSEC-2025-195
+PYSEC-2025-196
+PYSEC-2025-197
+PYSEC-2025-210
+PYSEC-2026-139
+
+# PYSEC-2026-3447: setuptools, fixed in 83.0.0. We cannot take that
+# fix because setuptools is pinned ``<81`` (see pyproject.toml): the
+# docxcompose dependency used for Word reports still imports the
+# ``pkg_resources`` API removed in setuptools 81+. setuptools is a
+# build/packaging tool, not exposed to untrusted input at app
+# runtime. Drop this ignore once docxcompose migrates off
+# pkg_resources and the ``setuptools < 81`` pin can be lifted.
+PYSEC-2026-3447
+
+# GHSA-xmj3-9gf7-h52w: setuptools, fixed in 84.1.0 -- out of reach for
+# the same ``setuptools < 81`` pin (docxcompose / pkg_resources) as
+# PYSEC-2026-3447 above; build tool, not exposed at app runtime.
+GHSA-xmj3-9gf7-h52w
+
+# CVE-2026-112390..112406 / 112891..112901: Pillow, fixed in 13.0.0.
+# We cannot take that fix because every ttkbootstrap release (2.2.3
+# included) requires ``pillow<13``; forcing 13 makes the resolver fall
+# back to ttkbootstrap 1.12.1. Pillow here only decodes the app's own
+# bundled icons and frames from the researcher's own videos, never
+# images from an untrusted source. Drop these ignores once
+# ttkbootstrap lifts the cap and ``Pillow >= 13`` can be pinned.
+CVE-2026-112390
+CVE-2026-112391
+CVE-2026-112392
+CVE-2026-112393
+CVE-2026-112395
+CVE-2026-112396
+CVE-2026-112397
+CVE-2026-112399
+CVE-2026-112400
+CVE-2026-112401
+CVE-2026-112402
+CVE-2026-112404
+CVE-2026-112405
+CVE-2026-112406
+CVE-2026-112891
+CVE-2026-112892
+CVE-2026-112893
+CVE-2026-112894
+CVE-2026-112895
+CVE-2026-112896
+CVE-2026-112897
+CVE-2026-112899
+CVE-2026-112900
+CVE-2026-112901
+
+# PYSEC-2026-4327/4330/4332/4336..4343, CVE-2026-96638/96640/96778,
+# GHSA-78g4-xqwv-q3g8: Pillow, also fixed only in 13.0.0 -- same
+# ttkbootstrap ``pillow<13`` cap and same threat model as above.
+PYSEC-2026-4327
+PYSEC-2026-4330
+PYSEC-2026-4332
+PYSEC-2026-4336
+PYSEC-2026-4337
+PYSEC-2026-4338
+PYSEC-2026-4339
+PYSEC-2026-4340
+PYSEC-2026-4341
+PYSEC-2026-4342
+PYSEC-2026-4343
+CVE-2026-96638
+CVE-2026-96640
+CVE-2026-96778
+GHSA-78g4-xqwv-q3g8
+
+# PYSEC-2026-4363, CVE-2026-128066/128067: Pillow 12.3.0, fixed only
+# in 13.0.0 -- same cap (ttkbootstrap 1.20.2 still requires
+# ``pillow>=10,<13``) and same threat model as above.
+PYSEC-2026-4363
+CVE-2026-128066
+CVE-2026-128067

@@ -551,8 +551,11 @@ what produced 47 byte-identical duplicates and made it impossible to see what wa
    none.
 5. `poetry run ruff check .` (no errors) and `poetry run mypy .` (CI runs it repo-wide, `tests/`
    included).
-6. Update docs if user-facing changes.
-7. Verify no wizard regressions.
+6. `bandit -r src/zebtrack -ll` and `python scripts/run_pip_audit.py` — both also run in the
+   pre-push hook. pip-audit exceptions live only in `scripts/pip_audit_ignores.txt`, each with its
+   justification; adding one is a security decision, never a way to turn CI green.
+7. Update docs if user-facing changes.
+8. Verify no wizard regressions.
 
 ---
 
