@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -917,3 +918,152 @@ class TestAnalysisWindowWiring:
             coordinator._resolve_window("t.parquet", _ten_fps_trajectory(), [], time_base=time_base)
 
         assert r.call_args.kwargs["clock"] == "capture_perf"
+
+
+# ---------------------------------------------------------------------------
+# #640: every geometry an analysis compares lives in ONE coordinate space
+# ---------------------------------------------------------------------------
+
+#: Arena at a non-zero offset of a 400x400 frame; the ROI is its top-left corner.
+_OFFSET_ARENA = [[200, 200], [400, 200], [400, 400], [200, 400]]
+_CORNER_ROI = [(200, 200), (260, 200), (260, 260), (200, 260)]
+
+
+def _animal_in_the_corner(n: int = 100) -> pd.DataFrame:
+    """10 s at 10 fps of an animal sitting still inside the corner ROI (raw pixels)."""
+    frames = np.arange(n)
+    return pd.DataFrame(
+        {
+            "timestamp": frames / 10.0,
+            "frame": frames,
+            "track_id": 1,
+            "x1": 225.0,
+            "y1": 225.0,
+            "x2": 235.0,
+            "y2": 235.0,
+            "x_center_px": 230.0,
+            "y_center_px": 230.0,
+        }
+    )
+
+
+def _real_coordinator(mock_project_manager, *, rule: Any = None):
+    from zebtrack.analysis.analysis_service import AnalysisService
+    from zebtrack.settings import load_settings
+
+    settings = load_settings()
+    if rule is not None:
+        settings.roi_inclusion_rule = rule
+    return ReportGenerationCoordinator(
+        state_manager=MagicMock(spec=StateManager),
+        project_manager=mock_project_manager,
+        settings_obj=settings,
+        event_bus=MagicMock(spec=EventBusV2),
+        analysis_service=AnalysisService(settings_obj=settings),
+    )
+
+
+class TestOneCoordinateSpace:
+    def test_seg_overlap_masks_follow_the_trajectory_into_local_space(
+        self, mock_project_manager, tmp_path
+    ):
+        """The 3b masks are RAW pixels; the report shifts df and ROIs by the arena offset.
+
+        Before #640 the masks stayed raw, missed the shifted ROI and the report
+        said 0 s inside a ROI the animal never left — with no warning, since
+        every mask matched its row.
+        """
+        from shapely.geometry import box
+
+        df = _animal_in_the_corner()
+        df.to_parquet(tmp_path / "3_CoordMovimento_exp1.parquet")
+        pd.DataFrame(
+            {
+                "frame": df["frame"],
+                "track_id": 1,
+                "mask_wkb": [box(226, 226, 234, 234).wkb] * len(df),
+            }
+        ).to_parquet(tmp_path / "3b_Mascaras_exp1.parquet")
+        mock_project_manager.project_data = {}
+        mock_project_manager.resolve_results_directory.return_value = str(tmp_path)
+        mock_project_manager.get_zone_data.return_value = SimpleNamespace(
+            polygon=_OFFSET_ARENA,
+            roi_polygons=[_CORNER_ROI],
+            roi_names=["Canto"],
+            roi_colors=[],
+            video_width=400,
+            video_height=400,
+        )
+        coordinator = _real_coordinator(mock_project_manager, rule="seg_overlap")
+        coordinator._probe_video_dimensions = MagicMock(return_value=(400, 400))
+        coordinator._prepare_background_image = MagicMock(return_value=None)
+        export = MagicMock(return_value={"docx": "r.docx", "xlsx": "r.xlsx"})
+        coordinator._export_individual_outputs = export
+
+        coordinator._generate_standard_report("v.mp4", "exp1", {}, {})
+
+        report = export.call_args.args[0].report
+        assert report["analise_roi"]["tempo_gasto_por_roi"]["Canto"]["seconds"] == (
+            pytest.approx(10.0, abs=0.2)
+        )
+        # The rule really ran on masks, not on the bbox fallback.
+        assert not any("mask" in w.lower() for w in report["validacao"]["avisos"])
+
+    def test_standard_summary_warps_the_trajectory_with_its_arena(
+        self, mock_project_manager, tmp_path
+    ):
+        """Arena and ROIs go through the homography; the trajectory must go too.
+
+        Before #640 the single-aquarium summary built its ``ReporterContext``
+        without ``calibration`` (the multi-aquarium one passes it), so a raw
+        trajectory was measured against a rectified arena.
+        """
+        df = _animal_in_the_corner()
+        trajectory = tmp_path / "3_CoordMovimento_exp1.parquet"
+        df.to_parquet(trajectory)
+        mock_project_manager.project_data = {
+            "calibration": {"aquarium_width_cm": 20, "aquarium_height_cm": 20}
+        }
+        mock_project_manager.resolve_results_directory.return_value = str(tmp_path)
+        mock_project_manager.get_metadata_for_experiment.return_value = {"experiment_id": "exp1"}
+        coordinator = _real_coordinator(mock_project_manager)
+        coordinator._resolve_summary_zone_data = MagicMock(
+            return_value=SimpleNamespace(
+                polygon=_OFFSET_ARENA,
+                roi_polygons=[_CORNER_ROI],
+                roi_names=["Canto"],
+                roi_colors=[],
+            )
+        )
+        video: dict[str, Any] = {"parquet_files": {"trajectory": str(trajectory)}}
+
+        status, *_rest = coordinator._process_standard_summary_video(
+            video, "exp1", str(tmp_path / "v.mp4"), coordinator.settings, ["Canto"]
+        )
+
+        assert status == "completed"
+        summary = pd.read_parquet(video["parquet_files"]["summary"]).iloc[0]
+        assert summary["time_in_Canto_s"] == pytest.approx(10.0, abs=0.2)
+
+    def test_the_window_gets_the_masks_in_the_space_of_its_df(self, coordinator, tmp_path):
+        """``RoiInside`` with ``seg_overlap`` must compare like the report does (#640)."""
+        from shapely import wkb
+        from shapely.geometry import box
+
+        trajectory = tmp_path / "3_CoordMovimento_exp1.parquet"
+        pd.DataFrame(
+            {"frame": [0], "track_id": [1], "mask_wkb": [box(226, 226, 234, 234).wkb]}
+        ).to_parquet(tmp_path / "3b_Mascaras_exp1.parquet")
+        time_base = MagicMock(source="trajectory_timestamps")
+
+        with patch(_RESOLVE, return_value=None) as resolve:
+            coordinator._resolve_window(
+                str(trajectory),
+                _animal_in_the_corner(),
+                [],
+                time_base=time_base,
+                local_offset=(200.0, 200.0),
+            )
+
+        masks = resolve.call_args.kwargs["mask_source"]
+        assert wkb.loads(masks["mask_wkb"].iloc[0]).bounds == (26.0, 26.0, 34.0, 34.0)

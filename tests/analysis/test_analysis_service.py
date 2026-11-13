@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from zebtrack.analysis.analysis_service import AnalysisService
+from zebtrack.analysis.analysis_service import AnalysisService, mask_sidecar_in_local_space
 from zebtrack.analysis.analysis_window_service import WindowBound, WindowResolution
 from zebtrack.settings import Settings, load_settings
 
@@ -592,3 +592,67 @@ def test_two_real_animals_stay_two(settings_obj: Settings):
 
     assert report["validacao"]["estatisticas"]["unique_tracks"] == 2
     assert any("animals (track_ids)" in w for w in report["validacao"]["avisos"])
+
+
+class TestMaskSidecarInLocalSpace:
+    """The 3b masks follow a trajectory shifted into the arena's local space (#640)."""
+
+    @staticmethod
+    def _sidecar(tmp_path: Path, payloads: list) -> Path:
+        path = tmp_path / "3b_Mascaras_exp1.parquet"
+        pd.DataFrame(
+            {"frame": range(len(payloads)), "track_id": 1, "mask_wkb": payloads}
+        ).to_parquet(path)
+        return path
+
+    def test_masks_are_shifted_by_the_arena_offset(self, tmp_path):
+        from shapely import wkb
+        from shapely.geometry import box
+
+        path = self._sidecar(tmp_path, [box(226, 226, 234, 234).wkb])
+
+        moved = mask_sidecar_in_local_space(path, 200, 150)
+
+        assert isinstance(moved, pd.DataFrame)
+        assert wkb.loads(moved["mask_wkb"].iloc[0]).bounds == (26.0, 76.0, 34.0, 84.0)
+        assert list(moved["frame"]) == [0] and list(moved["track_id"]) == [1]
+
+    def test_zero_offset_hands_the_path_through(self, tmp_path):
+        from shapely.geometry import box
+
+        path = self._sidecar(tmp_path, [box(0, 0, 1, 1).wkb])
+
+        assert mask_sidecar_in_local_space(path, 0, 0) == path
+        assert mask_sidecar_in_local_space(None, 10, 10) is None
+
+    def test_unreadable_file_is_left_for_the_analyzer_to_report(self, tmp_path):
+        path = tmp_path / "3b_Mascaras_exp1.parquet"
+        path.write_bytes(b"not a parquet file")
+
+        assert mask_sidecar_in_local_space(path, 10, 10) == path
+
+    @pytest.mark.parametrize(
+        "frame",
+        [
+            pd.DataFrame({"frame": [0], "track_id": [1]}),
+            pd.DataFrame({"frame": [], "track_id": [], "mask_wkb": []}),
+        ],
+        ids=["no-mask-column", "empty"],
+    )
+    def test_a_sidecar_without_masks_is_left_for_the_analyzer_to_report(self, tmp_path, frame):
+        path = tmp_path / "3b_Mascaras_exp1.parquet"
+        frame.to_parquet(path)
+
+        assert mask_sidecar_in_local_space(path, 10, 10) == path
+
+    def test_corrupt_payload_is_kept_for_the_analyzer_to_count(self, tmp_path):
+        from shapely import wkb
+        from shapely.geometry import box
+
+        path = self._sidecar(tmp_path, [b"garbage", box(10, 10, 20, 20).wkb])
+
+        moved = mask_sidecar_in_local_space(path, 10, 10)
+
+        assert isinstance(moved, pd.DataFrame)
+        assert moved["mask_wkb"].iloc[0] == b"garbage"
+        assert wkb.loads(moved["mask_wkb"].iloc[1]).bounds == (0.0, 0.0, 10.0, 10.0)

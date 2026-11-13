@@ -135,6 +135,16 @@ modules:
         find: 'if record.subject is None:'
         replace: 'if record.subject is not None:'
 
+  arduino_bindings_panel:
+    source: src/zebtrack/ui/components/arduino_bindings_panel.py
+    tests:
+      - tests/ui/components/test_arduino_bindings_panel.py
+    mutations:
+      - id: empty-project-data-discarded
+        description: "project_data vazio de projeto recem-criado vira dict descartavel e o binding se perde (#644)"
+        find: 'return data if isinstance(data, dict) else {}'
+        replace: 'return data if data else {}'
+
   arduino_bindings:
     source: src/zebtrack/core/services/arduino_bindings.py
     tests:
@@ -1762,6 +1772,14 @@ modules:
         description: "condicao sem entrada (classe de contexto sem 3c) e avaliada como ausencia"
         find: '        if missing:'
         replace: '        if False:'
+      - id: stop-divergence-worded-as-start
+        description: "divergencia do FIM da janela passa a ser dita como do inicio (#642)"
+        find: 'The live session ended the analysis window at frame {online}, the "'
+        replace: 'The live session started the analysis window at frame {online}, the "'
+      - id: stop-divergence-reads-start-bound
+        description: "aviso do FIM compara o fim ao vivo com o INICIO recalculado (#642)"
+        find: 'if _diverges(online.stop, resolution.stop):'
+        replace: 'if _diverges(online.stop, resolution.start):'
 
   analysis_window_cut_service:
     source: src/zebtrack/analysis/analysis_service.py
@@ -1917,10 +1935,10 @@ modules:
       - id: standard-report-ignores-window
         description: "relatorio individual analisa a gravacao inteira mesmo com janela no projeto"
         find: |-
-          mask_sidecar_path=resolve_mask_sidecar(traj_path),
+          mask_sidecar_path=self._masks_in_report_space(traj_path, (off_x, off_y)),
                       window=window,
         replace: |-
-          mask_sidecar_path=resolve_mask_sidecar(traj_path),
+          mask_sidecar_path=self._masks_in_report_space(traj_path, (off_x, off_y)),
                       window=None,
       - id: aquarium-shares-window-of-aquarium-0
         description: "cada aquario deixa de ter a propria janela"
@@ -2580,3 +2598,47 @@ modules:
                   display_interval_frames = _intervals.display
 
                   # Video recording (optional)
+
+  report_coordinate_space:
+    source: src/zebtrack/coordinators/report_generation_coordinator.py
+    tests:
+      - tests/coordinators/test_report_generation_coordinator.py
+    mutations:
+      - id: report-masks-stay-raw
+        description: "relatorio passa mascaras 3b cruas com df/ROIs no espaco local e seg_overlap da 0 s (#640)"
+        find: 'mask_sidecar_path=self._masks_in_report_space(traj_path, (off_x, off_y)),'
+        replace: 'mask_sidecar_path=self._masks_in_report_space(traj_path, (0.0, 0.0)),'
+      - id: window-masks-stay-raw
+        description: "janela recebe mascaras 3b cruas enquanto o df dela esta no espaco local (#640)"
+        find: 'mask_source=self._masks_in_report_space(trajectory_path, local_offset),'
+        replace: 'mask_source=self._masks_in_report_space(trajectory_path, (0.0, 0.0)),'
+      - id: standard-summary-without-homography
+        description: "sumario padrao mede trajetoria crua contra arena e ROIs retificadas (#640)"
+        find: |-
+          # multi-aquarium summary always did.
+                          calibration=cal,
+        replace: |-
+          # multi-aquarium summary always did.
+                          calibration=None,
+
+  mask_sidecar_local_space:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_service.py
+    mutations:
+      - id: masks-shifted-the-wrong-way
+        description: "mascaras somam o offset da arena em vez de subtrair (#640)"
+        find: 'shift = np.array([-float(offset_x), -float(offset_y)])'
+        replace: 'shift = np.array([float(offset_x), float(offset_y)])'
+      - id: corrupt-payload-dropped
+        description: "WKB corrompido some do sidecar e o analisador deixa de conta-lo como invalido"
+        find: 'original if geometry is None else shapely.to_wkb(geometry)'
+        replace: 'None if geometry is None else shapely.to_wkb(geometry)'
+      - id: sidecar-without-masks-translated
+        description: "sidecar sem coluna mask_wkb deixa de voltar ao analisador e quebra a traducao"
+        find: 'if "mask_wkb" not in masks.columns or masks.empty:'
+        replace: 'if False:'
+      - id: zero-offset-rereads
+        description: "offset zero deixa de devolver o proprio caminho"
+        find: 'if sidecar is None or (offset_x == 0 and offset_y == 0):'
+        replace: 'if sidecar is None:'
