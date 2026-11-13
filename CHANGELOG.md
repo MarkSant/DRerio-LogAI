@@ -301,9 +301,25 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   Um guarda novo (`tests/analysis/reporters/test_reporters_package.py`) reprova
   todo reporter público sem chamador fora do pacote; `ScriptExporter` está na
   lista de órfãos conhecidos até #696 decidir o destino dele.
+- **"Frame skip dinâmico" do ao vivo (`_adjust_fps_dynamically`, #669).** Rodava
+  depois de cada `detect()` e o veredito de pular só chegava a um `log.debug`:
+  nenhum quadro deixava de ser analisado. Media a vazão da inferência (não a
+  taxa de quadros) contra um alvo fixo de 30 fps, e ninguém lia o contador de
+  pulos. Saem o método e os atributos `_target_fps`, `_current_fps`,
+  `_processing_times`, `_frame_skip_count` e `_fps_adjustment_interval`. O que
+  escolhe os quadros analisados continua sendo só a cadência
+  `analysis_interval_frames` (#637); o que rarefaz o ao vivo sob carga é o
+  descarte por fila cheia e os quadros que a câmera perde, ambos no
+  `6_FrameLedger`. As gravações não mudam.
 
 ### Fixed
 
+- **`update_translations.py` voltou a chegar ao fim (#703).** Dois pares de
+  `locales/_pairs/` ("Trajectory for {experiment_id} generated." e
+  "Cancellation requested for {name}.") ainda citavam msgids removidos com o
+  código morto do #690. O passo `i18n_pairs` saía com 1 e o `.mo` não era
+  recompilado. Os pares saíram, e `tests/i18n/test_pairs_not_orphaned.py`
+  reprova qualquer par cujo msgid não esteja no catálogo.
 - **Padrões de zebrafish num projeto de roedor (#631).** A geotaxia (proximidade do
   FUNDO) era calculada também em vídeo filmado de cima, onde não há fundo. O
   `run_full_analysis` não olhava a perspectiva, e o `collect_analysis_parameters`

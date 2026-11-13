@@ -160,19 +160,6 @@ class TestFrameProcessingPipelineExtended2:
         mixin._finalize_closed_loop_log()
         assert mixin._closed_loop_log is None
 
-    def test_adjust_fps_dynamically(self):
-        mixin = object.__new__(FrameProcessingMixin)
-        mixin._processing_times = []
-        mixin._frame_skip_count = 0
-        mixin._current_fps = 30.0
-        mixin._target_fps = 30.0
-        mixin._fps_adjustment_interval = 5
-
-        # Frame fast -> should not skip
-        should_process = mixin._adjust_fps_dynamically(1, 0.01)
-        assert should_process is True
-        assert len(mixin._processing_times) == 1
-
 
 class TestFrameProcessingPipelineExtended3:
     def test_default_constants(self):
@@ -574,9 +561,6 @@ class _LoopHarness(FrameProcessingMixin):
     def set_last_detections(self, detections):
         self._last = detections
 
-    def _adjust_fps_dynamically(self, frame_number, processing_time):
-        return True
-
     def _on_session_active(self):
         pass
 
@@ -928,6 +912,57 @@ class TestOneSamplingCadence:
         recorder: Any = h.recorder
         # Pipeline frames are 1-based: source indices 1, 4, 7 -> frames 2, 5, 8.
         assert [frame for frame, _t, _obs in recorder.objects] == [2, 5, 8]
+
+    def test_slow_inference_never_thins_the_cadence(self, tmp_path, monkeypatch):
+        """#669: the cadence is ``analysis_interval_frames`` and nothing else.
+
+        A "dynamic FPS" step used to run after every ``detect()``: it measured
+        inference throughput, raised a ``_frame_skip_count`` against a fixed
+        30 fps target and returned a skip verdict that only reached a debug log.
+        Inference that takes 100 ms per frame (10/s, well under 0.7 x 30) is the
+        load that armed it. The loop must still analyse exactly the cadence's
+        frames, carry no skip state and say nothing about frame skipping.
+        """
+        import structlog.testing
+
+        from zebtrack.core.recording import frame_processing_pipeline as fpp
+
+        clock = {"now": 1_000.0}
+
+        def slow_clock() -> float:
+            # Every wall-clock read moves 50 ms, so any timing taken around
+            # ``detect()`` sees ~100 ms of "inference" per analysed frame.
+            clock["now"] += 0.05
+            return clock["now"]
+
+        monkeypatch.setattr(fpp.time, "time", slow_clock)
+
+        h = _LoopHarness(tmp_path)
+        h.analysis_interval_frames = 2
+        frames = list(range(1, 81))
+        with structlog.testing.capture_logs() as logs:
+            h.run([(f, T0 + f) for f in frames])
+
+        recorder: Any = h.recorder
+        expected = [f for f in frames if (f - 1) % 2 == 0]
+        assert [frame for frame, _t, _obs in recorder.objects] == expected
+
+        skip_events = {
+            "live_camera_service.fps_too_low",
+            "live_camera_service.fps_improved",
+            "live_camera_service.frame_skipped",
+            "live_camera_service.fps_skip_triggered",
+        }
+        assert [e["event"] for e in logs if e["event"] in skip_events] == []
+        for dead in (
+            "_target_fps",
+            "_current_fps",
+            "_processing_times",
+            "_frame_skip_count",
+            "_fps_adjustment_interval",
+        ):
+            assert not hasattr(h, dead), dead
+        assert not hasattr(FrameProcessingMixin, "_adjust_fps_dynamically")
 
 
 class TestLiveRecordingFps:

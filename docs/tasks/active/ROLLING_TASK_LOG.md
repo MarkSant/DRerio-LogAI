@@ -7,6 +7,8 @@ This document tracks all major agent interventions, technical debt resolutions, 
 ## Active Tasks
 
 ### [2026-11-13] Painel de bindings Arduino: coluna de aquário e round trip sem perda (#701)
+### [2026-11-13] ScriptExporter sem chamador (#696) e pares i18n órfãos (#703)
+### [2026-11-13] Ao vivo: remover o frame skip dinâmico morto (#669)
 
 __ID:__ TASK-078
 __Agent:__ Claude Code (Opus 5.5)
@@ -25,6 +27,50 @@ __Critério de pronto:__
 - `_collect_from_tree()` e `_add_or_update()` preservam `aquarium_id`; "Testar comandos" nomeia o
   aquário.
 - Testes de GUI + bloco de mutação headless do round trip; aviso do guia do usuário removido.
+__Branch:__ claude/696-703-orphans-4abdf8 (a partir de `release/8.0`)
+__Description:__
+`ScriptExporter` só é chamado pelos próprios testes (#696). Em paralelo, `update_translations.py`
+para em `i18n_pairs` por dois pares de `_pairs/` cujos msgids sumiram com o código morto do #690,
+e por isso o `.mo` deixa de ser recompilado (#703).
+
+__Critério de pronto:__
+
+- #696 resolvido conforme a decisão do mantenedor; `ScriptExporter` fora de `_KNOWN_ORPHANS`.
+- Os pares órfãos foram removidos, e um teste em `tests/i18n/` falha se um par de `_pairs/` não
+  existir no template.
+- `update_translations.py` roda até o fim e recompila o `.mo`.
+
+__Resultado (2026-11-13):__
+
+- #696: o mantenedor escolheu remover. Saem o módulo, o re-export, `test_script_exporter*.py`,
+  `TestExportRPython` (`tests/analysis/test_reporter.py`) e `TestBenchmarkAliases`
+  (`tests/performance/test_parallel_detection_benchmark.py`). `_KNOWN_ORPHANS` fica vazio.
+  `ScriptExporter` não tinha nenhuma string `_()`, então nenhum msgid ficou órfão.
+- #703: os dois msgids saíram junto com o código morto do #690 (texto removido, não renomeado),
+  então os pares foram removidos. O guarda usa `merge_into_catalog(check_only=True)`, o mesmo teste
+  do script. `update_translations.py` sai com 0 e recompila os dois `.mo`. O único diff era a data
+  `POT-Creation-Date`, e ele foi descartado.
+- Fora do escopo: 116 pares de `_pairs/` apontam para msgids que estão OBSOLETOS (`#~`) no `.po`.
+  Eles não param o script, mas também não têm mais origem no código.
+__Branch:__ claude/669-dead-fps-skip-bfbeb0 (a partir de `release/8.0`)
+__Description:__
+`FrameProcessingMixin._adjust_fps_dynamically` roda depois do `detect()` e o retorno só vai para
+um `log.debug`: nenhum quadro é pulado, `_current_fps` mede a vazão da inferência (não a taxa de
+quadros), `_target_fps` é fixo em 30 e ninguém lê `_frame_skip_count`. Remover o mecanismo e os
+testes que só exercitam o retorno; a cadência única do #637
+(`is_analysis_frame(frame - 1, analysis_interval_frames, offset)`) é quem decide o que é analisado.
+
+__Critério de pronto:__
+
+- Método, atributos (`_target_fps`, `_current_fps`, `_processing_times`, `_frame_skip_count`,
+  `_fps_adjustment_interval`) e chamada no `_processing_loop` removidos.
+- Teste novo: com inferência lenta, o laço real analisa exatamente os quadros da cadência e não
+  emite `fps_too_low`/`frame_skipped`; vermelho provado antes da remoção.
+- PR contra `release/8.0` com CI verde, "Closes #669".
+
+__Resultado (2026-11-13):__ mecanismo removido; teste novo vermelho→verde; suíte rápida 8161 passed;
+mypy limpo. De quebra, 4 `find` defasados do bloco `live_window_pipeline` (desde #656) atualizados:
+qualquer PR que tocasse `frame_processing_pipeline.py` era barrado pelo mutation check.
 
 ### [2026-11-05] Mutation check paralelo e isolado: o PR #629 estoura os 20 min do passo
 
