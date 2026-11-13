@@ -8,6 +8,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from zebtrack.core.detection.detection_types import AquariumData, MultiAquariumZoneData
+from zebtrack.core.services.arduino_bindings import ArduinoBinding
 from zebtrack.ui.components.arduino_bindings_panel import ArduinoBindingsPanel
 
 _T = TypeVar("_T")
@@ -36,13 +38,29 @@ def _make_controller(
     project_type="live",
     project_path="/proj",
     arduino_manager=None,
+    aquarium_rois=None,
 ):
+    """``aquarium_rois`` = one ROI-name list per aquarium (ids 0, 1, ...).
+
+    ``None`` = a single-aquarium project: ``get_multi_aquarium_zone_data``
+    answers ``None``, exactly like a live project without a split.
+    """
     pm = MagicMock()
     pm.project_data = project_data
     pm.get_project_type.return_value = project_type
     pm.get_zone_data.return_value = SimpleNamespace(roi_names=roi_names)
     pm.project_path = project_path
     pm.save_project = MagicMock()
+    pm.get_multi_aquarium_zone_data.return_value = (
+        None
+        if aquarium_rois is None
+        else MultiAquariumZoneData(
+            aquariums=[
+                AquariumData(id=index, roi_names=list(names))
+                for index, names in enumerate(aquarium_rois)
+            ]
+        )
+    )
     # No ``root`` here on purpose: the panel schedules UI work through its own
     # ``self.after`` (it is a Tk widget), never through the controller.
     return SimpleNamespace(project_manager=pm, arduino_manager=arduino_manager), pm
@@ -181,7 +199,10 @@ class TestArduinoBindingsPanel:
         controller, _pm = _make_controller(pd, ["A", "B"])
         panel = ArduinoBindingsPanel(tkinter_root, controller)
         tkinter_root.update_idletasks()
-        assert set(_nn(panel._tree).get_children()) == {"A", "B"}
+        assert set(_nn(panel._tree).get_children()) == {
+            ArduinoBindingsPanel._row_iid(None, "A"),
+            ArduinoBindingsPanel._row_iid(None, "B"),
+        }
 
     def test_conflict_warning_hidden_for_disjoint_tokens(self, tkinter_root):
         pd = {
@@ -255,7 +276,7 @@ class TestArduinoBindingsPanel:
         panel = ArduinoBindingsPanel(tkinter_root, controller)
         tkinter_root.update_idletasks()
 
-        _nn(panel._tree).selection_set("Z1")
+        _nn(panel._tree).selection_set(ArduinoBindingsPanel._row_iid(None, "Z1"))
         panel._on_select()
 
         assert panel.device_label.get() == "Bomba"
@@ -470,7 +491,10 @@ class TestEmptyProjectData:
         reopened = ArduinoBindingsPanel(tkinter_root, controller)
         tkinter_root.update_idletasks()
         tree = _nn(reopened._tree)
-        assert [tree.item(iid, "values")[0] for iid in tree.get_children()] == ["Direita"]
+        assert [
+            ArduinoBindingsPanel._binding_from_row(tree.item(iid, "values")).roi
+            for iid in tree.get_children()
+        ] == ["Direita"]
 
     def test_without_project_data_the_panel_still_works(self, tkinter_root):
         """No ``project_data`` at all (no project open): no crash, nothing to persist into."""
@@ -556,3 +580,295 @@ class TestPanelOutlivesItsWidgets:
             "adopting the new manager must still happen — a panel that is "
             "rebuilt later would otherwise read the CLOSED project"
         )
+
+
+@pytest.mark.gui
+class TestAquariumScope:
+    """Bindings scoped to one aquarium survive the panel (#701).
+
+    The #656 backend gave each binding an optional ``aquarium_id``; the panel
+    rebuilt the list from a table without that column, so ANY edit made in the
+    panel rewrote the bindings unscoped — a device meant for aquarium 2 started
+    answering aquarium 1 too, with nothing on screen saying so.
+    """
+
+    def test_aquarium_column_hidden_with_a_single_aquarium(self, tkinter_root):
+        controller, _pm = _make_controller({"use_arduino": True}, ["Z1"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        assert "aquarium" not in _nn(panel._tree)["displaycolumns"]
+        assert not _is_packed(_nn(panel._aquarium_row))
+
+    def test_aquarium_column_shown_with_two_aquariums(self, tkinter_root):
+        controller, _pm = _make_controller(
+            {"use_arduino": True}, ["Z1"], aquarium_rois=[["Z1"], ["Z1"]]
+        )
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        assert _nn(panel._tree)["displaycolumns"][0] == "aquarium"
+        assert _is_packed(_nn(panel._aquarium_row))
+        assert list(_nn(panel._aquarium_combo)["values"]) == ["All", "1", "2"]
+        assert panel.aquarium_choice.get() == "All"
+
+    def test_multi_aquarium_zones_come_from_the_live_reference_frame(self, tkinter_root):
+        """Same key the live session reads (``live_camera_reference_frame.png``)."""
+        controller, pm = _make_controller(
+            {"use_arduino": True}, ["Z1"], aquarium_rois=[["Z1"], ["Z1"]]
+        )
+        ArduinoBindingsPanel(tkinter_root, controller)
+
+        (path,), _kwargs = pm.get_multi_aquarium_zone_data.call_args
+        assert str(path).replace("\\", "/") == "/proj/live_camera_reference_frame.png"
+
+    def test_roi_list_follows_the_chosen_aquarium(self, tkinter_root):
+        controller, _pm = _make_controller(
+            {"use_arduino": True}, ["Z1", "Z2"], aquarium_rois=[["Z1", "Z2"], ["Z1", "Z3"]]
+        )
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+        combo = _nn(panel._roi_combo)
+
+        # "All" offers every name once, in first-seen order.
+        assert list(combo["values"]) == ["Z1", "Z2", "Z3"]
+
+        panel.aquarium_choice.set("2")
+        panel.refresh_roi_choices()
+        assert list(combo["values"]) == ["Z1", "Z3"]
+
+        panel.roi_choice.set("Z3")
+        panel.aquarium_choice.set("1")
+        panel.refresh_roi_choices()
+        assert list(combo["values"]) == ["Z1", "Z2"]
+        # Z3 does not exist in aquarium 1: the choice must not keep pointing at it.
+        assert panel.roi_choice.get() == "Z1"
+
+    def test_json_with_aquarium_id_survives_an_edit_from_the_panel(self, tkinter_root):
+        """Load scoped bindings, edit one in the panel, save: nothing lost."""
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [
+                {"roi": "Z1", "on_enter": 1, "on_exit": 2, "label": None, "aquarium_id": 1},
+                {"roi": "Z2", "on_enter": 3, "on_exit": 4, "label": None},
+            ],
+        }
+        controller, pm = _make_controller(
+            pd, ["Z1", "Z2"], aquarium_rois=[["Z1", "Z2"], ["Z1", "Z2"]]
+        )
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        _nn(panel._tree).selection_set(ArduinoBindingsPanel._row_iid(1, "Z1"))
+        panel._on_select()
+        assert panel.aquarium_choice.get() == "2"
+        panel.device_label.set("Choque")
+        panel._add_or_update()
+
+        assert pd["arduino_bindings"] == [
+            {"roi": "Z1", "on_enter": 1, "on_exit": 2, "label": "Choque", "aquarium_id": 1},
+            {"roi": "Z2", "on_enter": 3, "on_exit": 4, "label": None},
+        ]
+        pm.save_project.assert_called_once()
+        assert len(_nn(panel._tree).get_children()) == 2
+
+    def test_scope_survives_saving_while_the_column_is_hidden(self, tkinter_root):
+        """A scoped JSON opened where the split is not visible is still not rewritten."""
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [
+                {"roi": "Z1", "on_enter": 1, "on_exit": 2, "label": None, "aquarium_id": 0},
+            ],
+        }
+        controller, _pm = _make_controller(pd, ["Z1", "Z2"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel.roi_choice.set("Z2")
+        panel.aquarium_choice.set("All")
+        panel.enter_token.set("3")
+        panel.exit_token.set("4")
+        panel._add_or_update()
+
+        assert pd["arduino_bindings"] == [
+            {"roi": "Z1", "on_enter": 1, "on_exit": 2, "label": None, "aquarium_id": 0},
+            {"roi": "Z2", "on_enter": 3, "on_exit": 4, "label": None},
+        ]
+
+    def test_editing_a_scoped_row_while_the_column_is_hidden_keeps_its_scope(self, tkinter_root):
+        """Selecting the row fills the hidden picker; the edit must not unscope it."""
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [
+                {"roi": "Z1", "on_enter": 1, "on_exit": 2, "label": None, "aquarium_id": 1},
+            ],
+        }
+        controller, _pm = _make_controller(pd, ["Z1"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        _nn(panel._tree).selection_set(ArduinoBindingsPanel._row_iid(1, "Z1"))
+        panel._on_select()
+        panel.exit_token.set("6")
+        panel._add_or_update()
+
+        assert pd["arduino_bindings"] == [
+            {"roi": "Z1", "on_enter": 1, "on_exit": 6, "label": None, "aquarium_id": 1},
+        ]
+        assert len(_nn(panel._tree).get_children()) == 1
+
+    def test_homonymous_rois_in_two_aquariums_are_two_rows(self, tkinter_root):
+        """Same ROI name, different aquarium: two bindings, never one overwritten row."""
+        pd: dict[str, Any] = {"use_arduino": True}
+        controller, _pm = _make_controller(pd, ["Z1"], aquarium_rois=[["Z1"], ["Z1"]])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel.aquarium_choice.set("1")
+        panel.roi_choice.set("Z1")
+        panel.enter_token.set("1")
+        panel.exit_token.set("2")
+        panel._add_or_update()
+
+        panel.aquarium_choice.set("2")
+        panel.roi_choice.set("Z1")
+        panel.enter_token.set("3")
+        panel.exit_token.set("4")
+        panel._add_or_update()
+
+        assert pd["arduino_bindings"] == [
+            {"roi": "Z1", "on_enter": 1, "on_exit": 2, "label": None, "aquarium_id": 0},
+            {"roi": "Z1", "on_enter": 3, "on_exit": 4, "label": None, "aquarium_id": 1},
+        ]
+        assert len(_nn(panel._tree).get_children()) == 2
+
+        # Re-opening the project loads both rows back, not the last one only.
+        reopened = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+        assert set(_nn(reopened._tree).get_children()) == {
+            ArduinoBindingsPanel._row_iid(0, "Z1"),
+            ArduinoBindingsPanel._row_iid(1, "Z1"),
+        }
+
+    def test_updating_one_aquarium_leaves_the_homonym_alone(self, tkinter_root):
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [
+                {"roi": "Z1", "on_enter": 1, "on_exit": 2, "aquarium_id": 0},
+                {"roi": "Z1", "on_enter": 3, "on_exit": 4, "aquarium_id": 1},
+            ],
+        }
+        controller, _pm = _make_controller(pd, ["Z1"], aquarium_rois=[["Z1"], ["Z1"]])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel.aquarium_choice.set("2")
+        panel.roi_choice.set("Z1")
+        panel.enter_token.set("5")
+        panel.exit_token.set("6")
+        panel._add_or_update()
+
+        assert pd["arduino_bindings"] == [
+            {"roi": "Z1", "on_enter": 1, "on_exit": 2, "label": None, "aquarium_id": 0},
+            {"roi": "Z1", "on_enter": 5, "on_exit": 6, "label": None, "aquarium_id": 1},
+        ]
+
+    def test_conflict_across_aquariums_is_still_reported(self, tkinter_root):
+        """One serial line, one firmware: a token's role is global, not per aquarium."""
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [
+                {"roi": "Z1", "on_enter": 3, "on_exit": 4, "aquarium_id": 0},
+                {"roi": "Z1", "on_enter": 4, "on_exit": 5, "aquarium_id": 1},
+            ],
+        }
+        controller, _pm = _make_controller(pd, ["Z1"], aquarium_rois=[["Z1"], ["Z1"]])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        label = _nn(panel._conflict_label)
+        assert _is_packed(label)
+        assert "4" in label.cget("text")
+
+    def test_probe_plan_names_the_aquarium(self, tkinter_root):
+        """Two Z1 lines in the test output must say which aquarium each one is."""
+        pd = {
+            "use_arduino": True,
+            "arduino_bindings": [
+                {"roi": "Z1", "on_enter": 1, "aquarium_id": 0},
+                {"roi": "Z1", "on_enter": 3, "aquarium_id": 1, "label": "Bomba"},
+                {"roi": "Z2", "on_enter": 5},
+            ],
+        }
+        controller, _pm = _make_controller(pd, ["Z1", "Z2"], aquarium_rois=[["Z1"], ["Z1"]])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        assert panel._probe_plan() == [
+            ("Z1 (aquarium 1)", "enter", 1),
+            ("Bomba [Z1 (aquarium 2)]", "enter", 3),
+            ("Z2", "enter", 5),
+        ]
+
+
+class TestRowRoundTrip:
+    """Headless twin of ``TestAquariumScope`` (#701), so the mutation run sees it.
+
+    The mutation runner excludes ``gui`` tests. The row helpers are the whole
+    table <-> binding conversion; they need no widget.
+    """
+
+    @pytest.mark.parametrize("aquarium_id", [None, 0, 1])
+    def test_row_round_trip_keeps_the_aquarium(self, aquarium_id):
+        binding = ArduinoBinding(
+            roi="Z1", on_enter=1, on_exit=2, label="Choque", aquarium_id=aquarium_id
+        )
+
+        row = ArduinoBindingsPanel._row_values(binding)
+
+        assert ArduinoBindingsPanel._binding_from_row(row) == binding
+
+    def test_row_values_read_back_as_tk_returns_them(self):
+        """ttk hands numeric-looking cells back as ints: ``"0"`` comes back ``0``."""
+        binding = ArduinoBindingsPanel._binding_from_row((0, "1", "Z1", "", 1, 2))
+
+        assert binding.aquarium_id == 0
+        assert (binding.on_enter, binding.on_exit, binding.label) == (1, 2, None)
+
+    def test_unscoped_row_reads_back_unscoped(self):
+        binding = ArduinoBindingsPanel._binding_from_row(("", "All", "Z1", "", "1", ""))
+
+        assert binding.aquarium_id is None
+        assert binding.on_exit is None
+
+    def test_row_iid_separates_aquariums(self):
+        iids = {
+            ArduinoBindingsPanel._row_iid(None, "Z1"),
+            ArduinoBindingsPanel._row_iid(0, "Z1"),
+            ArduinoBindingsPanel._row_iid(1, "Z1"),
+        }
+
+        assert len(iids) == 3
+
+    def test_row_iid_separates_rois(self):
+        assert ArduinoBindingsPanel._row_iid(0, "Z1") != ArduinoBindingsPanel._row_iid(0, "Z2")
+
+    def test_aquarium_choice_parses_back_to_the_id(self):
+        panel = object.__new__(ArduinoBindingsPanel)
+        panel._aquarium_ids = [None, 0, 1]
+
+        assert panel._aquarium_id_for_choice("All") is None
+        assert panel._aquarium_id_for_choice("1") == 0
+        assert panel._aquarium_id_for_choice("2") == 1
+        # Unknown text (stale choice after the split changed) is the safe "All".
+        assert panel._aquarium_id_for_choice("7") is None
+
+    def test_hidden_picker_reads_a_selected_rows_number_back(self):
+        """Single view: the number came from a scoped row and must stay its id."""
+        panel = object.__new__(ArduinoBindingsPanel)
+        panel._aquarium_ids = [None]
+
+        assert panel._aquarium_id_for_choice("2") == 1
+        assert panel._aquarium_id_for_choice("1") == 0
+        assert panel._aquarium_id_for_choice("All") is None
+        assert panel._aquarium_id_for_choice("0") is None

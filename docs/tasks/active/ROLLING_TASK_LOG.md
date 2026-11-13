@@ -6,12 +6,27 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-13] Painel de bindings Arduino: coluna de aquário e round trip sem perda (#701)
 ### [2026-11-13] ScriptExporter sem chamador (#696) e pares i18n órfãos (#703)
 ### [2026-11-13] Ao vivo: remover o frame skip dinâmico morto (#669)
 
 __ID:__ TASK-078
 __Agent:__ Claude Code (Opus 5.5)
 __Status:__ Completed ✅ (PR contra `release/8.0`)
+__Branch:__ claude/701-arduino-panel-aquarium-01dfcd (a partir de `release/8.0`)
+__Description:__
+O #656 deu a cada binding um `aquarium_id` opcional, mas o painel
+(`ui/components/arduino_bindings_panel.py`) não sabia dele: não havia como escolher o aquário,
+salvar pelo painel apagava o campo e o `iid` da tabela era só o nome da ROI, então ROIs homônimas
+em aquários diferentes colidiam na mesma linha.
+
+__Critério de pronto:__
+
+- Coluna "Aquarium" (All / 1 / 2…) visível só com 2+ aquários; "All" = `aquarium_id=None`.
+- `iid` = `(aquarium_id, roi)`; a lista de ROIs vem do aquário escolhido.
+- `_collect_from_tree()` e `_add_or_update()` preservam `aquarium_id`; "Testar comandos" nomeia o
+  aquário.
+- Testes de GUI + bloco de mutação headless do round trip; aviso do guia do usuário removido.
 __Branch:__ claude/696-703-orphans-4abdf8 (a partir de `release/8.0`)
 __Description:__
 `ScriptExporter` só é chamado pelos próprios testes (#696). Em paralelo, `update_translations.py`
