@@ -516,3 +516,56 @@ class TestUnemittedDetectionsKeepTheTrackedIds:
             ids.update(d[5] for d in detector._apply_byte_tracking(dets, (480, 640, 3)))
 
         assert ids == {1}
+
+
+# ---------------------------------------------------------------------------
+# Issue #666: the CONFIGURED track_buffer reaches ByteTrack, whatever the plugin.
+# ---------------------------------------------------------------------------
+
+
+def _production_ultralytics_plugin(settings_obj):
+    """The real Ultralytics plugin, with only the YOLO weights stubbed out."""
+    from unittest.mock import patch
+
+    from zebtrack.plugins.ultralytics_detector import UltralyticsDetectorPlugin
+
+    with (
+        patch("zebtrack.plugins.ultralytics_detector.YOLO") as yolo_cls,
+        patch("zebtrack.plugins.ultralytics_detector.is_cuda_available", return_value=False),
+    ):
+        yolo_cls.return_value.names = {0: "aquarium", 1: "zebrafish"}
+        return UltralyticsDetectorPlugin("weights.pt", settings_obj=settings_obj)
+
+
+class TestConfiguredTrackBufferReachesByteTrack:
+    """Until #666 both plugins pinned ``track_buffer = 60`` and won: 2 s, always."""
+
+    def test_lost_track_lives_the_configured_seconds_with_the_real_plugin(self):
+        settings_obj = _fps_settings(settings_fps=30, track_buffer=90)  # 3 s
+        detector = SingleDetector(
+            plugin=_production_ultralytics_plugin(settings_obj), settings_obj=settings_obj
+        )
+        detector.set_source_fps(30.0)
+
+        tracker = detector._ensure_byte_tracker()
+
+        assert tracker is not None
+        # One frame of slack, as in the #630 tests: removal is on the first frame
+        # past the limit. With the plugin's 60 it died after 61 / 30 s.
+        assert _seconds_until_removed(tracker, fps=30.0) == pytest.approx(91 / 30)
+
+    def test_a_value_changed_after_the_plugin_was_built_rebuilds_the_tracker(self):
+        """``DetectorService`` writes the UI value into the settings at runtime."""
+        settings_obj = _fps_settings(settings_fps=30, track_buffer=90)
+        detector = SingleDetector(
+            plugin=_production_ultralytics_plugin(settings_obj), settings_obj=settings_obj
+        )
+        detector.set_source_fps(30.0)
+        first = detector._ensure_byte_tracker()
+
+        settings_obj.bytetrack.track_buffer = 150  # 5 s
+        second = detector._ensure_byte_tracker()
+
+        assert second is not None
+        assert second is not first
+        assert _seconds_until_removed(second, fps=30.0) == pytest.approx(151 / 30)

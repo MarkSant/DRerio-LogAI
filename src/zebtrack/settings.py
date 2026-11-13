@@ -70,6 +70,13 @@ THIGMOTAXIS_MAX_DISTANCE_CM: Final[float] = 50.0
 #: Zebrafish ceiling for a plausible speed (cm/s); the setting's default (#631).
 DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S: Final[float] = 50.0
 
+#: ByteTrack lost-track lifetime, as frames at the 30 fps reference: 150 = 5 s
+#: (#666). The ONE default: the settings model, config.yaml, the wizard, the
+#: diagnostics panel and the detector resolver all read it. It used to be 300
+#: here, 150 in config.yaml, 90 in the panel and a hard-coded 60 in both plugins,
+#: and the plugins' 60 won.
+DEFAULT_TRACK_BUFFER: Final[int] = 150
+
 
 # --- Pydantic Models for Configuration Structure ---
 
@@ -502,7 +509,7 @@ class ByteTrackSettings(BaseModel):
         ),
     )
     track_buffer: int = Field(
-        300,
+        DEFAULT_TRACK_BUFFER,
         ge=10,
         le=1000,
         description=(

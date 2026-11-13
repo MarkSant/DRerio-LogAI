@@ -25,7 +25,7 @@ from zebtrack.core.detection.class_roles import (
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.zone_scaler import ZoneScaler, arena_membership_rule_from_settings
 from zebtrack.i18n import _
-from zebtrack.settings import save_settings
+from zebtrack.settings import DEFAULT_TRACK_BUFFER, save_settings
 from zebtrack.utils import IntegrityError
 
 if TYPE_CHECKING:
@@ -774,7 +774,7 @@ class DetectorService:
             "use_bytetrack": True,
             "track_threshold": DEFAULT_TRACK_THRESHOLD,
             "match_threshold": DEFAULT_MATCH_THRESHOLD,
-            "track_buffer": 90,
+            "track_buffer": DEFAULT_TRACK_BUFFER,
             "max_center_distance": 200.0,
             "iou_threshold": 0.1,
         }
@@ -837,7 +837,7 @@ class DetectorService:
             "use_bytetrack": True,
             "track_threshold": 0.25,
             "match_threshold": 0.80,
-            "track_buffer": 90,
+            "track_buffer": DEFAULT_TRACK_BUFFER,
             "max_center_distance": 200.0,
             "iou_threshold": 0.1,
         }

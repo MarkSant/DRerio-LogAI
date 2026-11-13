@@ -100,8 +100,8 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             cuda_available=is_cuda_available(),
         )
 
-        # ByteTrack buffer size
-        self.track_buffer = 60
+        # No ``track_buffer`` here (#666): ByteTrack's buffer comes from
+        # ``settings.bytetrack.track_buffer`` via DetectionPostProcessor.
 
         # Phase 7: Model warm-up — eliminates JIT compilation latency on first real frame
         self._warm_up(log)

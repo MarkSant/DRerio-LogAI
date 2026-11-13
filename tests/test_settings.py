@@ -747,3 +747,27 @@ class TestV8ContextAndSidecarSettings(unittest.TestCase):
 
         self.assertEqual(legacy_selection.context_inference_scope, "arena_crop_margin")
         self.assertTrue(legacy_recorder.persist_object_sidecar)
+
+
+class TestTrackBufferHasOneDefault(unittest.TestCase):
+    """Issue #666: the model, ``config.yaml`` and the resolver share one default.
+
+    They used to disagree (300 in the model, 150 in ``config.yaml``, 60 in the
+    plugins, 90 in the diagnostics panel), so "the default" depended on which
+    code path asked.
+    """
+
+    def test_model_default_is_the_shared_constant(self):
+        from zebtrack.settings import DEFAULT_TRACK_BUFFER, ByteTrackSettings
+
+        self.assertEqual(ByteTrackSettings().track_buffer, DEFAULT_TRACK_BUFFER)
+
+    def test_config_yaml_ships_the_shared_constant(self):
+        import yaml
+
+        from zebtrack.settings import DEFAULT_TRACK_BUFFER
+
+        # The tracked file itself: config.local.yaml is a per-machine override.
+        config_path = Path(__file__).resolve().parents[1] / "config.yaml"
+        shipped = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        self.assertEqual(shipped["bytetrack"]["track_buffer"], DEFAULT_TRACK_BUFFER)

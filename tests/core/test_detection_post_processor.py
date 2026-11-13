@@ -198,3 +198,44 @@ class TestSettingsGetters:
         s = SimpleNamespace(video_processing=SimpleNamespace(single_animal_per_aquarium=True))
         assert P.get_single_animal_mode(s, explicit_mode=False) is True  # type: ignore[arg-type]
         assert P.get_single_animal_mode(None, explicit_mode=False) is False
+
+
+class TestTrackBufferPrecedence:
+    """Issue #666: the configured ``bytetrack.track_buffer`` is the value ByteTrack gets.
+
+    Both production plugins used to hard-code ``track_buffer = 60`` and the resolver
+    preferred the plugin, so a lost track always lived 60 / 30 = 2 s whatever the
+    UI, the project or ``config.yaml`` said.
+    """
+
+    def test_settings_win_over_the_plugin(self):
+        s = SimpleNamespace(bytetrack=SimpleNamespace(track_buffer=300))
+        plugin = SimpleNamespace(track_buffer=60)
+        assert P.get_track_buffer(s, plugin) == 300  # type: ignore[arg-type]
+
+    def test_plugin_is_the_fallback_without_settings(self):
+        plugin = SimpleNamespace(track_buffer=45)
+        assert P.get_track_buffer(None, plugin) == 45  # type: ignore[arg-type]
+
+    def test_plugin_is_the_fallback_when_settings_have_no_bytetrack(self):
+        plugin = SimpleNamespace(track_buffer=45)
+        assert P.get_track_buffer(SimpleNamespace(), plugin) == 45  # type: ignore[arg-type]
+
+    def test_neither_source_gives_the_single_default(self):
+        from zebtrack.settings import DEFAULT_TRACK_BUFFER
+
+        assert P.get_track_buffer(None, None) == DEFAULT_TRACK_BUFFER
+        assert P.get_track_buffer(None, SimpleNamespace()) == DEFAULT_TRACK_BUFFER  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize("bad", [None, "x", object()])
+    def test_unusable_plugin_value_gives_the_single_default(self, bad):
+        from zebtrack.settings import DEFAULT_TRACK_BUFFER
+
+        plugin = SimpleNamespace(track_buffer=bad)
+        assert P.get_track_buffer(None, plugin) == DEFAULT_TRACK_BUFFER  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize("bad", [None, "x"])
+    def test_unusable_settings_value_falls_through_to_the_plugin(self, bad):
+        s = SimpleNamespace(bytetrack=SimpleNamespace(track_buffer=bad))
+        plugin = SimpleNamespace(track_buffer=45)
+        assert P.get_track_buffer(s, plugin) == 45  # type: ignore[arg-type]

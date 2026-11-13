@@ -1334,6 +1334,21 @@ def _gap_analyzer(df: pd.DataFrame, **kwargs) -> ConcreteBehavioralAnalyzer:
     )
 
 
+def _moving_gap_df() -> pd.DataFrame:
+    """5 cm/s to the right, a 3 s gap, then 5 cm/s again from 45 cm further.
+
+    Across the gap the animal covers 45 cm, so the reappearance row's velocity
+    is 15 cm/s: three times anything that was observed.
+    """
+    df = _gap_df([(0.0, 2.0, 15.0), (5.0, 7.0, 15.0)])
+    t = df["timestamp"].to_numpy()
+    x_cm = np.where(t <= 2.0, 5.0 + t * 5.0, 60.0 + (t - 5.0) * 5.0)
+    df["x_center_px"] = x_cm * 10.0
+    df["x1"] = df["x_center_px"] - 10
+    df["x2"] = df["x_center_px"] + 10
+    return df
+
+
 def _spans(episodes) -> list[tuple[float, float]]:
     return [
         (round(ep["start_time"].total_seconds(), 6), round(ep["end_time"].total_seconds(), 6))
@@ -1380,6 +1395,84 @@ class TestTrackingGaps:
         bursts = analyzer.calculate_speed_bursts(threshold_cm_s=5.0, min_duration=0.0)
 
         assert bursts["count"] == 0
+
+    def test_velocity_stats_ignore_the_reappearance_row(self):
+        # 5 cm/s on both sides; across the 3 s gap the rat moves 45 cm, which
+        # the reappearance row read as 15 cm/s: the max and the mean (#663).
+        analyzer = _gap_analyzer(_moving_gap_df(), window_length=1, polyorder=0)
+
+        stats = analyzer.get_velocity_stats()
+
+        assert stats["max"] == pytest.approx(5.0)
+        assert stats["mean"] == pytest.approx(5.0)
+        assert stats["std_dev"] == pytest.approx(0.0, abs=1e-9)
+
+    def test_turn_across_the_gap_is_not_an_observed_turn(self):
+        # Straight right, hidden 3 s, straight up: the only "turn" is between
+        # the vector into the gap and the one out of it, which nobody saw.
+        df = _gap_df([(0.0, 2.0, 15.0), (5.0, 7.0, 15.0)])
+        t = df["timestamp"].to_numpy()
+        df["x_center_px"] = np.where(t <= 2.0, 150.0 + t * 100.0, 450.0)
+        df["y_center_px"] = np.where(t <= 2.0, 620.0, 620.0 - (t - 5.0) * 100.0)
+        analyzer = _gap_analyzer(df, window_length=1, polyorder=0)
+
+        stats = analyzer.get_angular_velocity_stats()
+        turns = analyzer.calculate_sharp_turns(threshold_deg_s=5.0)
+
+        # Each straight stretch still has an angular velocity: zero.
+        assert stats["max"] == pytest.approx(0.0, abs=1e-9)
+        assert turns["sharp_turns_count"] == 0
+
+    def test_window_starting_on_the_reappearance_keeps_it_out_of_the_stats(self):
+        # START on the reappearance row: inside the window it has no
+        # predecessor, but its 15 cm/s spans the 3 s gap before START.
+        analyzer = _gap_analyzer(_moving_gap_df(), window_length=1, polyorder=0)
+
+        analyzer.restrict_to_window(5.0, 7.0)
+
+        stats = analyzer.get_velocity_stats()
+        assert stats["max"] == pytest.approx(5.0)
+        assert stats["mean"] == pytest.approx(5.0)
+        # The public mask still says where the observation was interrupted.
+        assert np.flatnonzero(analyzer.gap_rows).tolist() == [0]
+
+    def test_angular_smoothing_does_not_carry_a_turn_across_the_gap(self):
+        # Circling before the gap, a straight line after it: the rolling mean
+        # must not average the circle's turn into the line's first rows.
+        df = _gap_df([(0.0, 2.0, 15.0), (5.0, 7.0, 15.0)])
+        t = df["timestamp"].to_numpy()
+        theta = t * 0.5
+        x_cm = np.where(t <= 2.0, 40.0 + 20.0 * np.cos(theta), 10.0 + (t - 5.0) * 10.0)
+        y_cm = np.where(t <= 2.0, 36.0 + 20.0 * np.sin(theta), 10.0)
+        df["x_center_px"] = x_cm * 10.0
+        df["y_center_px"] = 720.0 - y_cm * 10.0
+        analyzer = _gap_analyzer(
+            df, window_length=1, polyorder=0, angular_velocity_smoothing_window=5
+        )
+
+        angular = analyzer.get_angular_velocity()
+
+        before = angular[angular.index <= pd.Timedelta(seconds=2.0)].dropna()
+        after = angular[angular.index >= pd.Timedelta(seconds=5.0)].dropna()
+        assert before.abs().min() > 1.0
+        assert not after.empty
+        assert after.abs().max() == pytest.approx(0.0, abs=1e-9)
+
+    def test_segment_shorter_than_the_angle_window_has_no_angle(self):
+        # Three rows after the gap make a full window for each row inside it;
+        # two rows do not, and must not borrow the rows before the gap.
+        df = _gap_df([(0.0, 2.0, 15.0), (5.0, 5.1, 15.0)])
+        t = df["timestamp"].to_numpy()
+        df["x_center_px"] = 150.0 + np.where(t <= 2.0, t, t + 1.0) * 100.0
+        analyzer = _gap_analyzer(
+            df, window_length=1, polyorder=0, angular_velocity_smoothing_window=1
+        )
+
+        angular = analyzer.get_angular_velocity()
+
+        after_gap = angular[angular.index >= pd.Timedelta(seconds=5.0)]
+        assert after_gap.isna().all()
+        assert angular[angular.index < pd.Timedelta(seconds=2.0)].notna().any()
 
     def test_jump_across_gap_adds_no_distance(self):
         analyzer = _gap_analyzer(_gap_df([(0.0, 2.0, 15.0), (5.0, 7.0, 65.0)]))

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-13 18:18-0300\n"
+"POT-Creation-Date: 2026-11-13 18:31-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pt_BR\n"
@@ -391,19 +391,19 @@ msgstr "Vídeo Único"
 #: src/zebtrack/ui/components/dialog_manager.py:1867
 #: src/zebtrack/ui/components/event_dispatcher.py:358
 #: src/zebtrack/ui/components/event_dispatcher.py:1272
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:604
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:619
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:627
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:634
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:663
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:668
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:692
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:832
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:842
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:849
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:859
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:866
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:882
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:606
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:621
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:629
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:636
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:665
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:670
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:694
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:834
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:844
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:851
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:861
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:868
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:884
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:504
 #: src/zebtrack/ui/components/project_views/report_asset_actions.py:452
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:809
@@ -664,7 +664,7 @@ msgstr "Validação Falhou"
 
 # | msgid "No video selected"
 #: src/zebtrack/coordinators/_video_selection_mixin.py:226
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:56
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:57
 #: src/zebtrack/ui/dialogs/create_project_dialog.py:62
 #: src/zebtrack/ui/wizard/detection_step.py:221
 msgid "No video selected."
@@ -2000,7 +2000,7 @@ msgstr "Todos os arquivos"
 # | msgid "Video Unavailable"
 #: src/zebtrack/coordinators/video_processing_coordinator.py:488
 #: src/zebtrack/coordinators/video_processing_coordinator.py:593
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:820
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:822
 #: src/zebtrack/ui/dialogs/create_project_dialog.py:285
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:524
 #: src/zebtrack/ui/wizard/file_selection_step.py:240
@@ -3840,7 +3840,7 @@ msgid "Values restored to reflect the current settings."
 msgstr "Valores restaurados para refletir as configurações atuais."
 
 #: src/zebtrack/ui/components/event_dispatcher.py:1273
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:669
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:671
 #: src/zebtrack/ui/gui.py:914
 msgid "Could not apply the detector parameters. See the log for details."
 msgstr ""
@@ -6103,7 +6103,7 @@ msgid "💡 Opens the Calibration and Detection dialog."
 msgstr "💡 Abre o diálogo de Calibração e Detecção."
 
 #: src/zebtrack/ui/components/config_editor.py:645
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:806
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:808
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:254
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:485
 #: src/zebtrack/ui/components/weight_hardware_manager.py:161
@@ -6113,7 +6113,7 @@ msgid "Enabled"
 msgstr "Ativado"
 
 #: src/zebtrack/ui/components/config_editor.py:645
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:806
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:808
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:256
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:485
 #: src/zebtrack/ui/components/weight_hardware_manager.py:161
@@ -7494,7 +7494,7 @@ msgstr "O novo idioma será aplicado na próxima vez que o aplicativo iniciar."
 
 #: src/zebtrack/ui/components/menu_manager.py:141
 #: src/zebtrack/ui/components/menu_manager.py:156
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:241
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:242
 msgid "Restore Defaults"
 msgstr "Restaurar Padrões"
 
@@ -7836,16 +7836,16 @@ msgstr "🗑️ Remover"
 
 # | msgid "Loading settings..."
 # | msgid "Global Diagnostics..."
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:98
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:99
 msgid "Global Diagnostics"
 msgstr "Diagnóstico Global"
 
 # | msgid "Project Actions"
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:98
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:99
 msgid "Project Diagnostics"
 msgstr "Diagnóstico do Projeto"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:105
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:106
 msgid ""
 "Use this panel to validate weights, tune detector parameters and run "
 "quick video tests outside the context of a project."
@@ -7853,7 +7853,7 @@ msgstr ""
 "Use este painel para validar pesos, ajustar parâmetros do detector e "
 "executar testes rápidos em vídeo fora do contexto de um projeto."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:118
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:119
 msgid ""
 "Changes made here affect only this project's detector parameters. Choose "
 "below which effective project weight you want to diagnose."
@@ -7861,17 +7861,17 @@ msgstr ""
 "Ajustes feitos aqui afetam apenas os parâmetros do detector deste "
 "projeto. Escolha abaixo qual peso efetivo do projeto deseja diagnosticar."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:139
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:140
 msgid "Test Model on Video..."
 msgstr "Testar Modelo em Vídeo..."
 
 # | msgid "Loading settings..."
 # | msgid "Global Diagnostics..."
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:148
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:149
 msgid "Weight for diagnostics:"
 msgstr "Peso para diagnóstico:"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:160
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:161
 msgid ""
 "The weight chosen here is applied temporarily as the active weight for "
 "the test. The permanent global configuration is still controlled by the "
@@ -7881,38 +7881,38 @@ msgstr ""
 "teste. A configuração global permanente continua sendo controlada pela "
 "janela de Configuração Global de Modelos."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:177
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:178
 msgid "Project weight for diagnostics:"
 msgstr "Peso do projeto para diagnóstico:"
 
 # | msgid "Edit Selected Video Metadata..."
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:197
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:198
 msgid "Select Video..."
 msgstr "Selecionar Vídeo..."
 
 # | msgid "Error Saving to Project"
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:217
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:218
 msgid "Save to Project"
 msgstr "Salvar no Projeto"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:222
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:223
 msgid "Reload Saved Values"
 msgstr "Recarregar Valores Salvos"
 
 # | msgid "Restore Defaults"
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:227
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:228
 msgid "Restore Global Defaults"
 msgstr "Restaurar Padrões Globais"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:236
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:237
 msgid "Apply Parameters"
 msgstr "Aplicar Parâmetros"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:263
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:264
 msgid "No. Frames (Test):"
 msgstr "Nº Frames (Teste):"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:269
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:270
 msgid ""
 "Number of video frames to process in the diagnostic test.\n"
 "Use a low value (e.g. 100) for quick tests."
@@ -7921,11 +7921,11 @@ msgstr ""
 "diagnóstico.\n"
 "Use um valor baixo (ex: 100) para testes rápidos."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:278
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:279
 msgid "Confidence Threshold:"
 msgstr "Limiar Confiança:"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:284
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:285
 msgid ""
 "Confidence Threshold\n"
 "\n"
@@ -7944,11 +7944,11 @@ msgstr ""
 "frames.\n"
 "• Padrão recomendado: 0.25"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:295
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:296
 msgid "NMS Threshold:"
 msgstr "Limiar NMS:"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:301
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:302
 msgid ""
 "NMS Threshold (Non-Maximum Suppression)\n"
 "\n"
@@ -7964,15 +7964,15 @@ msgstr ""
 "• Valores altos (ex: 0.7) permitem mais sobreposição.\n"
 "• Padrão recomendado: 0.50"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:316
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:317
 msgid "Use ByteTrack (Advanced Tracking)"
 msgstr "Usar ByteTrack (Rastreamento Avançado)"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:345
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:346
 msgid "Track Thresh:"
 msgstr "Track Thresh:"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:351
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:352
 msgid ""
 "Track Threshold (Tracking)\n"
 "\n"
@@ -7990,11 +7990,11 @@ msgstr ""
 "• Diminua para manter o ID de animais difíceis de detectar.\n"
 "• Padrão recomendado: 0.25"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:362
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:363
 msgid "Match Thresh:"
 msgstr "Match Thresh:"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:368
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:369
 msgid ""
 "Match Threshold\n"
 "\n"
@@ -8013,33 +8013,36 @@ msgstr ""
 "pode perder o rastro).\n"
 "• Padrão recomendado: 0.95"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:380
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:381
 msgid "Track Buffer:"
 msgstr "Track Buffer:"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:386
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:387
+#, python-brace-format
 msgid ""
 "Track Buffer (Memory)\n"
 "\n"
 "How many frames the system 'remembers' an animal after it disappears "
 "(occlusion/miss).\n"
-"• Raise it (e.g. 120) if the animal vanishes for a long time.\n"
+"• Raise it (e.g. 300) if the animal vanishes for a long time.\n"
 "• Lower it to drop lost tracks quickly.\n"
-"• Default: 90 frames (~3s at 30fps)"
+"• Default: {frames} frames ({seconds:g} s; counted at 30 fps whatever the"
+" video's frame rate)"
 msgstr ""
 "Track Buffer (Memória)\n"
 "\n"
 "Quantos frames o sistema 'lembra' do animal após ele sumir "
 "(oclusão/falha).\n"
-"• Aumente (ex: 120) se o animal some por muito tempo.\n"
+"• Aumente (ex: 300) se o animal some por muito tempo.\n"
 "• Diminua para deletar rastros perdidos rapidamente.\n"
-"• Padrão: 90 frames (~3s a 30fps)"
+"• Padrão: {frames} frames ({seconds:g} s; contados a 30 fps, qualquer que"
+" seja a taxa do vídeo)"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:397
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:399
 msgid "Max Dist. (px):"
 msgstr "Dist. Máx (px):"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:403
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:405
 msgid ""
 "Maximum Distance (pixels)\n"
 "\n"
@@ -8057,11 +8060,11 @@ msgstr ""
 "• Diminua se houver trocas de ID entre animais distantes.\n"
 "• Padrão: 400.0 px"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:415
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:417
 msgid "IoU Thresh:"
 msgstr "IoU Thresh:"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:421
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:423
 msgid ""
 "IoU Threshold (Tracking)\n"
 "\n"
@@ -8079,11 +8082,11 @@ msgstr ""
 "posição.\n"
 "• Diminua para permitir movimentos bruscos que mudam a área da caixa."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:434
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:436
 msgid "Model(s) to Test:"
 msgstr "Modelo(s) a Testar:"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:470
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:472
 msgid ""
 "ℹ️ ByteTrack disabled. Using simple (Hybrid) tracking, which relies only "
 "on 'Maximum Distance' and 'IoU Threshold' to keep the ID."
@@ -8091,15 +8094,15 @@ msgstr ""
 "ℹ️ ByteTrack desativado. Usando rastreamento simples (Híbrido) que "
 "utiliza apenas 'Distância Máxima' e 'IoU Threshold' para manter o ID."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:480
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:482
 msgid "💡 ByteTrack active (Kalman filter). Recommended for greater stability."
 msgstr "💡 ByteTrack ativo (Filtro de Kalman). Recomendado para maior estabilidade."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:581
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:583
 msgid "No overrides"
 msgstr "Sem overrides"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:583
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:585
 msgid ""
 "This project has no saved overrides yet. The current global values will "
 "be kept."
@@ -8107,137 +8110,137 @@ msgstr ""
 "Este projeto ainda não possui overrides salvos. Valores globais atuais "
 "serão mantidos."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:605
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:607
 msgid "Enter valid numeric values for the detector parameters."
 msgstr "Insira valores numéricos válidos para os parâmetros do detector."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:611
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:613
 msgid "confidence threshold"
 msgstr "limiar de confiança"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:612
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:614
 msgid "NMS threshold"
 msgstr "limiar NMS"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:613
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:615
 msgid "track threshold"
 msgstr "track threshold"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:614
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:616
 msgid "match threshold"
 msgstr "match threshold"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:615
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:617
 msgid "IoU threshold"
 msgstr "IoU threshold"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:620
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:622
 #, python-brace-format
 msgid "The {label} must be between 0 and 1."
 msgstr "O {label} deve estar entre 0 e 1."
 
 # | msgid "Polyorder must be at least 1."
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:628
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:630
 msgid "Track Buffer must be at least 1 frame."
 msgstr "Track Buffer deve ser pelo menos 1 frame."
 
 # | msgid "FPS must be greater than 0."
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:635
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:637
 msgid "Maximum Distance must be greater than 0."
 msgstr "Distância Máxima deve ser maior que 0."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:676
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:678
 msgid "The detector settings were saved for this project."
 msgstr "As configurações do detector foram salvas para este projeto."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:678
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:680
 msgid "The detector settings were applied successfully."
 msgstr "As configurações do detector foram aplicadas com sucesso."
 
 # | msgid "Project Settings Updated"
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:680
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:682
 msgid "Parameters Updated"
 msgstr "Parâmetros Atualizados"
 
 # | msgid "Language changed"
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:683
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:685
 msgid "No changes"
 msgstr "Sem alterações"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:684
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:686
 msgid "The parameters given were already in use."
 msgstr "Os parâmetros informados já estavam em uso."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:699
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:701
 msgid "Detector Parameters"
 msgstr "Parâmetros do Detector"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:700
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:702
 msgid "Default parameters restored."
 msgstr "Parâmetros padrão restaurados."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:710
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:712
 msgid "No weights found."
 msgstr "Nenhum peso encontrado."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:772
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:774
 msgid "No effective weight available."
 msgstr "Nenhum peso efetivo disponível."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:790
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:792
 msgid "Effective weights for this project:"
 msgstr "Pesos efetivos deste projeto:"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:792
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:794
 msgid "Slot"
 msgstr "Slot"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:793
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:795
 #: src/zebtrack/ui/components/project_model_configuration_panel.py:472
 msgid "None"
 msgstr "Nenhum"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:796
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:798
 #, python-brace-format
 msgid "{label}: {weight} (project override)"
 msgstr "{label}: {weight} (override do projeto)"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:802
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:804
 #, python-brace-format
 msgid "{label}: {weight} (global default)"
 msgstr "{label}: {weight} (padrão global)"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:807
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:809
 #, python-brace-format
 msgid "OpenVINO: {status}"
 msgstr "OpenVINO: {status}"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:819
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:821
 msgid "Select the Video for Diagnostics"
 msgstr "Selecione o Vídeo para Diagnóstico"
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:833
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:835
 msgid "Please select a video file."
 msgstr "Por favor, selecione um arquivo de vídeo."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:843
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:845
 msgid "The number of frames must be a positive integer."
 msgstr "O número de frames deve ser um inteiro positivo."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:850
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:852
 msgid "The number of frames must be a whole number."
 msgstr "O número de frames deve ser um número inteiro."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:860
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:862
 msgid "The confidence threshold must be a number between 0.0 and 1.0."
 msgstr "O limiar de confiança deve ser um número entre 0.0 e 1.0."
 
 # | msgid "The flush row threshold must be >= 1."
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:867
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:869
 msgid "The confidence threshold must be a valid number."
 msgstr "O limiar de confiança deve ser um número válido."
 
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:883
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:885
 msgid "Select one of the project's effective weights for diagnostics."
 msgstr "Selecione um dos pesos efetivos do projeto para diagnóstico."
 
@@ -16201,27 +16204,30 @@ msgid "Track Buffer (frames):"
 msgstr "Track Buffer (frames):"
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:621
+#, python-brace-format
 msgid ""
 "🧠 Track Buffer\n"
 "\n"
 "The tracker's memory: how many frames an animal may 'vanish' for before "
 "its ID is forgotten.\n"
 "\n"
-"💡 Default: 90 frames (~3 seconds at 30fps)"
+"💡 Default: {frames} frames ({seconds:g} s; counted at 30 fps whatever the"
+" video's frame rate)"
 msgstr ""
 "🧠 Track Buffer\n"
 "\n"
 "Memória do rastreador: quantos frames um animal pode 'sumir' antes que "
 "seu ID seja esquecido.\n"
 "\n"
-"💡 Padrão: 90 frames (~3 segundos a 30fps)"
+"💡 Padrão: {frames} frames ({seconds:g} s; contados a 30 fps, qualquer que"
+" seja a taxa do vídeo)"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:630
-#: src/zebtrack/ui/wizard/model_selection_step.py:848
+#: src/zebtrack/ui/wizard/model_selection_step.py:631
+#: src/zebtrack/ui/wizard/model_selection_step.py:849
 msgid "Max distance (px):"
 msgstr "Distância Máx (px):"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:635
+#: src/zebtrack/ui/wizard/model_selection_step.py:636
 msgid ""
 "📏 Maximum Centre Distance\n"
 "\n"
@@ -16237,12 +16243,12 @@ msgstr ""
 "\n"
 "💡 Padrão: 200.0 px"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:645
-#: src/zebtrack/ui/wizard/model_selection_step.py:849
+#: src/zebtrack/ui/wizard/model_selection_step.py:646
+#: src/zebtrack/ui/wizard/model_selection_step.py:850
 msgid "IoU Threshold (0-1):"
 msgstr "IoU Threshold (0-1):"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:650
+#: src/zebtrack/ui/wizard/model_selection_step.py:651
 msgid ""
 "🔳 IoU Threshold\n"
 "\n"
@@ -16258,7 +16264,7 @@ msgstr ""
 "\n"
 "💡 Padrão: 0.1"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:663
+#: src/zebtrack/ui/wizard/model_selection_step.py:664
 msgid ""
 "📊 Quick Guide:\n"
 "• Track Thresh: ↓ to keep a weak trail\n"
@@ -16272,20 +16278,20 @@ msgstr ""
 "• Buffer: ↑ para 'lembrar' do animal por mais tempo\n"
 "• Distância: ↑ para animais muito rápidos"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:683
+#: src/zebtrack/ui/wizard/model_selection_step.py:684
 msgid "💡 Tip: adjust ONE parameter at a time (±0.05) and test!"
 msgstr "💡 Dica: Ajuste UM parâmetro por vez (±0.05) e teste!"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:698
+#: src/zebtrack/ui/wizard/model_selection_step.py:699
 #, python-brace-format
 msgid "Current YOLO defaults: confidence {confidence}, NMS {nms}."
 msgstr "Padrões atuais YOLO: confiança {confidence}, NMS {nms}."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:714
+#: src/zebtrack/ui/wizard/model_selection_step.py:715
 msgid "🔄 Restore Recommended Defaults"
 msgstr "🔄 Restaurar Padrões Recomendados"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:726
+#: src/zebtrack/ui/wizard/model_selection_step.py:727
 msgid ""
 "Restores every threshold to its recommended default value.\n"
 "\n"
@@ -16295,7 +16301,7 @@ msgstr ""
 "\n"
 "Útil se você fez ajustes e quer voltar ao ponto de partida."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:734
+#: src/zebtrack/ui/wizard/model_selection_step.py:735
 msgid ""
 "Tip: keep the defaults if you are still setting up the videos. You can "
 "review these values later in the project settings."
@@ -16303,11 +16309,11 @@ msgstr ""
 "Dica: mantenha os padrões se ainda estiver configurando os vídeos. Você "
 "pode revisar esses valores depois nas configurações do projeto."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:781
+#: src/zebtrack/ui/wizard/model_selection_step.py:782
 msgid "Class roles (optional)"
 msgstr "Papéis das classes (opcional)"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:788
+#: src/zebtrack/ui/wizard/model_selection_step.py:789
 msgid ""
 "What each class of the animal weight is. Leave it untouched to resolve "
 "the roles automatically; a change is saved in the project."
@@ -16315,7 +16321,7 @@ msgstr ""
 "O que é cada classe do peso do animal. Deixe como está para resolver os "
 "papéis automaticamente; uma alteração é salva no projeto."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:844
+#: src/zebtrack/ui/wizard/model_selection_step.py:845
 #, python-brace-format
 msgid ""
 "ℹ️ ByteTrack disabled. The system will use a simplified hybrid tracker "
@@ -16326,7 +16332,7 @@ msgstr ""
 "simplificado que utiliza apenas '{distance}' e '{iou}' para manter o ID "
 "estável. Ideal para 1 animal por arena."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:860
+#: src/zebtrack/ui/wizard/model_selection_step.py:861
 msgid ""
 "💡 ByteTrack uses a Kalman filter to predict positions even when the "
 "animal briefly disappears. Adjust the fields below for more stability."
@@ -16334,7 +16340,7 @@ msgstr ""
 "💡 O ByteTrack usa Filtro de Kalman para prever posições mesmo quando o "
 "animal some brevemente. Ajuste os campos abaixo para maior estabilidade."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:887
+#: src/zebtrack/ui/wizard/model_selection_step.py:888
 msgid ""
 "Segmentation supports several animals per arena.\n"
 "Detection is optimized for one animal per arena and uses ByteTrack."
@@ -16342,31 +16348,31 @@ msgstr ""
 "Segmentação suporta múltiplos animais por arena.\n"
 "Detecção é otimizada para um animal por arena e usa ByteTrack."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:902
+#: src/zebtrack/ui/wizard/model_selection_step.py:903
 msgid "Select the weight file loaded for this role."
 msgstr "Selecione o arquivo de peso carregado para esta função."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:973
+#: src/zebtrack/ui/wizard/model_selection_step.py:974
 msgid "❌ Confidence must be between 0 and 1"
 msgstr "❌ Confiança deve estar entre 0 e 1"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:974
+#: src/zebtrack/ui/wizard/model_selection_step.py:975
 msgid "❌ NMS must be between 0 and 1"
 msgstr "❌ NMS deve estar entre 0 e 1"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:975
+#: src/zebtrack/ui/wizard/model_selection_step.py:976
 msgid "❌ Track must be between 0 and 1"
 msgstr "❌ Track deve estar entre 0 e 1"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:976
+#: src/zebtrack/ui/wizard/model_selection_step.py:977
 msgid "❌ Match must be between 0 and 1"
 msgstr "❌ Associação deve estar entre 0 e 1"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1006
+#: src/zebtrack/ui/wizard/model_selection_step.py:1007
 msgid "❌ Value must be a decimal (e.g. 0.25)"
 msgstr "❌ Valor deve ser decimal (ex: 0.25)"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1119
+#: src/zebtrack/ui/wizard/model_selection_step.py:1120
 msgid ""
 "⚠️ Detection (det) is recommended for only 1 animal per arena. Consider "
 "segmentation (seg) for several animals."
@@ -16374,51 +16380,51 @@ msgstr ""
 "⚠️ Detecção (det) é recomendada para apenas 1 animal por arena. Considere"
 " segmentação (seg) para múltiplos animais."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1280
+#: src/zebtrack/ui/wizard/model_selection_step.py:1281
 msgid "Enter decimal values between 0 and 1 for the parameters."
 msgstr "Informe valores decimais entre 0 e 1 para os parâmetros."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1283
+#: src/zebtrack/ui/wizard/model_selection_step.py:1284
 msgid "The confidence parameter must be between 0 and 1."
 msgstr "O parâmetro de confiança deve estar entre 0 e 1."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1284
+#: src/zebtrack/ui/wizard/model_selection_step.py:1285
 msgid "The NMS parameter must be between 0 and 1."
 msgstr "O parâmetro de NMS deve estar entre 0 e 1."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1285
+#: src/zebtrack/ui/wizard/model_selection_step.py:1286
 msgid "The track parameter must be between 0 and 1."
 msgstr "O parâmetro de track deve estar entre 0 e 1."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1286
+#: src/zebtrack/ui/wizard/model_selection_step.py:1287
 msgid "The match parameter must be between 0 and 1."
 msgstr "O parâmetro de associação deve estar entre 0 e 1."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1303
+#: src/zebtrack/ui/wizard/model_selection_step.py:1304
 msgid "The track buffer must be a whole number of frames."
 msgstr "O track buffer deve ser um número inteiro de frames."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1305
+#: src/zebtrack/ui/wizard/model_selection_step.py:1306
 msgid "The track buffer must be at least 1 frame."
 msgstr "O track buffer deve ser de no mínimo 1 frame."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1310
+#: src/zebtrack/ui/wizard/model_selection_step.py:1311
 msgid "The maximum distance must be a number of pixels."
 msgstr "A distância máxima deve ser um número de pixels."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1312
+#: src/zebtrack/ui/wizard/model_selection_step.py:1313
 msgid "The maximum distance must be greater than 0 pixels."
 msgstr "A distância máxima deve ser maior que 0 pixels."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1317
+#: src/zebtrack/ui/wizard/model_selection_step.py:1318
 msgid "The IoU threshold must be a decimal number."
 msgstr "O limiar de IoU deve ser um número decimal."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1319
+#: src/zebtrack/ui/wizard/model_selection_step.py:1320
 msgid "The IoU threshold must be between 0 and 1."
 msgstr "O limiar de IoU deve estar entre 0 e 1."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1323
+#: src/zebtrack/ui/wizard/model_selection_step.py:1324
 msgid ""
 "Select a valid weight for the arena. The file must match the chosen "
 "method."
@@ -16426,7 +16432,7 @@ msgstr ""
 "Selecione um peso válido para a arena. O arquivo precisa corresponder ao "
 "método escolhido."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1328
+#: src/zebtrack/ui/wizard/model_selection_step.py:1329
 msgid ""
 "Select a valid weight for the animals. The file must match the chosen "
 "method."

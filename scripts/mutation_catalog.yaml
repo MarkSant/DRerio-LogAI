@@ -1621,9 +1621,9 @@ modules:
       - tests/analysis/test_behavior.py
     mutations:
       - id: episodes-cross-gaps
-        description: "episodios de congelamento/inatividade/rajada voltam a atravessar a lacuna (#632)"
-        find: '            usable &= ~self._gap_rows'
-        replace: '            pass'
+        description: "a linha de reaparecimento volta a ter velocidade e os episodios atravessam a lacuna (#632)"
+        find: 'if self._gap_rows.size == vx.size:'
+        replace: 'if False:'
       - id: undefined-velocity-is-zero
         description: "a 1a linha (velocidade indefinida) volta a contar como parada"
         find: 'is_freezing = (v_mag.to_numpy(dtype=float) <= threshold) & usable'
@@ -1656,6 +1656,36 @@ modules:
         description: "o roi_max_gap_s do projeto deixa de definir a lacuna do comportamento"
         find: 'cap = resolve_max_gap_s(dt_s, self._max_gap_s_config)'
         replace: 'cap = resolve_max_gap_s(dt_s, None)'
+
+  behavior_gap_velocity_stats:
+    source: src/zebtrack/analysis/behavior.py
+    tests:
+      - tests/analysis/test_behavior.py
+      - tests/analysis/test_roi_metrics.py
+    mutations:
+      - id: gap-row-velocity-kept
+        description: "a velocidade da linha de reaparecimento volta para a media/max e para a velocidade por ROI (#663)"
+        find: |-
+          vx[self._gap_rows] = np.nan
+                      vy[self._gap_rows] = np.nan
+        replace: |-
+          pass
+      - id: angle-per-track-not-per-segment
+        description: "o angulo volta a ser medido por animal e o vetor que atravessa a lacuna vira curva (#663)"
+        find: |-
+          segments = self._continuous_segments()
+                  segment_labels: np.ndarray | None = None
+        replace: |-
+          segments = self._positions_by_track()
+                  segment_labels: np.ndarray | None = None
+      - id: one-gap-takes-the-whole-frame-path
+        description: "uma unica lacuna (2 segmentos) cai no caminho de trajetoria inteira (#663)"
+        find: 'if len(segments) > 1:'
+        replace: 'if len(segments) > 2:'
+      - id: angular-smoothing-crosses-gap
+        description: "a media movel da velocidade angular volta a atravessar a lacuna (#663)"
+        find: 'angular_velocity_series.groupby(segment_labels)'
+        replace: 'angular_velocity_series.groupby(self._track_labels)'
 
   analysis_service_tracking_gaps:
     source: src/zebtrack/analysis/analysis_service.py
@@ -2019,6 +2049,48 @@ modules:
         description: "fps zero/negativo da fonte aceito como real"
         find: 'if np.isfinite(value) and value > 0:'
         replace: 'if True:'
+
+  detection_post_processor_track_buffer:
+    source: src/zebtrack/core/detection/detection_post_processor.py
+    tests:
+      - tests/core/test_detection_post_processor.py
+    mutations:
+      - id: plugin-wins-over-settings
+        description: "atributo do plugin volta a vencer as settings: trilha perdida vive 2 s (bug #666)"
+        find: 'for source in (getattr(settings, "bytetrack", None), plugin):'
+        replace: 'for source in (plugin, getattr(settings, "bytetrack", None)):'
+      - id: plugin-fallback-dropped
+        description: "sem settings, o valor do plugin e ignorado"
+        find: 'for source in (getattr(settings, "bytetrack", None), plugin):'
+        replace: 'for source in (getattr(settings, "bytetrack", None),):'
+      - id: invalid-settings-value-skips-plugin
+        description: "valor invalido nas settings pula direto ao padrao, sem consultar o plugin"
+        find: 'log.warning("detection_post_processor.track_buffer.invalid", value=repr(value))'
+        replace: 'return DEFAULT_TRACK_BUFFER'
+
+  settings_track_buffer_default:
+    source: src/zebtrack/settings.py
+    tests:
+      - tests/test_settings.py
+    mutations:
+      - id: shared-default-diverges-from-config
+        description: "padrao unico deixa de bater com o config.yaml (#666)"
+        find: 'DEFAULT_TRACK_BUFFER: Final[int] = 150'
+        replace: 'DEFAULT_TRACK_BUFFER: Final[int] = 300'
+      - id: model-default-hardcoded
+        description: "modelo volta a ter um padrao proprio, fora da constante (#666)"
+        find: '        DEFAULT_TRACK_BUFFER,'
+        replace: '        300,'
+
+  ultralytics_plugin_track_buffer:
+    source: src/zebtrack/plugins/ultralytics_detector.py
+    tests:
+      - tests/plugins/test_ultralytics_detector_extended.py
+    mutations:
+      - id: plugin-pins-track-buffer
+        description: "plugin volta a fixar track_buffer = 60 (#666)"
+        find: '# No ``track_buffer`` here (#666)'
+        replace: 'self.track_buffer = 60  # (#666)'
 
   single_detector_source_fps:
     source: src/zebtrack/core/detection/single_detector.py

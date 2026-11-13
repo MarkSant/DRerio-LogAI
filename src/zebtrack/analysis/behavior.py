@@ -953,8 +953,17 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         dx = self.diff_by_track(df["x_cm_smoothed"])
         dy = self.diff_by_track(df["y_cm_smoothed"])
 
-        df["vx"] = dx / dt_s
-        df["vy"] = dy / dt_s
+        vx = (dx / dt_s).to_numpy(dtype=float)
+        vy = (dy / dt_s).to_numpy(dtype=float)
+        if self._gap_rows.size == vx.size:
+            # The first row after a tracking gap divides a displacement by time
+            # nobody saw: its velocity is UNKNOWN, like each subject's first
+            # row, not a sample. A rat hidden for 3 s that reappears 50 cm away
+            # read as 16.7 cm/s in every mean, median and max (#663).
+            vx[self._gap_rows] = np.nan
+            vy[self._gap_rows] = np.nan
+        df["vx"] = vx
+        df["vy"] = vy
         df["v_mag"] = np.sqrt(df["vx"] ** 2 + df["vy"] ** 2)
         return df
 
@@ -1014,16 +1023,14 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
     def _usable_velocity_rows(self) -> np.ndarray:
         """Rows whose velocity describes OBSERVED motion (positional mask).
 
-        Excluded: rows without a velocity (each subject's first row — it is not
+        Excluded: rows without a velocity — each subject's first row (it is not
         zero, it is unknown) and the first row after a tracking gap, whose
         velocity averages over time nobody saw. Both used to be read as a
-        standstill or as a burst (#632).
+        standstill or as a burst (#632). The gap row is already NaN in
+        ``v_mag`` (:meth:`calculate_velocity_timeseries`), which is what keeps
+        it out of every other reader too (#663).
         """
-        v_mag = self._trajectory_data["v_mag"]
-        usable = v_mag.notna().to_numpy(dtype=bool)
-        if self._gap_rows.size == usable.size:
-            usable &= ~self._gap_rows
-        return usable
+        return self._trajectory_data["v_mag"].notna().to_numpy(dtype=bool)
 
     def _runs(self, mask: np.ndarray) -> list[np.ndarray]:
         """Maximal runs of ``True`` rows of ONE subject, in chronological order.
@@ -1083,16 +1090,25 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
             return pd.Series(dtype=np.float64, name="angular_velocity_deg_s")
 
         angular_velocity_array = np.full(len(df), np.nan)
-        if self._is_multi_track:
-            # Por sujeito: as fatias deslocadas abaixo (prev/curr/next) só têm
-            # sentido dentro de uma mesma trajetória. Atravessando animais elas
-            # mediriam o ângulo entre peixes distintos.
-            for positions in self.track_positions:
+        # Per continuous segment of each subject: the shifted slices below
+        # (prev/curr/next) only mean something inside one OBSERVED stretch of
+        # one trajectory. Across animals they measured the angle between two
+        # fish; across a tracking gap, the turn of a displacement nobody saw
+        # (#663). A segment too short for the window stays NaN.
+        segments = self._continuous_segments()
+        segment_labels: np.ndarray | None = None
+        if len(segments) > 1:
+            segment_labels = np.empty(len(df), dtype=np.int64)
+            x_all = df["x_cm_smoothed"].to_numpy()
+            y_all = df["y_cm_smoothed"].to_numpy()
+            timestamps = df.index.to_series()
+            for label, positions in enumerate(segments):
+                segment_labels[positions] = label
                 if positions.size >= min_points:
                     angular_velocity_array[positions] = self._angular_velocity_slice(
-                        df["x_cm_smoothed"].to_numpy()[positions],
-                        df["y_cm_smoothed"].to_numpy()[positions],
-                        df.index.to_series().iloc[positions],
+                        x_all[positions],
+                        y_all[positions],
+                        timestamps.iloc[positions],
                     )
         else:
             angular_velocity_array = self._angular_velocity_slice(
@@ -1111,10 +1127,12 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         # Apply optional smoothing to reduce remaining high-frequency noise
         if self._angular_velocity_smoothing_window > 1:
             # Use rolling window with center=True to avoid phase shift
-            # min_periods=1 allows edges to have partial windows
-            if self._is_multi_track:
+            # min_periods=1 allows edges to have partial windows. The window
+            # never reaches across a segment, or it would spread one side of a
+            # gap onto the other.
+            if segment_labels is not None:
                 return (
-                    angular_velocity_series.groupby(self._track_labels)
+                    angular_velocity_series.groupby(segment_labels)
                     .rolling(
                         window=self._angular_velocity_smoothing_window,
                         center=True,

@@ -414,3 +414,51 @@ class TestMultiAquariumFrameClock:
 
         assert lost not in tracker.removed_stracks
         assert lost in tracker.lost_stracks or lost in tracker.tracked_stracks
+
+
+# ---------------------------------------------------------------------------
+# Issue #666: every aquarium tracker gets the CONFIGURED track_buffer.
+# ---------------------------------------------------------------------------
+
+
+def test_every_aquarium_tracker_gets_the_configured_buffer_with_the_real_plugin():
+    from unittest.mock import patch
+
+    from zebtrack.plugins.ultralytics_detector import UltralyticsDetectorPlugin
+    from zebtrack.tracker.byte_tracker import SINGLE_ANIMAL_LOST_FACTOR
+
+    settings_obj = load_settings()
+    settings_obj.video_processing.fps = 30
+    settings_obj.video_processing.processing_interval = 1
+    settings_obj.bytetrack.track_buffer = 90
+    settings_obj.tracking.use_bytetrack = True
+    with (
+        patch("zebtrack.plugins.ultralytics_detector.YOLO") as yolo_cls,
+        patch("zebtrack.plugins.ultralytics_detector.is_cuda_available", return_value=False),
+    ):
+        yolo_cls.return_value.names = {0: "aquarium", 1: "zebrafish"}
+        plugin = UltralyticsDetectorPlugin("weights.pt", settings_obj=settings_obj)
+    detector = MultiAquariumDetector(
+        plugin=plugin,
+        zone_scaler=ZoneScaler(500, 300),
+        post_processor=DetectionPostProcessor(),
+        base_width=500,
+        base_height=300,
+        settings_obj=settings_obj,
+        source_fps=30.0,
+    )
+    detector.set_multi_aquarium_zones(
+        [AquariumData(id=0, polygon=_AQ0), AquariumData(id=1, polygon=_AQ1)],
+        actual_width=500,
+        actual_height=300,
+    )
+
+    detector._ensure_multi_trackers()
+
+    # 90 frames at 30 fps, interval 1: 90 updates (3 s) per aquarium, not the plugin's 60.
+    # Each aquarium runs single_animal_mode, which stretches the seconds by its factor.
+    assert {aq: t.buffer_size for aq, t in detector._byte_trackers_multi.items()} == {0: 90, 1: 90}
+    assert all(
+        t.max_time_lost_s == pytest.approx(3.0 * SINGLE_ANIMAL_LOST_FACTOR)
+        for t in detector._byte_trackers_multi.values()
+    )

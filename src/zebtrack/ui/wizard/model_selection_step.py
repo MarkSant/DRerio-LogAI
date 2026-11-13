@@ -10,6 +10,7 @@ import structlog
 
 from zebtrack.core.services.weight_manager import WeightManager
 from zebtrack.i18n import _
+from zebtrack.settings import DEFAULT_TRACK_BUFFER
 from zebtrack.ui.collapsible_frame import CollapsibleFrame
 from zebtrack.ui.components.class_roles_panel import (
     ClassRolesEditor,
@@ -33,7 +34,6 @@ log = structlog.get_logger()
 # Defaults for ByteTrack - MUST match config.yaml values
 DEFAULT_TRACK_THRESHOLD = 0.25
 DEFAULT_MATCH_THRESHOLD = 0.95  # Higher = more permissive for fast-moving objects
-DEFAULT_TRACK_BUFFER = 150  # Frames to keep lost tracks
 DEFAULT_MAX_CENTER_DISTANCE = 200.0  # Pixels, ~6 body lengths for 30px zebrafish
 DEFAULT_IOU_THRESHOLD = 0.1  # Low for small objects with little overlap
 
@@ -621,8 +621,9 @@ class ModelSelectionStep(WizardStep):
                 "🧠 Track Buffer\n\n"
                 "The tracker's memory: how many frames an animal may 'vanish' for "
                 "before its ID is forgotten.\n\n"
-                "💡 Default: 90 frames (~3 seconds at 30fps)"
-            ),
+                "💡 Default: {frames} frames ({seconds:g} s; counted at 30 fps "
+                "whatever the video's frame rate)"
+            ).format(frames=DEFAULT_TRACK_BUFFER, seconds=DEFAULT_TRACK_BUFFER / 30),
             param_key="track_buffer",
         )
         self._build_detector_param_row(
