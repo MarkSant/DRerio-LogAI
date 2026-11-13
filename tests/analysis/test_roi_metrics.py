@@ -498,3 +498,54 @@ class TestErrorHandling:
                 flutter_n_frames=1,
                 inclusion_rule="centroid_in",
             )
+
+
+class TestVelocityInROIsAcrossTrackingGaps:
+    """ROI speed reads the analyzer's velocity, so a gap must not leak into it."""
+
+    def test_reappearance_row_does_not_enter_the_roi_mean(self):
+        from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
+
+        # 5 cm/s, hidden 3 s, 5 cm/s again from 45 cm further: the reappearance
+        # row's 15 cm/s is time nobody saw, and it raised the ROI mean (#663).
+        times = np.round(np.concatenate([np.arange(21) / 10, 5.0 + np.arange(21) / 10]), 9)
+        x_cm = np.where(times <= 2.0, 5.0 + times * 5.0, 60.0 + (times - 5.0) * 5.0)
+        x_px = x_cm * 10.0
+        y_px = np.full(times.size, 620.0)
+        df = pd.DataFrame(
+            {
+                "timestamp": times,
+                "x_center_px": x_px,
+                "y_center_px": y_px,
+                "x1": x_px - 10,
+                "y1": y_px - 10,
+                "x2": x_px + 10,
+                "y2": y_px + 10,
+            }
+        )
+        b_analyzer = ConcreteBehavioralAnalyzer(
+            trajectory_df=df,
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=720,
+            arena_polygon_px=[(0, 0), (800, 0), (800, 720), (0, 720)],
+            fps=10.0,
+            window_length=1,
+            polyorder=0,
+        )
+        # Same order as AnalysisService: velocity first, then the ROI analyzer
+        # copies the trajectory with it.
+        b_analyzer.calculate_velocity_timeseries()
+        arena = ROI(name="Arena", geometry=Polygon([(0, 0), (80, 0), (80, 72), (0, 72)]))
+        analyzer = ROIAnalyzer(
+            behavior_analyzer=b_analyzer,
+            rois=[arena],
+            flutter_n_frames=1,
+            inclusion_rule="centroid_in",
+        )
+
+        stats = analyzer.get_velocity_stats_in_rois()["Arena"]
+
+        assert stats is not None
+        assert stats["mean"] == pytest.approx(5.0)
+        assert stats["std_dev"] == pytest.approx(0.0, abs=1e-9)
