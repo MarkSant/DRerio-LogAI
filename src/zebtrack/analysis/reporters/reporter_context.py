@@ -40,7 +40,7 @@ PROJECT_REPORT_TEMPLATE = TEMPLATES_DIR / "project_report_template.docx"
 
 
 # ---------------------------------------------------------------------------
-# i18n helpers  (shared with word_reporter and html_reporter)
+# i18n helpers  (shared with word_reporter)
 # ---------------------------------------------------------------------------
 def _(message: str) -> str:
     """Translate *message* using the reporter domain catalogue.

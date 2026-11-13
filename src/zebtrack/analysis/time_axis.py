@@ -6,9 +6,8 @@ a frame rate: it subtracts an origin from the index. With an analysis window
 the origin is START, so the axis reads "time since the window began"; without
 one it is the first sample.
 
-The Word figures (``VisualizationGenerator``) and the interactive HTML report
-(``HtmlReporter``) read the rule from here, so the two exports of the same
-analysis put an event at the same second.
+Every figure of the Word report (``VisualizationGenerator``) reads the rule
+from here, so all of them put an event at the same second.
 """
 
 from __future__ import annotations
@@ -17,7 +16,7 @@ from typing import Any
 
 import pandas as pd
 
-__all__ = ["seconds_on_axis", "time_axis_label", "time_origin"]
+__all__ = ["time_axis_label", "time_origin"]
 
 
 def _window_bounds(b_analyzer: Any) -> tuple[float, float] | None:
@@ -40,8 +39,3 @@ def time_axis_label(b_analyzer: Any) -> str:
     if _window_bounds(b_analyzer) is not None:
         return "Time since window START (s)"
     return "Time (s)"
-
-
-def seconds_on_axis(values: Any, origin: Any) -> pd.Index:
-    """``values`` (index labels or ``Timedelta``s) as seconds from ``origin``."""
-    return pd.Index((pd.TimedeltaIndex(values) - origin).total_seconds())
