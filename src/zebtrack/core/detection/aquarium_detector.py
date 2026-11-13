@@ -23,17 +23,27 @@ from zebtrack.core.detection.arena_candidate_selection import (
 from zebtrack.core.detection.class_aliases import ClassAliases, resolve_arena_class_id
 from zebtrack.io.video_source import VideoFileSource
 from zebtrack.utils.geometry import DEFAULT_POLYGON_EPSILON_FACTOR, simplify_polygon
+from zebtrack.utils.optional_deps import YOLO_LOADERS, resolve_lazy_attribute
 
 YOLO: Any | None
+ULTRALYTICS_AVAILABLE: bool
 
-try:
-    from ultralytics import YOLO as _YOLO
 
-    YOLO = _YOLO
-    ULTRALYTICS_AVAILABLE = True
-except ImportError:
-    YOLO = None
-    ULTRALYTICS_AVAILABLE = False
+def __getattr__(name: str) -> Any:
+    """Resolve ``YOLO`` / ``ULTRALYTICS_AVAILABLE`` on first access (#643)."""
+    try:
+        return resolve_lazy_attribute(globals(), name, YOLO_LOADERS)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
+
+def _ultralytics_available() -> bool:
+    return bool(resolve_lazy_attribute(globals(), "ULTRALYTICS_AVAILABLE", YOLO_LOADERS))
+
+
+def _yolo_class() -> Any | None:
+    return resolve_lazy_attribute(globals(), "YOLO", YOLO_LOADERS)
+
 
 log = structlog.get_logger()
 
@@ -78,7 +88,7 @@ class AquariumDetector:
                 name; built-in ones when ``None``.
         """
         model_path = str(Path(model_path) if isinstance(model_path, str) else model_path)
-        if not ULTRALYTICS_AVAILABLE:
+        if not _ultralytics_available():
             raise ImportError("Ultralytics is not available. Please install ultralytics package.")
 
         self.mode = mode
@@ -88,9 +98,10 @@ class AquariumDetector:
         if mode not in ["seg", "det"]:
             raise ValueError(f"Invalid mode '{mode}'. Must be 'seg' or 'det'.")
 
-        assert YOLO is not None
+        yolo_cls = _yolo_class()
+        assert yolo_cls is not None
         try:
-            self.model = YOLO(model_path)
+            self.model = yolo_cls(model_path)
             log.info("aquarium_detector.init.success", model_path=model_path, mode=mode)
         # except Exception justified: Ultralytics YOLO model initialization can raise
         # heterogeneous exceptions (path/weights/config issues); log and re-raise.
