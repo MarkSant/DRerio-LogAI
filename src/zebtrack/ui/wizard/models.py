@@ -14,6 +14,7 @@ import structlog
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from zebtrack.i18n import _
+from zebtrack.settings import THIGMOTAXIS_MAX_DISTANCE_CM
 
 log = structlog.get_logger()
 
@@ -59,7 +60,7 @@ class BehavioralAnalysisData(BaseModel):
     thigmotaxis_distance_cm: float = Field(
         default=1.5,
         ge=0.1,
-        le=10.0,
+        le=THIGMOTAXIS_MAX_DISTANCE_CM,
         description="Distance threshold (cm) for thigmotaxis 'near wall' calculation",
     )
     geotaxis_enabled: bool = Field(

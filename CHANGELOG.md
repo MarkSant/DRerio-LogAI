@@ -291,6 +291,19 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
 
 ### Fixed
 
+- **Padrões de zebrafish num projeto de roedor (#631).** A geotaxia (proximidade do
+  FUNDO) era calculada também em vídeo filmado de cima, onde não há fundo. O
+  `run_full_analysis` não olhava a perspectiva, e o `collect_analysis_parameters`
+  deixava o `geotaxis_enabled=True` do padrão global `lateral` sobreviver ao
+  `top_down` do projeto. A regra agora mora num só lugar
+  (`analysis/behavioral_policy.geotaxis_applies`): vista superior nunca calcula
+  geotaxia, e vista lateral calcula salvo se for desligada. A faixa de tigmotaxia
+  aceita até 50 cm (antes 10 cm; a periferia de um campo aberto de rato tem
+  10–20 cm). Um projeto com 15 cm era descartado em silêncio pelo snapshot de
+  processamento e voltava a 1,5 cm. A velocidade plausível do validador deixou de
+  ser 50 cm/s fixos: vale `behavioral_config["max_plausible_speed_cm_s"]` do
+  projeto > `behavioral_analysis.max_plausible_speed_cm_s` > 50. Projetos de
+  zebrafish não mudam: os padrões são os mesmos e o golden está intacto.
 - **Episódios de mais de um animal (#632).** O detector de congelamento,
   inatividade e rajadas emendava linhas pela adjacência no quadro inteiro, e o
   pré-processamento intercala os animais por timestamp: o bloco quebrava a cada

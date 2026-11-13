@@ -21,6 +21,10 @@ import structlog
 
 from zebtrack.analysis.analysis_window_service import WindowResolution
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
+from zebtrack.analysis.behavioral_policy import (
+    geotaxis_applies,
+    resolve_max_plausible_speed,
+)
 from zebtrack.analysis.metrics_cache import MetricsCache
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
@@ -282,7 +286,7 @@ class AnalysisService:
         freezing_min_duration: float,
         smoothing_window_length: int | None = None,
         smoothing_polyorder: int | None = None,
-        max_plausible_speed_cm_s: float = 50.0,
+        max_plausible_speed_cm_s: float | None = None,
         sharp_turn_threshold: float = DEFAULT_SHARP_TURN_THRESHOLD_DEG_S,
         behavioral_config: dict[str, Any] | None = None,
         mask_sidecar_path: str | Path | pd.DataFrame | None = None,
@@ -364,9 +368,13 @@ class AnalysisService:
         # IMPROVEMENT #5: Validate trajectory quality before analysis
         # Use lenient minimum (3 frames) to allow test scenarios
         # Production code typically has much longer trajectories
+        # The speed ceiling is a per-species number (#631): explicit argument >
+        # project ``behavioral_config`` > settings > the zebrafish 50 cm/s.
         validator = TrajectoryQualityValidator(
             fps=fps,
-            max_plausible_speed_cm_s=max_plausible_speed_cm_s,
+            max_plausible_speed_cm_s=resolve_max_plausible_speed(
+                max_plausible_speed_cm_s, behavioral_config, self.settings
+            ),
             min_trajectory_frames=3,  # Minimum viable trajectory (allows tests)
         )
 
@@ -537,9 +545,11 @@ class AnalysisService:
             except Exception as e:
                 self.log.warning("analysis.thigmotaxis.failed", error=str(e))
 
-        # Calculate Geotaxis (if configured)
+        # Calculate Geotaxis (side view only, #631): it measures depth, and a
+        # video filmed from above has no bottom. ``geotaxis_applies`` is the one
+        # rule, shared with ``collect_analysis_parameters``.
         geo_dist = behavioral_config.get("geotaxis_distance_cm")
-        if geo_dist is not None:
+        if geo_dist is not None and geotaxis_applies(behavioral_config):
             try:
                 report["comportamento_geral"]["geotaxis_indice"] = (
                     b_analyzer.calculate_geotaxis_index(
@@ -650,7 +660,7 @@ class AnalysisService:
         freezing_min_duration: float,
         smoothing_window_length: int | None = None,
         smoothing_polyorder: int | None = None,
-        max_plausible_speed_cm_s: float = 50.0,
+        max_plausible_speed_cm_s: float | None = None,
         # Optional parameters
         video_path: Path | str | None = None,
         calibration=None,
@@ -772,7 +782,7 @@ class AnalysisService:
         freezing_min_duration: float = 1.0,
         smoothing_window_length: int | None = None,
         smoothing_polyorder: int | None = None,
-        max_plausible_speed_cm_s: float = 50.0,
+        max_plausible_speed_cm_s: float | None = None,
         sharp_turn_threshold: float = DEFAULT_SHARP_TURN_THRESHOLD_DEG_S,
         behavioral_config: dict[str, Any] | None = None,
         windows: dict[int, WindowResolution | None] | None = None,
@@ -796,7 +806,8 @@ class AnalysisService:
             freezing_min_duration: Minimum freezing episode duration.
             smoothing_window_length: Trajectory smoothing window (optional).
             smoothing_polyorder: Trajectory smoothing polynomial order (optional).
-            max_plausible_speed_cm_s: Maximum plausible speed for validation.
+            max_plausible_speed_cm_s: Maximum plausible speed for validation;
+                ``None`` resolves project > settings > 50 cm/s (#631).
             sharp_turn_threshold: Sharp turn detection threshold (deg/s).
             behavioral_config: Behavioral analysis configuration (thigmotaxis, geotaxis).
             windows: Analysis window of each aquarium (ADR-011: one evaluator
@@ -1161,8 +1172,12 @@ class AnalysisService:
                 params["behavioral_config"].get("aquarium_perspective")
             )
             params["behavioral_config"]["aquarium_perspective"] = perspective
-            if "geotaxis_enabled" not in params["behavioral_config"]:
-                params["behavioral_config"]["geotaxis_enabled"] = perspective == "lateral"
+            # Always re-derived (#631): the global ``lateral`` default wrote
+            # ``geotaxis_enabled=True`` above, and the project's ``top_down``
+            # merged on top must not inherit it.
+            params["behavioral_config"]["geotaxis_enabled"] = geotaxis_applies(
+                params["behavioral_config"]
+            )
 
         self.log.debug(
             "analysis_service.collect_parameters",

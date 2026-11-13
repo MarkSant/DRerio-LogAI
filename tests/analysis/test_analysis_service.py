@@ -656,3 +656,163 @@ class TestMaskSidecarInLocalSpace:
         assert isinstance(moved, pd.DataFrame)
         assert moved["mask_wkb"].iloc[0] == b"garbage"
         assert wkb.loads(moved["mask_wkb"].iloc[1]).bounds == (0.0, 0.0, 10.0, 10.0)
+
+
+# ---------------------------------------------------------------------------
+# #631 — zebrafish defaults must not leak into a top-down (rodent) project
+# ---------------------------------------------------------------------------
+
+_GEOTAXIS_KEYS = ("geotaxis_indice", "geotaxis_avg_dist", "geotaxis_zones")
+
+
+def _geotaxis_keys(report) -> set[str]:
+    return set(_GEOTAXIS_KEYS) & set(report["comportamento_geral"])
+
+
+class TestGeotaxisFollowsThePerspective:
+    """Geotaxis is depth: a video filmed from above has no bottom to measure."""
+
+    def test_top_down_project_computes_no_geotaxis(self, settings_obj: Settings):
+        report = _run(
+            settings_obj,
+            _walk(),
+            fps=10.0,
+            behavioral_config={"aquarium_perspective": "top_down", "geotaxis_distance_cm": 1.5},
+        )
+
+        assert _geotaxis_keys(report) == set()
+
+    def test_top_down_beats_an_inherited_enabled_flag(self, settings_obj: Settings):
+        report = _run(
+            settings_obj,
+            _walk(),
+            fps=10.0,
+            behavioral_config={
+                "aquarium_perspective": "top-down",
+                "geotaxis_enabled": True,
+                "geotaxis_distance_cm": 1.5,
+            },
+        )
+
+        assert _geotaxis_keys(report) == set()
+
+    def test_lateral_project_still_computes_geotaxis(self, settings_obj: Settings):
+        report = _run(
+            settings_obj,
+            _walk(),
+            fps=10.0,
+            behavioral_config={"aquarium_perspective": "lateral", "geotaxis_distance_cm": 1.5},
+        )
+
+        assert _geotaxis_keys(report) == set(_GEOTAXIS_KEYS)
+
+    def test_lateral_project_that_disabled_geotaxis_gets_none(self, settings_obj: Settings):
+        report = _run(
+            settings_obj,
+            _walk(),
+            fps=10.0,
+            behavioral_config={
+                "aquarium_perspective": "lateral",
+                "geotaxis_enabled": False,
+                "geotaxis_distance_cm": 1.5,
+            },
+        )
+
+        assert _geotaxis_keys(report) == set()
+
+    def test_settings_fallback_honours_a_top_down_snapshot(self, settings_obj: Settings):
+        """The pre-recorded pipeline passes no config: the snapshot's settings decide."""
+        settings_obj.behavioral_analysis.aquarium_perspective = "top_down"
+
+        report = _run(settings_obj, _walk(), fps=10.0)
+
+        assert _geotaxis_keys(report) == set()
+
+    def test_settings_fallback_keeps_zebrafish_geotaxis(self, settings_obj: Settings):
+        """The golden's path: pristine ``lateral`` settings, no project config."""
+        settings_obj.behavioral_analysis.aquarium_perspective = "lateral"
+
+        report = _run(settings_obj, _walk(), fps=10.0)
+
+        assert _geotaxis_keys(report) == set(_GEOTAXIS_KEYS)
+
+    def test_project_top_down_overrides_the_global_lateral_default(self, settings_obj: Settings):
+        settings_obj.behavioral_analysis.aquarium_perspective = "lateral"
+        service = AnalysisService(settings_obj=settings_obj)
+
+        params = service.collect_analysis_parameters(
+            {"behavioral_config": {"aquarium_perspective": "top_down"}}
+        )
+
+        assert params["behavioral_config"]["aquarium_perspective"] == "top_down"
+        assert params["behavioral_config"]["geotaxis_enabled"] is False
+
+    def test_lateral_default_without_project_keeps_geotaxis_enabled(self, settings_obj: Settings):
+        settings_obj.behavioral_analysis.aquarium_perspective = "lateral"
+        service = AnalysisService(settings_obj=settings_obj)
+
+        params = service.collect_analysis_parameters({})
+
+        assert params["behavioral_config"]["geotaxis_enabled"] is True
+
+
+def _sprint() -> pd.DataFrame:
+    """A subject that moves 8 cm per frame at 10 fps: 80 cm/s, a rat's sprint."""
+    frames = list(range(45))
+    x_cm = [10.0 if f % 2 == 0 else 18.0 for f in frames]
+    df = _moving_track(frames, [round(f / 10, 9) for f in frames], 1, 100.0)
+    df["x_center_px"] = [x * 10.0 for x in x_cm]
+    df["x1"] = df["x_center_px"] - 5
+    df["x2"] = df["x_center_px"] + 5
+    df["x_cm"] = x_cm
+    df["y_cm"] = 10.0
+    return df
+
+
+def _speed_violations(settings_obj: Settings, **kwargs):
+    service = AnalysisService(settings_obj=settings_obj)
+    *_rest, stats = service.run_full_analysis(
+        trajectory_df=_sprint(),
+        pixelcm_x=10.0,
+        pixelcm_y=10.0,
+        video_height_px=400,
+        arena_polygon_px=_ARENA,
+        rois=[],
+        fps=10.0,
+        freezing_vel_threshold=1.0,
+        freezing_min_duration=1.0,
+        **kwargs,
+    )
+    return stats.get("speed_violations")
+
+
+class TestPlausibleSpeedIsConfigurable:
+    """50 cm/s is a zebrafish ceiling; a rat's sprint must not read as a tracking error."""
+
+    def test_zebrafish_default_flags_a_sprint(self, settings_obj: Settings):
+        violations = _speed_violations(settings_obj)
+
+        assert violations is not None
+        assert violations["threshold_cm_s"] == 50.0
+
+    def test_project_ceiling_silences_the_sprint(self, settings_obj: Settings):
+        violations = _speed_violations(
+            settings_obj, behavioral_config={"max_plausible_speed_cm_s": 150.0}
+        )
+
+        assert violations is None
+
+    def test_settings_ceiling_silences_the_sprint(self, settings_obj: Settings):
+        settings_obj.behavioral_analysis.max_plausible_speed_cm_s = 150.0
+
+        assert _speed_violations(settings_obj) is None
+
+    def test_explicit_argument_wins_over_the_project(self, settings_obj: Settings):
+        violations = _speed_violations(
+            settings_obj,
+            max_plausible_speed_cm_s=60.0,
+            behavioral_config={"max_plausible_speed_cm_s": 150.0},
+        )
+
+        assert violations is not None
+        assert violations["threshold_cm_s"] == 60.0

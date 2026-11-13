@@ -64,8 +64,9 @@ class TrajectoryQualityValidator:
 
         Args:
             fps: Frames per second of the video
-            max_plausible_speed_cm_s: Maximum plausible speed for zebrafish (cm/s)
-                Default: 50 cm/s (based on literature for adult zebrafish)
+            max_plausible_speed_cm_s: Maximum plausible speed of the subject (cm/s).
+                Default: 50 cm/s (adult zebrafish). Rodents sprint faster: the
+                analysis service resolves the project/settings value (#631).
             min_trajectory_frames: Minimum number of frames for valid trajectory
                 Default: 30 frames (1 second @ 30fps)
         """
