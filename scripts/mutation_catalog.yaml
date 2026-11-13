@@ -2316,8 +2316,8 @@ modules:
         replace: 'if False:'
       - id: second-decimation
         description: "processamento volta a decimar pela contagem de quadros RECEBIDOS"
-        find: 'should_analyze = (frame_number % self.analysis_interval_frames) == 0'
-        replace: 'should_analyze = (frames_received % self.analysis_interval_frames) == 0'
+        find: 'frame_number - 1, self.analysis_interval_frames, self.analysis_offset_frames'
+        replace: 'frames_received - 1, self.analysis_interval_frames, self.analysis_offset_frames'
       - id: ledger-rate-ignored
         description: "fps do MP4 ignora a taxa medida no ledger da sessao"
         find: 'if ledger is not None and getattr(ledger, "row_count", 0) >= 30:'
