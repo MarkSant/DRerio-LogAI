@@ -89,10 +89,6 @@ jobs:
           poetry install --no-interaction --no-ansi
         timeout-minutes: 10
 
-      - name: Install security tools
-        run: |
-          poetry run pip install pip-audit bandit
-
       - name: Build wizard template archive
         run: |
           poetry run python scripts/build_templates.py
@@ -121,99 +117,10 @@ jobs:
 
       - name: Run pip-audit
         run: |
-          poetry export -f requirements.txt --without-hashes -o /tmp/requirements.txt
-          # Ignore torch CVEs that have no upstream fix in the 2.x line yet.
-          # Re-evaluate when torch publishes a patched release within our
-          # ``torch >=2.8.0,<3.0.0`` constraint and drop the corresponding
-          # ``--ignore-vuln`` lines as they get addressed upstream.
-          #
-          # CVE-2025-3000: torch.jit.script memory corruption (CVSS 5.3,
-          # MEDIUM, local-only segfault, no upstream fix in 2.x). ZebTrack
-          # runs torch only for YOLO/OpenVINO inference and does not define
-          # scripted classes with list attributes, so the attack surface is
-          # not reachable here.
-          #
-          # PYSEC-2026-3447: setuptools, fixed in 83.0.0. We cannot take that
-          # fix because setuptools is pinned ``<81`` (see pyproject.toml): the
-          # docxcompose dependency used for Word reports still imports the
-          # ``pkg_resources`` API removed in setuptools 81+. setuptools is a
-          # build/packaging tool, not exposed to untrusted input at app
-          # runtime. Drop this ignore once docxcompose migrates off
-          # pkg_resources and the ``setuptools < 81`` pin can be lifted.
-          #
-          # CVE-2026-112390..112406 / 112891..112901: Pillow, fixed in 13.0.0.
-          # We cannot take that fix because every ttkbootstrap release (2.2.3
-          # included) requires ``pillow<13``; forcing 13 makes the resolver fall
-          # back to ttkbootstrap 1.12.1. Pillow here only decodes the app's own
-          # bundled icons and frames from the researcher's own videos, never
-          # images from an untrusted source. Drop these ignores once
-          # ttkbootstrap lifts the cap and ``Pillow >= 13`` can be pinned.
-          #
-          # PYSEC-2026-4327/4330/4332/4336..4343, CVE-2026-96638/96640/96778,
-          # GHSA-78g4-xqwv-q3g8: Pillow, also fixed only in 13.0.0 -- same
-          # ttkbootstrap ``pillow<13`` cap and same threat model as above.
-          #
-          # PYSEC-2026-4363, CVE-2026-128066/128067: Pillow 12.3.0, fixed only
-          # in 13.0.0 -- same cap (ttkbootstrap 1.20.2 still requires
-          # ``pillow>=10,<13``) and same threat model as above.
-          #
-          # GHSA-xmj3-9gf7-h52w: setuptools, fixed in 84.1.0 -- out of reach for
-          # the same ``setuptools < 81`` pin (docxcompose / pkg_resources) as
-          # PYSEC-2026-3447 above; build tool, not exposed at app runtime.
-          poetry run pip-audit --strict -r /tmp/requirements.txt \
-            --ignore-vuln CVE-2026-112390 \
-            --ignore-vuln CVE-2026-112391 \
-            --ignore-vuln CVE-2026-112392 \
-            --ignore-vuln CVE-2026-112393 \
-            --ignore-vuln CVE-2026-112395 \
-            --ignore-vuln CVE-2026-112396 \
-            --ignore-vuln CVE-2026-112397 \
-            --ignore-vuln CVE-2026-112399 \
-            --ignore-vuln CVE-2026-112400 \
-            --ignore-vuln CVE-2026-112401 \
-            --ignore-vuln CVE-2026-112402 \
-            --ignore-vuln CVE-2026-112404 \
-            --ignore-vuln CVE-2026-112405 \
-            --ignore-vuln CVE-2026-112406 \
-            --ignore-vuln CVE-2026-112891 \
-            --ignore-vuln CVE-2026-112892 \
-            --ignore-vuln CVE-2026-112893 \
-            --ignore-vuln CVE-2026-112894 \
-            --ignore-vuln CVE-2026-112895 \
-            --ignore-vuln CVE-2026-112896 \
-            --ignore-vuln CVE-2026-112897 \
-            --ignore-vuln CVE-2026-112899 \
-            --ignore-vuln CVE-2026-112900 \
-            --ignore-vuln CVE-2026-112901 \
-            --ignore-vuln PYSEC-2025-210 \
-            --ignore-vuln PYSEC-2025-197 \
-            --ignore-vuln PYSEC-2025-196 \
-            --ignore-vuln PYSEC-2025-195 \
-            --ignore-vuln PYSEC-2025-194 \
-            --ignore-vuln PYSEC-2025-193 \
-            --ignore-vuln PYSEC-2025-192 \
-            --ignore-vuln PYSEC-2025-191 \
-            --ignore-vuln PYSEC-2025-190 \
-            --ignore-vuln PYSEC-2025-189 \
-            --ignore-vuln PYSEC-2026-139 \
-            --ignore-vuln PYSEC-2026-3447 \
-            --ignore-vuln PYSEC-2026-4327 \
-            --ignore-vuln PYSEC-2026-4330 \
-            --ignore-vuln PYSEC-2026-4332 \
-            --ignore-vuln PYSEC-2026-4336 \
-            --ignore-vuln PYSEC-2026-4337 \
-            --ignore-vuln PYSEC-2026-4338 \
-            --ignore-vuln PYSEC-2026-4339 \
-            --ignore-vuln PYSEC-2026-4340 \
-            --ignore-vuln PYSEC-2026-4341 \
-            --ignore-vuln PYSEC-2026-4342 \
-            --ignore-vuln PYSEC-2026-4343 \
-            --ignore-vuln CVE-2026-96638 \
-            --ignore-vuln CVE-2026-96640 \
-            --ignore-vuln CVE-2026-96778 \
-            --ignore-vuln GHSA-78g4-xqwv-q3g8             --ignore-vuln PYSEC-2026-4363             --ignore-vuln CVE-2026-128066             --ignore-vuln CVE-2026-128067 \
-            --ignore-vuln GHSA-xmj3-9gf7-h52w \
-            --ignore-vuln CVE-2025-3000
+          # The exceptions and their justifications live in
+          # scripts/pip_audit_ignores.txt, shared with the pre-push hook (#648).
+          # In CI an unreachable advisory database is a failure, not a warning.
+          poetry run python scripts/run_pip_audit.py --no-cache --fail-on-error
 
       - name: Run bandit
         run: |
