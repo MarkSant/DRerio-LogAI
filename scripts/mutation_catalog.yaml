@@ -2688,3 +2688,21 @@ _load_registry()"
         description: "flag ULTRALYTICS_AVAILABLE corrigida por teste deixa de governar o caminho (#643)"
         find: '    return bool(resolve_lazy_attribute(globals(), "ULTRALYTICS_AVAILABLE", YOLO_LOADERS))'
         replace: '    return True'
+
+  lazy_heavy_imports_optional_deps:
+    source: src/zebtrack/utils/optional_deps.py
+    tests:
+      - tests/utils/test_optional_deps.py
+    mutations:
+      - id: loader-clobbers-a-patched-class
+        description: "o carregador preguicoso sobrescreve o YOLO que um teste corrigiu (#643)"
+        find: '    namespace.setdefault("YOLO", yolo)'
+        replace: '    namespace["YOLO"] = yolo'
+      - id: missing-torch-raises
+        description: "torch ausente deixa de degradar para None (#643)"
+        find: |-
+          log.debug("optional_deps.torch.unavailable")
+                  return None
+        replace: |-
+          log.debug("optional_deps.torch.unavailable")
+                  raise
