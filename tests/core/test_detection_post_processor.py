@@ -239,3 +239,88 @@ class TestTrackBufferPrecedence:
         s = SimpleNamespace(bytetrack=SimpleNamespace(track_buffer=bad))
         plugin = SimpleNamespace(track_buffer=45)
         assert P.get_track_buffer(s, plugin) == 45  # type: ignore[arg-type]
+
+
+class TestThresholdPrecedence:
+    """Issue #698: the configured ``bytetrack`` thresholds are what ByteTrack gets.
+
+    Both plugins copy ``track_threshold`` / ``match_threshold`` from the settings
+    when they are built, and the resolver preferred that copy. Anything written to
+    the settings afterwards (the panel, a project restore, a factory reset) never
+    reached the tracker.
+    """
+
+    @pytest.mark.parametrize(
+        ("getter", "attr", "configured", "snapshot"),
+        [
+            ("get_track_threshold", "track_threshold", 0.4, 0.25),
+            ("get_match_threshold", "match_threshold", 0.7, 0.95),
+        ],
+    )
+    def test_settings_win_over_the_plugin(self, getter, attr, configured, snapshot):
+        s = SimpleNamespace(bytetrack=SimpleNamespace(**{attr: configured}))
+        plugin = SimpleNamespace(**{attr: snapshot})
+        assert getattr(P, getter)(s, plugin) == configured
+
+    @pytest.mark.parametrize(
+        ("getter", "attr"),
+        [("get_track_threshold", "track_threshold"), ("get_match_threshold", "match_threshold")],
+    )
+    def test_plugin_is_the_fallback_without_settings(self, getter, attr):
+        plugin = SimpleNamespace(**{attr: 0.33})
+        assert getattr(P, getter)(None, plugin) == 0.33
+        assert getattr(P, getter)(SimpleNamespace(), plugin) == 0.33
+
+    @pytest.mark.parametrize(
+        ("getter", "attr"),
+        [("get_track_threshold", "track_threshold"), ("get_match_threshold", "match_threshold")],
+    )
+    @pytest.mark.parametrize("bad", [None, "x"])
+    def test_unusable_settings_value_falls_through_to_the_plugin(self, getter, attr, bad):
+        s = SimpleNamespace(bytetrack=SimpleNamespace(**{attr: bad}))
+        plugin = SimpleNamespace(**{attr: 0.33})
+        assert getattr(P, getter)(s, plugin) == 0.33
+
+    def test_neither_source_gives_the_single_defaults(self):
+        from zebtrack.settings import (
+            DEFAULT_IOU_THRESHOLD,
+            DEFAULT_MATCH_THRESHOLD,
+            DEFAULT_MAX_CENTER_DISTANCE,
+            DEFAULT_TRACK_THRESHOLD,
+        )
+
+        assert P.get_track_threshold(None, None) == DEFAULT_TRACK_THRESHOLD
+        assert P.get_match_threshold(None, SimpleNamespace()) == DEFAULT_MATCH_THRESHOLD  # type: ignore[arg-type]
+        assert P.get_max_center_distance(None) == DEFAULT_MAX_CENTER_DISTANCE
+        assert P.get_iou_threshold(None) == DEFAULT_IOU_THRESHOLD
+        assert P.get_max_center_distance(SimpleNamespace()) == DEFAULT_MAX_CENTER_DISTANCE  # type: ignore[arg-type]
+        assert P.get_iou_threshold(SimpleNamespace()) == DEFAULT_IOU_THRESHOLD  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize("bad", ["x", object()])
+    def test_unusable_plugin_value_gives_the_single_default(self, bad):
+        from zebtrack.settings import DEFAULT_MATCH_THRESHOLD
+
+        plugin = SimpleNamespace(match_threshold=bad)
+        assert P.get_match_threshold(None, plugin) == DEFAULT_MATCH_THRESHOLD  # type: ignore[arg-type]
+
+
+class TestProcessingIntervalResolution:
+    """Issue #667: the Kalman ``dt`` is the cadence the detector really runs at."""
+
+    def _settings(self, interval):
+        return SimpleNamespace(video_processing=SimpleNamespace(processing_interval=interval))
+
+    def test_declared_interval_wins_over_settings(self):
+        assert P.get_processing_interval(self._settings(10), 3) == 3  # type: ignore[arg-type]
+
+    def test_settings_when_nothing_declared(self):
+        assert P.get_processing_interval(self._settings(10)) == 10  # type: ignore[arg-type]
+        assert P.get_processing_interval(self._settings(10), None) == 10  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize("bad", [0, -2, "x"])
+    def test_unusable_declared_interval_falls_back_to_settings(self, bad):
+        assert P.get_processing_interval(self._settings(4), bad) == 4  # type: ignore[arg-type]
+
+    def test_one_without_any_source(self):
+        assert P.get_processing_interval(None) == 1
+        assert P.get_processing_interval(self._settings(0)) == 1  # type: ignore[arg-type]

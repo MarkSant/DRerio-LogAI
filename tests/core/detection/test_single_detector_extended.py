@@ -569,3 +569,73 @@ class TestConfiguredTrackBufferReachesByteTrack:
         assert second is not None
         assert second is not first
         assert _seconds_until_removed(second, fps=30.0) == pytest.approx(151 / 30)
+
+
+# ---------------------------------------------------------------------------
+# Issues #698 / #667: every parameter that defines the BYTETracker comes from
+# the CONFIGURED value, and a change rebuilds it.
+# ---------------------------------------------------------------------------
+
+
+class TestConfiguredTrackerParametersReachByteTrack:
+    """The plugins copy the thresholds when built; that copy must not win (#698)."""
+
+    def test_thresholds_changed_after_the_plugin_was_built_reach_the_tracker(self):
+        settings_obj = _fps_settings()
+        settings_obj.bytetrack.track_threshold = 0.25
+        settings_obj.bytetrack.match_threshold = 0.95
+        detector = SingleDetector(
+            plugin=_production_ultralytics_plugin(settings_obj), settings_obj=settings_obj
+        )
+        detector.set_source_fps(30.0)
+        first = detector._ensure_byte_tracker()
+
+        # What DetectorService does on a panel change, a project restore or a reset.
+        settings_obj.bytetrack.track_threshold = 0.4
+        settings_obj.bytetrack.match_threshold = 0.7
+        second = detector._ensure_byte_tracker()
+
+        assert second is not None
+        assert second is not first
+        assert second.args.track_thresh == pytest.approx(0.4)
+        assert second.args.match_thresh == pytest.approx(0.7)
+
+    def test_declared_interval_is_the_kalman_dt(self):
+        settings_obj = _fps_settings()
+        settings_obj.video_processing.processing_interval = 10
+        detector = _fps_detector(settings_obj)
+        detector.set_source_fps(30.0)
+
+        detector.set_processing_interval(3)
+        tracker = detector._ensure_byte_tracker()
+
+        assert tracker is not None
+        assert tracker.processing_interval == 3
+        assert tracker.kalman_filter._dt == pytest.approx(3.0)
+        assert detector.processing_interval == 3
+
+    def test_changing_the_interval_rebuilds_the_tracker(self):
+        detector = _fps_detector(_fps_settings())
+        detector.set_source_fps(30.0)
+        detector.set_processing_interval(1)
+        first = detector._ensure_byte_tracker()
+
+        detector.set_processing_interval(5)
+        second = detector._ensure_byte_tracker()
+
+        assert second is not first
+        assert second is not None and second.kalman_filter._dt == pytest.approx(5.0)
+        assert detector._ensure_byte_tracker() is second  # same key: reused
+
+    def test_settings_interval_is_the_fallback_and_also_rebuilds(self):
+        settings_obj = _fps_settings()
+        detector = _fps_detector(settings_obj)
+        detector.set_source_fps(30.0)
+        first = detector._ensure_byte_tracker()
+        assert first is not None and first.processing_interval == 1
+
+        settings_obj.video_processing.processing_interval = 4
+        second = detector._ensure_byte_tracker()
+
+        assert second is not first
+        assert second is not None and second.processing_interval == 4

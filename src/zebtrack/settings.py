@@ -77,6 +77,19 @@ DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S: Final[float] = 50.0
 #: and the plugins' 60 won.
 DEFAULT_TRACK_BUFFER: Final[int] = 150
 
+#: ByteTrack association parameters (#698): ONE default each, equal to what
+#: config.yaml ships. The settings model, the detector resolver, the plugins'
+#: no-settings fallback, DetectorService (current and factory reset) and the
+#: wizard all read these. Until #698 match_threshold was 0.95 in config.yaml and
+#: 0.80 in the OpenVINO plugin, DetectorService and the factory reset, and
+#: max_center_distance / iou_threshold were 400 / 0.05 in config.yaml but
+#: 200 / 0.1 in the model, the wizard (which saved them into every new project)
+#: and the factory reset.
+DEFAULT_TRACK_THRESHOLD: Final[float] = 0.25
+DEFAULT_MATCH_THRESHOLD: Final[float] = 0.95
+DEFAULT_MAX_CENTER_DISTANCE: Final[float] = 400.0
+DEFAULT_IOU_THRESHOLD: Final[float] = 0.05
+
 
 # --- Pydantic Models for Configuration Structure ---
 
@@ -479,7 +492,7 @@ class ByteTrackSettings(BaseModel):
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     track_threshold: float = Field(
-        0.1,
+        DEFAULT_TRACK_THRESHOLD,
         gt=0,
         lt=1,
         description=(
@@ -488,7 +501,7 @@ class ByteTrackSettings(BaseModel):
         ),
     )
     match_threshold: float = Field(
-        0.95,
+        DEFAULT_MATCH_THRESHOLD,
         gt=0,
         le=1,
         description=(
@@ -498,14 +511,13 @@ class ByteTrackSettings(BaseModel):
         ),
     )
     max_center_distance: float = Field(
-        200.0,
+        DEFAULT_MAX_CENTER_DISTANCE,
         gt=0,
         description=(
             "Maximum center-to-center distance (in pixels) for hybrid matching fallback. "
             "When IoU-based matching fails (no bbox overlap), ByteTrack falls back to "
             "center distance matching. This is useful for small, fast-moving objects "
-            "like zebrafish that can move significantly between frames. "
-            "Default 1000px allows matching movements across almost the entire aquarium."
+            "like zebrafish that can move significantly between frames."
         ),
     )
     track_buffer: int = Field(
@@ -520,7 +532,7 @@ class ByteTrackSettings(BaseModel):
         ),
     )
     iou_threshold: float = Field(
-        0.1,
+        DEFAULT_IOU_THRESHOLD,
         ge=0,
         lt=1,
         description=(

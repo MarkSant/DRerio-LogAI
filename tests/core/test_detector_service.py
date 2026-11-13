@@ -503,7 +503,54 @@ class TestDetectorService(unittest.TestCase):
         self.assertEqual(params["conf_threshold"], 0.25)
         self.assertEqual(params["nms_threshold"], 0.45)
         self.assertEqual(params["track_threshold"], 0.25)
-        self.assertEqual(params["match_threshold"], 0.80)  # Updated to match current default
+        self.assertEqual(params["match_threshold"], 0.95)
+
+    def test_factory_reset_is_the_shipped_config(self):
+        """#698: the factory reset restores what config.yaml ships, one constant each.
+
+        It used to reset match / max distance / IoU to 0.80 / 200 / 0.1 while
+        config.yaml shipped 0.95 / 400 / 0.05.
+        """
+        from zebtrack.settings import (
+            DEFAULT_IOU_THRESHOLD,
+            DEFAULT_MATCH_THRESHOLD,
+            DEFAULT_MAX_CENTER_DISTANCE,
+            DEFAULT_TRACK_BUFFER,
+            DEFAULT_TRACK_THRESHOLD,
+        )
+
+        params = self.service.get_factory_detector_parameters()
+
+        self.assertEqual(params["track_threshold"], DEFAULT_TRACK_THRESHOLD)
+        self.assertEqual(params["match_threshold"], DEFAULT_MATCH_THRESHOLD)
+        self.assertEqual(params["track_buffer"], DEFAULT_TRACK_BUFFER)
+        self.assertEqual(params["max_center_distance"], DEFAULT_MAX_CENTER_DISTANCE)
+        self.assertEqual(params["iou_threshold"], DEFAULT_IOU_THRESHOLD)
+        self.assertEqual(
+            (params["match_threshold"], params["max_center_distance"], params["iou_threshold"]),
+            (0.95, 400.0, 0.05),
+        )
+
+    def test_current_parameters_without_bytetrack_settings_are_the_shared_defaults(self):
+        from zebtrack.settings import (
+            DEFAULT_IOU_THRESHOLD,
+            DEFAULT_MATCH_THRESHOLD,
+            DEFAULT_MAX_CENTER_DISTANCE,
+            DEFAULT_TRACK_THRESHOLD,
+        )
+
+        self.settings.yolo_model.confidence_threshold = 0.25
+        self.settings.yolo_model.nms_threshold = 0.45
+        del self.settings.bytetrack
+        self.service.detector = None
+        self.project_manager.project_data = {}
+
+        params = self.service.get_detector_parameters()
+
+        self.assertEqual(params["track_threshold"], DEFAULT_TRACK_THRESHOLD)
+        self.assertEqual(params["match_threshold"], DEFAULT_MATCH_THRESHOLD)
+        self.assertEqual(params["max_center_distance"], DEFAULT_MAX_CENTER_DISTANCE)
+        self.assertEqual(params["iou_threshold"], DEFAULT_IOU_THRESHOLD)
 
     def test_restore_detector_settings_no_detector(self):
         """Test restore settings with no detector."""

@@ -16228,20 +16228,21 @@ msgid "Max distance (px):"
 msgstr "Distância Máx (px):"
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:636
+#, python-brace-format
 msgid ""
 "📏 Maximum Centre Distance\n"
 "\n"
 "The furthest (in pixels) an animal may move between frames and still be "
 "considered the same one, when overlap fails.\n"
 "\n"
-"💡 Default: 200.0 px"
+"💡 Default: {pixels:g} px"
 msgstr ""
 "📏 Distância Máxima de Centro\n"
 "\n"
 "Distância máxima (em pixels) que o animal pode se mover entre frames para"
 " ser considerado o mesmo, quando a sobreposição falha.\n"
 "\n"
-"💡 Padrão: 200.0 px"
+"💡 Padrão: {pixels:g} px"
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:646
 #: src/zebtrack/ui/wizard/model_selection_step.py:850
@@ -16249,20 +16250,21 @@ msgid "IoU Threshold (0-1):"
 msgstr "IoU Threshold (0-1):"
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:651
+#, python-brace-format
 msgid ""
 "🔳 IoU Threshold\n"
 "\n"
 "Minimum overlap to prefer a box match over a distance match.\n"
 "For small, fast animals, low values work better.\n"
 "\n"
-"💡 Default: 0.1"
+"💡 Default: {value:g}"
 msgstr ""
 "🔳 IoU Threshold\n"
 "\n"
 "Sobreposição mínima para preferir 'Match por Caixa' em vez de distância.\n"
 "Para animais pequenos e rápidos, valores baixos são melhores.\n"
 "\n"
-"💡 Padrão: 0.1"
+"💡 Padrão: {value:g}"
 
 #: src/zebtrack/ui/wizard/model_selection_step.py:664
 msgid ""

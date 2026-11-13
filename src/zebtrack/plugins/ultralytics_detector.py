@@ -4,7 +4,7 @@ from typing import Any
 
 import numpy as np
 
-from zebtrack.plugins.base import DetectorPlugin
+from zebtrack.plugins.base import DetectorPlugin, bytetrack_threshold_hints
 from zebtrack.utils.hardware_detection import is_cuda_available
 from zebtrack.utils.optional_deps import YOLO_LOADERS, resolve_lazy_attribute
 
@@ -66,9 +66,8 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
             self.conf_threshold = resolve_animal_confidence(settings_obj.yolo_model)
             self.nms_threshold = settings_obj.yolo_model.nms_threshold
-            # Read ByteTrack thresholds from settings
-            self.track_threshold = getattr(settings_obj.bytetrack, "track_threshold", 0.25)
-            self.match_threshold = getattr(settings_obj.bytetrack, "match_threshold", 0.95)
+            # ByteTrack hints: a fallback only, the settings win in the tracker (#698)
+            self.track_threshold, self.match_threshold = bytetrack_threshold_hints(settings_obj)
             # OPTIMIZATION: Read inference performance settings
             self._use_half = getattr(settings_obj.yolo_model, "use_half_precision", True)
             self._imgsz = getattr(settings_obj.yolo_model, "inference_size", 640)
@@ -79,8 +78,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             # Fallback defaults when settings not injected
             self.conf_threshold = 0.25
             self.nms_threshold = 0.45
-            self.track_threshold = 0.25
-            self.match_threshold = 0.95  # Higher default for stable tracking (avoid ID jumps)
+            self.track_threshold, self.match_threshold = bytetrack_threshold_hints(None)
             self._use_half = True
             self._imgsz = 640
             self._device = None

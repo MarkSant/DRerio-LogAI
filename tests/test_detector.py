@@ -159,7 +159,7 @@ class TestDetector(unittest.TestCase):
     def test_set_single_subject_mode_reinitializes_tracker_and_notifies_plugin(self):
         sentinel_tracker = object()
         self.detector._byte_tracker = cast(Any, sentinel_tracker)
-        self.detector._byte_tracker_params = (0.5, 0.5, 30, 0.5, 0.5, True, True, 30.0)
+        self.detector._byte_tracker_params = (0.5, 0.5, 30, 0.5, 0.5, True, True, 30.0, 1)
 
         self.detector.set_single_subject_mode(True)
 
@@ -172,7 +172,7 @@ class TestDetector(unittest.TestCase):
         sentinel_tracker = object()
         self.detector._single_subject_mode = True
         self.detector._byte_tracker = cast(Any, sentinel_tracker)
-        self.detector._byte_tracker_params = (0.5, 0.5, 30, 0.5, 0.5, True, True, 30.0)
+        self.detector._byte_tracker_params = (0.5, 0.5, 30, 0.5, 0.5, True, True, 30.0, 1)
 
         self.detector.set_single_subject_mode(True)
 
@@ -184,7 +184,7 @@ class TestDetector(unittest.TestCase):
         sentinel_tracker = MagicMock()
         self.detector._single_subject_tracker = sentinel_tracker
         self.detector._byte_tracker = cast(Any, object())
-        self.detector._byte_tracker_params = (0.5, 0.5, 30, 0.5, 0.5, True, True, 30.0)
+        self.detector._byte_tracker_params = (0.5, 0.5, 30, 0.5, 0.5, True, True, 30.0, 1)
 
         BaseTrack._count = 5
 

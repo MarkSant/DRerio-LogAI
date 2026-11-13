@@ -1039,6 +1039,24 @@ class TestSessionPersistenceAndTriggers:
         assert res is True
         coordinator.live_calibration_coordinator.clear_last_polygon_source.assert_called_once()
 
+    def test_start_live_project_session_hands_the_project_interval_to_the_camera(self, coordinator):
+        """#667: the session's detection cadence (and with it the Kalman dt) is the project's."""
+        coordinator_any: Any = coordinator
+        coordinator.project_manager.get_project_type.return_value = "live"
+        coordinator.project_manager.project_data = {
+            "camera_index": 0,
+            "analysis_interval_frames": 7,
+        }
+        coordinator_any._external_trigger_allows_start = MagicMock(return_value=True)
+        coordinator.live_camera_service.start_session.return_value = True
+
+        coordinator.start_live_project_session(
+            day=1, group="G1", subject="S1", camera_index_override=0, zones_validated=True
+        )
+
+        kwargs = coordinator.live_camera_service.start_session.call_args.kwargs
+        assert kwargs["analysis_interval_frames"] == 7
+
 
 class TestManualWindowMark:
     """v8 F5: the "Mark start/stop" button reaches the live service."""

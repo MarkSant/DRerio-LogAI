@@ -49,10 +49,13 @@ trajectory_smoothing:
                 self.assertEqual(settings.yolo_model.path, "test.pt")
                 self.assertEqual(settings.recorder.flush_interval_seconds, 3.5)
                 self.assertEqual(settings.recorder.flush_row_threshold, 250)
-                # ByteTrack defaults: track_threshold=0.1 (very low to catch all),
-                # match_threshold=0.95 (strict)
-                self.assertAlmostEqual(settings.bytetrack.track_threshold, 0.1)
+                # No bytetrack section: the model's defaults, which are the shared
+                # constants config.yaml ships (#698). track_threshold used to be 0.1
+                # here against config.yaml's 0.25.
+                self.assertAlmostEqual(settings.bytetrack.track_threshold, 0.25)
                 self.assertAlmostEqual(settings.bytetrack.match_threshold, 0.95)
+                self.assertAlmostEqual(settings.bytetrack.max_center_distance, 400.0)
+                self.assertAlmostEqual(settings.bytetrack.iou_threshold, 0.05)
                 self.assertFalse(settings.tracking.use_single_subject_tracker)
                 # Check that default empty values are created
                 self.assertEqual(settings.detection_zones.polygon, [])
@@ -771,3 +774,39 @@ class TestTrackBufferHasOneDefault(unittest.TestCase):
         config_path = Path(__file__).resolve().parents[1] / "config.yaml"
         shipped = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         self.assertEqual(shipped["bytetrack"]["track_buffer"], DEFAULT_TRACK_BUFFER)
+
+
+class TestByteTrackThresholdsHaveOneDefault(unittest.TestCase):
+    """Issue #698: the model, ``config.yaml`` and the resolver share one default each.
+
+    ``match_threshold`` said 0.95 in ``config.yaml`` and 0.80 in the OpenVINO plugin,
+    DetectorService and the factory reset; ``max_center_distance`` / ``iou_threshold``
+    said 400 / 0.05 in ``config.yaml`` and 200 / 0.1 in the model, the wizard and the
+    factory reset.
+    """
+
+    FIELDS = (
+        ("track_threshold", "DEFAULT_TRACK_THRESHOLD"),
+        ("match_threshold", "DEFAULT_MATCH_THRESHOLD"),
+        ("max_center_distance", "DEFAULT_MAX_CENTER_DISTANCE"),
+        ("iou_threshold", "DEFAULT_IOU_THRESHOLD"),
+    )
+
+    def test_model_defaults_are_the_shared_constants(self):
+        import zebtrack.settings as settings_module
+
+        model = settings_module.ByteTrackSettings()
+        for field, constant in self.FIELDS:
+            with self.subTest(field=field):
+                self.assertEqual(getattr(model, field), getattr(settings_module, constant))
+
+    def test_config_yaml_ships_the_shared_constants(self):
+        import yaml
+
+        import zebtrack.settings as settings_module
+
+        config_path = Path(__file__).resolve().parents[1] / "config.yaml"
+        shipped = yaml.safe_load(config_path.read_text(encoding="utf-8"))["bytetrack"]
+        for field, constant in self.FIELDS:
+            with self.subTest(field=field):
+                self.assertEqual(shipped[field], getattr(settings_module, constant))
