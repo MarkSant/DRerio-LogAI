@@ -2147,16 +2147,6 @@ modules:
         find: '                        set_frame_time(timestamp)'
         replace: '                        set_frame_time(None)'
 
-  tracking_session_runner_frame_time:
-    source: src/zebtrack/core/video/tracking_session_runner.py
-    tests:
-      - tests/core/test_video_processing_service_tracking.py
-    mutations:
-      - id: runner-does-not-declare-pts
-        description: "pipeline em processo nao entrega o PTS ao ByteTrack"
-        find: '                set_frame_time(timestamp)'
-        replace: '                set_frame_time(None)'
-
   live_capture_frame_time:
     source: src/zebtrack/core/recording/frame_processing_pipeline.py
     tests:

@@ -3,7 +3,7 @@
 Phase 2.3 decomposition: Thin facade delegating to four extracted mixins:
 
 - VideoContextFactoryMixin  — video I/O, results dirs, trajectory loading
-- TrackingSessionRunnerMixin — tracking loop, zone prep, calibration
+- TrackingSessionRunnerMixin — hands tracking to ProcessingWorker
 - ProgressNotifierMixin      — progress callbacks and UI notifications
 - AnalysisPipelineRunnerMixin — report generation, social analysis
 

@@ -143,7 +143,7 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `io/object_sidecar.py` | `tests/io/test_object_sidecar.py` + `--module object_sidecar` |
 | `io/recorder.py` (object sidecar, stale cleanup) | `tests/test_recorder.py` + `--module recorder_object_sidecar` |
 | `core/video/processing_worker.py` (model spec, object sidecar writes) | `tests/core/test_processing_worker_unit.py` + `--module processing_worker_model_spec`, `--module processing_worker_object_sidecar` |
-| `core/video/tracking_session_runner.py` (object sidecar writes) | `tests/core/test_video_processing_service_tracking.py` |
+| `core/video/tracking_session_runner.py` (hands tracking to the worker) | `tests/core/test_video_processing_service_tracking.py` |
 | `core/project/parquet_io_manager.py` (sidecar set on import) | `tests/test_parquet_import.py` + `--module parquet_import_sidecars` |
 | `utils/report_files.py` (`3c_`/`7_` labels) | `tests/utils/test_session_output_listing.py` + `--module session_output_labels` |
 | `core/conditions/*.py` | `tests/core/conditions/` (unit + Barnes VFR + hypothesis properties: batch ≡ online, back-dating, STOP ≥ START, duplicates) + `--module conditions_model`, `conditions_evaluator`, `conditions_artifact` |

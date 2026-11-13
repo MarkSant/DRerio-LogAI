@@ -2866,17 +2866,7 @@ msgstr ""
 msgid "Step: {status}"
 msgstr ""
 
-#: src/zebtrack/core/video/tracking_session_runner.py:275
-#, python-brace-format
-msgid "Cancellation requested for {name}."
-msgstr ""
-
-#: src/zebtrack/core/video/tracking_session_runner.py:286
-#, python-brace-format
-msgid "Trajectory for {experiment_id} generated."
-msgstr ""
-
-#: src/zebtrack/core/video/tracking_session_runner.py:330
+#: src/zebtrack/core/video/tracking_session_runner.py:83
 #, python-brace-format
 msgid "Starting process for {name}..."
 msgstr ""

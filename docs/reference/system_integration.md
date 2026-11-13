@@ -290,8 +290,8 @@ failure.
   `DetectionPostProcessor.resolve_tracker_fps()`), never
   `settings.video_processing.fps` except as a warned fallback (#630).
   `track_buffer / 30` is the lost-track lifetime in SECONDS (#654): callers
-  declare each frame's instant with `set_frame_time()` (PTS in the batch worker
-  and `TrackingSessionRunner`, the capture `t_perf` live) and
+  declare each frame's instant with `set_frame_time()` (PTS in the processing
+  worker, which also serves single-video re-tracking; the capture `t_perf` live) and
   `BYTETracker.update(..., frame_time_s=)` ages lost tracks on it. Without an
   instant it counts `frame_rate / 30 * track_buffer / processing_interval`
   updates. Single-animal mode keeps them `SINGLE_ANIMAL_LOST_FACTOR` (6) times
