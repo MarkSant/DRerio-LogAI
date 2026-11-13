@@ -140,6 +140,56 @@ def resolve_mask_sidecar(trajectory_path: str | Path | None) -> Path | None:
     return sidecar if sidecar.exists() else None
 
 
+def mask_sidecar_in_local_space(
+    sidecar: str | Path | None, offset_x: float, offset_y: float
+) -> Path | pd.DataFrame | None:
+    """The ``3b`` masks moved into the same pixel space as a shifted trajectory (#640).
+
+    The recorder writes the contours in RAW video pixels, like ``x1..y2``. A
+    report that moves the trajectory and the ROIs into the arena's local space
+    (subtracting the arena offset) must move the masks too, or ``seg_overlap``
+    compares a local ROI with a raw contour: the overlap is empty, every frame
+    is "outside", and nothing warns — each mask still matched its row.
+
+    Returns:
+        The path itself when there is nothing to move (no sidecar, zero offset)
+        or when the file cannot be read as a sidecar — the ``ROIAnalyzer`` then
+        degrades with its own, specific warning. Otherwise the sidecar rows with
+        every ``mask_wkb`` translated by ``(-offset_x, -offset_y)``.
+    """
+    if sidecar is None or (offset_x == 0 and offset_y == 0):
+        return None if sidecar is None else Path(sidecar)
+    path = Path(sidecar)
+    try:
+        masks = pd.read_parquet(path)
+    # except Exception justified: pyarrow raises assorted types for a corrupt
+    # file; the analyzer re-reads the path and reports exactly what is wrong.
+    except Exception:
+        log.warning("analysis.mask_sidecar.local_space_unreadable", path=str(path))
+        return path
+    if "mask_wkb" not in masks.columns or masks.empty:
+        return path
+
+    import shapely
+
+    # Unreadable payloads stay as they are: the analyzer counts them as invalid.
+    payloads = masks["mask_wkb"].to_numpy(dtype=object)
+    readable = np.array(
+        [isinstance(p, bytes | bytearray | memoryview) for p in payloads], dtype=bool
+    )
+    geometries = shapely.from_wkb([bytes(p) for p in payloads[readable]], on_invalid="ignore")
+    shift = np.array([-float(offset_x), -float(offset_y)])
+    moved = shapely.transform(geometries, lambda coords: coords + shift)
+    translated = payloads.copy()
+    translated[readable] = [
+        original if geometry is None else shapely.to_wkb(geometry)
+        for original, geometry in zip(payloads[readable], moved, strict=True)
+    ]
+    masks = masks.copy()
+    masks["mask_wkb"] = translated
+    return masks
+
+
 def _window_row_mask(trajectory_df: pd.DataFrame, window: WindowResolution | None) -> np.ndarray:
     """Rows of the raw trajectory inside the window's cut (all rows without one).
 
@@ -235,7 +285,7 @@ class AnalysisService:
         max_plausible_speed_cm_s: float = 50.0,
         sharp_turn_threshold: float = DEFAULT_SHARP_TURN_THRESHOLD_DEG_S,
         behavioral_config: dict[str, Any] | None = None,
-        mask_sidecar_path: str | Path | None = None,
+        mask_sidecar_path: str | Path | pd.DataFrame | None = None,
         window: WindowResolution | None = None,
     ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None, list, dict]:
         """
@@ -259,7 +309,9 @@ class AnalysisService:
             freezing_vel_threshold: Velocity threshold for detecting freezing.
             freezing_min_duration: Minimum duration for a freezing episode.
             behavioral_config: Configuration for behavioral metrics (thigmotaxis, geotaxis).
-            mask_sidecar_path: Path to ``3b_Mascaras_<base>.parquet``, read only
+            mask_sidecar_path: Path to ``3b_Mascaras_<base>.parquet`` (or its
+                rows, already moved into the trajectory's pixel space by
+                :func:`mask_sidecar_in_local_space`), read only
                 by the ``seg_overlap`` rule. When absent (or the file does not
                 exist) that rule degrades to ``bbox_intersects`` and the
                 downgrade is appended to the validation warnings — the analysis
@@ -605,7 +657,7 @@ class AnalysisService:
         sharp_turn_threshold: float = DEFAULT_SHARP_TURN_THRESHOLD_DEG_S,
         frame_crop_box: tuple[int, int, int, int] | None = None,
         behavioral_config: dict[str, Any] | None = None,
-        mask_sidecar_path: str | Path | None = None,
+        mask_sidecar_path: str | Path | pd.DataFrame | None = None,
         window: WindowResolution | None = None,
     ) -> AnalysisResult:
         """Run complete analysis and return results as DTO (RECOMMENDED).

@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from zebtrack.analysis.analysis_service import (
+    mask_sidecar_in_local_space,
     resolve_mask_sidecar,
     resolve_sharp_turn_threshold,
 )
@@ -182,13 +183,15 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         entry: Any = None,
         aquarium_id: int | None = None,
         pixelcm: tuple[float, float] = (1.0, 1.0),
+        local_offset: tuple[float, float] = (0.0, 0.0),
     ) -> WindowResolution | None:
         """The analysis window of one trajectory (ADR-011); ``None`` = whole recording.
 
         ``df`` and ``rois`` must be in the SAME pixel space (each call site
         passes the pair it hands to the analysis, or the raw pair). The ROI
         rule is the analysis service's, so a ``RoiInside`` condition agrees
-        with the report's ROI numbers.
+        with the report's ROI numbers. ``local_offset`` is the arena offset the
+        pair was shifted by; the ``3b`` masks are moved by it too (#640).
         """
         project_data = getattr(self.project_manager, "project_data", {}) or {}
         service = self.analysis_service
@@ -205,7 +208,20 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             pixelcm=pixelcm,
             # A re-timed live trajectory is on the capture clock.
             clock="capture_perf" if time_base.source == SOURCE_LEDGER else None,
-            mask_source=resolve_mask_sidecar(trajectory_path),
+            mask_source=self._masks_in_report_space(trajectory_path, local_offset),
+        )
+
+    @staticmethod
+    def _masks_in_report_space(
+        trajectory_path: Path | str, local_offset: tuple[float, float]
+    ) -> Path | pd.DataFrame | None:
+        """The ``3b`` sidecar in the space of the df/ROIs shifted by ``local_offset`` (#640).
+
+        The masks are recorded in RAW pixels; every call site that hands the
+        analysis a shifted pair must hand it shifted masks as well.
+        """
+        return mask_sidecar_in_local_space(
+            resolve_mask_sidecar(trajectory_path), local_offset[0], local_offset[1]
         )
 
     @staticmethod
@@ -400,6 +416,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             entry=entry,
             aquarium_id=aq_id,
             pixelcm=(px_x, px_y),
+            local_offset=(off_x, off_y),
         )
 
         frame_crop = (off_x, off_y, loc_w, loc_h) if arena_polygon else None
@@ -522,7 +539,13 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         px_x, px_y = self._resolve_pixel_cm(metadata, calib, loc_w, loc_h, px_x_orig, px_y_orig)
 
         window = self._resolve_window(
-            traj_path, df, rois, time_base=time_base, entry=entry, pixelcm=(px_x, px_y)
+            traj_path,
+            df,
+            rois,
+            time_base=time_base,
+            entry=entry,
+            pixelcm=(px_x, px_y),
+            local_offset=(off_x, off_y),
         )
 
         frame_crop = (off_x, off_y, loc_w, loc_h)
@@ -559,7 +582,8 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             video_path=video_path_report,
             frame_crop_box=None,
             behavioral_config=analysis_params.get("behavioral_config"),
-            mask_sidecar_path=resolve_mask_sidecar(traj_path),
+            # df and ROIs are in the arena's local space; the masks must be too.
+            mask_sidecar_path=self._masks_in_report_space(traj_path, (off_x, off_y)),
             window=window,
         )
 
@@ -909,6 +933,10 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 fps=self._report_fps(time_base, settings_fps),
                 roi_colors=colors,
                 video_path=str(path),
+                # Arena and ROIs above went through the homography; the context
+                # warps the trajectory with the SAME one (#640), as the
+                # multi-aquarium summary always did.
+                calibration=cal,
                 behavioral_config=behavioral_config,
                 settings_obj=settings,
                 window=window,
