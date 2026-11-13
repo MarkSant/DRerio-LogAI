@@ -441,6 +441,74 @@ class TestArduinoBindingsPanel:
 
 
 @pytest.mark.gui
+class TestEmptyProjectData:
+    """A just-created project has ``project_data == {}`` — falsy, but the real one (#644).
+
+    ``project_data or {}`` swapped that empty dict for a throwaway one, so the
+    binding was written where nobody reads it, ``save_project()`` persisted a
+    project without it and the status still said "Configuration saved.".
+    """
+
+    def test_binding_saved_on_an_empty_project_is_read_back(self, tkinter_root):
+        controller, pm = _make_controller({}, ["Direita"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel.roi_choice.set("Direita")
+        panel.enter_token.set("1")
+        panel.exit_token.set("2")
+        panel._add_or_update()
+
+        assert pm.project_data["arduino_bindings"] == [
+            {"roi": "Direita", "on_enter": 1, "on_exit": 2, "label": None}
+        ]
+        pm.save_project.assert_called_once()
+
+        # A fresh panel on the same project (e.g. after the tab is rebuilt)
+        # must load what the first one saved.
+        pm.project_data["use_arduino"] = True
+        reopened = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+        tree = _nn(reopened._tree)
+        assert [tree.item(iid, "values")[0] for iid in tree.get_children()] == ["Direita"]
+
+    def test_without_project_data_the_panel_still_works(self, tkinter_root):
+        """No ``project_data`` at all (no project open): no crash, nothing to persist into."""
+        controller, pm = _make_controller(None, ["A"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        tkinter_root.update_idletasks()
+
+        panel.roi_choice.set("A")
+        panel.enter_token.set("1")
+        panel._add_or_update()
+
+        assert pm.project_data is None
+
+
+class TestSaveTargetsTheProjectDict:
+    """Headless twin of ``TestEmptyProjectData`` (#644), so the mutation run sees it.
+
+    The mutation runner excludes ``gui`` tests; this drives the real ``_save``
+    on a widget-less instance (Tk widgets cannot be built headless).
+    """
+
+    def test_save_on_an_empty_project_writes_into_the_project_dict(self):
+        pm = MagicMock()
+        pm.project_data = {}
+        pm.project_path = "/proj"
+        panel = object.__new__(ArduinoBindingsPanel)
+        panel.project_manager = pm
+        panel._tree = None
+        panel._status = None
+        panel._conflict_label = None
+
+        panel._save()
+
+        assert pm.project_data == {"arduino_bindings": []}
+        pm.save_project.assert_called_once()
+
+
+@pytest.mark.gui
 class TestPanelOutlivesItsWidgets:
     """A destroyed panel must go quiet, not raise into the caller's ``except``.
 

@@ -628,6 +628,7 @@ Connector plugins (Slack, Linear, Notion, Jira, BigQuery, Datadog, Enterprise Se
 | **Contributing guide**       | [`CONTRIBUTING.md`](CONTRIBUTING.md)                          |
 | **VS Code setup**            | [`docs/guides/developer/VSCODE.md`](docs/guides/developer/VSCODE.md) |
 | **Phase history (v2.x–v3.x)**| [`docs/archive/PHASES.md`](docs/archive/PHASES.md)            |
+| **Recent fixes (Nov 2026)**  | [`docs/archive/fixes/2026-11.md`](docs/archive/fixes/2026-11.md) |
 | **Recent fixes (Aug 2026)**  | [`docs/archive/fixes/2026-08.md`](docs/archive/fixes/2026-08.md) |
 | **Recent fixes (Dec 2025)**  | [`docs/archive/fixes/2025-12.md`](docs/archive/fixes/2025-12.md) |
 | **Changelog**                | [`CHANGELOG.md`](CHANGELOG.md)                                |

@@ -282,6 +282,70 @@ class TestOnlineVersusOffline:
         assert again.reused is True
         assert any("frame 25" in w for w in again.warnings)
 
+    @pytest.fixture
+    def portuguese(self):
+        from zebtrack import i18n
+
+        previous = i18n.get_language()
+        i18n.install("pt_BR")
+        yield
+        i18n.install(previous)
+
+    def _divergences(self, tmp_path, *, start_frame=None, stop_frame=None) -> list[str]:
+        trajectory = _write_recording(tmp_path)
+        online = OnlineWindow(
+            start=(
+                None
+                if start_frame is None
+                else ArtifactEvent(frame=start_frame, t_s=start_frame / FPS, reason="persist")
+            ),
+            stop=(
+                None
+                if stop_frame is None
+                else ArtifactEvent(frame=stop_frame, t_s=stop_frame / FPS, reason="persist")
+            ),
+        )
+        artifact = AnalysisWindowArtifact.for_spec(_spec(), clock="pts", online=online)
+        write_artifact(analysis_window_artifact_path(trajectory), artifact)
+        resolution = AnalysisWindowService().resolve(trajectory, _spec())
+        return [w for w in resolution.warnings if f"{start_frame or stop_frame}" in w]
+
+    def test_start_divergence_is_one_portuguese_sentence(self, tmp_path, portuguese):
+        """#642: no English START spliced into the translated sentence."""
+        (warning,) = self._divergences(tmp_path, start_frame=20)
+
+        assert "START" not in warning and "{edge}" not in warning
+        assert "iniciou a janela de análise no frame 20" in warning
+
+    def test_stop_divergence_is_one_portuguese_sentence(self, tmp_path, portuguese):
+        (warning,) = self._divergences(tmp_path, stop_frame=2)
+
+        assert "STOP" not in warning and "{edge}" not in warning
+        assert "encerrou a janela de análise no frame 2," in warning
+
+    def test_start_and_stop_divergences_say_which_edge_in_english(self, tmp_path):
+        (start,) = self._divergences(tmp_path / "a", start_frame=20)
+        (stop,) = self._divergences(tmp_path / "b", stop_frame=2)
+
+        assert "started the analysis window at frame 20" in start
+        assert "ended the analysis window at frame 2," in stop
+
+    def test_a_stop_that_agrees_with_the_reanalysis_is_not_a_divergence(self, tmp_path):
+        """The STOP warning compares STOP with STOP, never with the re-analysed START."""
+        offline = AnalysisWindowService().resolve(_write_recording(tmp_path / "ref"), _spec())
+        assert offline.stop is not None and offline.start is not None
+        assert abs(offline.stop.frame - offline.start.frame) > 1
+
+        stop = offline.stop.frame
+        trajectory = _write_recording(tmp_path / "live")
+        online = OnlineWindow(stop=ArtifactEvent(frame=stop, t_s=stop / FPS, reason="persist"))
+        artifact = AnalysisWindowArtifact.for_spec(_spec(), clock="pts", online=online)
+        write_artifact(analysis_window_artifact_path(trajectory), artifact)
+
+        resolution = AnalysisWindowService().resolve(trajectory, _spec())
+
+        assert not any("live session" in w for w in resolution.warnings)
+
     def test_external_events_survive_and_drive_the_window(self, tmp_path):
         trajectory = _write_recording(tmp_path)
         spec = WindowSpec(start=External(source="arduino", code=1))

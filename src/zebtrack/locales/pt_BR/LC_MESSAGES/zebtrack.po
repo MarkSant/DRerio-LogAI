@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-04 21:12-0300\n"
+"POT-Creation-Date: 2026-11-13 08:28-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pt_BR\n"
@@ -19,7 +19,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: src/zebtrack/analysis/analysis_service.py:348
+#: src/zebtrack/analysis/analysis_service.py:364
 #, python-brace-format
 msgid ""
 "Trajectory with {count} animals (track_ids). The ROI metrics at the top "
@@ -39,35 +39,35 @@ msgstr ""
 "cautela."
 
 # | msgid "Batch processing started: {count} video(s)."
-#: src/zebtrack/analysis/analysis_service.py:1350
+#: src/zebtrack/analysis/analysis_service.py:1375
 #: src/zebtrack/coordinators/ui_state_coordinator.py:710
 #, python-brace-format
 msgid "Starting processing for {count} videos..."
 msgstr "Iniciando processamento para {count} vídeos..."
 
 # | msgid "Analysis in Progress"
-#: src/zebtrack/analysis/analysis_service.py:1444
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2143
+#: src/zebtrack/analysis/analysis_service.py:1469
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2045
 msgid "Analysis Error"
 msgstr "Erro na Análise"
 
-#: src/zebtrack/analysis/analysis_service.py:1445
+#: src/zebtrack/analysis/analysis_service.py:1470
 #, python-brace-format
 msgid "An unexpected error occurred: {error}"
 msgstr "Ocorreu um erro inesperado: {error}"
 
 # | msgid "Cancel"
-#: src/zebtrack/analysis/analysis_service.py:1489
+#: src/zebtrack/analysis/analysis_service.py:1514
 #: src/zebtrack/coordinators/ui_state_coordinator.py:731
 msgid "Cancelled"
 msgstr "Cancelado"
 
 # | msgid "The video analysis was cancelled."
-#: src/zebtrack/analysis/analysis_service.py:1489
+#: src/zebtrack/analysis/analysis_service.py:1514
 msgid "Video analysis was cancelled."
 msgstr "A análise de vídeo foi cancelada."
 
-#: src/zebtrack/analysis/analysis_service.py:1493
+#: src/zebtrack/analysis/analysis_service.py:1518
 #, python-brace-format
 msgid ""
 "Analysis finished. Results saved to:\n"
@@ -76,7 +76,7 @@ msgstr ""
 "Análise concluída. Resultados salvos em:\n"
 "{path}"
 
-#: src/zebtrack/analysis/analysis_service.py:1494
+#: src/zebtrack/analysis/analysis_service.py:1519
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:742
 #: src/zebtrack/coordinators/video_processing_coordinator.py:548
 #: src/zebtrack/ui/components/canvas/event_handler.py:792
@@ -90,7 +90,7 @@ msgid "Success"
 msgstr "Sucesso"
 
 # | msgid "Ready!"
-#: src/zebtrack/analysis/analysis_service.py:1496
+#: src/zebtrack/analysis/analysis_service.py:1521
 #: src/zebtrack/coordinators/_unified_report_mixin.py:237
 #: src/zebtrack/coordinators/progress_tracking_coordinator.py:526
 #: src/zebtrack/coordinators/recording_session_coordinator.py:656
@@ -150,16 +150,25 @@ msgstr ""
 "A gravação terminou antes da condição de FIM da janela de análise; a "
 "janela foi fechada no fim da gravação (censurada)."
 
-#: src/zebtrack/analysis/analysis_window_service.py:604
+#: src/zebtrack/analysis/analysis_window_service.py:603
 #, python-brace-format
 msgid ""
-"The live session placed the window {edge} at frame {online}, the re-"
+"The live session started the analysis window at frame {online}, the re-"
 "analysis at frame {offline}; the report uses the re-analysis."
 msgstr ""
-"A sessão ao vivo pôs o {edge} da janela no frame {online}, e a reanálise,"
-" no frame {offline}; o relatório usa a reanálise."
+"A sessão ao vivo iniciou a janela de análise no frame {online}, e a "
+"reanálise, no frame {offline}; o relatório usa a reanálise."
 
-#: src/zebtrack/analysis/roi.py:1073
+#: src/zebtrack/analysis/analysis_window_service.py:611
+#, python-brace-format
+msgid ""
+"The live session ended the analysis window at frame {online}, the re-"
+"analysis at frame {offline}; the report uses the re-analysis."
+msgstr ""
+"A sessão ao vivo encerrou a janela de análise no frame {online}, e a "
+"reanálise, no frame {offline}; o relatório usa a reanálise."
+
+#: src/zebtrack/analysis/roi.py:1069
 #, python-brace-format
 msgid ""
 "The bbox_intersects rule requires the bbox columns: {columns}. They are "
@@ -170,16 +179,16 @@ msgstr ""
 "não estão disponíveis no dataset. Considere usar 'centroid_in' ou "
 "'centroid_in_on_buffered_roi'."
 
-#: src/zebtrack/analysis/roi.py:1202
+#: src/zebtrack/analysis/roi.py:1198
 msgid "The pre-aligned masks do not have the same row count as the trajectory."
 msgstr "As máscaras pré-alinhadas não têm o mesmo número de linhas da trajetória."
 
-#: src/zebtrack/analysis/roi.py:1215
+#: src/zebtrack/analysis/roi.py:1211
 #, python-brace-format
 msgid "The mask sidecar is missing the columns {columns}."
 msgstr "O sidecar de máscaras não tem as colunas {columns}."
 
-#: src/zebtrack/analysis/roi.py:1225
+#: src/zebtrack/analysis/roi.py:1221
 msgid ""
 "The analysed trajectory has no 'frame' column, which is half of the join "
 "key with the masks."
@@ -187,11 +196,11 @@ msgstr ""
 "A trajetória analisada não tem a coluna 'frame', que é metade da chave de"
 " junção com as máscaras."
 
-#: src/zebtrack/analysis/roi.py:1263
+#: src/zebtrack/analysis/roi.py:1259
 msgid "The mask sidecar contains no valid geometry."
 msgstr "O sidecar de máscaras não contém nenhuma geometria válida."
 
-#: src/zebtrack/analysis/roi.py:1303
+#: src/zebtrack/analysis/roi.py:1299
 msgid ""
 "No mask in the sidecar matches a (frame, track_id) of the analysed "
 "trajectory."
@@ -199,7 +208,7 @@ msgstr ""
 "Nenhuma máscara do sidecar corresponde a (frame, track_id) da trajetória "
 "analisada."
 
-#: src/zebtrack/analysis/roi.py:1322
+#: src/zebtrack/analysis/roi.py:1318
 msgid ""
 "The 'seg_overlap' rule was selected but no mask sidecar "
 "(3b_Mascaras_*.parquet) was provided. Record with recorder.persist_masks "
@@ -209,11 +218,11 @@ msgstr ""
 "(3b_Mascaras_*.parquet) foi informado. Grave com recorder.persist_masks "
 "ligado e um modelo de segmentação (model_selection.animal_method='seg')."
 
-#: src/zebtrack/analysis/roi.py:1332
+#: src/zebtrack/analysis/roi.py:1328
 msgid "The mask sidecar is empty."
 msgstr "O sidecar de máscaras está vazio."
 
-#: src/zebtrack/analysis/roi.py:1341
+#: src/zebtrack/analysis/roi.py:1337
 #, python-brace-format
 msgid ""
 "The mask sidecar does not exist at '{path}'. Data recorded before this "
@@ -222,19 +231,19 @@ msgstr ""
 "O sidecar de máscaras não existe em '{path}'. Dados gravados antes desta "
 "funcionalidade, ou com recorder.persist_masks desligado, não o têm."
 
-#: src/zebtrack/analysis/roi.py:1353
+#: src/zebtrack/analysis/roi.py:1349
 #, python-brace-format
 msgid "The sidecar '{path}' could not be read: {error}"
 msgstr "O sidecar '{path}' não pôde ser lido: {error}"
 
 # | msgid "The file linked to the template was not found."
 # | msgid "The report path was not found."
-#: src/zebtrack/analysis/roi.py:1358
+#: src/zebtrack/analysis/roi.py:1354
 #, python-brace-format
 msgid "The sidecar '{path}' has no rows."
 msgstr "O sidecar '{path}' não tem linhas."
 
-#: src/zebtrack/analysis/roi.py:1366
+#: src/zebtrack/analysis/roi.py:1362
 #, python-brace-format
 msgid "ROI rule 'seg_overlap' degraded to 'bbox_intersects': {detail}"
 msgstr "Regra de ROI 'seg_overlap' degradada para 'bbox_intersects': {detail}"
@@ -288,7 +297,7 @@ msgstr ""
 msgid "no id"
 msgstr "sem id"
 
-#: src/zebtrack/analysis/track_significance.py:130
+#: src/zebtrack/analysis/track_significance.py:131
 #, python-brace-format
 msgid ""
 "Every track in this trajectory lasts less than {min_s:g} s, so short "
@@ -299,7 +308,7 @@ msgstr ""
 "falhas curtas do rastreador não podem ser distinguidas de animais; as "
 "{count} trilhas foram mantidas."
 
-#: src/zebtrack/analysis/track_significance.py:151
+#: src/zebtrack/analysis/track_significance.py:152
 #, python-brace-format
 msgid ""
 "{count} track(s) shorter than {min_s:g} s were left out of the analysis "
@@ -1162,32 +1171,32 @@ msgstr "Análise interrompida."
 msgid "Analysis finished."
 msgstr "Análise concluída."
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1206
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2036
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2606
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1108
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1938
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2508
 msgid "Countdown to start the live analysis."
 msgstr "Contagem regressiva para iniciar a análise ao vivo."
 
 # | msgid "Video Analysis"
 # | msgid "Single Video Analysis Options"
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1208
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2038
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2608
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1110
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1940
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2510
 msgid "Starting the live analysis."
 msgstr "Iniciando análise ao vivo."
 
 # | msgid "Analysis in Progress"
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1303
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2109
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2679
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1205
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2011
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2581
 msgid "Live analysis in progress."
 msgstr "Análise ao vivo em andamento."
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1431
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1333
 msgid "External Trigger Configured"
 msgstr "Gatilho Externo Configurado"
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1433
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1335
 msgid ""
 "The open project uses External Trigger Mode, but this is a standalone "
 "live analysis: it starts recording NOW and does not wait for the Arduino "
@@ -1205,32 +1214,32 @@ msgstr ""
 "\n"
 "Iniciar a gravação avulsa mesmo assim?"
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1469
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1371
 msgid "Error ending the recording"
 msgstr "Erro ao encerrar a gravação"
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1470
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1372
 #, python-brace-format
 msgid "Failed to end the recording: {error}"
 msgstr "Falha ao encerrar a gravação: {error}"
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2129
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2031
 #, python-brace-format
 msgid "Analysing camera {camera} (analysis: {analysis}f, display: {display}f)"
 msgstr "Analisando câmera {camera} (análise: {analysis}f, exibição: {display}f)"
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2144
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2046
 #, python-brace-format
 msgid "Failed to start the analysis of camera {camera}."
 msgstr "Falha ao iniciar análise de câmera {camera}."
 
 # | msgid "Port {port}"
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2216
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2118
 #, python-brace-format
 msgid " (port {port})"
 msgstr " (porta {port})"
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2218
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2120
 #, python-brace-format
 msgid ""
 "This project uses External Trigger Mode, but the Arduino is not "
@@ -1251,7 +1260,7 @@ msgstr ""
 "Verifique o cabo, se a porta não está em uso por outro programa (IDE do "
 "Arduino, monitor serial) e reabra o projeto para reconectar."
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2228
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2130
 msgid ""
 "This project has External Trigger Mode on, but no Arduino configured.\n"
 "\n"
@@ -1267,12 +1276,12 @@ msgstr ""
 " configurações do projeto."
 
 # | msgid "Action unavailable"
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2238
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2140
 #: src/zebtrack/coordinators/recording_session_coordinator.py:553
 msgid "External Trigger Unavailable"
 msgstr "Trigger Externo Indisponível"
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2272
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2174
 #: src/zebtrack/coordinators/recording_session_coordinator.py:580
 #, python-brace-format
 msgid "Waiting for external signal... (port {port})"
@@ -1280,12 +1289,12 @@ msgstr "Aguardando sinal externo... (porta {port})"
 
 # | msgid "Video not found"
 # | msgid "ROI not found"
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2455
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2357
 #: src/zebtrack/ui/components/project_initializer.py:422
 msgid "Camera not found"
 msgstr "Câmera não encontrada"
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2457
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2359
 #, python-brace-format
 msgid ""
 "The camera saved in the project ('{name}') was not detected.\n"
@@ -1520,18 +1529,18 @@ msgstr "  - Nenhuma detecção encontrada."
 # | msgid "Validation Error"
 # | msgid "Validation finished"
 # | msgid "Validation Failed"
-#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:374
+#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:378
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:732
 #: src/zebtrack/ui/dialogs/start_recording_dialog.py:154
 msgid "Detection failed"
 msgstr "Detecção falhou"
 
-#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:437
-#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:485
+#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:441
+#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:489
 msgid "Aquarium not detected"
 msgstr "Aquário não detectado"
 
-#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:439
+#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:443
 msgid ""
 "The model found no aquarium in the first frames of this video. Draw the "
 "arena by hand, or try again with a lower confidence threshold."
@@ -1539,7 +1548,7 @@ msgstr ""
 "O modelo não encontrou nenhum aquário nos primeiros quadros deste vídeo. "
 "Desenhe a arena à mão ou tente de novo com um limiar de confiança menor."
 
-#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:487
+#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:491
 msgid ""
 "The model found no aquarium in this video. The arena shown is a generic "
 "placeholder covering most of the frame, not a detection — adjust it by "
@@ -1550,11 +1559,11 @@ msgstr ""
 "ajuste-a à mão ou tente de novo com um limiar de confiança menor antes de"
 " analisar."
 
-#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:501
+#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:505
 msgid "Aquarium shape not preserved"
 msgstr "Forma do aquário não preservada"
 
-#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:503
+#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:507
 msgid ""
 "Segmentation was requested, but the model returned no usable mask for "
 "this video. The arena was approximated by a rectangle around the "
@@ -2083,7 +2092,7 @@ msgstr "Nenhum vídeo elegível foi encontrado com dados para análise."
 
 # | msgid "Drawing: Aquarium {number} of 2"
 #: src/zebtrack/coordinators/video_processing_coordinator.py:1048
-#: src/zebtrack/core/detection/multi_aquarium_detector.py:1034
+#: src/zebtrack/core/detection/multi_aquarium_detector.py:1102
 #: src/zebtrack/ui/components/canvas/renderer.py:397
 #: src/zebtrack/ui/components/project_views/report_tree_builder.py:634
 #: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:184
@@ -2738,25 +2747,25 @@ msgstr "A condição de início nunca ocorreu: as métricas da janela ficarão v
 msgid "The start condition was never met: the whole recording will be analysed."
 msgstr "A condição de início nunca ocorreu: a gravação inteira será analisada."
 
-#: src/zebtrack/core/recording/frame_processing_pipeline.py:720
+#: src/zebtrack/core/recording/frame_processing_pipeline.py:821
 #, python-brace-format
 msgid "⏳ Stabilizing image... ({current}/{total})"
 msgstr "⏳ Estabilizando imagem... ({current}/{total})"
 
 # | msgid "Analysing frame {current}/{total}..."
 # | msgid "Processing aquarium {current}/{total}..."
-#: src/zebtrack/core/recording/frame_processing_pipeline.py:733
+#: src/zebtrack/core/recording/frame_processing_pipeline.py:834
 #, python-brace-format
 msgid "🔍 Detecting aquarium... ({current}/{total})"
 msgstr "🔍 Detectando aquário... ({current}/{total})"
 
-#: src/zebtrack/core/recording/frame_processing_pipeline.py:885
-#: src/zebtrack/core/recording/live_session_manager.py:1238
+#: src/zebtrack/core/recording/frame_processing_pipeline.py:987
+#: src/zebtrack/core/recording/live_session_manager.py:1267
 #: src/zebtrack/ui/dialogs/live_preview_window.py:127
 msgid "● Recording"
 msgstr "● Gravando"
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:231
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:236
 #, python-brace-format
 msgid ""
 "Scale differs by {percent:.0f}% between the axes ({px_x:.1f} px/cm "
@@ -2775,11 +2784,8 @@ msgstr ""
 " que nenhum fator único de correção desfaz — meça a arena de novo e gere "
 "o relatório outra vez."
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:559
-msgid "Generating the reports for the live session..."
-msgstr "Gerando os relatórios da sessão ao vivo..."
-
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:748
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:451
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:776
 msgid ""
 "The session's analysis window could not be read; the metrics cover the "
 "whole recording."
@@ -2787,7 +2793,11 @@ msgstr ""
 "Não foi possível ler a janela de análise da sessão; as métricas cobrem a "
 "gravação inteira."
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:761
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:598
+msgid "Generating the reports for the live session..."
+msgstr "Gerando os relatórios da sessão ao vivo..."
+
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:789
 msgid ""
 "Session WITHOUT calibration: the aquarium dimensions were not available, "
 "so 1 pixel was treated as 1 cm. Every metric in centimetres (total "
@@ -2799,7 +2809,7 @@ msgstr ""
 "(distância total, velocidade, limiar de congelamento) está expressa em "
 "PIXELS e NÃO é comparável com gravações calibradas."
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:905
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:933
 #, python-brace-format
 msgid ""
 "\n"
@@ -2810,7 +2820,7 @@ msgstr ""
 "💡 Arquivos gerados:\n"
 "{lines}\n"
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:1013
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1083
 #, python-brace-format
 msgid ""
 "✅ Camera analysis completed successfully!\n"
@@ -2836,11 +2846,11 @@ msgstr ""
 "{files}"
 
 # | msgid "Zones Completed"
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:1027
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1097
 msgid "Analysis Completed"
 msgstr "Análise Concluída"
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:1030
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1100
 #, python-brace-format
 msgid ""
 "⚠️ Recording completed, but no detection was found.\n"
@@ -2865,11 +2875,11 @@ msgstr ""
 "{output_dir}\n"
 "{files}"
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:1038
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1108
 msgid "Analysis Completed - No Detections"
 msgstr "Análise Concluída - Sem Detecções"
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:1041
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1111
 #, python-brace-format
 msgid ""
 "⚠️ Recording completed, but the automatic analysis failed.\n"
@@ -2887,7 +2897,7 @@ msgstr ""
 "Você pode analisá-los manualmente pela interface."
 
 # | msgid "Recording Pending"
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:1046
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1116
 msgid "Recording Completed"
 msgstr "Gravação Concluída"
 
@@ -3018,11 +3028,11 @@ msgstr "Gravar múltiplas sessões, uma por aquário"
 msgid "Unknown mode"
 msgstr "Modo desconhecido"
 
-#: src/zebtrack/core/recording/live_session_manager.py:438
+#: src/zebtrack/core/recording/live_session_manager.py:446
 msgid "⏳ Warming up camera..."
 msgstr "⏳ Aquecendo câmera..."
 
-#: src/zebtrack/core/recording/live_session_manager.py:446
+#: src/zebtrack/core/recording/live_session_manager.py:454
 #, python-brace-format
 msgid ""
 "Failed to open camera {index}.\n"
@@ -3051,46 +3061,46 @@ msgstr ""
 
 # | msgid "Error"
 # | msgid "Model Error"
-#: src/zebtrack/core/recording/live_session_manager.py:458
+#: src/zebtrack/core/recording/live_session_manager.py:466
 #: src/zebtrack/ui/components/project_initializer.py:471
 msgid "Camera Error"
 msgstr "Erro na Câmera"
 
-#: src/zebtrack/core/recording/live_session_manager.py:501
+#: src/zebtrack/core/recording/live_session_manager.py:509
 msgid "⏳ Loading detector..."
 msgstr "⏳ Carregando detector..."
 
-#: src/zebtrack/core/recording/live_session_manager.py:700
+#: src/zebtrack/core/recording/live_session_manager.py:724
 #, python-brace-format
 msgid "⏳ Starting in {seconds}s..."
 msgstr "⏳ Iniciando em {seconds}s..."
 
-#: src/zebtrack/core/recording/live_session_manager.py:730
+#: src/zebtrack/core/recording/live_session_manager.py:754
 msgid "⏳ Starting capture..."
 msgstr "⏳ Iniciando captura..."
 
 # | msgid "Select an active aquarium first."
 # | msgid "🐟 Active Aquarium"
 # | msgid "Draw the Aquarium"
-#: src/zebtrack/core/recording/live_session_manager.py:808
+#: src/zebtrack/core/recording/live_session_manager.py:829
 msgid "🔍 Looking for the aquarium..."
 msgstr "🔍 Procurando aquário..."
 
-#: src/zebtrack/core/recording/live_session_manager.py:811
+#: src/zebtrack/core/recording/live_session_manager.py:832
 msgid "⏳ Waiting for video..."
 msgstr "⏳ Aguardando vídeo..."
 
-#: src/zebtrack/core/recording/live_session_manager.py:1282
+#: src/zebtrack/core/recording/live_session_manager.py:1311
 #, python-brace-format
 msgid "● Recording: {elapsed}s / {total}s (Remaining: {remaining}s)"
 msgstr "● Gravando: {elapsed}s / {total}s (Restante: {remaining}s)"
 
-#: src/zebtrack/core/recording/live_session_manager.py:1303
+#: src/zebtrack/core/recording/live_session_manager.py:1332
 #, python-brace-format
 msgid "Recording: {elapsed}s / {total}s"
 msgstr "Gravando: {elapsed}s / {total}s"
 
-#: src/zebtrack/core/recording/live_session_manager.py:1372
+#: src/zebtrack/core/recording/live_session_manager.py:1401
 msgid ""
 "⚠️ Video: 1 frame dropped — check the disk / OneDrive (the recording may "
 "have gaps)"
@@ -3098,7 +3108,7 @@ msgstr ""
 "⚠️ Vídeo: 1 frame descartado — verifique o disco / OneDrive (gravação "
 "pode ter falhas)"
 
-#: src/zebtrack/core/recording/live_session_manager.py:1375
+#: src/zebtrack/core/recording/live_session_manager.py:1404
 #, python-brace-format
 msgid ""
 "⚠️ Video: {count} frames dropped — check the disk / OneDrive (the "
@@ -3107,17 +3117,17 @@ msgstr ""
 "⚠️ Vídeo: {count} frames descartados — verifique o disco / OneDrive "
 "(gravação pode ter falhas)"
 
-#: src/zebtrack/core/recording/live_session_manager.py:1400
+#: src/zebtrack/core/recording/live_session_manager.py:1429
 #, python-brace-format
 msgid "⏳ Analysing... ({seconds:.1f}s behind) - Recording OK"
 msgstr "⏳ Analisando... ({seconds:.1f}s atrás) - Gravação OK"
 
-#: src/zebtrack/core/recording/live_session_manager.py:1405
+#: src/zebtrack/core/recording/live_session_manager.py:1434
 #, python-brace-format
 msgid "⏳ Analysis is behind ({seconds:.1f}s) - Recording continues normally"
 msgstr "⏳ Análise atrasada ({seconds:.1f}s) - Gravação continua normalmente"
 
-#: src/zebtrack/core/recording/live_session_manager.py:1409
+#: src/zebtrack/core/recording/live_session_manager.py:1438
 #, python-brace-format
 msgid "⚠️ Analysis is far behind ({seconds:.1f}s) - Recording OK, analysis queued"
 msgstr "⚠️ Análise muito atrasada ({seconds:.1f}s) - Gravação OK, análise em fila"
@@ -3599,7 +3609,7 @@ msgstr "Multi-indivíduos"
 msgid "Starting: {name}"
 msgstr "Iniciando: {name}"
 
-#: src/zebtrack/core/video/processing_worker.py:1478
+#: src/zebtrack/core/video/processing_worker.py:1498
 #: src/zebtrack/ui/dialogs/diagnostic_progress_dialog.py:107
 msgid "Processing..."
 msgstr "Processando..."
@@ -3617,17 +3627,17 @@ msgstr "Processando {current}/{total}: {experiment_id}"
 msgid "Step: {status}"
 msgstr "Etapa: {status}"
 
-#: src/zebtrack/core/video/tracking_session_runner.py:259
+#: src/zebtrack/core/video/tracking_session_runner.py:275
 #, python-brace-format
 msgid "Cancellation requested for {name}."
 msgstr "Cancelamento solicitado para {name}."
 
-#: src/zebtrack/core/video/tracking_session_runner.py:270
+#: src/zebtrack/core/video/tracking_session_runner.py:286
 #, python-brace-format
 msgid "Trajectory for {experiment_id} generated."
 msgstr "Trajetória para {experiment_id} gerada."
 
-#: src/zebtrack/core/video/tracking_session_runner.py:314
+#: src/zebtrack/core/video/tracking_session_runner.py:330
 #, python-brace-format
 msgid "Starting process for {name}..."
 msgstr "Iniciando processo para {name}..."
@@ -17805,3 +17815,14 @@ msgstr "vídeo gravado"
 #~ "Selecione um peso válido para aquário."
 #~ " O arquivo precisa corresponder ao "
 #~ "método escolhido."
+
+#~ msgid ""
+#~ "The live session placed the window "
+#~ "{edge} at frame {online}, the re-"
+#~ "analysis at frame {offline}; the report"
+#~ " uses the re-analysis."
+#~ msgstr ""
+#~ "A sessão ao vivo pôs o {edge} "
+#~ "da janela no frame {online}, e a"
+#~ " reanálise, no frame {offline}; o "
+#~ "relatório usa a reanálise."
