@@ -33,12 +33,51 @@ jobs:
           curl -sSL https://install.python-poetry.org | python3 -
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      # Same display and decoder the memory job and ci.yml give the suite: without a
+      # display tests/conftest.py falls back to a MagicMock Tk root, a mode CI never
+      # runs, and the slow tests read real video files.
+      - name: Install system dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -uo pipefail
+          packages="xvfb ffmpeg libavcodec-extra"
+          for attempt in 1 2 3; do
+            if timeout 120 sudo -E apt-get update \
+               && timeout 240 sudo -E apt-get install -y --no-install-recommends $packages; then
+              echo "apt: succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::warning::apt attempt ${attempt} stalled or failed; retrying"
+            sudo pkill -9 -f 'apt-get|dpkg' || true
+            sudo rm -f /var/lib/apt/lists/lock \
+                       /var/cache/apt/archives/lock \
+                       /var/lib/dpkg/lock \
+                       /var/lib/dpkg/lock-frontend
+            sudo dpkg --configure -a || true
+            sleep 5
+          done
+          echo "::error::apt failed after 3 attempts"
+          exit 1
+
+      # pytest-repeat (--count) is a dev dependency. Until it was, this step died at
+      # argument parsing -- "unrecognized arguments: --count" -- before collecting a
+      # single test, and continue-on-error painted the job green every night.
       - name: Install dependencies
         run: poetry install --no-interaction
 
+      - name: Build wizard template archive
+        run: poetry run python scripts/build_templates.py
+
+      - name: Compile translations
+        run: poetry run python scripts/compile_translations.py
+
       - name: Run threading stress tests (10x)
+        id: stress-run
+        # continue-on-error so the results below are still uploaded; the outcome is
+        # enforced by the explicit gate after them.
         run: |
-          poetry run pytest -m slow --count=10 -v --tb=short \
+          xvfb-run --auto-servernum poetry run pytest -m slow --count=10 -v --tb=short \
             --junit-xml=threading-stress-results.xml
         continue-on-error: true
 
@@ -48,6 +87,13 @@ jobs:
         with:
           name: threading-stress-results
           path: threading-stress-results.xml
+          if-no-files-found: ignore
+
+      - name: Fail when the stress run did not pass
+        if: steps.stress-run.outcome != 'success'
+        run: |
+          echo "pytest -m slow --count=10 outcome: ${{ steps.stress-run.outcome }}" >&2
+          exit 1
 
       - name: Create issue on failure
         if: failure()
@@ -210,12 +256,45 @@ jobs:
           curl -sSL https://install.python-poetry.org | python3 -
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      - name: Install system dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -uo pipefail
+          packages="xvfb ffmpeg libavcodec-extra"
+          for attempt in 1 2 3; do
+            if timeout 120 sudo -E apt-get update \
+               && timeout 240 sudo -E apt-get install -y --no-install-recommends $packages; then
+              echo "apt: succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::warning::apt attempt ${attempt} stalled or failed; retrying"
+            sudo pkill -9 -f 'apt-get|dpkg' || true
+            sudo rm -f /var/lib/apt/lists/lock \
+                       /var/cache/apt/archives/lock \
+                       /var/lib/dpkg/lock \
+                       /var/lib/dpkg/lock-frontend
+            sudo dpkg --configure -a || true
+            sleep 5
+          done
+          echo "::error::apt failed after 3 attempts"
+          exit 1
+
       - name: Install dependencies
         run: poetry install --no-interaction
 
+      - name: Build wizard template archive
+        run: poetry run python scripts/build_templates.py
+
+      - name: Compile translations
+        run: poetry run python scripts/compile_translations.py
+
       - name: Run full suite 3 times
+        id: flakiness-run
+        # continue-on-error so the results below are still uploaded; the outcome is
+        # enforced by the explicit gate after them.
         run: |
-          poetry run pytest --count=3 -x -v --tb=short \
+          xvfb-run --auto-servernum poetry run pytest --count=3 -x -v --tb=short \
             --junit-xml=flakiness-results.xml
         continue-on-error: true
 
@@ -225,6 +304,13 @@ jobs:
         with:
           name: flakiness-results
           path: flakiness-results.xml
+          if-no-files-found: ignore
+
+      - name: Fail when the repeated suite did not pass
+        if: steps.flakiness-run.outcome != 'success'
+        run: |
+          echo "pytest --count=3 outcome: ${{ steps.flakiness-run.outcome }}" >&2
+          exit 1
 
       - name: Create issue on failure
         if: failure()
