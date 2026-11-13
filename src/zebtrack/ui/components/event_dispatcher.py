@@ -1235,9 +1235,10 @@ class EventDispatcher:
         dialog_manager = getattr(gui, "dialog_manager", None)
         if dialog_manager is None:
             return
+        aquarium_id = _payload_get(data, "aquarium_id")
         self._run_on_ui_thread(
             lambda: dialog_manager.show_analysis_window_state(
-                state, t_s=t_s, on_start_not_met=on_start_not_met
+                state, t_s=t_s, on_start_not_met=on_start_not_met, aquarium_id=aquarium_id
             )
         )
 

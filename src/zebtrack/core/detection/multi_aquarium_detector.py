@@ -33,7 +33,30 @@ log = structlog.get_logger()
 AQUARIUM_TRACK_ID_MULTIPLIER: Final[int] = 1000
 MAX_LOCAL_TRACK_ID: Final[int] = AQUARIUM_TRACK_ID_MULTIPLIER - 1
 
-__all__ = ["AQUARIUM_TRACK_ID_MULTIPLIER", "MAX_LOCAL_TRACK_ID", "MultiAquariumDetector"]
+__all__ = [
+    "AQUARIUM_TRACK_ID_MULTIPLIER",
+    "MAX_LOCAL_TRACK_ID",
+    "MultiAquariumDetector",
+    "aquarium_of_track_id",
+]
+
+
+def aquarium_of_track_id(track_id: object) -> int | None:
+    """The aquarium a global track id belongs to, or ``None`` when unusable.
+
+    Inverse of the ``aquarium_id * 1000 + local_id`` offset applied by
+    :meth:`MultiAquariumDetector._offset_track_ids`. A negative id (untracked
+    detection) or a non-number has no aquarium.
+    """
+    if isinstance(track_id, bool):
+        return None
+    try:
+        value = int(track_id)  # type: ignore[call-overload]
+    except (TypeError, ValueError):
+        return None
+    if value < 0:
+        return None
+    return value // AQUARIUM_TRACK_ID_MULTIPLIER
 
 
 class MultiAquariumDetector:

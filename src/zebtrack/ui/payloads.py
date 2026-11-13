@@ -228,7 +228,9 @@ class AnalysisWindowStatePayload:
     STOP instant once finished, on the session's capture clock (seconds since
     the first captured frame); ``None`` while waiting or when never met.
     ``on_start_not_met`` / ``on_stop`` echo the spec so the UI can say what
-    happens next without reading the project.
+    happens next without reading the project. ``aquarium_id`` is set in a
+    2+-aquarium session, where each aquarium has its own window (#656);
+    ``None`` for a single-aquarium session.
     """
 
     state: str = "waiting_start"
@@ -237,6 +239,7 @@ class AnalysisWindowStatePayload:
     on_start_not_met: str | None = None
     on_stop: str | None = None
     experiment_id: str | None = None
+    aquarium_id: int | None = None
 
 
 # -- end v8 F5 ------------------------------------------------------------------

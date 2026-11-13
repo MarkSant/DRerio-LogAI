@@ -2864,3 +2864,124 @@ _load_registry()"
         description: "padrao de velocidade plausivel do zebrafish deixa de ser 50 cm/s (#631)"
         find: 'DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S: Final[float] = 50.0'
         replace: 'DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S: Final[float] = 80.0'
+
+  live_multi_aquarium_window_arduino:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_frame_processing_pipeline_extended.py
+    mutations:
+      - id: one-window-for-the-first-aquarium-only
+        description: "sessao com 2 aquarios arma a janela so do primeiro aquario (#656)"
+        find: 'for aquarium_id in aquarium_ids'
+        replace: 'for aquarium_id in aquarium_ids[:1]'
+      - id: end-session-on-first-stop
+        description: "o STOP de um aquario encerra a sessao com o outro ainda em ensaio (#656)"
+        find: 'rt.phase in (WindowPhase.FINISHED, WindowPhase.START_NOT_MET)'
+        replace: 'True'
+      - id: arduino-code-short-circuits
+        description: "codigo Arduino reivindicado pelo aquario 1 nao chega ao aquario 2 (#656)"
+        find: 'claimed = bool(runtime.offer_external("arduino", code, t_read_perf)) or claimed'
+        replace: 'claimed = claimed or bool(runtime.offer_external("arduino", code, t_read_perf))'
+      - id: classes-of-every-aquarium
+        description: "a janela de um aquario passa a ver as classes do outro (#656)"
+        find: 'if isinstance(obs, dict) and obs.get("aquarium_id") == aquarium_id'
+        replace: 'if isinstance(obs, dict)'
+      - id: closed-window-still-dispatches
+        description: "aquario com janela fechada continua disparando comandos Arduino (#656)"
+        find: 'aq: rois for aq, rois in by_aquarium.items() if aq in open_aquariums'
+        replace: 'aq: rois for aq, rois in by_aquarium.items()'
+      - id: aquarium-stop-sweeps-everything
+        description: "o STOP de um aquario desliga tambem os dispositivos do outro (#656)"
+        find: |-
+          runtimes = self._window_runtimes()
+                  if not any(rt.window_open for rt in runtimes.values()):
+        replace: |-
+          runtimes = self._window_runtimes()
+                  if True:
+      - id: swept-aquarium-not-forgotten
+        description: "a saida varrida no STOP do aquario e reenviada pelo mapper no mesmo quadro (#656)"
+        find: 'mapper.forget_aquarium(aquarium_id)'
+        replace: 'mapper.forget_aquarium(-1)'
+      - id: every-animal-routed-to-aquarium-0
+        description: "toda deteccao e avaliada nas ROIs do aquario 0 (#656)"
+        find: 'boxes.setdefault(aquarium_id, []).append(box)'
+        replace: 'boxes.setdefault(0, []).append(box)'
+      - id: multi-overlay-not-drawn
+        description: "overlay ao vivo com 2 aquarios deixa de desenhar as zonas de cada aquario (#656)"
+        find: 'draw(frame, {})'
+        replace: 'None'
+      - id: artifact-at-the-session-root
+        description: "o 7_AnalysisWindow de cada aquario vai para a raiz da sessao, nao para aquarium_N/ (#656)"
+        find: 'folder = getattr(sub, "output_folder", None)'
+        replace: 'folder = getattr(recorder, "output_folder", None)'
+      - id: finalize-requests-session-end
+        description: "fechar as janelas no fim da sessao pede um novo encerramento (#656)"
+        find: |-
+          self._condition_end_requested = True
+                  get_subs
+        replace: |-
+          get_subs
+
+  live_multi_aquarium_track_routing:
+    source: src/zebtrack/core/detection/multi_aquarium_detector.py
+    tests:
+      - tests/core/recording/test_frame_processing_pipeline_extended.py
+    mutations:
+      - id: aquarium-from-local-id
+        description: "o aquario de uma trilha passa a ser lido do id local, nao do offset (#656)"
+        find: 'return value // AQUARIUM_TRACK_ID_MULTIPLIER'
+        replace: 'return value % AQUARIUM_TRACK_ID_MULTIPLIER'
+
+  arduino_event_mapper_aquarium_scope:
+    source: src/zebtrack/core/services/arduino_event_mapper.py
+    tests:
+      - tests/core/test_arduino_event_mapper.py
+    mutations:
+      - id: keyed-by-roi-name-only
+        description: "bindings de aquarios diferentes com a mesma ROI voltam a se sobrescrever (#656)"
+        find: '(b.aquarium_id, b.roi): b for b in bindings'
+        replace: '(None, b.roi): b for b in bindings'
+      - id: unscoped-reads-no-aquarium
+        description: "binding sem aquario deixa de ser ocupado por qualquer aquario (#656)"
+        find: 'rois = anywhere if aquarium_id is None else occupied.get(aquarium_id, set())'
+        replace: 'rois = occupied.get(aquarium_id, set())'
+      - id: forget-drops-the-wrong-keys
+        description: "forget_aquarium esquece os bindings sem aquario e mantem os do aquario (#656)"
+        find: 'self._prev = {key for key in self._prev if key[0] != aquarium_id}'
+        replace: 'self._prev = {key for key in self._prev if key[0] is None}'
+      - id: single-session-is-not-aquarium-0
+        description: "sessao de um aquario deixa de ser o aquario 0 dos bindings (#656)"
+        find: 'SINGLE_AQUARIUM_ID = 0'
+        replace: 'SINGLE_AQUARIUM_ID = 1'
+
+  arduino_bindings_aquarium_scope:
+    source: src/zebtrack/core/services/arduino_bindings.py
+    tests:
+      - tests/core/test_arduino_bindings.py
+    mutations:
+      - id: legacy-storage-gains-null-key
+        description: "salvar um projeto legado passa a gravar aquarium_id nulo em cada binding (#656)"
+        find: 'entry.pop("aquarium_id", None)'
+        replace: 'entry.get("aquarium_id")'
+      - id: aquarium-sweep-takes-every-exit
+        description: "o STOP de um aquario varre as saidas de todos os bindings (#656)"
+        find: 'if b.aquarium_id != aquarium_id or b.on_exit is None or b.on_exit in seen:'
+        replace: 'if b.on_exit is None or b.on_exit in seen:'
+      - id: shared-roi-never-warned
+        description: "ROI repetida em um aquario so passa a ser reportada como compartilhada (#656)"
+        find: 'counts.get(b.roi, 0) >= 2'
+        replace: 'counts.get(b.roi, 0) >= 1'
+
+  live_window_banner_per_aquarium:
+    source: src/zebtrack/ui/components/dialog_manager.py
+    tests:
+      - tests/ui/components/test_event_dispatcher_extended.py
+    mutations:
+      - id: banner-plain-while-one-waits
+        description: "banner deixa de destacar enquanto um dos aquarios ainda espera o inicio (#656)"
+        find: 'highlight = any(p in waiting for p, _line in by_aquarium.values())'
+        replace: 'highlight = all(p in waiting for p, _line in by_aquarium.values())'
+      - id: banner-keeps-only-the-last-aquarium
+        description: "banner volta a mostrar so o ultimo aquario publicado (#656)"
+        find: 'getattr(self, "_window_state_by_aquarium", {}) or {}'
+        replace: '{}'

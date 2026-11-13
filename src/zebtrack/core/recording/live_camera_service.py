@@ -304,8 +304,11 @@ class LiveCameraService(
         # ``start_session`` and the runtime built from it by the processing loop.
         self._analysis_window_raw: Any = None
         self._condition_runtime: Any = None
+        self._condition_runtimes: dict[int, Any] = {}
         self._condition_roi_evaluator: Any = None
+        self._condition_aquarium_evaluators: dict[int, Any] | None = None
         self._condition_end_requested: bool = False
+        self._condition_end_voted: bool = False
         self._condition_clock_warned: bool = False
         self._arduino_outputs_swept: bool = False
 

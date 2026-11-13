@@ -185,3 +185,55 @@ def test_token_conflicts_ignores_same_token_on_same_edge():
         ]
     )
     assert cfg.token_conflicts() == []
+
+
+# -- #656: bindings scoped to one aquarium of a 2-aquarium live session --------
+
+
+def test_aquarium_id_roundtrips():
+    cfg = ArduinoBindingConfig.from_project_data(
+        {"arduino_bindings": [{"roi": "A", "on_enter": 1, "on_exit": 2, "aquarium_id": 1}]}
+    )
+    assert cfg.bindings[0].aquarium_id == 1
+    assert cfg.to_storage()[0]["aquarium_id"] == 1
+
+
+def test_unscoped_binding_is_stored_exactly_as_before():
+    """A legacy project must not gain an ``aquarium_id: null`` key on save."""
+    stored = ArduinoBindingConfig(
+        bindings=[ArduinoBinding(roi="A", on_enter=1, on_exit=2)]
+    ).to_storage()
+    assert stored == [{"roi": "A", "on_enter": 1, "on_exit": 2, "label": None}]
+
+
+def test_negative_aquarium_id_is_dropped_on_load():
+    cfg = ArduinoBindingConfig.from_project_data(
+        {"arduino_bindings": [{"roi": "A", "on_enter": 1, "aquarium_id": -1}]}
+    )
+    assert cfg.bindings == []
+
+
+def test_scoped_tokens_belong_to_their_aquarium_only():
+    cfg = ArduinoBindingConfig(
+        bindings=[
+            ArduinoBinding(roi="A", on_enter=1, on_exit=2, aquarium_id=0),
+            ArduinoBinding(roi="A", on_enter=11, on_exit=12, aquarium_id=1),
+            ArduinoBinding(roi="B", on_enter=5, on_exit=6),
+            ArduinoBinding(roi="C", on_enter=7, on_exit=12, aquarium_id=1),
+        ]
+    )
+    assert cfg.exit_tokens_of_aquarium(1) == [12]
+    assert cfg.exit_tokens_of_aquarium(0) == [2]
+    assert cfg.exit_tokens_of_aquarium(5) == []
+
+
+def test_unscoped_roi_shared_by_two_aquariums_is_reported():
+    cfg = ArduinoBindingConfig(
+        bindings=[
+            ArduinoBinding(roi="A", on_enter=1, on_exit=2),
+            ArduinoBinding(roi="B", on_enter=3, on_exit=4),
+            ArduinoBinding(roi="C", on_enter=5, on_exit=6, aquarium_id=0),
+        ]
+    )
+    shared = cfg.unscoped_rois_shared_by_aquariums({0: ["A", "B", "C"], 1: ["A", "C"]})
+    assert shared == ["A"]

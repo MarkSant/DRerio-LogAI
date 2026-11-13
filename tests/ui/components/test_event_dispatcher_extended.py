@@ -531,3 +531,73 @@ def test_refresh_payload_uses_immediate_not_imm():
 
     _args, kwargs = gui.video_selector_manager.refresh_project_views.call_args
     assert kwargs["immediate"] is False, "imm= must not be mistaken for immediate="
+
+
+# -- #656: the live window's phase with two aquariums ------------------------
+
+
+def _window_gui():
+    from zebtrack.ui.components.dialog_manager import DialogManager
+
+    gui = _marshalling_gui()
+    gui.external_trigger_notice_label = MagicMock()
+    gui.external_trigger_notice_var = MagicMock()
+    gui._external_notice_default_bg = "white"
+    gui._external_notice_default_fg = "black"
+    gui.dialog_manager = DialogManager(gui)
+    return gui
+
+
+def _window_dispatcher_with(gui):
+    """The live-window phase is subscribed with the zone-component events."""
+    bus = EventBusV2()
+    gui.event_bus = bus
+    dispatcher = EventDispatcher(gui)
+    dispatcher.subscribe_zone_component_events()
+    return dispatcher, bus
+
+
+def _window_state(state, aquarium_id=None, t_s=None):
+    return payloads.AnalysisWindowStatePayload(state=state, t_s=t_s, aquarium_id=aquarium_id)
+
+
+def test_each_aquarium_keeps_its_line_on_the_banner():
+    """The banner used to show whichever aquarium published last."""
+    gui = _window_gui()
+    _dispatcher, bus = _window_dispatcher_with(gui)
+
+    bus.publish(UIEvents.ANALYSIS_WINDOW_STATE_CHANGED, _window_state("waiting_start", 0))
+    bus.publish(UIEvents.ANALYSIS_WINDOW_STATE_CHANGED, _window_state("in_analysis", 1, 2.0))
+    gui.root.run_pending()
+
+    shown = gui.external_trigger_notice_var.set.call_args.args[0]
+    assert shown.index("Aquarium 1:") < shown.index("Aquarium 2:")
+    assert "waiting for the start condition" in shown
+    assert "open since 2.0 s" in shown
+    assert gui.status_var.set.call_args.args[0] == shown
+    # Aquarium 1 still waits: the banner stays highlighted.
+    assert gui.external_trigger_notice_label.config.call_args.kwargs["background"] == "#FFF7ED"
+
+
+def test_banner_is_plain_once_no_aquarium_waits():
+    gui = _window_gui()
+    _dispatcher, bus = _window_dispatcher_with(gui)
+
+    bus.publish(UIEvents.ANALYSIS_WINDOW_STATE_CHANGED, _window_state("in_analysis", 0, 1.0))
+    bus.publish(UIEvents.ANALYSIS_WINDOW_STATE_CHANGED, _window_state("in_analysis", 1, 2.0))
+    gui.root.run_pending()
+
+    assert gui.external_trigger_notice_label.config.call_args.kwargs["background"] == "white"
+
+
+def test_single_aquarium_state_drops_the_aquarium_lines():
+    gui = _window_gui()
+    _dispatcher, bus = _window_dispatcher_with(gui)
+
+    bus.publish(UIEvents.ANALYSIS_WINDOW_STATE_CHANGED, _window_state("waiting_start", 1))
+    bus.publish(UIEvents.ANALYSIS_WINDOW_STATE_CHANGED, _window_state("finished", None, 3.0))
+    gui.root.run_pending()
+
+    shown = gui.external_trigger_notice_var.set.call_args.args[0]
+    assert "Aquarium" not in shown
+    assert "finished at 3.0 s" in shown

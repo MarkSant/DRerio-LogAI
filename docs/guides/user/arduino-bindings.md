@@ -74,7 +74,13 @@ sweep guarantees it is off after recording stops.
 ## How it works (under the hood)
 
 - Bindings are stored in `project_data["arduino_bindings"]` as a list of
-  `{roi, on_enter, on_exit}` (see `core/services/arduino_bindings.py`).
+  `{roi, on_enter, on_exit, label}` (see `core/services/arduino_bindings.py`).
+- **Two aquariums (#656).** A binding may carry `aquarium_id` (0 = first aquarium,
+  1 = second) and then reacts only to that aquarium's ROI. Without it, the binding
+  reacts to the ROI of that name in ANY aquarium: the device stays on while an
+  animal of either aquarium is inside. The bindings panel does not edit
+  `aquarium_id` yet — set it in the project file, and avoid saving from the panel
+  afterwards, which rewrites the list without it.
 - During the live processing loop, the bbox **centroid** of each detection is
   tested against the detector's scaled ROI polygons
   (`core/services/arduino_roi_evaluator.py`). A ROI counts as occupied while any

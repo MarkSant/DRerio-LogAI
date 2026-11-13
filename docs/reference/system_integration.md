@@ -315,7 +315,7 @@ failure.
 | Event (UIEvents)               | Payload Keys        | Publishers            | Subscribers                    |
 | ------------------------------ | ------------------- | --------------------- | ------------------------------ |
 | `ANALYSIS_WINDOW_SPEC_CHANGED` | `spec`, `spec_hash` | `AnalysisWindowPanel` | `EventDispatcher` (status bar) |
-| `ANALYSIS_WINDOW_STATE_CHANGED` | `state`, `t_s`, `reason`, `on_start_not_met`, `on_stop`, `experiment_id` | live pipeline (`root.after`) | `EventDispatcher` → `DialogManager.show_analysis_window_state` (banner + status bar) |
+| `ANALYSIS_WINDOW_STATE_CHANGED` | `state`, `t_s`, `reason`, `on_start_not_met`, `on_stop`, `experiment_id`, `aquarium_id` (2+ aquariums, #656) | live pipeline (`root.after`) | `EventDispatcher` → `DialogManager.show_analysis_window_state` (banner + status bar) |
 
 `spec` is `project_data["analysis_window"]` as just saved (`None` = whole recording). The
 panel lives in the Zone Configuration tab's left column and is rebound on
@@ -1595,10 +1595,27 @@ loop end → finish() (end-of-stream STOP), 7_AnalysisWindow_<base>.json (online
   delivered with the first analysed frame CAPTURED at or after the stamp.
 - **Session end by condition** never calls `_on_session_complete(output_dir)` raw: an early
   stop without `keep_data` falls into the 50 % heuristic (`.cancelled` + polygon erased).
-- **Multi-aquarium live** skips the window DURING the session (warning): it neither
-  gates the Arduino commands nor ends the session. The post-analysis applies one
+- **Multi-aquarium live (#656)** arms ONE `ConditionRuntime` PER AQUARIUM
+  (`_condition_runtimes`; `_condition_runtime` stays `None`). Each aquarium is stepped
+  with its own subject ROIs (`_build_aquarium_evaluators` over the multi detector's
+  scaled ROIs, detections routed by `aquarium_of_track_id`) and its own classes
+  (observations whose `aquarium_id` matches). External events (Arduino code, manual
+  mark) are offered to EVERY aquarium; a code is claimed when any window waits for it.
+  One aquarium's STOP sweeps only the exit tokens of the bindings scoped to it
+  (`ArduinoBindingConfig.exit_tokens_of_aquarium`, then `ArduinoEventMapper.forget_aquarium`);
+  the last STOP does the full sweep. `on_stop="end_session"` ends the session only once
+  every aquarium is `finished`/`start_not_met`. Each aquarium's `7_AnalysisWindow_` goes
+  to its `aquarium_N/`, next to its trajectory. The post-analysis still applies one
   OFFLINE window per aquarium (`_resolve_live_window(..., aquarium_id=)`, from each
   `aquarium_N/3c_Objetos_*`) and passes `windows=` to `run_multi_aquarium_analysis` (#635).
+- **Multi-aquarium Arduino commands (#656).** `ArduinoBinding.aquarium_id` (optional,
+  stored only when set) scopes a binding to one aquarium; `None` = the ROI of that name
+  in ANY aquarium (occupied while any of them is inside — the single-aquarium
+  behaviour; a single-aquarium session is aquarium 0). `ArduinoEventMapper` is keyed by
+  `(aquarium_id, roi)` and fed `update_scoped({aquarium: rois})`; only aquariums whose
+  window is open contribute. An unscoped binding whose ROI repeats across aquariums is
+  warned at session start (`arduino_zone_commands.unscoped_shared_roi`). The preview
+  overlay draws every aquarium's zones through `draw_multi_aquarium_overlay(frame, {})`.
 - **Multi-aquarium live recording (#635).** The session's aquariums are resolved ONCE,
   at `start_session`, by `LiveAnalysisPostProcessorMixin._resolve_session_multi_zone_data`
   (`get_multi_aquarium_zone_data`; 2+ aquariums, else `None`) and cached in
