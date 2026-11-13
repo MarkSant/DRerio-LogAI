@@ -2511,3 +2511,43 @@ modules:
         description: "trilhas somem da analise sem aviso no relatorio"
         find: 'validation_warnings.extend(screening.warnings)'
         replace: 'pass'
+
+  report_coordinate_space:
+    source: src/zebtrack/coordinators/report_generation_coordinator.py
+    tests:
+      - tests/coordinators/test_report_generation_coordinator.py
+    mutations:
+      - id: report-masks-stay-raw
+        description: "relatorio passa mascaras 3b cruas com df/ROIs no espaco local e seg_overlap da 0 s (#640)"
+        find: 'mask_sidecar_path=self._masks_in_report_space(traj_path, (off_x, off_y)),'
+        replace: 'mask_sidecar_path=self._masks_in_report_space(traj_path, (0.0, 0.0)),'
+      - id: window-masks-stay-raw
+        description: "janela recebe mascaras 3b cruas enquanto o df dela esta no espaco local (#640)"
+        find: 'mask_source=self._masks_in_report_space(trajectory_path, local_offset),'
+        replace: 'mask_source=self._masks_in_report_space(trajectory_path, (0.0, 0.0)),'
+      - id: standard-summary-without-homography
+        description: "sumario padrao mede trajetoria crua contra arena e ROIs retificadas (#640)"
+        find: |-
+          # multi-aquarium summary always did.
+                          calibration=cal,
+        replace: |-
+          # multi-aquarium summary always did.
+                          calibration=None,
+
+  mask_sidecar_local_space:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_service.py
+    mutations:
+      - id: masks-shifted-the-wrong-way
+        description: "mascaras somam o offset da arena em vez de subtrair (#640)"
+        find: 'shift = np.array([-float(offset_x), -float(offset_y)])'
+        replace: 'shift = np.array([float(offset_x), float(offset_y)])'
+      - id: corrupt-payload-dropped
+        description: "WKB corrompido some do sidecar e o analisador deixa de conta-lo como invalido"
+        find: 'original if geometry is None else shapely.to_wkb(geometry)'
+        replace: 'None if geometry is None else shapely.to_wkb(geometry)'
+      - id: zero-offset-rereads
+        description: "offset zero deixa de devolver o proprio caminho"
+        find: 'if sidecar is None or (offset_x == 0 and offset_y == 0):'
+        replace: 'if sidecar is None:'
