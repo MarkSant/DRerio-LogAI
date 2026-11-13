@@ -293,8 +293,13 @@ jobs:
         id: flakiness-run
         # continue-on-error so the results below are still uploaded; the outcome is
         # enforced by the explicit gate after them.
+        # tests.pytest_repeat_hypothesis silences ONLY Hypothesis's
+        # differing_executors health check, which every repeated @given method
+        # trips because each repetition gets a new test-class instance. `python -m`
+        # puts the checkout on sys.path so `-p` can import it before conftest runs.
         run: |
-          xvfb-run --auto-servernum poetry run pytest --count=3 -x -v --tb=short \
+          xvfb-run --auto-servernum poetry run python -m pytest --count=3 -x -v --tb=short \
+            -p tests.pytest_repeat_hypothesis \
             --junit-xml=flakiness-results.xml
         continue-on-error: true
 
