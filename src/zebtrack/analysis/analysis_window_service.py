@@ -593,18 +593,25 @@ def _report_warnings(
                 "was closed at the end of the recording (censored)."
             )
         )
-    for label, online_event, offline_event in (
-        ("START", online.start, resolution.start),
-        ("STOP", online.stop, resolution.stop),
-    ):
-        if _diverges(online_event, offline_event):
-            assert online_event is not None and offline_event is not None
-            warnings.append(
-                _(
-                    "The live session placed the window {edge} at frame {online}, the "
-                    "re-analysis at frame {offline}; the report uses the re-analysis."
-                ).format(edge=label, online=online_event.frame, offline=offline_event.frame)
-            )
+    # One complete msgid per edge (#642): splicing an English START/STOP into a
+    # translated sentence left it half in English and gave the translator a
+    # noun no Portuguese article could agree with.
+    if _diverges(online.start, resolution.start):
+        assert online.start is not None and resolution.start is not None
+        warnings.append(
+            _(
+                "The live session started the analysis window at frame {online}, the "
+                "re-analysis at frame {offline}; the report uses the re-analysis."
+            ).format(online=online.start.frame, offline=resolution.start.frame)
+        )
+    if _diverges(online.stop, resolution.stop):
+        assert online.stop is not None and resolution.stop is not None
+        warnings.append(
+            _(
+                "The live session ended the analysis window at frame {online}, the "
+                "re-analysis at frame {offline}; the report uses the re-analysis."
+            ).format(online=online.stop.frame, offline=resolution.stop.frame)
+        )
     return warnings
 
 
