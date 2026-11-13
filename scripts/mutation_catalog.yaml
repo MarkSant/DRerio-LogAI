@@ -2547,6 +2547,10 @@ modules:
         description: "WKB corrompido some do sidecar e o analisador deixa de conta-lo como invalido"
         find: 'original if geometry is None else shapely.to_wkb(geometry)'
         replace: 'None if geometry is None else shapely.to_wkb(geometry)'
+      - id: sidecar-without-masks-translated
+        description: "sidecar sem coluna mask_wkb deixa de voltar ao analisador e quebra a traducao"
+        find: 'if "mask_wkb" not in masks.columns or masks.empty:'
+        replace: 'if False:'
       - id: zero-offset-rereads
         description: "offset zero deixa de devolver o proprio caminho"
         find: 'if sidecar is None or (offset_x == 0 and offset_y == 0):'

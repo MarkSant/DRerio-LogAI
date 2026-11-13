@@ -631,6 +631,20 @@ class TestMaskSidecarInLocalSpace:
 
         assert mask_sidecar_in_local_space(path, 10, 10) == path
 
+    @pytest.mark.parametrize(
+        "frame",
+        [
+            pd.DataFrame({"frame": [0], "track_id": [1]}),
+            pd.DataFrame({"frame": [], "track_id": [], "mask_wkb": []}),
+        ],
+        ids=["no-mask-column", "empty"],
+    )
+    def test_a_sidecar_without_masks_is_left_for_the_analyzer_to_report(self, tmp_path, frame):
+        path = tmp_path / "3b_Mascaras_exp1.parquet"
+        frame.to_parquet(path)
+
+        assert mask_sidecar_in_local_space(path, 10, 10) == path
+
     def test_corrupt_payload_is_kept_for_the_analyzer_to_count(self, tmp_path):
         from shapely import wkb
         from shapely.geometry import box
