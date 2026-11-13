@@ -185,6 +185,12 @@ def _create_mock_tk_root():
     from unittest.mock import MagicMock
 
     root = MagicMock()
+    # A real root has no master. Left to MagicMock, ``root.master`` is a fresh mock
+    # whose ``.master`` is another one, forever -- and ``tkinter.Misc._root()``
+    # walks that chain with ``while w.master is not None``. Any widget built over
+    # the headless root then spun until pytest-timeout killed the whole session,
+    # which is what the nightly memory job (run without a display) did every night.
+    root.master = None
     root._w = "."
     root.children = {}
     root.tk = MagicMock()
