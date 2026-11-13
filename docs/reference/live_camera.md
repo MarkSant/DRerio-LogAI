@@ -52,7 +52,10 @@ complete; the window only marks where the analysis starts and stops (and, with
 - **Outputs:** `3c_Objetos_<base>.parquet` gets a heartbeat on EVERY analysed frame
   (`clock="capture_perf"` in its metadata); `7_AnalysisWindow_<base>.json` gets the `online`
   section and `external_events` at session end.
-- **Multi-aquarium:** the window is skipped in v8 (logged).
+- **Multi-aquarium (#656):** one window per aquarium, each on its own animal, ROIs and
+  classes; Arduino codes and the manual mark reach every aquarium. One aquarium's STOP
+  sweeps only its own scoped bindings, and `on_stop="end_session"` waits for every
+  aquarium. The banner shows one line per aquarium.
 
 ## 4. Operational Parameters
 

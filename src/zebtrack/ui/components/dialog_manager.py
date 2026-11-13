@@ -1344,6 +1344,7 @@ class DialogManager:
         *,
         t_s: float | None = None,
         on_start_not_met: str | None = None,
+        aquarium_id: int | None = None,
     ) -> str:
         """Show the live analysis window's phase on the trigger banner + status bar.
 
@@ -1352,6 +1353,10 @@ class DialogManager:
         must know the recording runs but the analysis has not started), plain
         afterwards. The status bar carries the same sentence, so an ad hoc
         session (which has no project banner) still shows it.
+
+        With 2+ aquariums (``aquarium_id`` set, #656) every aquarium keeps its
+        own line, shown side by side, and the banner stays highlighted while
+        any aquarium still waits.
 
         Returns:
             The sentence shown (``""`` for an unknown state).
@@ -1363,7 +1368,24 @@ class DialogManager:
         except ValueError:
             log.warning("dialog_manager.analysis_window_state.unknown", state=state)
             return ""
-        message = window_phase_message(phase, t_s=t_s, on_start_not_met=on_start_not_met)
+        waiting = (WindowPhase.WAITING_START, WindowPhase.START_NOT_MET)
+        if aquarium_id is None:
+            self._window_state_by_aquarium = {}
+            message = window_phase_message(phase, t_s=t_s, on_start_not_met=on_start_not_met)
+            highlight = phase in waiting
+        else:
+            by_aquarium: dict[int, tuple[WindowPhase, str]] = dict(
+                getattr(self, "_window_state_by_aquarium", {}) or {}
+            )
+            by_aquarium[aquarium_id] = (
+                phase,
+                window_phase_message(
+                    phase, t_s=t_s, on_start_not_met=on_start_not_met, aquarium_id=aquarium_id
+                ),
+            )
+            self._window_state_by_aquarium = by_aquarium
+            message = " | ".join(by_aquarium[k][1] for k in sorted(by_aquarium))
+            highlight = any(p in waiting for p, _line in by_aquarium.values())
 
         status_var = getattr(self.gui, "status_var", None)
         if status_var is not None:
@@ -1374,7 +1396,7 @@ class DialogManager:
             return message
         self.gui.external_trigger_notice_var.set(message)
         try:
-            if phase in (WindowPhase.WAITING_START, WindowPhase.START_NOT_MET):
+            if highlight:
                 label.config(background="#FFF7ED", foreground="#92400e")
             else:
                 label.config(

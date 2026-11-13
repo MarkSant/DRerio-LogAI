@@ -366,6 +366,18 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   compartilhado e aplica uma janela de análise **offline** por aquário. A janela
   continua não rodando **durante** a sessão com dois aquários (não controla o
   Arduino nem encerra a sessão). Sessões de um aquário não mudam.
+- **Ao vivo com dois aquários, janela, comandos Arduino e overlay eram só do
+  aquário 0 (#656).** A janela de análise era pulada; o avaliador de ROI do
+  Arduino usava as zonas do detector único (as do aquário 0) com as detecções dos
+  dois aquários achatadas, então um animal no aquário 2 nunca disparava o binding
+  de uma ROI do aquário 2; e a prévia desenhava só as zonas do aquário 0. Agora
+  cada aquário tem a sua janela ao vivo (seu animal, suas ROIs, suas classes), o
+  código Arduino e a marcação manual chegam a todos, o STOP de um aquário desliga
+  só os dispositivos dele e `on_stop="end_session"` espera todos terminarem; cada
+  `7_AnalysisWindow_` vai para o `aquarium_N/` do aquário. Bindings ganham
+  `aquarium_id` opcional (sem ele, valem para a ROI daquele nome em qualquer
+  aquário, como antes; projetos antigos são gravados byte a byte iguais). A prévia
+  desenha as zonas dos dois aquários. Sessões de um aquário não mudam.
 - **O ByteTrack media o buffer de trilha perdida com o fps das configurações, não
   o do vídeo (#630).** `track_buffer` é contado em quadros e convertido com
   `frame_rate / 30`; com `settings.video_processing.fps` (30) num vídeo de Barnes

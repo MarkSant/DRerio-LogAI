@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-13 16:50-0300\n"
+"POT-Creation-Date: 2026-11-13 18:18-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -68,8 +68,8 @@ msgstr ""
 #: src/zebtrack/ui/components/canvas/event_handler.py:792
 #: src/zebtrack/ui/components/canvas/multi_aquarium_overlay.py:235
 #: src/zebtrack/ui/components/canvas/zone_editor.py:968
-#: src/zebtrack/ui/components/dialog_manager.py:1775
-#: src/zebtrack/ui/components/dialog_manager.py:1856
+#: src/zebtrack/ui/components/dialog_manager.py:1797
+#: src/zebtrack/ui/components/dialog_manager.py:1878
 #: src/zebtrack/ui/components/project_views/report_generator_actions.py:307
 #: src/zebtrack/ui/components/validation_manager.py:1610
 msgid "Success"
@@ -312,11 +312,11 @@ msgstr ""
 #: src/zebtrack/ui/components/canvas/zone_editor.py:589
 #: src/zebtrack/ui/components/canvas/zone_editor.py:940
 #: src/zebtrack/ui/components/canvas/zone_editor.py:993
-#: src/zebtrack/ui/components/dialog_manager.py:1800
-#: src/zebtrack/ui/components/dialog_manager.py:1802
-#: src/zebtrack/ui/components/dialog_manager.py:1845
+#: src/zebtrack/ui/components/dialog_manager.py:1822
+#: src/zebtrack/ui/components/dialog_manager.py:1824
+#: src/zebtrack/ui/components/dialog_manager.py:1867
 #: src/zebtrack/ui/components/event_dispatcher.py:358
-#: src/zebtrack/ui/components/event_dispatcher.py:1271
+#: src/zebtrack/ui/components/event_dispatcher.py:1272
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:604
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:619
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:627
@@ -750,7 +750,7 @@ msgstr ""
 #: src/zebtrack/ui/builders/analysis_widgets.py:285
 #: src/zebtrack/ui/builders/analysis_widgets.py:427
 #: src/zebtrack/ui/builders/analysis_widgets.py:443
-#: src/zebtrack/ui/components/event_dispatcher.py:1266
+#: src/zebtrack/ui/components/event_dispatcher.py:1267
 #: src/zebtrack/ui/components/validation_manager.py:147
 #: src/zebtrack/ui/components/validation_manager.py:162
 #: src/zebtrack/ui/components/validation_manager.py:1628
@@ -1656,7 +1656,7 @@ msgid "No eligible video with data for analysis was found."
 msgstr ""
 
 #: src/zebtrack/coordinators/video_processing_coordinator.py:1048
-#: src/zebtrack/core/detection/multi_aquarium_detector.py:1102
+#: src/zebtrack/core/detection/multi_aquarium_detector.py:1125
 #: src/zebtrack/ui/components/canvas/renderer.py:397
 #: src/zebtrack/ui/components/project_views/report_tree_builder.py:634
 #: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:184
@@ -2139,47 +2139,52 @@ msgstr ""
 msgid "Project data not initialised"
 msgstr ""
 
-#: src/zebtrack/core/recording/condition_runtime.py:214
+#: src/zebtrack/core/recording/condition_runtime.py:220
+#, python-brace-format
+msgid "Aquarium {number}: {message}"
+msgstr ""
+
+#: src/zebtrack/core/recording/condition_runtime.py:231
 msgid "Recording — waiting for the start condition of the analysis window."
 msgstr ""
 
-#: src/zebtrack/core/recording/condition_runtime.py:217
+#: src/zebtrack/core/recording/condition_runtime.py:234
 msgid "Analysis window open."
 msgstr ""
 
-#: src/zebtrack/core/recording/condition_runtime.py:218
+#: src/zebtrack/core/recording/condition_runtime.py:235
 #, python-brace-format
 msgid "Analysis window open since {seconds:.1f} s."
 msgstr ""
 
-#: src/zebtrack/core/recording/condition_runtime.py:221
+#: src/zebtrack/core/recording/condition_runtime.py:238
 msgid "Analysis window finished."
 msgstr ""
 
-#: src/zebtrack/core/recording/condition_runtime.py:222
+#: src/zebtrack/core/recording/condition_runtime.py:239
 #, python-brace-format
 msgid "Analysis window finished at {seconds:.1f} s."
 msgstr ""
 
-#: src/zebtrack/core/recording/condition_runtime.py:224
+#: src/zebtrack/core/recording/condition_runtime.py:241
 msgid "The start condition was never met: the window metrics will be empty."
 msgstr ""
 
-#: src/zebtrack/core/recording/condition_runtime.py:225
+#: src/zebtrack/core/recording/condition_runtime.py:242
 msgid "The start condition was never met: the whole recording will be analysed."
 msgstr ""
 
-#: src/zebtrack/core/recording/frame_processing_pipeline.py:831
+#: src/zebtrack/core/recording/frame_processing_pipeline.py:839
 #, python-brace-format
 msgid "⏳ Stabilizing image... ({current}/{total})"
 msgstr ""
 
-#: src/zebtrack/core/recording/frame_processing_pipeline.py:844
+#: src/zebtrack/core/recording/frame_processing_pipeline.py:852
 #, python-brace-format
 msgid "🔍 Detecting aquarium... ({current}/{total})"
 msgstr ""
 
-#: src/zebtrack/core/recording/frame_processing_pipeline.py:997
+#: src/zebtrack/core/recording/frame_processing_pipeline.py:1005
 #: src/zebtrack/core/recording/live_session_manager.py:1273
 #: src/zebtrack/ui/dialogs/live_preview_window.py:127
 msgid "● Recording"
@@ -3054,7 +3059,7 @@ msgstr ""
 msgid "Values restored to reflect the current settings."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1272
+#: src/zebtrack/ui/components/event_dispatcher.py:1273
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:669
 #: src/zebtrack/ui/gui.py:914
 msgid "Could not apply the detector parameters. See the log for details."
@@ -5410,11 +5415,11 @@ msgstr ""
 msgid "Waiting for the external signal to start {session}."
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1431
+#: src/zebtrack/ui/components/dialog_manager.py:1453
 msgid "Error opening folder"
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1432
+#: src/zebtrack/ui/components/dialog_manager.py:1454
 #, python-brace-format
 msgid ""
 "Could not open the results directory.\n"
@@ -5423,11 +5428,11 @@ msgid ""
 "Details: {error}"
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1492
+#: src/zebtrack/ui/components/dialog_manager.py:1514
 msgid "Zones found outside the project"
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1494
+#: src/zebtrack/ui/components/dialog_manager.py:1516
 #, python-brace-format
 msgid ""
 "The folder of video \"{name}\" already contains zones saved by a previous"
@@ -5441,16 +5446,16 @@ msgid ""
 "Choose \"Yes\" to load them, or \"No\" to define the zones yourself."
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1576
+#: src/zebtrack/ui/components/dialog_manager.py:1598
 #, python-brace-format
 msgid "Zones loaded from the files of video \"{name}\"."
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1589
+#: src/zebtrack/ui/components/dialog_manager.py:1611
 msgid "Zones imported from a previous analysis"
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1591
+#: src/zebtrack/ui/components/dialog_manager.py:1613
 #, python-brace-format
 msgid ""
 "The zones saved in the folder of \"{name}\" were loaded.\n"
@@ -5460,11 +5465,11 @@ msgid ""
 "against the wrong region."
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1635
+#: src/zebtrack/ui/components/dialog_manager.py:1657
 msgid "Reuse existing zones?"
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1637
+#: src/zebtrack/ui/components/dialog_manager.py:1659
 #, python-brace-format
 msgid ""
 "Video \"{current}\" has no saved arena or ROIs.\n"
@@ -5473,16 +5478,16 @@ msgid ""
 "Choose \"Yes\" to reuse or \"No\" to start from scratch."
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1652
+#: src/zebtrack/ui/components/dialog_manager.py:1674
 #, python-brace-format
 msgid "Zones reused from \"{last}\" for \"{current}\"."
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1657
+#: src/zebtrack/ui/components/dialog_manager.py:1679
 msgid "Zones reused"
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1659
+#: src/zebtrack/ui/components/dialog_manager.py:1681
 #, python-brace-format
 msgid ""
 "The zones of \"{last}\" were applied to \"{current}\".\n"
@@ -5491,55 +5496,55 @@ msgid ""
 "the current video."
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1696
+#: src/zebtrack/ui/components/dialog_manager.py:1718
 msgid "Parquet Files Unavailable"
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1698
+#: src/zebtrack/ui/components/dialog_manager.py:1720
 msgid ""
 "The zones were copied, but the original Parquet files could not be found "
 "to duplicate. If needed, redraw the zones and save them manually to "
 "generate new files."
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1705
+#: src/zebtrack/ui/components/dialog_manager.py:1727
 msgid "Start drawing the arena and the ROIs for this video."
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1753
+#: src/zebtrack/ui/components/dialog_manager.py:1775
 msgid "Change ROI Color"
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1771
+#: src/zebtrack/ui/components/dialog_manager.py:1793
 #, python-brace-format
 msgid "Colour of ROI '{name}' changed to {colour}."
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1800
-#: src/zebtrack/ui/components/dialog_manager.py:1845
+#: src/zebtrack/ui/components/dialog_manager.py:1822
+#: src/zebtrack/ui/components/dialog_manager.py:1867
 msgid "ROI not found"
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1802
+#: src/zebtrack/ui/components/dialog_manager.py:1824
 msgid "ROI colour data not found"
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1818
+#: src/zebtrack/ui/components/dialog_manager.py:1840
 msgid "Rename ROI"
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1819
+#: src/zebtrack/ui/components/dialog_manager.py:1841
 #, python-brace-format
 msgid "New name for '{name}':"
 msgstr ""
 
 #: src/zebtrack/ui/components/canvas/zone_editor.py:444
-#: src/zebtrack/ui/components/dialog_manager.py:1839
+#: src/zebtrack/ui/components/dialog_manager.py:1861
 #: src/zebtrack/ui/components/polygon_drawing_service.py:175
 msgid "Invalid ROI name"
 msgstr ""
 
-#: src/zebtrack/ui/components/dialog_manager.py:1854
+#: src/zebtrack/ui/components/dialog_manager.py:1876
 #, python-brace-format
 msgid "ROI renamed to '{name}'."
 msgstr ""
@@ -5592,12 +5597,12 @@ msgstr ""
 msgid "Analysis window saved. Run the analysis again to apply it."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1376
-#: src/zebtrack/ui/components/event_dispatcher.py:1392
+#: src/zebtrack/ui/components/event_dispatcher.py:1377
+#: src/zebtrack/ui/components/event_dispatcher.py:1393
 msgid "ROI Rule Applied"
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1378
+#: src/zebtrack/ui/components/event_dispatcher.py:1379
 #, python-brace-format
 msgid ""
 "{description}\n"
@@ -5606,7 +5611,7 @@ msgid ""
 "and to the live Arduino trigger."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1394
+#: src/zebtrack/ui/components/event_dispatcher.py:1395
 #, python-brace-format
 msgid ""
 "{description}\n"
@@ -5614,25 +5619,25 @@ msgid ""
 "Applied to this session. With no project open it is not saved to disk."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1407
+#: src/zebtrack/ui/components/event_dispatcher.py:1408
 #, python-brace-format
 msgid "buffer radius {value:g} cm"
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1409
+#: src/zebtrack/ui/components/event_dispatcher.py:1410
 msgid "any non-zero area overlap"
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1411
+#: src/zebtrack/ui/components/event_dispatcher.py:1412
 #, python-brace-format
 msgid "minimum overlap {value:g} (basis: {basis})"
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1416
+#: src/zebtrack/ui/components/event_dispatcher.py:1417
 msgid "no additional parameters"
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1417
+#: src/zebtrack/ui/components/event_dispatcher.py:1418
 #, python-brace-format
 msgid "Rule '{rule}' ({detail})."
 msgstr ""

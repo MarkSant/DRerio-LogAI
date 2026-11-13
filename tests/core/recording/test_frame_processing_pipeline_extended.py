@@ -756,15 +756,16 @@ class TestAnalysisWindowLive:
         runtime: Any = h._condition_runtime
         assert runtime.result.start.t_s == pytest.approx(1.0)
 
-    def test_multi_aquarium_session_skips_the_window(self, tmp_path):
-        """The session's aquariums decide it (#635).
+    def test_multi_aquarium_session_arms_no_single_window(self, tmp_path):
+        """The session's aquariums decide it (#635, #656).
 
         This used to stub ``get_zone_data()`` with ``aquariums`` — something
         the aquarium-0 shim never returns, so in the app the window was armed
-        in 2-aquarium sessions and fed with both aquariums' detections.
+        in 2-aquarium sessions and fed with both aquariums' detections. Since
+        #656 each aquarium gets its own window instead of a shared one.
         """
         h = _LoopHarness(tmp_path, window=WindowSpec())
-        h._live_multi_zone_data = SimpleNamespace(aquariums=[1, 2])
+        h._live_multi_zone_data = SimpleNamespace(aquariums=[_aquarium(0), _aquarium(1)])
         h.arm()
         assert h._condition_runtime is None
 
@@ -1061,3 +1062,320 @@ class TestTrackerAgesOnTheCaptureClock:
         # 1 s configured; one analysed frame (2/30 s) of slack. Counting
         # updates against the driver's 30 fps would have kept it 2 s.
         assert lost_for_s == pytest.approx(1.0, abs=2 / 30 + 1e-9)
+
+
+# ---------------------------------------------------------------------------
+# #656: what happens DURING a 2-aquarium live session -- the analysis window,
+# the per-zone Arduino commands and the overlay -- per aquarium.
+#
+# Geometry: aquarium 0 is x 0..20, aquarium 1 is x 20..40. Each has an ROI
+# named "A" (the names repeat across aquariums in real projects): aquarium 0's
+# at x 0..10, aquarium 1's at x 20..30. The single detector holds aquarium 0's
+# zones only, which is what the live loop used to evaluate both aquariums with.
+# ---------------------------------------------------------------------------
+
+_ROI_A = {
+    0: [[0, 0], [10, 0], [10, 10], [0, 10]],
+    1: [[20, 0], [30, 0], [30, 10], [20, 10]],
+}
+
+
+def _aquarium(aq_id):
+    from zebtrack.core.detection.detection_types import AquariumData
+
+    x0 = 20 * aq_id
+    return AquariumData(
+        id=aq_id,
+        polygon=[[x0, 0], [x0 + 20, 0], [x0 + 20, 20], [x0, 20]],
+        roi_polygons=[_ROI_A[aq_id]],
+        roi_names=["A"],
+    )
+
+
+def _abox(aq_id, cx, cy, local_id=1):
+    """A detection of aquarium ``aq_id`` (global track id, full-frame pixels)."""
+    return (cx - 1, cy - 1, cx + 1, cy + 1, 0.9, aq_id * 1000 + local_id, 0)
+
+
+IN_A = {0: (5, 5), 1: (25, 5)}
+OUT_A = {0: (15, 15), 1: (35, 15)}
+
+
+class _FakeMultiDetector:
+    """The surface of ``MultiAquariumDetector`` the live loop reads."""
+
+    def __init__(self, aquariums):
+        self._aquariums = aquariums
+        self._observations: list = []
+        self.overlay_calls: list[dict] = []
+
+    def get_multi_aquarium_data(self):
+        return self._aquariums
+
+    def get_aquarium_roi_polygons(self, aquarium_id):
+        polygon = _ROI_A.get(aquarium_id)
+        return [] if polygon is None else [np.array(polygon, dtype=np.int32)]
+
+    def pop_class_observations(self):
+        out, self._observations = self._observations, []
+        return out
+
+    def draw_multi_aquarium_overlay(self, frame, partitioned_detections):
+        self.overlay_calls.append(dict(partitioned_detections))
+        return frame
+
+
+class _MultiSessionRecorder(_PartitionedRecorder):
+    """Parent recorder with one sub-recorder per ``aquarium_N/`` folder."""
+
+    def __init__(self, folder):
+        super().__init__(folder)
+        self.subs = {}
+        for aq_id in (0, 1):
+            sub_dir = folder / f"aquarium_{aq_id + 1}"
+            sub_dir.mkdir()
+            self.subs[aq_id] = SimpleNamespace(
+                output_folder=str(sub_dir), base_name=f"sessao_aquarium_{aq_id + 1}"
+            )
+
+    def get_aquarium_recorders(self):
+        return dict(self.subs)
+
+
+class _CountingDetector(_FakeDetector):
+    def __init__(self, script):
+        super().__init__(script)
+        self.overlays = 0
+
+    def draw_overlay(self, frame, detections):
+        self.overlays += 1
+
+
+def _multi_harness(tmp_path, *, positions, window=None, project_data=None):
+    """``positions``: frame -> {aquarium_id: (cx, cy)} of each aquarium's animal."""
+    h = _LoopHarness(tmp_path, window=window, project_data=project_data)
+    h.detector = _CountingDetector({})
+    harness: Any = h
+    harness.detector_service = SimpleNamespace(detector=h.detector)
+    h.recorder = _MultiSessionRecorder(tmp_path)
+    aquariums = [_aquarium(0), _aquarium(1)]
+    h._live_multi_zone_data = SimpleNamespace(aquariums=aquariums)
+    multi = _FakeMultiDetector(aquariums)
+
+    def _detect(frame, frame_number, zone_data):
+        # The real detector is created lazily on the first analysed frame.
+        harness._multi_aq_detector = multi
+        return [_abox(aq, *xy) for aq, xy in positions.get(frame_number, {}).items()]
+
+    harness._run_multi_aquarium_detection = _detect
+    return h, multi
+
+
+def _window_of(tmp_path, aq_id):
+    folder = tmp_path / f"aquarium_{aq_id + 1}"
+    return read_artifact(folder / f"7_AnalysisWindow_sessao_aquarium_{aq_id + 1}.json")
+
+
+class TestMultiAquariumLiveWindow:
+    def test_each_aquarium_gets_its_own_window(self, tmp_path):
+        """Aquarium 1's animal entering ITS "A" starts aquarium 1's window only."""
+        spec = WindowSpec(start=RoiEdge(roi="A", edge="enter"))
+        positions = {
+            1: {0: OUT_A[0], 1: OUT_A[1]},
+            2: {0: OUT_A[0], 1: IN_A[1]},
+            3: {0: OUT_A[0], 1: IN_A[1]},
+        }
+        h, _multi = _multi_harness(tmp_path, positions=positions, window=spec)
+        h.run([(f, T0 + f) for f in (1, 2, 3)])
+
+        first, second = _window_of(tmp_path, 0), _window_of(tmp_path, 1)
+        assert first is not None and second is not None
+        assert first.online.start is None  # aquarium 0 never entered
+        assert second.online.start is not None
+        assert second.online.start.frame == 2
+        # Nothing at the session root: the parent has no trajectory of its own.
+        assert not list(tmp_path.glob("7_AnalysisWindow_*"))
+
+    def test_states_are_published_per_aquarium(self, tmp_path):
+        spec = WindowSpec(start=RoiEdge(roi="A", edge="enter"))
+        h, _multi = _multi_harness(
+            tmp_path, positions={1: {1: OUT_A[1]}, 2: {1: IN_A[1]}}, window=spec
+        )
+        h.run([(1, T0 + 1.0), (2, T0 + 2.0)])
+        root: Any = h.root
+        published = [
+            (args[0].aquarium_id, args[0].state)
+            for fn, args in root.calls
+            if getattr(fn, "__name__", "") == "_publish_window_state"
+        ]
+        assert (0, "waiting_start") in published
+        assert (1, "waiting_start") in published
+        assert (1, "in_analysis") in published
+        assert (0, "in_analysis") not in published
+
+    def test_end_session_waits_for_every_aquarium(self, tmp_path):
+        spec = WindowSpec(
+            start=FrameReached(frame=1), stop=RoiEdge(roi="A", edge="enter"), on_stop="end_session"
+        )
+        positions = {
+            1: {0: OUT_A[0], 1: OUT_A[1]},
+            2: {0: IN_A[0], 1: OUT_A[1]},  # aquarium 0 stops
+            3: {0: IN_A[0], 1: OUT_A[1]},
+        }
+        h, _multi = _multi_harness(tmp_path, positions=positions, window=spec)
+        h.run([(f, T0 + f) for f in (1, 2, 3)])
+        assert _window_of(tmp_path, 0).online.stop is not None  # it did stop
+        assert h.finish_requests() == []  # aquarium 1's trial is still running
+
+    def test_end_session_once_every_aquarium_stopped(self, tmp_path):
+        spec = WindowSpec(
+            start=FrameReached(frame=1), stop=RoiEdge(roi="A", edge="enter"), on_stop="end_session"
+        )
+        positions = {
+            1: {0: OUT_A[0], 1: OUT_A[1]},
+            2: {0: IN_A[0], 1: OUT_A[1]},
+            3: {0: IN_A[0], 1: IN_A[1]},
+            4: {0: IN_A[0], 1: IN_A[1]},
+        }
+        h, _multi = _multi_harness(tmp_path, positions=positions, window=spec)
+        h.run([(f, T0 + f) for f in (1, 2, 3, 4)])
+        assert len(h.finish_requests()) == 1
+
+    def test_arduino_code_reaches_every_aquarium_window(self, tmp_path):
+        h, _multi = _multi_harness(tmp_path, positions={}, window=external_trigger_preset())
+        h.arm()
+        assert h.manager.sink is not None
+        assert h.manager.sink(1, T0 + 0.5) is True  # claimed: coordinators never see it
+        h._step_condition_runtime(1, T0 + 1.0, [], [])
+        h._finalize_condition_runtime()
+
+        for aq_id in (0, 1):
+            window = _window_of(tmp_path, aq_id)
+            assert window is not None
+            assert window.online.start is not None
+            assert window.online.start.frame == 1
+
+    def test_manual_press_reaches_every_aquarium_window(self, tmp_path):
+        h, _multi = _multi_harness(
+            tmp_path, positions={}, window=WindowSpec(start=External(source="manual"))
+        )
+        assert h.push_manual_condition_event() is False  # nothing armed yet
+        h.arm()
+        assert h.push_manual_condition_event() is True
+        h._step_condition_runtime(1, time.perf_counter() + 1.0, [], [])
+        h._finalize_condition_runtime()
+        for aq_id in (0, 1):
+            window = _window_of(tmp_path, aq_id)
+            assert window is not None
+            assert window.online.start is not None
+
+    def test_classes_are_read_per_aquarium(self, tmp_path):
+        spec = WindowSpec(
+            start=Persist(
+                level=ClassPresence(target=ClassTarget.of_class("Rat")), hold=Hold(seconds=1.0)
+            )
+        )
+        h, _multi = _multi_harness(tmp_path, positions={}, window=spec)
+        h.arm()
+        rat_in_1 = dict(_rat(), aquarium_id=1)
+        h._step_condition_runtime(1, T0 + 1.0, [], [rat_in_1])
+        h._step_condition_runtime(2, T0 + 2.0, [], [rat_in_1])
+        h._finalize_condition_runtime()
+        first, second = _window_of(tmp_path, 0), _window_of(tmp_path, 1)
+        assert first is not None and second is not None
+        assert first.online.start is None
+        assert second.online.start is not None
+
+
+SCOPED_PROJECT = {
+    "use_arduino": True,
+    "arduino_bindings": [
+        {"roi": "A", "aquarium_id": 0, "on_enter": 1, "on_exit": 2},
+        {"roi": "A", "aquarium_id": 1, "on_enter": 11, "on_exit": 12},
+    ],
+}
+
+
+class TestMultiAquariumArduinoCommands:
+    @staticmethod
+    def _sent_per_frame(h):
+        # Everything queued since the previous frame's dispatch: the window's
+        # STOP sweep runs in the step, just before the dispatch.
+        sent: dict[int, list[int]] = {}
+        original = h._dispatch_arduino_zone_commands
+        seen = [0]
+
+        def _dispatch(detections, frame_number=None, *args):
+            original(detections, frame_number, *args)
+            sent[frame_number] = list(h.manager.sent[seen[0] :])
+            seen[0] = len(h.manager.sent)
+
+        h._dispatch_arduino_zone_commands = _dispatch
+        return sent
+
+    def test_animal_in_aquarium_2_fires_aquarium_2_binding(self, tmp_path):
+        positions = {1: {1: IN_A[1]}, 2: {1: OUT_A[1]}}
+        h, _multi = _multi_harness(tmp_path, positions=positions, project_data=SCOPED_PROJECT)
+        sent = self._sent_per_frame(h)
+        h.run([(1, T0 + 1.0), (2, T0 + 2.0)])
+        assert sent[1] == [11]
+        assert sent[2] == [12]
+
+    def test_animal_in_aquarium_1_never_fires_aquarium_2_binding(self, tmp_path):
+        positions = {1: {0: IN_A[0]}, 2: {0: OUT_A[0]}}
+        h, _multi = _multi_harness(tmp_path, positions=positions, project_data=SCOPED_PROJECT)
+        sent = self._sent_per_frame(h)
+        h.run([(1, T0 + 1.0), (2, T0 + 2.0)])
+        assert sent[1] == [1]
+        assert sent[2] == [2]
+
+    def test_unscoped_binding_holds_while_any_aquarium_is_inside(self, tmp_path):
+        positions = {
+            1: {0: IN_A[0], 1: OUT_A[1]},
+            2: {0: IN_A[0], 1: IN_A[1]},
+            3: {0: OUT_A[0], 1: IN_A[1]},
+            4: {0: OUT_A[0], 1: OUT_A[1]},
+        }
+        h, _multi = _multi_harness(tmp_path, positions=positions, project_data=ZONE_PROJECT)
+        sent = self._sent_per_frame(h)
+        h.run([(f, T0 + f) for f in (1, 2, 3, 4)])
+        assert [sent[f] for f in (1, 2, 3, 4)] == [[1], [], [], [2]]
+
+    def test_stop_of_one_aquarium_closes_only_its_commands(self, tmp_path):
+        spec = WindowSpec(start=FrameReached(frame=1), stop=RoiEdge(roi="A", edge="exit"))
+        positions = {
+            1: {0: IN_A[0], 1: IN_A[1]},
+            2: {0: OUT_A[0], 1: IN_A[1]},  # aquarium 0 STOP
+            3: {0: IN_A[0], 1: IN_A[1]},  # aquarium 0 is closed: nothing
+            4: {0: IN_A[0], 1: OUT_A[1]},  # aquarium 1 STOP: the last one
+        }
+        h, _multi = _multi_harness(
+            tmp_path, positions=positions, window=spec, project_data=SCOPED_PROJECT
+        )
+        sent = self._sent_per_frame(h)
+        h.run([(f, T0 + f) for f in (1, 2, 3, 4)])
+        assert sent[1] == [1, 11]
+        assert sent[2] == [2]  # only aquarium 0's outputs swept
+        assert sent[3] == []
+        assert sent[4] == [2, 12]  # last window closed: the full sweep
+        assert h.manager.sent == [1, 11, 2, 2, 12]  # no second sweep at session end
+
+
+class TestMultiAquariumOverlay:
+    def test_overlay_draws_every_aquarium_zones_only(self, tmp_path):
+        h, multi = _multi_harness(tmp_path, positions={1: {1: IN_A[1]}})
+        h.display_interval_frames = 1
+        h.run([(1, T0 + 1.0)])
+        assert multi.overlay_calls == [{}]  # zones only: boxes are drawn by the consumer
+        detector: Any = h.detector
+        assert detector.overlays == 0  # never the aquarium-0 single detector
+
+    def test_single_aquarium_overlay_is_unchanged(self, tmp_path):
+        h = _LoopHarness(tmp_path)
+        detector = _CountingDetector({})
+        h.detector = detector
+        harness: Any = h
+        harness.detector_service = SimpleNamespace(detector=detector)
+        h.display_interval_frames = 1
+        h.run([(1, T0 + 1.0)])
+        assert detector.overlays == 1

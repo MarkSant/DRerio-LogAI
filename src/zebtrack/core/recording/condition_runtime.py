@@ -207,8 +207,25 @@ def window_phase_message(
     *,
     t_s: float | None = None,
     on_start_not_met: str | None = None,
+    aquarium_id: int | None = None,
 ) -> str:
-    """User-facing sentence for a window phase (banner and preview status)."""
+    """User-facing sentence for a window phase (banner and preview status).
+
+    ``aquarium_id`` (0-based) prefixes the sentence with the aquarium it is
+    about, in a 2+-aquarium session where each aquarium has its own window.
+    """
+    message = _window_phase_sentence(phase, t_s=t_s, on_start_not_met=on_start_not_met)
+    if aquarium_id is None:
+        return message
+    return _("Aquarium {number}: {message}").format(number=aquarium_id + 1, message=message)
+
+
+def _window_phase_sentence(
+    phase: WindowPhase | str,
+    *,
+    t_s: float | None,
+    on_start_not_met: str | None,
+) -> str:
     token = WindowPhase(phase)
     if token is WindowPhase.WAITING_START:
         return _("Recording — waiting for the start condition of the analysis window.")

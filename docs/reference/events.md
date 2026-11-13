@@ -110,7 +110,7 @@ DRerio LogAI utilizes two coexisting event bus systems to separate domain logic 
 
 | Event Name                      | Payload Requirements                                                                       | Description                                  |
 | ------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------- |
-| `ANALYSIS_WINDOW_STATE_CHANGED` | `AnalysisWindowStatePayload(state, t_s, reason, on_start_not_met, on_stop, experiment_id)` | Phase of the LIVE analysis window changed.   |
+| `ANALYSIS_WINDOW_STATE_CHANGED` | `AnalysisWindowStatePayload(state, t_s, reason, on_start_not_met, on_stop, experiment_id, aquarium_id)` | Phase of the LIVE analysis window changed.   |
 
 - **Publisher:** `FrameProcessingMixin._post_window_state` (`core/recording/frame_processing_pipeline.py`)
   computes the payload on the processing thread and publishes it through `root.after(0, ...)`,
