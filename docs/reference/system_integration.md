@@ -722,12 +722,14 @@ map as a sidecar — the `3_CoordMovimento` schema stays **immutable**.
   queued_for_analysis, frame)`. `_unpack_video_item` tolerates the legacy bare
   frame (no ledger row is produced for it). `frame_queue` is unchanged:
   `(frame_count, frame, capture_perf)`.
-- **Opportunistic queueing is preserved:** `3_CoordMovimento` does **not**
-  contain only multiples of `analysis_interval_frames` — frames off-cadence are
-  still enqueued when `frame_queue` has room, so the spacing is opportunistic
-  and not reproducible between runs. Nothing is dropped to "fix" it; instead
-  every row carries `is_analysis_frame`, so analysis can filter and recover the
-  deterministic cadence when it needs to.
+- **One cadence, one rule (#637, #638):** a frame is analysed iff
+  `processing_interval_resolver.is_analysis_frame(index, N, offset)`, where
+  `index` counts from 0 at the source's first frame — the pre-recorded worker's
+  `frame_num`, and the live pipeline frame minus one (live numbers from 1). So
+  `processing_offset` puts both flows on the same phase. Frames off-cadence are
+  still enqueued opportunistically when `frame_queue` has room, but only for the
+  preview: the processing thread analyses exactly the frames whose ledger row
+  carries `is_analysis_frame`.
 - **Lifecycle:** created in `_start_threads` (`_reset_frame_ledger`, buffering
   in memory because recording may only start after the aquarium-detection
   phase), bound to the recorder folder by `_maybe_bind_frame_ledger`, finalized

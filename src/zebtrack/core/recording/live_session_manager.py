@@ -77,6 +77,7 @@ class LiveSessionManagerMixin:
     processing_thread: threading.Thread | None
     video_recording_thread: threading.Thread | None
     analysis_interval_frames: int
+    analysis_offset_frames: int
     display_interval_frames: int
     _is_capturing_for_video: bool
     _analysis_completed: bool
@@ -354,6 +355,7 @@ class LiveSessionManagerMixin:
         use_countdown: bool = False,
         countdown_duration_s: int = 0,
         analysis_window: Any = None,
+        analysis_offset_frames: int = 0,
     ) -> bool:
         """Start a live camera analysis session.
 
@@ -362,6 +364,8 @@ class LiveSessionManagerMixin:
             duration_s: Session duration in seconds
             experiment_id: Identifier for this session
             analysis_interval_frames: Analyze every N frames
+            analysis_offset_frames: Which frame of each interval is analysed,
+                counted from 0 at the session's first captured frame (#638)
             display_interval_frames: Display every N frames
             record_video: Whether to record video
             output_base_dir: Custom output directory (default: live_analysis_sessions/)
@@ -384,6 +388,7 @@ class LiveSessionManagerMixin:
             duration_s=duration_s,
             experiment_id=experiment_id,
             analysis_interval=analysis_interval_frames,
+            analysis_offset=analysis_offset_frames,
             display_interval=display_interval_frames,
             animals_per_aquarium=animals_per_aquarium,
             has_analysis_config=analysis_config is not None,
@@ -401,6 +406,7 @@ class LiveSessionManagerMixin:
 
         # Store configuration
         self.analysis_interval_frames = analysis_interval_frames
+        self.analysis_offset_frames = analysis_offset_frames
         self.display_interval_frames = display_interval_frames
         self.is_capturing_for_video = record_video
         self.analysis_completed = False

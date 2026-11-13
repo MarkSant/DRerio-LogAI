@@ -196,12 +196,16 @@ video_processing:
 
   # Frame processing interval: process every Nth frame for detection
   # Higher values = faster processing but lower temporal resolution
-  # Example: interval=10 means detect on frames 1, 11, 21, ...
+  # (the frames analysed are chosen by processing_offset below)
   processing_interval: 10
 
-  # Frame offset: starting frame for detection cycle
-  # Example: offset=1, interval=10 → process frames 1, 11, 21, ...
-  #          offset=0, interval=10 → process frames 0, 10, 20, ...
+  # Frame offset: which frame of each interval is analysed, counted from 0 at
+  # the FIRST frame of the source (video file or live session) — the same phase
+  # in pre-recorded and live (#638).
+  # Example: offset=1, interval=10 → frames 1, 11, 21, ... (the 2nd of each 10)
+  #          offset=0, interval=10 → frames 0, 10, 20, ... (the 1st of each 10)
+  # Live numbers its frames from 1, so offset=1 there is frames 2, 12, 22.
+  # A project may override it with project_data["analysis_offset_frames"].
   processing_offset: 1
 
   # Behavioral thresholds (used in analysis phase)

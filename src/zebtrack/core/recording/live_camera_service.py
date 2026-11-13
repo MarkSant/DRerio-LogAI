@@ -212,6 +212,7 @@ class LiveCameraService(
         self._camera: Camera | None = None
         self._preview_window: LivePreviewWindow | None = None
         self.analysis_interval_frames = 1
+        self.analysis_offset_frames = 0
         self.display_interval_frames = 1
         self._is_capturing_for_video = False
         self._timer_id: str | None = None

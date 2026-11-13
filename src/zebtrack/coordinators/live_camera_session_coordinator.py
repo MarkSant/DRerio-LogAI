@@ -32,6 +32,7 @@ from zebtrack.coordinators.base_coordinator import (
 )
 from zebtrack.core.services.processing_interval_resolver import (
     resolve_processing_intervals,
+    resolve_processing_offset,
 )
 from zebtrack.core.state_manager import StateCategory
 from zebtrack.i18n import _
@@ -1140,6 +1141,12 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 duration_s=duration_s,
                 experiment_id=experiment_id,
                 analysis_interval_frames=analysis_interval_frames,
+                # The caller fixed the interval; the offset follows the one rule (#638).
+                analysis_offset_frames=resolve_processing_offset(
+                    analysis_interval_frames,
+                    getattr(self.project_manager, "project_data", None),
+                    self.settings,
+                ),
                 display_interval_frames=display_interval_frames,
                 record_video=record_video,
                 output_base_dir=resolved_base,
@@ -1745,6 +1752,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             self.settings,
         )
         analysis_interval_frames = _intervals.analysis
+        analysis_offset_frames = _intervals.offset
         display_interval_frames = _intervals.display
 
         # Video recording (optional)
@@ -1974,6 +1982,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             duration_s=duration_s,
             experiment_id=experiment_id,
             analysis_interval_frames=analysis_interval_frames,
+            analysis_offset_frames=analysis_offset_frames,
             display_interval_frames=display_interval_frames,
             record_video=record_video,
             output_base_dir=resolved_base,
@@ -2385,6 +2394,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # numa sessão de projeto quem manda é o ``project_data``.
         _intervals = resolve_processing_intervals(None, project_data, self.settings)
         analysis_interval_frames = _intervals.analysis
+        analysis_offset_frames = _intervals.offset
         display_interval_frames = _intervals.display
         use_countdown = bool(project_data.get("use_countdown", False))
         countdown_duration_s = int(project_data.get("countdown_duration_s", 0) or 0)
@@ -2542,6 +2552,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             duration_s=duration_s,
             experiment_id=experiment_id,
             analysis_interval_frames=analysis_interval_frames,
+            analysis_offset_frames=analysis_offset_frames,
             display_interval_frames=display_interval_frames,
             record_video=True,  # Projects always record
             output_base_dir=resolved_base,

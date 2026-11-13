@@ -803,6 +803,26 @@ class TestStartLiveAnalysisAndSessionFromConfig:
         coordinator.detector_service.detector.set_single_subject_mode.assert_called_once_with(True)
         coordinator.live_camera_service.start_session.assert_called_once()
 
+    def test_start_session_from_config_hands_the_offset_to_the_camera(self, coordinator):
+        """#638: the live loop samples with the project's offset, not offset 0."""
+        coordinator.settings.model_selection = Mock()
+        coordinator.detector_service.detector = Mock()
+        coordinator.live_calibration_coordinator.ensure_zones_before_recording.return_value = True
+        coordinator.live_camera_service.start_session.return_value = True
+        coordinator.project_manager.project_data = {
+            "analysis_interval_frames": 10,
+            "analysis_offset_frames": 3,
+        }
+
+        coordinator.start_session_from_config(
+            {"camera_index": 0, "duration_s": 60.0, "experiment_id": "exp"},
+            zones_validated=True,
+        )
+
+        kwargs = coordinator.live_camera_service.start_session.call_args.kwargs
+        assert kwargs["analysis_interval_frames"] == 10
+        assert kwargs["analysis_offset_frames"] == 3
+
     def test_start_session_from_config_zones_deferred(self, coordinator):
         coordinator.live_calibration_coordinator.ensure_zones_before_recording.return_value = False
         coordinator.live_calibration_coordinator.pending_zone_confirmation = True

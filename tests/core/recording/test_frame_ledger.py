@@ -287,6 +287,7 @@ class _PipelineHarness(FrameProcessingMixin):
         tmp_path,
         n_frames: int = 12,
         analysis_interval_frames: int = 1,
+        analysis_offset_frames: int = 0,
         drop_frames: set[int] | None = None,
         fail_writes: set[int] | None = None,
         frame_queue_maxsize: int = 0,
@@ -300,6 +301,7 @@ class _PipelineHarness(FrameProcessingMixin):
         self.recorder = cast(Any, _FakeRecorder(tmp_path, fail_writes))
         self.is_capturing_for_video = recording
         self.analysis_interval_frames = analysis_interval_frames
+        self.analysis_offset_frames = analysis_offset_frames
         self._video_frames_written = 0
         self._dropped_frames_video = 0
         self._dropped_frames_processing = 0
@@ -400,10 +402,27 @@ def test_analysis_cadence_and_opportunistic_queueing(tmp_path):
     rows = _run_pipeline(harness)
 
     analysis = [r["pipeline_frame"] for r in rows if r["is_analysis_frame"]]
-    assert analysis == [10]  # cadência determinística
+    # Cadência determinística, contada a partir do 1º quadro capturado (o
+    # pipeline numera a partir de 1): offset 0 analisa o 1º quadro de cada
+    # intervalo, como o pré-gravado (#638).
+    assert analysis == [1, 11]
     # Enfileiramento oportunista: os outros quadros também vão à fila (exibição);
     # desde o #637 só os múltiplos de 10 são ANALISADOS.
     assert all(r["queued_for_analysis"] for r in rows)
+
+
+def test_processing_offset_shifts_the_live_cadence_like_the_prerecorded(tmp_path):
+    """#638: offset 1 analyses the 2nd captured frame of each interval.
+
+    Pipeline frames are 1-based, so that is pipeline frames 2 and 12 — the
+    same SOURCE frames (index 1 and 11) the pre-recorded worker analyses.
+    """
+    harness = _PipelineHarness(
+        tmp_path, n_frames=12, analysis_interval_frames=10, analysis_offset_frames=1
+    )
+    rows = _run_pipeline(harness)
+
+    assert [r["pipeline_frame"] for r in rows if r["is_analysis_frame"]] == [2, 12]
 
 
 def test_opportunistic_queueing_marked_false_when_queue_is_full(tmp_path):

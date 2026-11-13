@@ -906,14 +906,27 @@ class TestOneSamplingCadence:
     """#637: the processing thread decimated a SECOND time, by the count of frames
     it happened to receive, so the effective cadence drifted from N to ~N^2."""
 
-    def test_analysed_frames_are_the_multiples_of_n_whatever_arrives(self, tmp_path):
+    def test_analysed_frames_follow_one_cadence_whatever_arrives(self, tmp_path):
         h = _LoopHarness(tmp_path)
         h.analysis_interval_frames = 3
         # A thinned stream: the opportunistic frames 5 and 8 never made it.
         h.run([(f, T0 + f) for f in (1, 2, 3, 4, 6, 7, 9)])
 
         recorder: Any = h.recorder
-        assert [frame for frame, _t, _obs in recorder.objects] == [3, 6, 9]
+        # Offset 0, counted from the first captured frame (pipeline frame 1):
+        # frames 1, 4, 7 — never the frames that happened to arrive (#637, #638).
+        assert [frame for frame, _t, _obs in recorder.objects] == [1, 4, 7]
+
+    def test_the_processing_thread_honours_the_offset(self, tmp_path):
+        """#638: the processing thread agrees with the capture thread's offset."""
+        h = _LoopHarness(tmp_path)
+        h.analysis_interval_frames = 3
+        h.analysis_offset_frames = 1
+        h.run([(f, T0 + f) for f in range(1, 10)])
+
+        recorder: Any = h.recorder
+        # Pipeline frames are 1-based: source indices 1, 4, 7 -> frames 2, 5, 8.
+        assert [frame for frame, _t, _obs in recorder.objects] == [2, 5, 8]
 
 
 class TestLiveRecordingFps:
