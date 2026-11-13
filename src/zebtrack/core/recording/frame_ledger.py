@@ -211,7 +211,8 @@ class FrameLedger:
             video_frame_index: índice real no MP4 (0-based), fornecido pela
                 thread CONSUMIDORA. ``-1`` quando o frame não foi escrito.
             is_analysis_frame: respeitou a cadência determinística
-                (``frame % analysis_interval_frames == 0``).
+                (``processing_interval_resolver.is_analysis_frame(frame - 1,
+                N, offset)``, #638).
             queued_for_analysis: foi de fato enfileirado para detecção — inclui
                 o enfileiramento oportunista de frames fora da cadência.
         """

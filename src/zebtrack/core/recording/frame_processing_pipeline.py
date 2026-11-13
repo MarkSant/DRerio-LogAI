@@ -17,6 +17,9 @@ import numpy as np
 import structlog
 
 from zebtrack.core.recording.frame_ledger import OUTCOME_DROPPED_ON_STOP
+from zebtrack.core.services.processing_interval_resolver import (
+    is_analysis_frame as _is_analysis_frame,
+)
 from zebtrack.i18n import _
 from zebtrack.io.camera import CapturedFrame
 
@@ -128,6 +131,9 @@ class FrameProcessingMixin:
     processing_thread: threading.Thread | None
     video_recording_thread: threading.Thread | None
     analysis_interval_frames: int
+    #: Which frame of each interval is analysed (#638); a class default so a
+    #: host that never sets it keeps the offset-0 cadence.
+    analysis_offset_frames: int = 0
     display_interval_frames: int
     _video_frames_written: int
     _live_detected_frames: int
@@ -515,7 +521,11 @@ class FrameProcessingMixin:
                 # ``is_analysis_frame``/``queued_for_analysis``. O conjunto de
                 # operações bloqueantes por frame é o mesmo de antes — só a ordem
                 # muda — e a fila de vídeo (600 slots ≈ 20 s) absorve a inversão.
-                is_analysis_frame = (frame_count % self.analysis_interval_frames) == 0
+                # Pipeline frames count from 1; the rule counts from the
+                # source's first frame (0), the pre-recorded worker's way (#638).
+                is_analysis_frame = _is_analysis_frame(
+                    frame_count - 1, self.analysis_interval_frames, self.analysis_offset_frames
+                )
                 queued_for_analysis = False
 
                 if is_analysis_frame:
@@ -995,7 +1005,9 @@ class FrameProcessingMixin:
                 # to RECEIVE (a subset, thinned by the opportunistic queueing)
                 # decimated a second time: N to ~N^2 under load (#637).
                 # Opportunistic frames still serve the display.
-                should_analyze = (frame_number % self.analysis_interval_frames) == 0
+                should_analyze = _is_analysis_frame(
+                    frame_number - 1, self.analysis_interval_frames, self.analysis_offset_frames
+                )
                 should_display = (frames_received % self.display_interval_frames) == 0
 
                 detections = []

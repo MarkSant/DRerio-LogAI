@@ -784,7 +784,8 @@ def test_frame_loop_writes_a_heartbeat_on_every_processed_frame(tmp_path):
     objects = _read_3c(output_dir / f"3c_Objetos_{base}.parquet")
     trajectory = pd.read_parquet(output_dir / f"3_CoordMovimento_{base}.parquet")
     heartbeat = objects[objects["class_id"] == -1]
-    processed = list(range(0, 120, 3))
+    # config.yaml ships ``processing_offset: 1``: the 2nd frame of each interval (#638).
+    processed = list(range(1, 120, 3))
     assert heartbeat["frame"].tolist() == processed
     # Every other processed frame was blind: the trajectory skips those frames.
     assert len(trajectory) == len(processed) // 2
@@ -802,7 +803,8 @@ def test_frame_loop_records_context_observations_and_metadata(tmp_path):
     objects = _read_3c(output_dir / f"3c_Objetos_{base}.parquet")
     context = objects[objects["role"] == "context"]
     subjects = objects[objects["role"] == "subject"]
-    processed = list(range(0, 120, 4))
+    # config.yaml ships ``processing_offset: 1``: the 2nd frame of each interval (#638).
+    processed = list(range(1, 120, 4))
     assert context["frame"].tolist() == processed
     assert set(context["class_name"]) == {"experimenter"}
     assert subjects["frame"].tolist() == processed
@@ -849,7 +851,8 @@ def test_frame_loop_multi_aquarium_writes_one_sidecar_per_aquarium(tmp_path):
         f"3c_Objetos_{base}_aquarium_1.parquet",
         f"3c_Objetos_{base}_aquarium_2.parquet",
     ]
-    processed = list(range(0, 120, 6))
+    # config.yaml ships ``processing_offset: 1``: the 2nd frame of each interval (#638).
+    processed = list(range(1, 120, 6))
     for aquarium_id, path in enumerate(found):
         objects = _read_3c(path)
         heartbeat = objects[objects["class_id"] == -1]
@@ -862,3 +865,20 @@ def test_frame_loop_multi_aquarium_writes_one_sidecar_per_aquarium(tmp_path):
         assert set(context["aquarium_id"].tolist()) == {aquarium_id}
         subjects = objects[objects["role"] == "subject"]
         assert set(subjects["aquarium_id"].tolist()) <= {aquarium_id}
+
+
+def test_frame_loop_applies_the_processing_offset(tmp_path):
+    """#638: ``processing_offset=2`` with interval 5 analyses frames 2, 7, 12, ...
+
+    The option was documented and validated but the loop sampled 0, N, 2N.
+    """
+    from tests.helpers.prerecorded_pipeline import load_pristine_settings
+
+    settings = load_pristine_settings()
+    settings.video_processing.processing_offset = 2
+
+    output_dir, base = _run_frame_loop(tmp_path, interval=5, settings=settings)
+
+    heartbeat = _read_3c(output_dir / f"3c_Objetos_{base}.parquet")
+    heartbeat = heartbeat[heartbeat["class_id"] == -1]
+    assert heartbeat["frame"].tolist() == list(range(2, 120, 5))

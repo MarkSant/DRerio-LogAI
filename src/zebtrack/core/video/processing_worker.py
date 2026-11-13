@@ -35,6 +35,10 @@ from zebtrack.core.detection.class_roles import ClassRoleMap, resolve_class_role
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
 from zebtrack.core.detection.zone_scaler import ZoneScaler, arena_membership_rule_from_settings
+from zebtrack.core.services.processing_interval_resolver import (
+    is_analysis_frame,
+    resolve_processing_offset,
+)
 from zebtrack.core.video.shared_frame_buffer import SharedFrameBuffer
 from zebtrack.i18n import _
 from zebtrack.io.object_sidecar import CLOCK_PTS, ObjectSidecarMetadata
@@ -1313,15 +1317,27 @@ class _WorkerProcess(multiprocessing.Process):
         processed_frames = 0  # Count frames actually processed by detector
         detected_frames = 0  # Count frames with at least one detection
         start_time = time.time()
+        # The project's override already sits in these settings (snapshot);
+        # ``frame_num`` counts from 0 at the first frame, as the rule expects (#638).
+        analysis_offset = resolve_processing_offset(
+            self.config.analysis_interval_frames, None, self.config.settings
+        )
 
         try:
-            log.info("worker.processing_loop.started", video=experiment_id)
+            log.info(
+                "worker.processing_loop.started",
+                video=experiment_id,
+                analysis_interval=self.config.analysis_interval_frames,
+                analysis_offset=analysis_offset,
+            )
             while True:
                 # wait_s=0.0: runs once per VIDEO frame — see _check_cancellation.
                 if self._check_cancellation(wait_s=0.0):
                     return False
 
-                should_process = frame_num % self.config.analysis_interval_frames == 0
+                should_process = is_analysis_frame(
+                    frame_num, self.config.analysis_interval_frames, analysis_offset
+                )
                 detections: list[tuple[Any, ...]] = []
                 partitioned_detections: dict[int, list[tuple[Any, ...]]] = {}
 

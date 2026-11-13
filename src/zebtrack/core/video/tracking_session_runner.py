@@ -176,13 +176,18 @@ class TrackingSessionRunnerMixin:
         cap: cv2.VideoCapture,
         recorder: Recorder,
         detector: Detector,
+        analysis_offset_frames: int = 0,
     ) -> tuple[list, int, bool]:
         """Process a single frame for tracking.
 
         Returns:
             Tuple of (detections, detected_count_increment, should_process)
         """
-        should_process = frame_num % analysis_interval_frames == 0
+        from zebtrack.core.services.processing_interval_resolver import is_analysis_frame
+
+        should_process = is_analysis_frame(
+            frame_num, analysis_interval_frames, analysis_offset_frames
+        )
         detections: list[tuple[Any, ...]] = []
         detected_count_increment = 0
 

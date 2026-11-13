@@ -2334,8 +2334,8 @@ modules:
         replace: 'if False:'
       - id: second-decimation
         description: "processamento volta a decimar pela contagem de quadros RECEBIDOS"
-        find: 'should_analyze = (frame_number % self.analysis_interval_frames) == 0'
-        replace: 'should_analyze = (frames_received % self.analysis_interval_frames) == 0'
+        find: 'frame_number - 1, self.analysis_interval_frames, self.analysis_offset_frames'
+        replace: 'frames_received - 1, self.analysis_interval_frames, self.analysis_offset_frames'
       - id: ledger-rate-ignored
         description: "fps do MP4 ignora a taxa medida no ledger da sessao"
         find: 'if ledger is not None and getattr(ledger, "row_count", 0) >= 30:'
@@ -2529,6 +2529,75 @@ modules:
         description: "trilhas somem da analise sem aviso no relatorio"
         find: 'validation_warnings.extend(screening.warnings)'
         replace: 'pass'
+
+  processing_offset:
+    source: src/zebtrack/core/services/processing_interval_resolver.py
+    tests:
+      - tests/core/services/test_processing_interval_resolver.py
+    mutations:
+      - id: offset-ignored-by-the-rule
+        description: "processing_offset volta a ser ignorado: amostra sempre 0, N, 2N (#638)"
+        find: 'return frame_index % step == offset % step'
+        replace: 'return frame_index % step == 0'
+      - id: project-offset-ignored
+        description: "analysis_offset_frames do projeto deixa de vencer o das settings (#638)"
+        find: |-
+          if offset is None:
+                  offset = _coerce_offset(
+        replace: |-
+          if True:
+                  offset = _coerce_offset(
+      - id: offset-not-wrapped
+        description: "offset maior que o intervalo da execucao nunca casa um quadro (#638)"
+        find: '    return offset % step'
+        replace: '    return offset'
+      - id: negative-offset-accepted
+        description: "offset negativo deixa de cair para o nivel seguinte (#638)"
+        find: '    if offset < 0:'
+        replace: '    if False:'
+
+  processing_offset_loops:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_frame_ledger.py
+      - tests/core/recording/test_frame_processing_pipeline_extended.py
+    mutations:
+      - id: live-capture-phase-one-based
+        description: "captura ao vivo conta a fase a partir de 1 e diverge do pre-gravado (#638)"
+        find: 'frame_count - 1, self.analysis_interval_frames, self.analysis_offset_frames'
+        replace: 'frame_count, self.analysis_interval_frames, self.analysis_offset_frames'
+      - id: live-processing-ignores-offset
+        description: "thread de processamento ao vivo ignora o offset e analisa outros quadros que a captura (#638)"
+        find: 'frame_number - 1, self.analysis_interval_frames, self.analysis_offset_frames'
+        replace: 'frame_number - 1, self.analysis_interval_frames, 0'
+
+  processing_offset_worker:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+    mutations:
+      - id: worker-ignores-offset
+        description: "worker pre-gravado volta a amostrar 0, N, 2N ignorando processing_offset (#638)"
+        find: 'frame_num, self.config.analysis_interval_frames, analysis_offset'
+        replace: 'frame_num, self.config.analysis_interval_frames, 0'
+
+  processing_offset_live_coordinator:
+    source: src/zebtrack/coordinators/live_camera_session_coordinator.py
+    tests:
+      - tests/coordinators/test_live_camera_session_coordinator.py
+    mutations:
+      - id: live-session-drops-the-offset
+        description: "sessao ao vivo comeca com offset 0 e ignora o do projeto (#638)"
+        find: |-
+          analysis_offset_frames = _intervals.offset
+                  display_interval_frames = _intervals.display
+
+                  # Video recording (optional)
+        replace: |-
+          analysis_offset_frames = 0
+                  display_interval_frames = _intervals.display
+
+                  # Video recording (optional)
 
   report_coordinate_space:
     source: src/zebtrack/coordinators/report_generation_coordinator.py

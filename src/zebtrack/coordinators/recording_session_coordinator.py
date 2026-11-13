@@ -30,6 +30,7 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorError,
     CoordinatorValidationError,
 )
+from zebtrack.core.services.processing_interval_resolver import resolve_processing_offset
 from zebtrack.core.state_manager import StateCategory
 from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
@@ -724,6 +725,9 @@ class RecordingSessionCoordinator(BaseCoordinator):
                 duration_s=duration_s,
                 experiment_id=experiment_id,
                 analysis_interval_frames=analysis_interval,
+                analysis_offset_frames=resolve_processing_offset(
+                    analysis_interval, project_data, self.settings
+                ),
                 display_interval_frames=1,  # Default
                 record_video=True,
                 output_base_dir=output_folder,
