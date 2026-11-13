@@ -1621,9 +1621,9 @@ modules:
       - tests/analysis/test_behavior.py
     mutations:
       - id: episodes-cross-gaps
-        description: "episodios de congelamento/inatividade/rajada voltam a atravessar a lacuna (#632)"
-        find: '            usable &= ~self._gap_rows'
-        replace: '            pass'
+        description: "a linha de reaparecimento volta a ter velocidade e os episodios atravessam a lacuna (#632)"
+        find: 'if self._gap_rows.size == vx.size:'
+        replace: 'if False:'
       - id: undefined-velocity-is-zero
         description: "a 1a linha (velocidade indefinida) volta a contar como parada"
         find: 'is_freezing = (v_mag.to_numpy(dtype=float) <= threshold) & usable'
@@ -1656,6 +1656,36 @@ modules:
         description: "o roi_max_gap_s do projeto deixa de definir a lacuna do comportamento"
         find: 'cap = resolve_max_gap_s(dt_s, self._max_gap_s_config)'
         replace: 'cap = resolve_max_gap_s(dt_s, None)'
+
+  behavior_gap_velocity_stats:
+    source: src/zebtrack/analysis/behavior.py
+    tests:
+      - tests/analysis/test_behavior.py
+      - tests/analysis/test_roi_metrics.py
+    mutations:
+      - id: gap-row-velocity-kept
+        description: "a velocidade da linha de reaparecimento volta para a media/max e para a velocidade por ROI (#663)"
+        find: |-
+          vx[self._gap_rows] = np.nan
+                      vy[self._gap_rows] = np.nan
+        replace: |-
+          pass
+      - id: angle-per-track-not-per-segment
+        description: "o angulo volta a ser medido por animal e o vetor que atravessa a lacuna vira curva (#663)"
+        find: |-
+          segments = self._continuous_segments()
+                  segment_labels: np.ndarray | None = None
+        replace: |-
+          segments = self._positions_by_track()
+                  segment_labels: np.ndarray | None = None
+      - id: one-gap-takes-the-whole-frame-path
+        description: "uma unica lacuna (2 segmentos) cai no caminho de trajetoria inteira (#663)"
+        find: 'if len(segments) > 1:'
+        replace: 'if len(segments) > 2:'
+      - id: angular-smoothing-crosses-gap
+        description: "a media movel da velocidade angular volta a atravessar a lacuna (#663)"
+        find: 'angular_velocity_series.groupby(segment_labels)'
+        replace: 'angular_velocity_series.groupby(self._track_labels)'
 
   analysis_service_tracking_gaps:
     source: src/zebtrack/analysis/analysis_service.py
