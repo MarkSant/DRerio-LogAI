@@ -299,13 +299,18 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   `analysis/reporters/html_reporter.py`, `time_axis.seconds_on_axis` (usado só
   por ele), o `plotly` e o `narwhals` do lock. O `.docx` e o `.xlsx` não mudam.
   Um guarda novo (`tests/analysis/reporters/test_reporters_package.py`) reprova
-  todo reporter público sem chamador fora do pacote.
-- **Exportação para R/Python (`ScriptExporter`) (#696).** Mesmo caso do
-  `HtmlReporter`: nenhum fluxo gerava o `.feather`, o CSV/Parquet de apoio nem os
-  scripts `.R`/`.py`, e nenhuma configuração os expunha. Saem
-  `analysis/reporters/script_exporter.py` e os testes que só o exercitavam; a
-  lista de órfãos conhecidos do guarda de reporters fica vazia. Os dados para
-  análise externa continuam no `.xlsx` e no `3_CoordMovimento_*.parquet`.
+  todo reporter público sem chamador fora do pacote; `ScriptExporter` está na
+  lista de órfãos conhecidos até #696 decidir o destino dele.
+- **"Frame skip dinâmico" do ao vivo (`_adjust_fps_dynamically`, #669).** Rodava
+  depois de cada `detect()` e o veredito de pular só chegava a um `log.debug`:
+  nenhum quadro deixava de ser analisado. Media a vazão da inferência (não a
+  taxa de quadros) contra um alvo fixo de 30 fps, e ninguém lia o contador de
+  pulos. Saem o método e os atributos `_target_fps`, `_current_fps`,
+  `_processing_times`, `_frame_skip_count` e `_fps_adjustment_interval`. O que
+  escolhe os quadros analisados continua sendo só a cadência
+  `analysis_interval_frames` (#637); o que rarefaz o ao vivo sob carga é o
+  descarte por fila cheia e os quadros que a câmera perde, ambos no
+  `6_FrameLedger`. As gravações não mudam.
 
 ### Fixed
 

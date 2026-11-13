@@ -268,13 +268,6 @@ class LiveCameraService(
         self._animals_per_aquarium: int = 1  # Default to single subject
         self._use_external_preview: bool = False  # Track if using external UI (CanvasManager)
 
-        # v2.2.0: Dynamic FPS adjustment
-        self._target_fps: float = 30.0  # Default target FPS
-        self._current_fps: float = 30.0  # Measured FPS
-        self._processing_times: list[float] = []  # Rolling window of processing times
-        self._frame_skip_count: int = 0  # Number of frames to skip
-        self._fps_adjustment_interval: int = 30  # Adjust every N frames
-
         # v2.2.0: Mode selection integration
         self._preferred_mode: Any = None  # LiveCameraMode enum value (optional)
 
