@@ -1917,10 +1917,10 @@ modules:
       - id: standard-report-ignores-window
         description: "relatorio individual analisa a gravacao inteira mesmo com janela no projeto"
         find: |-
-          mask_sidecar_path=resolve_mask_sidecar(traj_path),
+          mask_sidecar_path=self._masks_in_report_space(traj_path, (off_x, off_y)),
                       window=window,
         replace: |-
-          mask_sidecar_path=resolve_mask_sidecar(traj_path),
+          mask_sidecar_path=self._masks_in_report_space(traj_path, (off_x, off_y)),
                       window=None,
       - id: aquarium-shares-window-of-aquarium-0
         description: "cada aquario deixa de ter a propria janela"
