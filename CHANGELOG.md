@@ -299,11 +299,22 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   `analysis/reporters/html_reporter.py`, `time_axis.seconds_on_axis` (usado só
   por ele), o `plotly` e o `narwhals` do lock. O `.docx` e o `.xlsx` não mudam.
   Um guarda novo (`tests/analysis/reporters/test_reporters_package.py`) reprova
-  todo reporter público sem chamador fora do pacote; `ScriptExporter` está na
-  lista de órfãos conhecidos até #696 decidir o destino dele.
+  todo reporter público sem chamador fora do pacote.
+- **Exportação para R/Python (`ScriptExporter`) (#696).** Mesmo caso do
+  `HtmlReporter`: nenhum fluxo gerava o `.feather`, o CSV/Parquet de apoio nem os
+  scripts `.R`/`.py`, e nenhuma configuração os expunha. Saem
+  `analysis/reporters/script_exporter.py` e os testes que só o exercitavam; a
+  lista de órfãos conhecidos do guarda de reporters fica vazia. Os dados para
+  análise externa continuam no `.xlsx` e no `3_CoordMovimento_*.parquet`.
 
 ### Fixed
 
+- **`update_translations.py` voltou a chegar ao fim (#703).** Dois pares de
+  `locales/_pairs/` ("Trajectory for {experiment_id} generated." e
+  "Cancellation requested for {name}.") ainda citavam msgids removidos com o
+  código morto do #690. O passo `i18n_pairs` saía com 1 e o `.mo` não era
+  recompilado. Os pares saíram, e `tests/i18n/test_pairs_not_orphaned.py`
+  reprova qualquer par cujo msgid não esteja no catálogo.
 - **Padrões de zebrafish num projeto de roedor (#631).** A geotaxia (proximidade do
   FUNDO) era calculada também em vídeo filmado de cima, onde não há fundo. O
   `run_full_analysis` não olhava a perspectiva, e o `collect_analysis_parameters`

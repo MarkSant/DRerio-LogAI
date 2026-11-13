@@ -11,8 +11,8 @@ no class column and its schema is immutable. Two options were weighed.
 **Add a class column to the trajectory.** Writing is trivial (the class already reaches
 `recorder.py:875`), but every consumer would then have to filter by role: 7 analysis entry
 points, the recorder dedup, the trajectory validator (`unique_tracks > 1` switches semantics),
-`ArduinoRoiEvaluator.occupied_rois` and `script_exporter`. A single omission yields plausible,
-wrong numbers. It also breaks 5 exact-column tests and the golden, and needs migration of every
+`ArduinoRoiEvaluator.occupied_rois` and `script_exporter` (since removed, #696). A single
+omission yields plausible, wrong numbers. It also breaks 5 exact-column tests and the golden, and needs migration of every
 existing file.
 
 **A sidecar, following `3b_Mascaras_`.** ~150 lines mirroring `write_mask_data`; the trajectory
