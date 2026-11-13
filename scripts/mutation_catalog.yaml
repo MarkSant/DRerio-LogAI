@@ -1525,16 +1525,20 @@ modules:
     mutations:
       - id: sweep-at-session-end-not-stop
         description: "varredura do Arduino so no fim da sessao, em vez do STOP da janela"
-        find: 'self._sweep_arduino_zone_outputs("window_stop")'
-        replace: 'pass'
+        find: |-
+          if update.stop_confirmed:
+                      self._sweep_arduino_zone_outputs("window_stop")
+        replace: |-
+          if update.stop_confirmed:
+                      pass
       - id: window-dated-by-processing-clock
         description: "janela datada pelo relogio de processamento em vez da captura"
         find: |-
           t_capture_perf=capture_ts,
-                          classes=classes_from_observations(observations),
+                              classes=classes_from_observations(observations),
         replace: |-
           t_capture_perf=time.perf_counter(),
-                          classes=classes_from_observations(observations),
+                              classes=classes_from_observations(observations),
       - id: commands-before-start
         description: "comandos por ROI saem antes do START da janela"
         find: 'if runtime is not None and not runtime.window_open:'
@@ -1553,11 +1557,11 @@ modules:
         replace: 'pass'
       - id: arduino-code-not-claimed
         description: "codigo do Arduino que a janela espera volta aos coordenadores"
-        find: 'return bool(runtime.offer_external("arduino", code, t_read_perf))'
-        replace: 'runtime.offer_external("arduino", code, t_read_perf); return False'
+        find: 'claimed = bool(runtime.offer_external("arduino", code, t_read_perf)) or claimed'
+        replace: 'runtime.offer_external("arduino", code, t_read_perf)'
       - id: sweep-when-window-never-opened
         description: "fim de sessao varre saidas mesmo sem a janela ter aberto"
-        find: 'if runtime is not None and not runtime.window_opened:'
+        find: 'if runtimes and not any(rt.window_opened for rt in runtimes.values()):'
         replace: 'if False:'
       - id: window-state-not-published
         description: "fase da janela nao chega a UI"
