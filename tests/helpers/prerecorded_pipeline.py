@@ -556,6 +556,11 @@ def run_barnes_pipeline(workdir: Path, settings: Settings) -> BarnesRun:
         settings_obj=settings,
         class_role_map=role_map,
     )
+    # One rat: what ``_initialize_detector`` does for a one-animal project
+    # (#649), skipped here because the harness calls ``_process_single_video``
+    # directly. In multi-subject mode the rat's first frame came out with no
+    # id (ByteTrack had not confirmed it yet) and the report counted 2 animals.
+    detector.set_single_subject_mode(True)
     succeeded = worker._process_single_video(
         index=0,
         total_videos=1,

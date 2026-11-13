@@ -1403,6 +1403,17 @@ class Settings(BaseModel):
             "to disable the cap (historical behaviour)"
         ),
     )
+    min_track_duration_s: float = Field(
+        default=0.5,
+        ge=0.0,
+        description=(
+            "Shortest track, in seconds, that counts as an animal. Shorter "
+            "tracks (a one-row id opened by a tracker glitch) are left out of "
+            "the analysis with a warning, as long as a longer track exists, so "
+            "they never turn a one-animal report into a multi-animal one. The "
+            "trajectory file keeps them. 0.0 disables it"
+        ),
+    )
     roi_bbox_overlap_basis: Literal["bbox", "roi", "max"] = Field(
         default="bbox",
         description=(

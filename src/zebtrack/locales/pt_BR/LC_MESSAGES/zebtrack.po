@@ -284,6 +284,32 @@ msgstr ""
 "{count} linhas da trajetória não têm instante de captura no registro de "
 "frames; a sessão não foi redatada e mantém o relógio de processamento."
 
+#: src/zebtrack/analysis/track_significance.py:72
+msgid "no id"
+msgstr "sem id"
+
+#: src/zebtrack/analysis/track_significance.py:130
+#, python-brace-format
+msgid ""
+"Every track in this trajectory lasts less than {min_s:g} s, so short "
+"tracker glitches cannot be told apart from animals; all {count} tracks "
+"were kept."
+msgstr ""
+"Todas as trilhas desta trajetória duram menos de {min_s:g} s, então "
+"falhas curtas do rastreador não podem ser distinguidas de animais; as "
+"{count} trilhas foram mantidas."
+
+#: src/zebtrack/analysis/track_significance.py:151
+#, python-brace-format
+msgid ""
+"{count} track(s) shorter than {min_s:g} s were left out of the analysis "
+"as tracker glitches, not animals (track_id {ids}; {rows} row(s)). The "
+"trajectory file keeps them."
+msgstr ""
+"{count} trilha(s) com menos de {min_s:g} s ficaram fora da análise como "
+"falhas do rastreador, não animais (track_id {ids}; {rows} linha(s)). O "
+"arquivo de trajetória as mantém."
+
 #: src/zebtrack/analysis/window_observations.py:100
 msgid ""
 "No object sidecar (3c_Objetos_) was found for this recording: the "

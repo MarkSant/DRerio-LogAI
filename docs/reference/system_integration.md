@@ -1063,6 +1063,20 @@ each analysed on its own. Two animals in the *same* tank still collapsed.
   `trajectory_validator` and printed as a neutral statistic — it is now a
   warning).
 
+- **A glitch track is not an animal (#649).** Before anything counts track ids,
+  `AnalysisService.run_full_analysis` calls
+  `analysis/track_significance.screen_short_tracks()`. Tracks shorter than
+  `min_track_duration_s` (0.5 s; duration = span + median interval) leave the
+  ANALYSIS with a warning, provided a longer track exists. `3_CoordMovimento`
+  keeps them. Rows without a `track_id` are one group, as in
+  `_assign_track_labels`. The validator, `is_multi_track`, `n_animais` and
+  `por_animal` all see the screened trajectory.
+- **One-animal projects run ByteTrack's single-animal mode.**
+  `core/services/single_subject_policy.resolve_project_single_subject()` is the
+  only reading of that choice. The animal count (top level, `calibration`, the
+  per-aquarium lists) beats `tracking.use_single_subject_tracker`, which an old
+  migration filled from the global settings.
+
 Gotchas:
 
 - **Single track is bit-identical.** `ROIAnalyzer._view` *is* `_trajectory` when

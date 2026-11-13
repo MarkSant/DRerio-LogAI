@@ -25,6 +25,7 @@ from zebtrack.analysis.metrics_cache import MetricsCache
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.analysis.time_base import resolve_time_base
+from zebtrack.analysis.track_significance import min_track_duration_from, screen_short_tracks
 from zebtrack.analysis.trajectory_validator import (
     TrajectoryQualityValidator,
     count_unique_frames,
@@ -297,6 +298,17 @@ class AnalysisService:
                 f"(from resolve_analysis_window), got {type(window).__name__}."
             )
 
+        # Tracks too short to be an animal (a one-row id from a tracker glitch)
+        # leave the analysis HERE, before the validator and the behaviour
+        # analyser count track ids, so the report's semantics, ``n_animais``
+        # and ``por_animal`` agree (#649).
+        screening = screen_short_tracks(
+            trajectory_df,
+            min_duration_s=min_track_duration_from(self.settings),
+            median_dt=resolve_time_base(trajectory_df, fallback_fps=fps).median_dt,
+        )
+        trajectory_df = screening.trajectory
+
         # IMPROVEMENT #5: Validate trajectory quality before analysis
         # Use lenient minimum (3 frames) to allow test scenarios
         # Production code typically has much longer trajectories
@@ -326,6 +338,7 @@ class AnalysisService:
 
         # Log warnings even if validation passed
         validation_warnings = validation_result["warnings"]
+        validation_warnings.extend(screening.warnings)
         validation_stats = validation_result["stats"]
 
         # The recording length comes from the time base (unique timestamps),

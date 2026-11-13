@@ -408,6 +408,13 @@ roi_inclusion_rule: "bbox_intersects"
 #   - .inf:           no cap (historical behaviour)
 # roi_max_gap_s: null
 
+# Shortest track, in seconds, that counts as an animal (#649). A track shorter
+# than this (a one-row id from a tracker glitch) is left out of the ANALYSIS
+# with a warning -- never out of 3_CoordMovimento -- as long as a longer track
+# exists, so it cannot turn a one-animal report into a multi-animal one.
+# 0.0 disables it.
+# min_track_duration_s: 0.5
+
 # -----------------------------------------------------------------------------
 # Trajectory Smoothing (Savitzky-Golay Filter)
 # -----------------------------------------------------------------------------

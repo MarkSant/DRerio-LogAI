@@ -1037,37 +1037,15 @@ class DetectorService:
                 return True
             return None
 
-        # Newer project files keep tracking preferences inside the tracking stanza
-        tracker_section = project_data.get("tracking")
+        # One rule for every caller (#649): the project's animal count beats
+        # the stored ``tracking`` flag.
+        from zebtrack.core.services.single_subject_policy import (
+            resolve_project_single_subject,
+        )
 
-        pref = project_data.get("use_single_subject_tracker")
-        if pref is None and isinstance(tracker_section, dict):
-            pref = tracker_section.get("use_single_subject_tracker")
-
-        if pref is None:
-            calibration = project_data.get("calibration") or {}
-            animals = calibration.get("animals_per_aquarium")
-            if animals is not None:
-                try:
-                    pref = int(animals) == 1
-                except (TypeError, ValueError):
-                    pref = None
-
-        if pref is None:
-            animals = project_data.get("animals_per_aquarium")
-            if animals is None:
-                video_processing = project_data.get("video_processing")
-                if isinstance(video_processing, dict):
-                    animals = video_processing.get("animals_per_aquarium")
-
-            if animals is not None:
-                try:
-                    pref = int(animals) == 1
-                except (TypeError, ValueError):
-                    pref = None
-
-        if pref is not None:
-            return bool(pref)
+        decision = resolve_project_single_subject(project_data)
+        if decision is not None:
+            return decision.single
 
         # Default based on project type
         if project_type == "single-video":
