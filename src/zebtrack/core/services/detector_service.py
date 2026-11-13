@@ -25,7 +25,14 @@ from zebtrack.core.detection.class_roles import (
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.zone_scaler import ZoneScaler, arena_membership_rule_from_settings
 from zebtrack.i18n import _
-from zebtrack.settings import DEFAULT_TRACK_BUFFER, save_settings
+from zebtrack.settings import (
+    DEFAULT_IOU_THRESHOLD,
+    DEFAULT_MATCH_THRESHOLD,
+    DEFAULT_MAX_CENTER_DISTANCE,
+    DEFAULT_TRACK_BUFFER,
+    DEFAULT_TRACK_THRESHOLD,
+    save_settings,
+)
 from zebtrack.utils import IntegrityError
 
 if TYPE_CHECKING:
@@ -38,9 +45,9 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
-# Default thresholds - should match config.yaml values
-DEFAULT_TRACK_THRESHOLD = 0.25
-DEFAULT_MATCH_THRESHOLD = 0.80  # Higher for stable tracking with sparse frames
+# The ByteTrack defaults come from ``zebtrack.settings`` (#698): one default per
+# parameter. This module used to define its own match default (0.80) against
+# config.yaml's 0.95.
 
 
 class DetectorService:
@@ -775,8 +782,8 @@ class DetectorService:
             "track_threshold": DEFAULT_TRACK_THRESHOLD,
             "match_threshold": DEFAULT_MATCH_THRESHOLD,
             "track_buffer": DEFAULT_TRACK_BUFFER,
-            "max_center_distance": 200.0,
-            "iou_threshold": 0.1,
+            "max_center_distance": DEFAULT_MAX_CENTER_DISTANCE,
+            "iou_threshold": DEFAULT_IOU_THRESHOLD,
         }
 
         # Sync from settings
@@ -826,7 +833,9 @@ class DetectorService:
         """
         Get factory default detector thresholds without any overrides.
 
-        Phase 6: Extracted from controller.get_factory_detector_parameters()
+        The ByteTrack values are the shared defaults, i.e. what ``config.yaml``
+        ships (#698). Until #698 the reset restored match / max distance / IoU to
+        0.80 / 200 / 0.1 while ``config.yaml`` shipped 0.95 / 400 / 0.05.
 
         Returns:
             dict: Factory default parameters
@@ -835,11 +844,11 @@ class DetectorService:
             "conf_threshold": 0.25,
             "nms_threshold": 0.45,
             "use_bytetrack": True,
-            "track_threshold": 0.25,
-            "match_threshold": 0.80,
+            "track_threshold": DEFAULT_TRACK_THRESHOLD,
+            "match_threshold": DEFAULT_MATCH_THRESHOLD,
             "track_buffer": DEFAULT_TRACK_BUFFER,
-            "max_center_distance": 200.0,
-            "iou_threshold": 0.1,
+            "max_center_distance": DEFAULT_MAX_CENTER_DISTANCE,
+            "iou_threshold": DEFAULT_IOU_THRESHOLD,
         }
 
     def restore_detector_settings(self, saved_detector_config: dict[str, Any]) -> None:

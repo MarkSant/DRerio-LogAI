@@ -6,9 +6,35 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-13] ByteTrack: limiares e intervalo configurados chegam ao tracker (#698, #667)
+
+__ID:__ TASK-079
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
+__Branch:__ claude/698-667-bytetrack-params-a0c9f4 (a partir de `release/8.0`, dee16229)
+__Description:__
+Mesma regra do #666 (PR #700) para o resto dos parâmetros do `BYTETracker`: o valor
+configurado vence, o atributo do plugin é só fallback sem settings, uma constante por
+parâmetro (igual ao `config.yaml`) e todo parâmetro do tracker entra na chave que o
+reconstrói.
+
+__Critério de pronto:__
+
+- `get_track_threshold` / `get_match_threshold`: settings > plugin > constante; limiar
+  alterado depois do plugin construído chega ao tracker (único e multi-aquário).
+- `DEFAULT_TRACK_THRESHOLD/MATCH/MAX_CENTER_DISTANCE/IOU` em `settings.py`; wizard
+  pré-preenche das settings; reset de fábrica = `config.yaml` (confirmado pelo
+  mantenedor: projetos NOVOS ganham 400 px / 0,05; existentes não mudam).
+- `set_processing_interval()` nos dois detectores; chamado na sessão ao vivo (os dois
+  caminhos, em `live_session_manager.start_session`) e no worker; intervalo na chave.
+- Goldens verificados (rastreiam com `dt = 1`, saída idêntica); PR contra `release/8.0`
+  com CI verde, "Closes #698" e "Closes #667".
+
+__Resultado (2026-11-13):__ suíte rápida 8203 passed; GUI 1312 passed; ruff/mypy limpos;
+mutation check escopado 100/100 (24 mutantes novos em 9 blocos). Dois blocos do #666
+tinham `find` de uma linha que passou a aparecer duas vezes; ganharam a 2ª linha.
+
 ### [2026-11-13] Painel de bindings Arduino: coluna de aquário e round trip sem perda (#701)
-### [2026-11-13] ScriptExporter sem chamador (#696) e pares i18n órfãos (#703)
-### [2026-11-13] Ao vivo: remover o frame skip dinâmico morto (#669)
 
 __ID:__ TASK-078
 __Agent:__ Claude Code (Opus 5.5)
@@ -27,6 +53,9 @@ __Critério de pronto:__
 - `_collect_from_tree()` e `_add_or_update()` preservam `aquarium_id`; "Testar comandos" nomeia o
   aquário.
 - Testes de GUI + bloco de mutação headless do round trip; aviso do guia do usuário removido.
+
+### [2026-11-13] ScriptExporter sem chamador (#696) e pares i18n órfãos (#703)
+
 __Branch:__ claude/696-703-orphans-4abdf8 (a partir de `release/8.0`)
 __Description:__
 `ScriptExporter` só é chamado pelos próprios testes (#696). Em paralelo, `update_translations.py`
@@ -52,6 +81,9 @@ __Resultado (2026-11-13):__
   `POT-Creation-Date`, e ele foi descartado.
 - Fora do escopo: 116 pares de `_pairs/` apontam para msgids que estão OBSOLETOS (`#~`) no `.po`.
   Eles não param o script, mas também não têm mais origem no código.
+
+### [2026-11-13] Ao vivo: remover o frame skip dinâmico morto (#669)
+
 __Branch:__ claude/669-dead-fps-skip-bfbeb0 (a partir de `release/8.0`)
 __Description:__
 `FrameProcessingMixin._adjust_fps_dynamically` roda depois do `detect()` e o retorno só vai para

@@ -269,6 +269,56 @@ class TestModelSelectionStep:
         assert float(step.track_var.get()) == 0.25
         assert float(step.match_var.get()) == 0.95
 
+    def test_new_project_prefills_bytetrack_from_the_configured_settings(self, mock_weight_manager):
+        """#698: a new project starts from what config.yaml / config.local.yaml say.
+
+        The wizard used to prefill its own 200 px / 0.1, and the project saved them,
+        overriding the 400 / 0.05 the shipped configuration declares.
+        """
+        from zebtrack.settings import load_settings
+
+        settings_obj = load_settings()
+        settings_obj.bytetrack.track_threshold = 0.3
+        settings_obj.bytetrack.match_threshold = 0.85
+        settings_obj.bytetrack.track_buffer = 210
+        settings_obj.bytetrack.max_center_distance = 333.0
+        settings_obj.bytetrack.iou_threshold = 0.07
+        step = ModelSelectionStep(self.root, {}, settings_obj=settings_obj)
+        step.build_ui()
+
+        assert float(step.track_var.get()) == pytest.approx(0.3)
+        assert float(step.match_var.get()) == pytest.approx(0.85)
+        assert int(step.track_buffer_var.get()) == 210
+        assert float(step.max_center_dist_var.get()) == pytest.approx(333.0)
+        assert float(step.iou_thresh_var.get()) == pytest.approx(0.07)
+
+    def test_without_settings_the_prefill_is_the_shared_default(self, mock_weight_manager):
+        from zebtrack.settings import (
+            DEFAULT_IOU_THRESHOLD,
+            DEFAULT_MATCH_THRESHOLD,
+            DEFAULT_MAX_CENTER_DISTANCE,
+            DEFAULT_TRACK_THRESHOLD,
+        )
+
+        step = ModelSelectionStep(self.root, {}, settings_obj=None)
+        step.build_ui()
+
+        assert float(step.track_var.get()) == pytest.approx(DEFAULT_TRACK_THRESHOLD)
+        assert float(step.match_var.get()) == pytest.approx(DEFAULT_MATCH_THRESHOLD)
+        assert float(step.max_center_dist_var.get()) == pytest.approx(DEFAULT_MAX_CENTER_DISTANCE)
+        assert float(step.iou_thresh_var.get()) == pytest.approx(DEFAULT_IOU_THRESHOLD)
+
+    def test_saved_project_values_still_win_over_the_settings(self, mock_weight_manager):
+        from zebtrack.settings import load_settings
+
+        settings_obj = load_settings()
+        settings_obj.bytetrack.max_center_distance = 333.0
+        wizard_data: dict[str, Any] = {"detector_parameters": {"max_center_distance": 120.0}}
+        step = ModelSelectionStep(self.root, wizard_data, settings_obj=settings_obj)
+        step.build_ui()
+
+        assert float(step.max_center_dist_var.get()) == pytest.approx(120.0)
+
     def test_weight_dropdown_updates_on_method_change(self, mock_weight_manager):
         """Weight dropdown should update when method changes."""
         wizard_data: dict[str, Any] = {}

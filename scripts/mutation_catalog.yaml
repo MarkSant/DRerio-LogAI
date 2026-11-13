@@ -2087,12 +2087,20 @@ modules:
     mutations:
       - id: plugin-wins-over-settings
         description: "atributo do plugin volta a vencer as settings: trilha perdida vive 2 s (bug #666)"
-        find: 'for source in (getattr(settings, "bytetrack", None), plugin):'
-        replace: 'for source in (plugin, getattr(settings, "bytetrack", None)):'
+        find: |-
+          for source in (getattr(settings, "bytetrack", None), plugin):
+                      value = getattr(source, "track_buffer", None) if source is not None else None
+        replace: |-
+          for source in (plugin, getattr(settings, "bytetrack", None)):
+                      value = getattr(source, "track_buffer", None) if source is not None else None
       - id: plugin-fallback-dropped
         description: "sem settings, o valor do plugin e ignorado"
-        find: 'for source in (getattr(settings, "bytetrack", None), plugin):'
-        replace: 'for source in (getattr(settings, "bytetrack", None),):'
+        find: |-
+          for source in (getattr(settings, "bytetrack", None), plugin):
+                      value = getattr(source, "track_buffer", None) if source is not None else None
+        replace: |-
+          for source in (getattr(settings, "bytetrack", None),):
+                      value = getattr(source, "track_buffer", None) if source is not None else None
       - id: invalid-settings-value-skips-plugin
         description: "valor invalido nas settings pula direto ao padrao, sem consultar o plugin"
         find: 'log.warning("detection_post_processor.track_buffer.invalid", value=repr(value))'
@@ -2122,6 +2130,218 @@ modules:
         find: '# No ``track_buffer`` here (#666)'
         replace: 'self.track_buffer = 60  # (#666)'
 
+  detection_post_processor_thresholds:
+    source: src/zebtrack/core/detection/detection_post_processor.py
+    tests:
+      - tests/core/test_detection_post_processor.py
+    mutations:
+      - id: plugin-threshold-wins-over-settings
+        description: "copia do plugin volta a vencer as settings: limiar alterado depois nao chega ao ByteTrack (#698)"
+        find: |-
+          for source in (getattr(settings, "bytetrack", None), plugin):
+                      value = getattr(source, name, None) if source is not None else None
+        replace: |-
+          for source in (plugin, getattr(settings, "bytetrack", None)):
+                      value = getattr(source, name, None) if source is not None else None
+      - id: plugin-threshold-fallback-dropped
+        description: "sem settings, o limiar do plugin e ignorado"
+        find: |-
+          for source in (getattr(settings, "bytetrack", None), plugin):
+                      value = getattr(source, name, None) if source is not None else None
+        replace: |-
+          for source in (getattr(settings, "bytetrack", None),):
+                      value = getattr(source, name, None) if source is not None else None
+      - id: invalid-threshold-skips-plugin
+        description: "limiar invalido nas settings pula direto ao padrao, sem consultar o plugin"
+        find: 'log.warning(f"detection_post_processor.{name}.invalid", value=repr(value))'
+        replace: 'return default'
+      - id: match-default-diverges
+        description: "padrao do match volta a 0.80, fora da constante unica (#698)"
+        find: '"match_threshold", settings, plugin, DEFAULT_MATCH_THRESHOLD'
+        replace: '"match_threshold", settings, plugin, 0.80'
+      - id: max-distance-default-diverges
+        description: "padrao da distancia maxima volta a 200 px (#698)"
+        find: '        return DEFAULT_MAX_CENTER_DISTANCE'
+        replace: '        return 200.0'
+      - id: iou-default-diverges
+        description: "padrao do IoU volta a 0.1 (#698)"
+        find: '        return DEFAULT_IOU_THRESHOLD'
+        replace: '        return 0.1'
+      - id: declared-interval-ignored
+        description: "intervalo declarado da sessao ignorado: Kalman com o dt das settings (#667)"
+        find: |-
+          for value in (
+                      declared,
+        replace: |-
+          for value in (
+                      None,
+      - id: zero-interval-accepted
+        description: "intervalo declarado 0 vira dt do Kalman em vez de cair para as settings"
+        find: '            if interval >= 1:'
+        replace: '            if interval >= 0:'
+
+  settings_bytetrack_defaults:
+    source: src/zebtrack/settings.py
+    tests:
+      - tests/test_settings.py
+    mutations:
+      - id: match-constant-diverges-from-config
+        description: "constante do match deixa de bater com o config.yaml (#698)"
+        find: 'DEFAULT_MATCH_THRESHOLD: Final[float] = 0.95'
+        replace: 'DEFAULT_MATCH_THRESHOLD: Final[float] = 0.80'
+      - id: distance-constant-diverges-from-config
+        description: "constante da distancia maxima deixa de bater com o config.yaml (#698)"
+        find: 'DEFAULT_MAX_CENTER_DISTANCE: Final[float] = 400.0'
+        replace: 'DEFAULT_MAX_CENTER_DISTANCE: Final[float] = 200.0'
+      - id: iou-model-default-hardcoded
+        description: "modelo volta a ter IoU proprio, fora da constante (#698)"
+        find: |-
+          DEFAULT_IOU_THRESHOLD,
+                  ge=0,
+        replace: |-
+          0.1,
+                  ge=0,
+      - id: track-model-default-hardcoded
+        description: "modelo volta ao track_threshold 0.1, contra o 0.25 do config.yaml (#698)"
+        find: |-
+          track_threshold: float = Field(
+                  DEFAULT_TRACK_THRESHOLD,
+        replace: |-
+          track_threshold: float = Field(
+                  0.1,
+
+  plugin_bytetrack_threshold_hints:
+    source: src/zebtrack/plugins/base.py
+    tests:
+      - tests/plugins/test_detector_plugin_base_extended.py
+    mutations:
+      - id: openvino-match-fallback-returns
+        description: "fallback do match sem settings volta a 0.80 (OpenVINO, #698)"
+        find: 'float(getattr(bytetrack, "match_threshold", DEFAULT_MATCH_THRESHOLD)),'
+        replace: 'float(getattr(bytetrack, "match_threshold", 0.80)),'
+      - id: settings-not-copied
+        description: "plugin ignora as settings e expoe so os padroes"
+        find: '    bytetrack = getattr(settings_obj, "bytetrack", None)'
+        replace: '    bytetrack = None'
+
+  single_detector_processing_interval:
+    source: src/zebtrack/core/detection/single_detector.py
+    tests:
+      - tests/core/detection/test_single_detector_extended.py
+    mutations:
+      - id: declared-interval-ignored
+        description: "set_processing_interval ignorado: dt do Kalman volta a ser o das settings (#667)"
+        find: 'processing_interval = pp.get_processing_interval(self.settings, self._processing_interval)'
+        replace: 'processing_interval = pp.get_processing_interval(self.settings, None)'
+      - id: interval-not-in-tracker-key
+        description: "troca de intervalo nao reconstroi o tracker (#667)"
+        find: |-
+          frame_rate,
+                      processing_interval,
+                  )
+        replace: |-
+          frame_rate,
+                      1,
+                  )
+      - id: set-interval-is-a-no-op
+        description: "set_processing_interval nao guarda o valor"
+        find: '        self._processing_interval = interval'
+        replace: '        self._processing_interval = None'
+
+  multi_aquarium_detector_processing_interval:
+    source: src/zebtrack/core/detection/multi_aquarium_detector.py
+    tests:
+      - tests/core/detection/test_multi_aquarium_detector_extended.py
+    mutations:
+      - id: declared-interval-ignored
+        description: "trackers por aquario com o dt das settings, nao o da sessao (#667)"
+        find: |-
+          self.settings, self._processing_interval
+                  )
+        replace: |-
+          self.settings, None
+                  )
+      - id: interval-not-in-multi-tracker-key
+        description: "troca de intervalo nao reconstroi os trackers por aquario (#667)"
+        find: |-
+          source_fps,
+                      interval,
+                  )
+        replace: |-
+          source_fps,
+                      0,
+                  )
+      - id: constructor-interval-dropped
+        description: "intervalo passado no construtor ignorado (#667)"
+        find: 'self._processing_interval: int | None = processing_interval'
+        replace: 'self._processing_interval: int | None = None'
+
+  processing_worker_processing_interval:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+    mutations:
+      - id: worker-does-not-declare-interval
+        description: "worker nao declara o intervalo: helper dos goldens rastreia com dt=10 (#667)"
+        find: '            set_processing_interval(self.config.analysis_interval_frames)'
+        replace: '            set_processing_interval(None)'
+
+  live_session_processing_interval:
+    source: src/zebtrack/core/recording/live_session_manager.py
+    tests:
+      - tests/core/recording/test_live_session_manager_extended.py
+    mutations:
+      - id: live-session-does-not-declare-interval
+        description: "sessao ao vivo de projeto rastreia com o dt das settings, nao o do projeto (#667)"
+        find: '            set_processing_interval(analysis_interval_frames)'
+        replace: '            set_processing_interval(None)'
+
+  detector_service_factory_bytetrack:
+    source: src/zebtrack/core/services/detector_service.py
+    tests:
+      - tests/core/test_detector_service.py
+    mutations:
+      - id: factory-reset-iou-diverges
+        description: "reset de fabrica volta a IoU 0.1, fora do config.yaml (#698)"
+        find: |-
+          "iou_threshold": DEFAULT_IOU_THRESHOLD,
+                  }
+
+              def restore_detector_settings
+        replace: |-
+          "iou_threshold": 0.1,
+                  }
+
+              def restore_detector_settings
+      - id: factory-reset-match-diverges
+        description: "reset de fabrica volta a match 0.80 (#698)"
+        find: |-
+          "match_threshold": DEFAULT_MATCH_THRESHOLD,
+                      "track_buffer": DEFAULT_TRACK_BUFFER,
+                      "max_center_distance": DEFAULT_MAX_CENTER_DISTANCE,
+                      "iou_threshold": DEFAULT_IOU_THRESHOLD,
+                  }
+
+              def restore_detector_settings
+        replace: |-
+          "match_threshold": 0.80,
+                      "track_buffer": DEFAULT_TRACK_BUFFER,
+                      "max_center_distance": DEFAULT_MAX_CENTER_DISTANCE,
+                      "iou_threshold": DEFAULT_IOU_THRESHOLD,
+                  }
+
+              def restore_detector_settings
+
+  wizard_bytetrack_prefill:
+    source: src/zebtrack/ui/wizard/model_selection_step.py
+    tests:
+      - tests/ui/wizard/test_model_selection_step_extended.py
+    mutations:
+      - id: wizard-ignores-the-settings
+        description: "wizard volta a pre-preencher as proprias constantes, ignorando o config (#698)"
+        find: '                defaults[key] = float(getattr(bytetrack, key, fallback))'
+        replace: '                defaults[key] = float(fallback)'
+
   single_detector_source_fps:
     source: src/zebtrack/core/detection/single_detector.py
     tests:
@@ -2136,10 +2356,12 @@ modules:
         find: |-
           use_bytetrack,
                       frame_rate,
+                      processing_interval,
                   )
         replace: |-
           use_bytetrack,
                       0.0,
+                      processing_interval,
                   )
 
   multi_aquarium_detector_source_fps:

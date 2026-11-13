@@ -77,6 +77,9 @@ class MultiAquariumDetector:
         source_fps: Real frame rate of the source (video ``CAP_PROP_FPS`` or the
             camera's rate). Scales ByteTrack's lost-track buffer; ``None`` falls
             back to ``settings.video_processing.fps`` with a warning (#630).
+        processing_interval: Detection cadence of the run (every N source
+            frames), the Kalman ``dt``. ``None`` falls back to
+            ``settings.video_processing.processing_interval`` (#667).
     """
 
     def __init__(
@@ -89,6 +92,7 @@ class MultiAquariumDetector:
         settings_obj: "Settings | None" = None,
         class_role_map: ClassRoleMap | None = None,
         source_fps: float | None = None,
+        processing_interval: int | None = None,
     ) -> None:
         self.plugin = plugin
         if not self.plugin:
@@ -99,6 +103,7 @@ class MultiAquariumDetector:
         self.zone_scaler = zone_scaler
         self.post_processor = post_processor
         self._source_fps: float | None = source_fps
+        self._processing_interval: int | None = processing_interval
         #: Instant (s) of the frame about to be tracked, declared by
         #: ``set_frame_time``; every aquarium of that frame ages its lost
         #: tracks on it, then it is cleared (#654).
@@ -182,6 +187,29 @@ class MultiAquariumDetector:
     def source_fps(self) -> float | None:
         """Real frame rate declared for the source (``None`` if unknown)."""
         return self._source_fps
+
+    def set_processing_interval(self, interval: int | None) -> None:
+        """Declare the detection cadence of the run (issue #667).
+
+        Same contract as ``SingleDetector.set_processing_interval``: it is the
+        Kalman ``dt`` of every aquarium tracker, and changing it makes
+        ``_ensure_multi_trackers`` rebuild them on the next frame.
+
+        Args:
+            interval: Detect every N source frames, or ``None`` when unknown.
+        """
+        self._processing_interval = interval
+
+    @property
+    def processing_interval(self) -> int | None:
+        """Interval declared for the run (``None`` if unknown)."""
+        return self._processing_interval
+
+    def _tracker_processing_interval(self) -> int:
+        """Interval to build a ByteTrack with: declared > settings > 1 (#667)."""
+        return DetectionPostProcessor.get_processing_interval(
+            self.settings, self._processing_interval
+        )
 
     def set_frame_time(self, t_s: float | None) -> None:
         """Declare the instant of the frame the next ``detect_partitioned*`` tracks (#654).
@@ -388,7 +416,7 @@ class MultiAquariumDetector:
             mot20=False,
         )
 
-        processing_interval = pp.get_processing_interval(self.settings)
+        processing_interval = self._tracker_processing_interval()
         frame_rate = self._tracker_frame_rate()
 
         try:
@@ -467,7 +495,10 @@ class MultiAquariumDetector:
         max_dist = pp.get_max_center_distance(self.settings)
         iou_thresh = pp.get_iou_threshold(self.settings)
         source_fps, _origin = pp.resolve_tracker_fps(self.settings, self._source_fps)
+        interval = self._tracker_processing_interval()
 
+        # Every parameter the trackers are built from is in the key, so a change
+        # to any of them rebuilds them (#666, #667, #698).
         params = (
             use_bytetrack,
             track_thresh,
@@ -476,6 +507,7 @@ class MultiAquariumDetector:
             max_dist,
             iou_thresh,
             source_fps,
+            interval,
         )
 
         if self._multi_tracker_params == params:
@@ -500,7 +532,6 @@ class MultiAquariumDetector:
         try:
             for aq in self._aquariums:
                 if use_bytetrack:
-                    interval = pp.get_processing_interval(self.settings)
                     fps = self._tracker_frame_rate()
                     new_byte[aq.id] = BYTETracker(
                         args=SimpleNamespace(
@@ -1045,7 +1076,7 @@ class MultiAquariumDetector:
             track_buffer=pp.get_track_buffer(self.settings, self.plugin),
             mot20=False,
         )
-        processing_interval = pp.get_processing_interval(self.settings)
+        processing_interval = self._tracker_processing_interval()
         frame_rate = self._tracker_frame_rate()
 
         if aquarium_id is not None:

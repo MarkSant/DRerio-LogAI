@@ -14,7 +14,13 @@ import structlog
 from zebtrack.core.detection.class_aliases import ClassAliases
 from zebtrack.core.detection.class_aliases import resolve_class_ids as _resolve_by_name
 from zebtrack.core.detection.class_roles import ClassRole, ClassRoleMap
-from zebtrack.settings import DEFAULT_TRACK_BUFFER
+from zebtrack.settings import (
+    DEFAULT_IOU_THRESHOLD,
+    DEFAULT_MATCH_THRESHOLD,
+    DEFAULT_MAX_CENTER_DISTANCE,
+    DEFAULT_TRACK_BUFFER,
+    DEFAULT_TRACK_THRESHOLD,
+)
 
 if TYPE_CHECKING:
     from zebtrack.plugins.base import DetectorPlugin
@@ -426,42 +432,64 @@ class DetectionPostProcessor:
     # =========================================================================
 
     @staticmethod
+    def _configured_threshold(
+        name: str,
+        settings: "Settings | None",
+        plugin: "DetectorPlugin | None",
+        default: float,
+    ) -> float:
+        """Resolve one ByteTrack threshold: settings > plugin attribute > ``default``.
+
+        The settings are what the UI, the project overrides (``DetectorService``)
+        and ``config.yaml`` write, so they win; the plugin's copy is only a
+        fallback for a caller with no settings. An unusable value logs and falls
+        through to the next source instead of short-circuiting to the default.
+        """
+        for source in (getattr(settings, "bytetrack", None), plugin):
+            value = getattr(source, name, None) if source is not None else None
+            if value is None:
+                continue
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                log.warning(f"detection_post_processor.{name}.invalid", value=repr(value))
+        return default
+
+    @staticmethod
     def get_track_threshold(settings: "Settings | None", plugin: "DetectorPlugin | None") -> float:
-        """Get track threshold from plugin or settings.
+        """Resolve ByteTrack's track threshold.
+
+        Precedence (#698): ``settings.bytetrack.track_threshold`` > a
+        ``track_threshold`` attribute on the plugin > ``DEFAULT_TRACK_THRESHOLD``.
+        Both plugins copy the settings when they are built; until #698 that copy
+        came first, so a value written afterwards (panel, project restore,
+        factory reset) never reached the tracker.
 
         Args:
             settings: Application settings (optional).
             plugin: Detector plugin (optional).
 
         Returns:
-            Track threshold value (default: 0.25).
+            Track threshold value.
         """
-        if plugin is not None:
-            value = getattr(plugin, "track_threshold", None)
-            if value is not None:
-                return float(value)
-        if settings and hasattr(settings, "bytetrack"):
-            return float(getattr(settings.bytetrack, "track_threshold", 0.25))
-        return 0.25  # Default matching config.yaml
+        return DetectionPostProcessor._configured_threshold(
+            "track_threshold", settings, plugin, DEFAULT_TRACK_THRESHOLD
+        )
 
     @staticmethod
     def get_match_threshold(settings: "Settings | None", plugin: "DetectorPlugin | None") -> float:
-        """Get match threshold from plugin or settings.
+        """Resolve ByteTrack's match threshold (same precedence as the track threshold, #698).
 
         Args:
             settings: Application settings (optional).
             plugin: Detector plugin (optional).
 
         Returns:
-            Match threshold value (default: 0.95).
+            Match threshold value.
         """
-        if plugin is not None:
-            value = getattr(plugin, "match_threshold", None)
-            if value is not None:
-                return float(value)
-        if settings and hasattr(settings, "bytetrack"):
-            return float(getattr(settings.bytetrack, "match_threshold", 0.95))
-        return 0.95
+        return DetectionPostProcessor._configured_threshold(
+            "match_threshold", settings, plugin, DEFAULT_MATCH_THRESHOLD
+        )
 
     @staticmethod
     def get_track_buffer(settings: "Settings | None", plugin: "DetectorPlugin | None") -> int:
@@ -502,11 +530,13 @@ class DetectionPostProcessor:
             settings: Application settings (optional).
 
         Returns:
-            Max center distance in pixels (default: 400.0).
+            Max center distance in pixels (``DEFAULT_MAX_CENTER_DISTANCE`` without settings).
         """
         if settings and hasattr(settings, "bytetrack"):
-            return float(getattr(settings.bytetrack, "max_center_distance", 400.0))
-        return 400.0
+            return float(
+                getattr(settings.bytetrack, "max_center_distance", DEFAULT_MAX_CENTER_DISTANCE)
+            )
+        return DEFAULT_MAX_CENTER_DISTANCE
 
     @staticmethod
     def get_iou_threshold(settings: "Settings | None") -> float:
@@ -519,11 +549,11 @@ class DetectionPostProcessor:
             settings: Application settings (optional).
 
         Returns:
-            IoU threshold (default: 0.05).
+            IoU threshold (``DEFAULT_IOU_THRESHOLD`` without settings).
         """
         if settings and hasattr(settings, "bytetrack"):
-            return float(getattr(settings.bytetrack, "iou_threshold", 0.05))
-        return 0.05
+            return float(getattr(settings.bytetrack, "iou_threshold", DEFAULT_IOU_THRESHOLD))
+        return DEFAULT_IOU_THRESHOLD
 
     @staticmethod
     def should_use_bytetrack(settings: "Settings | None") -> bool:
@@ -540,17 +570,36 @@ class DetectionPostProcessor:
         return True
 
     @staticmethod
-    def get_processing_interval(settings: "Settings | None") -> int:
-        """Get processing interval from settings.
+    def get_processing_interval(settings: "Settings | None", declared: int | None = None) -> int:
+        """Resolve the detection cadence ByteTrack runs at (its Kalman ``dt``).
+
+        Precedence (#667): the interval the caller DECLARED for this run
+        (``set_processing_interval``: the session's resolved
+        ``analysis_interval_frames``) > ``settings.video_processing.processing_interval``
+        > 1. The settings value is only the fallback: a live project session
+        detects at the project's interval and never writes it to the settings,
+        so reading the settings alone gave the Kalman filter the wrong ``dt``.
 
         Args:
             settings: Application settings (optional).
+            declared: Interval declared for the current run, or ``None``.
 
         Returns:
-            Processing interval in frames (default: 1).
+            Processing interval in frames, at least 1.
         """
-        if settings and hasattr(settings, "video_processing"):
-            return getattr(settings.video_processing, "processing_interval", 1) or 1
+        for value in (
+            declared,
+            getattr(getattr(settings, "video_processing", None), "processing_interval", None),
+        ):
+            try:
+                interval = int(value) if value is not None else 0
+            except (TypeError, ValueError):
+                log.warning(
+                    "detection_post_processor.processing_interval.invalid", value=repr(value)
+                )
+                continue
+            if interval >= 1:
+                return interval
         return 1
 
     @staticmethod

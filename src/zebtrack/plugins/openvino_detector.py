@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import structlog
 
-from zebtrack.plugins.base import DetectorPlugin
+from zebtrack.plugins.base import DetectorPlugin, bytetrack_threshold_hints
 from zebtrack.utils import IntegrityError, calculate_sha256
 
 ov: Any | None
@@ -329,14 +329,8 @@ class OpenVINOPlugin(DetectorPlugin):
         self.input_layer = self.compiled_model.input(0)
         self.infer_request = self.compiled_model.create_infer_request()
 
-        # ByteTrack threshold hints consumed by core.detector.Detector
-        # Read from settings if available, otherwise use sensible defaults
-        if settings_obj is not None and hasattr(settings_obj, "bytetrack"):
-            self.track_threshold = getattr(settings_obj.bytetrack, "track_threshold", 0.25)
-            self.match_threshold = getattr(settings_obj.bytetrack, "match_threshold", 0.80)
-        else:
-            self.track_threshold = 0.25
-            self.match_threshold = 0.80  # Higher default for stable tracking
+        # ByteTrack hints: a fallback only, the settings win in the tracker (#698)
+        self.track_threshold, self.match_threshold = bytetrack_threshold_hints(settings_obj)
         # No ``track_buffer`` here (#666): ByteTrack's buffer comes from
         # ``settings.bytetrack.track_buffer`` via DetectionPostProcessor.
 

@@ -221,6 +221,8 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   | Lacunas de rastreio cortam episódios, suavização e distância (#632) | o intervalo que termina na 1ª linha depois de uma lacuna (rato oculto pela mão, peixe atrás de um reflexo) não foi observado; o 1º quadro de cada trilha não tem velocidade | Congelamento, inatividade e rajadas não atravessam mais a lacuna, e o tempo oculto sai da duração. A 1ª linha de cada trilha deixa de contar como parada (um episódio que começava em 0,0 s começa no 2º quadro) e deixa de entrar como 0 cm/s nos limiares por quantil (no golden, o limiar de rajadas foi de 28,72 para 28,99 cm/s; contagem 0 nos dois). O Savitzky-Golay é aplicado por trecho contínuo e `distancia_total_cm` não soma o salto da lacuna. "Lacuna" é o mesmo teto do tempo em ROI (`roi_max_gap_s`, automático = 3 × o intervalo mediano; `.inf` volta ao comportamento antigo), agora em `analysis/gap_policy.py`. Gravações sem lacunas não mudam. |
   | Velocidade e velocidade angular também param na lacuna (#663) | a velocidade da 1ª linha depois de uma lacuna é o deslocamento dividido pelo tempo NÃO observado (um rato oculto 3 s que reaparece 50 cm adiante virava 16,7 cm/s); o vetor que atravessa a lacuna virava curva | `estatisticas_velocidade` (média/mediana/desvio/máx), `estatisticas_velocidade_por_roi`, `estatisticas_velocidade_angular` e `curvas_acentuadas` deixam de usar essa linha: a velocidade dela fica indefinida, como a do 1º quadro de cada trilha, e o ângulo e a sua média móvel são calculados por trecho contínuo (um trecho mais curto que a janela do ângulo fica sem ângulo). Gravações sem lacunas não mudam; os goldens (pré-gravado e Barnes) estão intactos. |
   | `total_frames_analisados`, `validation_total_frames` e `validation_temporal_coverage_pct` contam QUADROS (#641) | contavam LINHAS (uma por detecção) | Com dois animais os quadros deixam de dobrar e a cobertura deixa de passar de 100 %; com `analysis_interval_frames = 10` uma gravação sem perdas tem cobertura 100 %, não 10 %. A cobertura é quadros distintos ÷ quadros visitados pela análise (`vão // intervalo + 1`; o intervalo é o passo mais comum entre quadros), limitada a 100 %; sem números de quadro, instantes × intervalo mediano ÷ duração da base de tempo. O aviso de trajetória curta conta quadros. Um animal detectado em todo quadro (o golden e o Barnes) não muda. |
+  | Projeto NOVO pelo assistente parte do ByteTrack configurado; o reset de fábrica é o `config.yaml` (#698) | o assistente pré-preenchia constantes próprias (distância máxima 200 px, IoU 0,1) e as gravava no projeto por cima do `config.yaml` (400 px / 0,05); o reset de fábrica voltava a match 0,80 / 200 px / 0,1 | Projetos novos passam a usar o que `config.yaml` / `config.local.yaml` dizem — com o arquivo distribuído, 400 px e IoU 0,05. "Restaurar padrões de fábrica" passa a dar track 0,25 / match 0,95 / 400 px / 0,05. **Projetos existentes não mudam**: o valor salvo no projeto continua valendo. |
+  | O `dt` do Kalman na sessão ao vivo de projeto é o intervalo de análise do projeto (#667) | a sessão detectava a cada N quadros do projeto, mas o tracker previa com `video_processing.processing_interval` (padrão 10) | Um projeto ao vivo com intervalo diferente do das configurações passa a prever a posição do animal com o passo real; a associação entre quadros detectados pode mudar onde a predição antiga errava. O diálogo ao vivo avulso e o lote já sincronizavam e não mudam. Os goldens agora rastreiam com `dt = 1` (antes 10) e não mudam. |
 
 - Relatórios individuais, sumários parquet e o reporter do pipeline tiravam a
   taxa de quadros de `settings.video_processing.fps`; agora usam
@@ -427,6 +429,23 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   (antes ×3 e ×2 espalhados) virou `SINGLE_ANIMAL_LOST_FACTOR = 6`, aplicado uma
   vez e mantido de propósito (ressurreição do ID). Os goldens pré-gravado e
   Barnes (`analysis_interval_frames=1`) não mudam.
+- **Limiares do ByteTrack alterados depois de o plugin existir não chegavam ao
+  tracker (#698).** Os plugins copiam `track_threshold` / `match_threshold` das
+  configurações ao serem construídos, e `DetectionPostProcessor` preferia essa
+  cópia: um valor mudado no painel, restaurado do projeto ou reposto pelo reset de
+  fábrica era ignorado em silêncio. Agora vale a regra do #666 — as configurações
+  vencem, o atributo do plugin é só fallback sem configurações — e cada parâmetro
+  tem uma constante única em `settings.py` (`DEFAULT_TRACK_THRESHOLD`,
+  `DEFAULT_MATCH_THRESHOLD`, `DEFAULT_MAX_CENTER_DISTANCE`,
+  `DEFAULT_IOU_THRESHOLD`), igual ao `config.yaml`, lida pelo modelo, pelo
+  resolvedor, pelos dois plugins, pelo `DetectorService` e pelo assistente.
+- **O `dt` do Kalman do ByteTrack não era a cadência real de detecção (#667).**
+  O tracker lia só `video_processing.processing_interval`. A sessão ao vivo de
+  projeto nunca escrevia o intervalo do projeto ali, e o helper dos goldens pulava
+  a cópia de `_initialize_detector`. Os detectores ganham
+  `set_processing_interval()` (mesmo padrão de `set_source_fps`), chamado pela
+  sessão ao vivo (os dois caminhos) e pelo worker, e o intervalo entra na chave
+  que reconstrói o tracker — antes, mudá-lo não reconstruía nada.
 - **Pesos que não são de zebrafish rastreavam o objeto errado sem avisar.** As
   classes eram reconhecidas por duas listas fixas de nomes (aquário e peixe),
   duplicadas em `DetectionPostProcessor` e `DetectorService`; um nome fora delas

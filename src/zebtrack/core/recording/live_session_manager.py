@@ -598,6 +598,12 @@ class LiveSessionManagerMixin:
         set_source_fps = getattr(detector, "set_source_fps", None)
         if callable(set_source_fps):
             set_source_fps(float(getattr(self, "_actual_fps", 0.0) or 0.0))
+        # ...and its Kalman dt with the session's detection cadence (#667). Both
+        # live paths start here; the project session never writes its interval
+        # to the settings, so the tracker used to predict with the settings' 10.
+        set_processing_interval = getattr(detector, "set_processing_interval", None)
+        if callable(set_processing_interval):
+            set_processing_interval(analysis_interval_frames)
 
         # Check if we need aquarium detection phase
         zone_data = self.project_manager.get_zone_data() if self.project_manager else None

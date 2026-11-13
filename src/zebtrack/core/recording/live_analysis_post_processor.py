@@ -74,6 +74,7 @@ class LiveAnalysisPostProcessorMixin:
     _detected_aquarium_bboxes: list
     _arena_defined_event: threading.Event
     _multi_aq_detector: MultiAquariumDetector | None
+    analysis_interval_frames: int
     #: This session's aquariums when it films 2+ of them (``None`` otherwise),
     #: resolved once at session start by ``_resolve_session_multi_zone_data``.
     _live_multi_zone_data: MultiAquariumZoneData | None
@@ -1394,6 +1395,8 @@ class LiveAnalysisPostProcessorMixin:
                     class_role_map=getattr(detector, "class_role_map", None),
                     # Camera's real rate scales ByteTrack's buffer (issue #630).
                     source_fps=float(getattr(self, "_actual_fps", 0.0) or 0.0),
+                    # The session's detection cadence is the Kalman dt (#667).
+                    processing_interval=getattr(self, "analysis_interval_frames", None),
                 )
                 if hasattr(zone_data, "aquariums") and zone_data.aquariums:
                     h, w = frame.shape[:2]

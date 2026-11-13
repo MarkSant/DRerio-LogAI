@@ -94,8 +94,13 @@ class SingleDetector:
         self._single_subject_tracker = SingleSubjectTracker()
         self._byte_tracker: BYTETracker | None = None
         self._byte_tracker_params: (
-            tuple[float, float, int, float, float, bool, bool, float] | None
+            tuple[float, float, int, float, float, bool, bool, float, int] | None
         ) = None
+        #: Detection cadence of the current run (every N source frames), declared
+        #: by ``set_processing_interval``. ``None`` until the caller knows it;
+        #: ByteTrack then falls back to ``settings.video_processing.processing_interval``
+        #: (#667). It is the Kalman filter's ``dt``.
+        self._processing_interval: int | None = None
         #: Real frame rate of the current source (video ``CAP_PROP_FPS`` or the
         #: camera's rate). ``None`` until the caller knows it; ByteTrack then
         #: falls back to ``settings.video_processing.fps`` with a warning (#630).
@@ -662,6 +667,26 @@ class SingleDetector:
         """Real frame rate declared by ``set_source_fps`` (``None`` if unknown)."""
         return self._source_fps
 
+    def set_processing_interval(self, interval: int | None) -> None:
+        """Declare the detection cadence of the run being tracked (issue #667).
+
+        ByteTrack's Kalman filter predicts with ``dt = processing_interval``, so
+        it must be the interval the frames are really detected at, not the
+        nominal ``settings.video_processing.processing_interval``. Call it once per
+        video / camera session, beside ``set_source_fps``. A change rebuilds the
+        tracker on the next frame (the interval is part of its parameter key).
+
+        Args:
+            interval: Detect every N source frames, or ``None`` when unknown.
+        """
+        self._processing_interval = interval
+        log.debug("single_detector.processing_interval.set", interval=interval)
+
+    @property
+    def processing_interval(self) -> int | None:
+        """Interval declared by ``set_processing_interval`` (``None`` if unknown)."""
+        return self._processing_interval
+
     def set_frame_time(self, t_s: float | None) -> None:
         """Declare the instant of the frame the next ``detect()`` will track (#654).
 
@@ -996,7 +1021,10 @@ class SingleDetector:
         use_bytetrack = pp.should_use_bytetrack(self.settings)
         single_animal_mode = pp.get_single_animal_mode(self.settings, self._single_subject_mode)
         frame_rate, fps_origin = pp.resolve_tracker_fps(self.settings, self._source_fps)
+        processing_interval = pp.get_processing_interval(self.settings, self._processing_interval)
 
+        # Every parameter the BYTETracker is built from is in its key, so a
+        # change to any of them rebuilds it (#666, #667, #698).
         params = (
             track_thresh,
             match_thresh,
@@ -1006,6 +1034,7 @@ class SingleDetector:
             single_animal_mode,
             use_bytetrack,
             frame_rate,
+            processing_interval,
         )
         if self._byte_tracker is not None and self._byte_tracker_params == params:
             return self._byte_tracker
@@ -1021,7 +1050,6 @@ class SingleDetector:
                 mot20=False,
             )
 
-            processing_interval = pp.get_processing_interval(self.settings)
             if fps_origin != "source":
                 log.warning(
                     "single_detector.bytetrack.fps_fallback_to_settings",

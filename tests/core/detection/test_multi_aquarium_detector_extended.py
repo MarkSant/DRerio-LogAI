@@ -462,3 +462,108 @@ def test_every_aquarium_tracker_gets_the_configured_buffer_with_the_real_plugin(
         t.max_time_lost_s == pytest.approx(3.0 * SINGLE_ANIMAL_LOST_FACTOR)
         for t in detector._byte_trackers_multi.values()
     )
+
+
+# ---------------------------------------------------------------------------
+# Issues #698 / #667: thresholds and interval reach every aquarium tracker.
+# ---------------------------------------------------------------------------
+
+
+class TestMultiAquariumTrackerParameters:
+    def test_thresholds_changed_after_the_plugin_was_built_reach_every_tracker(self):
+        from unittest.mock import patch
+
+        from zebtrack.plugins.ultralytics_detector import UltralyticsDetectorPlugin
+
+        settings_obj = load_settings()
+        settings_obj.video_processing.processing_interval = 1
+        settings_obj.tracking.use_bytetrack = True
+        settings_obj.bytetrack.track_threshold = 0.25
+        settings_obj.bytetrack.match_threshold = 0.95
+        with (
+            patch("zebtrack.plugins.ultralytics_detector.YOLO") as yolo_cls,
+            patch("zebtrack.plugins.ultralytics_detector.is_cuda_available", return_value=False),
+        ):
+            yolo_cls.return_value.names = {0: "aquarium", 1: "zebrafish"}
+            plugin = UltralyticsDetectorPlugin("weights.pt", settings_obj=settings_obj)
+        detector = MultiAquariumDetector(
+            plugin=plugin,
+            zone_scaler=ZoneScaler(500, 300),
+            post_processor=DetectionPostProcessor(),
+            base_width=500,
+            base_height=300,
+            settings_obj=settings_obj,
+            source_fps=30.0,
+        )
+        detector.set_multi_aquarium_zones(
+            [AquariumData(id=0, polygon=_AQ0), AquariumData(id=1, polygon=_AQ1)],
+            actual_width=500,
+            actual_height=300,
+        )
+        detector._ensure_multi_trackers()
+
+        settings_obj.bytetrack.track_threshold = 0.4
+        settings_obj.bytetrack.match_threshold = 0.7
+        detector._ensure_multi_trackers()
+
+        trackers = detector._byte_trackers_multi.values()
+        assert len(trackers) == 2
+        assert all(t.args.track_thresh == pytest.approx(0.4) for t in trackers)
+        assert all(t.args.match_thresh == pytest.approx(0.7) for t in trackers)
+
+    def test_constructor_interval_is_every_aquarium_kalman_dt(self):
+        detector = _fps_multi(30.0)
+        detector.set_processing_interval(6)
+        detector._ensure_multi_trackers()
+
+        assert detector.processing_interval == 6
+        assert {aq: t.kalman_filter._dt for aq, t in detector._byte_trackers_multi.items()} == {
+            0: 6.0,
+            1: 6.0,
+        }
+
+    def test_changing_the_interval_rebuilds_every_aquarium_tracker(self):
+        detector = _fps_multi(30.0)
+        detector._ensure_multi_trackers()
+        before = dict(detector._byte_trackers_multi)
+        assert all(t.processing_interval == 1 for t in before.values())
+
+        detector.set_processing_interval(5)
+        detector._ensure_multi_trackers()
+
+        after = detector._byte_trackers_multi
+        assert all(after[aq] is not before[aq] for aq in before)
+        assert all(t.processing_interval == 5 for t in after.values())
+
+    def test_reset_and_lazy_init_use_the_declared_interval(self):
+        detector = _fps_multi(30.0)
+        detector.set_processing_interval(7)
+        detector._ensure_multi_trackers()
+
+        detector.reset_multi_aquarium_tracking(aquarium_id=0)
+        detector.reset_multi_aquarium_tracking()
+
+        assert all(t.processing_interval == 7 for t in detector._byte_trackers_multi.values())
+
+    def test_interval_passed_at_construction(self):
+        settings_obj = load_settings()
+        settings_obj.video_processing.processing_interval = 10
+        settings_obj.tracking.use_bytetrack = True
+        plugin = MagicMock(spec=DetectorPlugin)
+        plugin.get_name.return_value = "MockDetectorPlugin"
+        detector = MultiAquariumDetector(
+            plugin=plugin,
+            zone_scaler=ZoneScaler(500, 300),
+            post_processor=DetectionPostProcessor(),
+            base_width=500,
+            base_height=300,
+            settings_obj=settings_obj,
+            source_fps=30.0,
+            processing_interval=2,
+        )
+        detector.set_multi_aquarium_zones(
+            [AquariumData(id=0, polygon=_AQ0)], actual_width=500, actual_height=300
+        )
+        detector._ensure_multi_trackers()
+
+        assert detector._byte_trackers_multi[0].processing_interval == 2

@@ -882,3 +882,32 @@ def test_frame_loop_applies_the_processing_offset(tmp_path):
     heartbeat = _read_3c(output_dir / f"3c_Objetos_{base}.parquet")
     heartbeat = heartbeat[heartbeat["class_id"] == -1]
     assert heartbeat["frame"].tolist() == list(range(2, 120, 5))
+
+
+def test_frame_loop_builds_bytetrack_with_the_run_interval(tmp_path, monkeypatch):
+    """#667: the Kalman dt is the cadence this run detects at, not the settings value.
+
+    ``_initialize_detector`` used to be the only place the run's interval reached
+    the tracker (by mutating the settings). The golden helper and any caller that
+    hands ``_process_single_video`` its own detector skipped it, and tracked
+    every frame with ``dt = 10``.
+    """
+    from tests.helpers.prerecorded_pipeline import load_pristine_settings
+
+    from zebtrack.core.detection import single_detector as single_detector_module
+
+    built_intervals: list[int] = []
+    real_tracker = single_detector_module.BYTETracker
+
+    def _spy(*args, **kwargs):
+        built_intervals.append(kwargs["processing_interval"])
+        return real_tracker(*args, **kwargs)
+
+    monkeypatch.setattr(single_detector_module, "BYTETracker", _spy)
+    settings = load_pristine_settings()
+    settings.video_processing.processing_interval = 10
+
+    _run_frame_loop(tmp_path, interval=3, settings=settings)
+
+    assert built_intervals
+    assert set(built_intervals) == {3}

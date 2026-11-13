@@ -1043,6 +1043,12 @@ class _WorkerProcess(multiprocessing.Process):
         set_source_fps = getattr(detector, "set_source_fps", None)
         if callable(set_source_fps):
             set_source_fps(source_fps)
+        # The cadence this run detects at is the Kalman dt (#667). Declared here,
+        # not only through the settings in ``_initialize_detector``: a caller that
+        # hands this method its own detector (the golden helper) skipped that copy.
+        set_processing_interval = getattr(detector, "set_processing_interval", None)
+        if callable(set_processing_interval):
+            set_processing_interval(self.config.analysis_interval_frames)
 
         # 2. Setup Zones & Calibration
         # Use per-video zone data if available (batch processing), otherwise use default
@@ -1084,6 +1090,7 @@ class _WorkerProcess(multiprocessing.Process):
                 settings_obj=detector.settings,
                 class_role_map=getattr(detector, "class_role_map", None),
                 source_fps=source_fps,
+                processing_interval=self.config.analysis_interval_frames,
             )
             multi_aq_detector.set_multi_aquarium_zones(
                 video_zone_data.aquariums,

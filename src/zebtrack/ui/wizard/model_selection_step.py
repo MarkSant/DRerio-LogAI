@@ -10,7 +10,13 @@ import structlog
 
 from zebtrack.core.services.weight_manager import WeightManager
 from zebtrack.i18n import _
-from zebtrack.settings import DEFAULT_TRACK_BUFFER
+from zebtrack.settings import (
+    DEFAULT_IOU_THRESHOLD,
+    DEFAULT_MATCH_THRESHOLD,
+    DEFAULT_MAX_CENTER_DISTANCE,
+    DEFAULT_TRACK_BUFFER,
+    DEFAULT_TRACK_THRESHOLD,
+)
 from zebtrack.ui.collapsible_frame import CollapsibleFrame
 from zebtrack.ui.components.class_roles_panel import (
     ClassRolesEditor,
@@ -31,11 +37,9 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
-# Defaults for ByteTrack - MUST match config.yaml values
-DEFAULT_TRACK_THRESHOLD = 0.25
-DEFAULT_MATCH_THRESHOLD = 0.95  # Higher = more permissive for fast-moving objects
-DEFAULT_MAX_CENTER_DISTANCE = 200.0  # Pixels, ~6 body lengths for 30px zebrafish
-DEFAULT_IOU_THRESHOLD = 0.1  # Low for small objects with little overlap
+# The ByteTrack DEFAULT_* names above are the shared ``zebtrack.settings``
+# constants (#698). The wizard used to keep its own 200 px / 0.1 here and saved
+# them into every new project, overriding config.yaml's 400 / 0.05.
 
 
 def _method_options() -> dict[str, str]:
@@ -306,22 +310,57 @@ class ModelSelectionStep(WizardStep):
             bool(detector_params.get("use_bytetrack", default_use_bytetrack))
         )
 
-        track_threshold = float(detector_params.get("track_threshold", DEFAULT_TRACK_THRESHOLD))
+        # A value already in the wizard data (a project being reopened) wins;
+        # otherwise the configured settings, which is what a new project must
+        # start from (#698).
+        bytetrack_defaults = self._configured_bytetrack_defaults()
+
+        track_threshold = float(
+            detector_params.get("track_threshold", bytetrack_defaults["track_threshold"])
+        )
         self.track_var.set(f"{track_threshold:.3f}")
 
-        match_threshold = float(detector_params.get("match_threshold", DEFAULT_MATCH_THRESHOLD))
+        match_threshold = float(
+            detector_params.get("match_threshold", bytetrack_defaults["match_threshold"])
+        )
         self.match_var.set(f"{match_threshold:.3f}")
 
-        track_buffer = int(detector_params.get("track_buffer", DEFAULT_TRACK_BUFFER))
+        track_buffer = int(detector_params.get("track_buffer", bytetrack_defaults["track_buffer"]))
         self.track_buffer_var.set(str(track_buffer))
 
         max_center_dist = float(
-            detector_params.get("max_center_distance", DEFAULT_MAX_CENTER_DISTANCE)
+            detector_params.get("max_center_distance", bytetrack_defaults["max_center_distance"])
         )
         self.max_center_dist_var.set(f"{max_center_dist:.1f}")
 
-        iou_threshold = float(detector_params.get("iou_threshold", DEFAULT_IOU_THRESHOLD))
+        iou_threshold = float(
+            detector_params.get("iou_threshold", bytetrack_defaults["iou_threshold"])
+        )
         self.iou_thresh_var.set(f"{iou_threshold:.3f}")
+
+    def _configured_bytetrack_defaults(self) -> dict[str, float]:
+        """ByteTrack values a new project starts from: the settings, else the shared defaults.
+
+        The settings carry ``config.yaml`` and the machine's ``config.local.yaml``.
+        The wizard saves whatever it shows into the project, so prefilling its own
+        constants overrode the configuration for every new project (#698).
+        """
+        defaults: dict[str, float] = {
+            "track_threshold": DEFAULT_TRACK_THRESHOLD,
+            "match_threshold": DEFAULT_MATCH_THRESHOLD,
+            "track_buffer": DEFAULT_TRACK_BUFFER,
+            "max_center_distance": DEFAULT_MAX_CENTER_DISTANCE,
+            "iou_threshold": DEFAULT_IOU_THRESHOLD,
+        }
+        bytetrack = getattr(self.settings, "bytetrack", None) if self.settings else None
+        if bytetrack is None:
+            return defaults
+        for key, fallback in defaults.items():
+            try:
+                defaults[key] = float(getattr(bytetrack, key, fallback))
+            except (TypeError, ValueError):
+                log.warning("wizard.model_selection.bytetrack_default.invalid", key=key)
+        return defaults
 
     def _default_weight_for_method(self, method_key: str) -> str:
         perspective = self._get_active_perspective()
@@ -636,8 +675,8 @@ class ModelSelectionStep(WizardStep):
                 "📏 Maximum Centre Distance\n\n"
                 "The furthest (in pixels) an animal may move between frames and still "
                 "be considered the same one, when overlap fails.\n\n"
-                "💡 Default: 200.0 px"
-            ),
+                "💡 Default: {pixels:g} px"
+            ).format(pixels=DEFAULT_MAX_CENTER_DISTANCE),
             param_key="max_center_dist",
         )
 
@@ -651,8 +690,8 @@ class ModelSelectionStep(WizardStep):
                 "🔳 IoU Threshold\n\n"
                 "Minimum overlap to prefer a box match over a distance match.\n"
                 "For small, fast animals, low values work better.\n\n"
-                "💡 Default: 0.1"
-            ),
+                "💡 Default: {value:g}"
+            ).format(value=DEFAULT_IOU_THRESHOLD),
             param_key="iou_thresh",
         )
 
@@ -1244,15 +1283,16 @@ class ModelSelectionStep(WizardStep):
         self.confidence_var.set(f"{default_confidence:.3f}")
         self.nms_var.set(f"{default_nms:.3f}")
         self.use_bytetrack_var.set(self._recommended_use_bytetrack(self.animal_method_var.get()))
-        self.track_var.set(f"{DEFAULT_TRACK_THRESHOLD:.3f}")
-        self.match_var.set(f"{DEFAULT_MATCH_THRESHOLD:.3f}")
+        bytetrack_defaults = self._configured_bytetrack_defaults()
+        self.track_var.set(f"{bytetrack_defaults['track_threshold']:.3f}")
+        self.match_var.set(f"{bytetrack_defaults['match_threshold']:.3f}")
 
         log.info(
             "wizard.model_selection.thresholds_restored",
             confidence=default_confidence,
             nms=default_nms,
-            track=DEFAULT_TRACK_THRESHOLD,
-            match=DEFAULT_MATCH_THRESHOLD,
+            track=bytetrack_defaults["track_threshold"],
+            match=bytetrack_defaults["match_threshold"],
         )
 
     # ------------------------------------------------------------------
