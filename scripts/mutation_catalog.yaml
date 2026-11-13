@@ -1762,6 +1762,14 @@ modules:
         description: "condicao sem entrada (classe de contexto sem 3c) e avaliada como ausencia"
         find: '        if missing:'
         replace: '        if False:'
+      - id: stop-divergence-worded-as-start
+        description: "divergencia do FIM da janela passa a ser dita como do inicio (#642)"
+        find: 'The live session ended the analysis window at frame {online}, the "'
+        replace: 'The live session started the analysis window at frame {online}, the "'
+      - id: stop-divergence-reads-start-bound
+        description: "aviso do FIM compara o fim ao vivo com o INICIO recalculado (#642)"
+        find: 'if _diverges(online.stop, resolution.stop):'
+        replace: 'if _diverges(online.stop, resolution.start):'
 
   analysis_window_cut_service:
     source: src/zebtrack/analysis/analysis_service.py
