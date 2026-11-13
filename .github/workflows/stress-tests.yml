@@ -78,7 +78,7 @@ jobs:
         # enforced by the explicit gate after them.
         run: |
           xvfb-run --auto-servernum poetry run pytest -m slow --count=10 -v --tb=short \
-            --junit-xml=threading-stress-results.xml
+            --no-cov --junit-xml=threading-stress-results.xml
         continue-on-error: true
 
       - name: Upload test results
@@ -297,9 +297,12 @@ jobs:
         # differing_executors health check, which every repeated @given method
         # trips because each repetition gets a new test-class instance. `python -m`
         # puts the checkout on sys.path so `-p` can import it before conftest runs.
+        # --no-cov: pytest.ini turns coverage on for every run, but nothing here reads
+        # it, and its tracer sat on every thread's stack when the first full run
+        # aborted (SIGABRT) inside a threaded camera test.
         run: |
           xvfb-run --auto-servernum poetry run python -m pytest --count=3 -x -v --tb=short \
-            -p tests.pytest_repeat_hypothesis \
+            --no-cov -p tests.pytest_repeat_hypothesis \
             --junit-xml=flakiness-results.xml
         continue-on-error: true
 
