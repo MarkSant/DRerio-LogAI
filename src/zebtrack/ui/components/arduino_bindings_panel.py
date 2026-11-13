@@ -554,7 +554,11 @@ class ArduinoBindingsPanel(ttk.Frame):
     # Helpers
     # ------------------------------------------------------------------
     def _project_data(self) -> dict[str, Any]:
-        return getattr(self.project_manager, "project_data", {}) or {}
+        # ``or {}`` would be wrong here: a just-created project's EMPTY dict is
+        # falsy, and the bindings would then be saved into a throwaway dict
+        # while the status still reported success (#644).
+        data = getattr(self.project_manager, "project_data", None)
+        return data if isinstance(data, dict) else {}
 
     def _project_roi_names(self) -> list[str]:
         try:
