@@ -9,7 +9,6 @@
 
   "Processing {current}/{total}: {experiment_id}": "Processando {current}/{total}: {experiment_id}",
   "Step: {status}": "Etapa: {status}",
-  "Trajectory for {experiment_id} generated.": "Trajetória para {experiment_id} gerada.",
   "Failed to generate the trajectory file for {experiment_id}.": "Falha ao gerar arquivo de trajetória para {experiment_id}.",
   "File not found: {path}": "Arquivo não encontrado: {path}",
   "Failed to read the trajectory file for {experiment_id}.": "Falha ao ler arquivo de trajetória para {experiment_id}.",

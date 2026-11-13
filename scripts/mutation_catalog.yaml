@@ -145,6 +145,32 @@ modules:
         find: 'return data if isinstance(data, dict) else {}'
         replace: 'return data if data else {}'
 
+  arduino_bindings_panel_aquarium_round_trip:
+    source: src/zebtrack/ui/components/arduino_bindings_panel.py
+    tests:
+      - tests/ui/components/test_arduino_bindings_panel.py
+    mutations:
+      - id: row-read-back-unscoped
+        description: "ler a linha da tabela descarta o aquarium_id e salvar pelo painel desescopa o binding (#701)"
+        find: 'aquarium_id=cls._aquarium_id_from_cell(raw_aquarium),'
+        replace: 'aquarium_id=None,'
+      - id: row-written-without-aquarium
+        description: "a linha da tabela deixa de guardar o aquarium_id na coluna oculta (#701)"
+        find: '"" if aquarium_id is None else str(aquarium_id),'
+        replace: '"",'
+      - id: iid-ignores-aquarium
+        description: "iid volta a ser so a ROI e ROIs homonimas de aquarios diferentes colidem numa linha (#701)"
+        find: 'scope = "*" if aquarium_id is None else str(aquarium_id)'
+        replace: 'scope = "*"'
+      - id: hidden-picker-off-by-one
+        description: "com o seletor oculto, o numero da linha escopada vira o aquario seguinte (#701)"
+        find: 'return int(choice) - 1'
+        replace: 'return int(choice)'
+      - id: choice-maps-to-wrong-aquarium
+        description: "a escolha '1' do seletor deixa de ser o aquario 0 (#701)"
+        find: 'if aq_id is not None and aquarium_number(aq_id) == choice:'
+        replace: 'if aq_id is not None and str(aq_id) == choice:'
+
   arduino_bindings:
     source: src/zebtrack/core/services/arduino_bindings.py
     tests:
@@ -1525,16 +1551,20 @@ modules:
     mutations:
       - id: sweep-at-session-end-not-stop
         description: "varredura do Arduino so no fim da sessao, em vez do STOP da janela"
-        find: 'self._sweep_arduino_zone_outputs("window_stop")'
-        replace: 'pass'
+        find: |-
+          if update.stop_confirmed:
+                      self._sweep_arduino_zone_outputs("window_stop")
+        replace: |-
+          if update.stop_confirmed:
+                      pass
       - id: window-dated-by-processing-clock
         description: "janela datada pelo relogio de processamento em vez da captura"
         find: |-
           t_capture_perf=capture_ts,
-                          classes=classes_from_observations(observations),
+                              classes=classes_from_observations(observations),
         replace: |-
           t_capture_perf=time.perf_counter(),
-                          classes=classes_from_observations(observations),
+                              classes=classes_from_observations(observations),
       - id: commands-before-start
         description: "comandos por ROI saem antes do START da janela"
         find: 'if runtime is not None and not runtime.window_open:'
@@ -1553,11 +1583,11 @@ modules:
         replace: 'pass'
       - id: arduino-code-not-claimed
         description: "codigo do Arduino que a janela espera volta aos coordenadores"
-        find: 'return bool(runtime.offer_external("arduino", code, t_read_perf))'
-        replace: 'runtime.offer_external("arduino", code, t_read_perf); return False'
+        find: 'claimed = bool(runtime.offer_external("arduino", code, t_read_perf)) or claimed'
+        replace: 'runtime.offer_external("arduino", code, t_read_perf)'
       - id: sweep-when-window-never-opened
         description: "fim de sessao varre saidas mesmo sem a janela ter aberto"
-        find: 'if runtime is not None and not runtime.window_opened:'
+        find: 'if runtimes and not any(rt.window_opened for rt in runtimes.values()):'
         replace: 'if False:'
       - id: window-state-not-published
         description: "fase da janela nao chega a UI"

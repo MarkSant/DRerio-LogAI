@@ -110,7 +110,7 @@ class FrameProcessingMixin:
 
     Methods:
         _start_threads, _capture_loop, _video_recording_loop,
-        _processing_loop, _clear_queues, _adjust_fps_dynamically
+        _processing_loop, _clear_queues
     """
 
     # -- Typing stubs for attributes defined by LiveCameraService.__init__ --
@@ -157,11 +157,6 @@ class FrameProcessingMixin:
     _actual_height: int
     _actual_width: int
     _animals_per_aquarium: int
-    _target_fps: float
-    _current_fps: float
-    _processing_times: list[float]
-    _frame_skip_count: int
-    _fps_adjustment_interval: int
     _multi_aq_detector: MultiAquariumDetector | None
     #: Aquariums of a 2+-aquarium session (``None`` otherwise), resolved at
     #: ``start_session``; see ``_resolve_session_multi_zone_data`` (#635).
@@ -1021,7 +1016,6 @@ class FrameProcessingMixin:
                 detections = []
 
                 if should_analyze:
-                    frame_start_time = time.time()
                     processed_count += 1
 
                     # Apply calibration if available
@@ -1067,19 +1061,6 @@ class FrameProcessingMixin:
                             detections, _command = detector.detect(
                                 frame, "live", conf_threshold=0.05
                             )
-
-                    # Adjust FPS dynamically based on processing time
-                    frame_processing_time = time.time() - frame_start_time
-                    should_continue_processing = self._adjust_fps_dynamically(
-                        frame_number, frame_processing_time
-                    )
-
-                    if not should_continue_processing:
-                        log.debug(
-                            "live_camera_service.fps_skip_triggered",
-                            frame_number=frame_number,
-                            processing_time=frame_processing_time,
-                        )
 
                     # Cache detections for persistent overlay
                     self.set_last_detections(detections)
@@ -2548,54 +2529,3 @@ class FrameProcessingMixin:
                 frames=dropped,
                 note="logged in 6_FrameLedger as dropped_on_stop",
             )
-
-    def _adjust_fps_dynamically(self, frame_number: int, processing_time: float) -> bool:
-        """Adjust FPS dynamically based on processing performance.
-
-        Uses exponentially weighted moving average for smoothing.
-
-        Args:
-            frame_number: Current frame number
-            processing_time: Time taken to process this frame (seconds)
-
-        Returns:
-            True if frame should be processed, False if should skip
-        """
-        self._processing_times.append(processing_time)
-
-        max_samples = 30
-        if len(self._processing_times) > max_samples:
-            self._processing_times = self._processing_times[-max_samples:]
-
-        if frame_number % self._fps_adjustment_interval == 0 and len(self._processing_times) >= 10:
-            avg_processing_time = sum(self._processing_times) / len(self._processing_times)
-            self._current_fps = 1.0 / avg_processing_time if avg_processing_time > 0 else 30.0
-
-            if self._current_fps < self._target_fps * 0.7:
-                self._frame_skip_count = min(4, self._frame_skip_count + 1)
-                log.warning(
-                    "live_camera_service.fps_too_low",
-                    measured_fps=f"{self._current_fps:.1f}",
-                    target_fps=f"{self._target_fps:.1f}",
-                    frame_skip=self._frame_skip_count,
-                )
-            elif self._current_fps > self._target_fps * 1.2 and self._frame_skip_count > 0:
-                self._frame_skip_count = max(0, self._frame_skip_count - 1)
-                log.info(
-                    "live_camera_service.fps_improved",
-                    measured_fps=f"{self._current_fps:.1f}",
-                    target_fps=f"{self._target_fps:.1f}",
-                    frame_skip=self._frame_skip_count,
-                )
-
-        if self._frame_skip_count > 0:
-            should_process = (frame_number % (self._frame_skip_count + 1)) == 0
-            if not should_process:
-                log.debug(
-                    "live_camera_service.frame_skipped",
-                    frame_number=frame_number,
-                    skip_pattern=self._frame_skip_count + 1,
-                )
-            return should_process
-
-        return True
