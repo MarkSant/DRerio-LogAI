@@ -6,7 +6,6 @@ ReporterContext          – Shared state container (legacy + modern constructio
 WordReporter             – Individual Word (.docx) reports
 ExcelReporter            – Summary Excel / CSV export
 ParquetSummaryReporter   – Summary Parquet export
-ScriptExporter           – R / Python / Feather export
 export_project_report    – Aggregated project-level Word report (standalone fn)
 export_multi_aquarium_reports – Per-aquarium report generation (standalone fn)
 """
@@ -18,14 +17,12 @@ from zebtrack.analysis.reporters.project_reporter import (
     export_project_report,
 )
 from zebtrack.analysis.reporters.reporter_context import ReporterContext
-from zebtrack.analysis.reporters.script_exporter import ScriptExporter
 from zebtrack.analysis.reporters.word_reporter import WordReporter
 
 __all__ = [
     "ExcelReporter",
     "ParquetSummaryReporter",
     "ReporterContext",
-    "ScriptExporter",
     "WordReporter",
     "export_multi_aquarium_reports",
     "export_project_report",

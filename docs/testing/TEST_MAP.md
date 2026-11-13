@@ -47,8 +47,8 @@ The test tree mirrors `src/zebtrack/`, with two exceptions:
   cross-flow guards below
 - `tests/quality/` (3) — AST meta-tests over the suite and the source itself:
   hollow tests, orphan UI events, shared-`Settings` writes
-- `tests/i18n/` (7) — catalogue integrity, `.pot` in sync with the source, and the
-  untranslated-literal ratchet
+- `tests/i18n/` (8) — catalogue integrity, `.pot` in sync with the source, no orphan
+  `_pairs/` entry, and the untranslated-literal ratchet
 - `tests/helpers/` — shared drivers, not tests. `prerecorded_pipeline.py` runs the
   real pre-recorded worker in-process and is imported by both guards below
 - `tests/benchmarks/` (2) — perf checks
@@ -183,6 +183,7 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `coordinators/model_diagnostics_coordinator.py` (class roles) | `tests/coordinators/test_model_diagnostics_coordinator.py::TestReportClassRoles` |
 | `ui/wizard/model_selection_step.py` (class roles) | `tests/ui/wizard/test_model_selection_step.py::TestModelSelectionClassRoles` |
 | Barnes acceptance (ADR-011) | `tests/integration/test_barnes_window_e2e.py` |
+| `src/zebtrack/locales/_pairs/*.json` (removing a `_()` string) | `tests/i18n/test_pairs_not_orphaned.py` (every pair names a msgid still in the `.po`; an orphan stops `update_translations.py` before the `.mo` is compiled) |
 | `src/zebtrack/locales/*` (any new `_()`) | `tests/i18n/test_pot_in_sync.py` (every source msgid is in the `.pot`), `tests/i18n/test_catalog_integrity.py` |
 
 ## Special markers

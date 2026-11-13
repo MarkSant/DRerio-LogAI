@@ -23,7 +23,6 @@
 
   "Starting: {name}": "Iniciando: {name}",
   "Processing...": "Processando...",
-  "Cancellation requested for {name}.": "Cancelamento solicitado para {name}.",
   "Starting process for {name}...": "Iniciando processo para {name}...",
 
   "Load New Weight": "Carregar Novo Peso",

@@ -314,6 +314,12 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
 
 ### Fixed
 
+- **`update_translations.py` voltou a chegar ao fim (#703).** Dois pares de
+  `locales/_pairs/` ("Trajectory for {experiment_id} generated." e
+  "Cancellation requested for {name}.") ainda citavam msgids removidos com o
+  código morto do #690. O passo `i18n_pairs` saía com 1 e o `.mo` não era
+  recompilado. Os pares saíram, e `tests/i18n/test_pairs_not_orphaned.py`
+  reprova qualquer par cujo msgid não esteja no catálogo.
 - **Padrões de zebrafish num projeto de roedor (#631).** A geotaxia (proximidade do
   FUNDO) era calculada também em vídeo filmado de cima, onde não há fundo. O
   `run_full_analysis` não olhava a perspectiva, e o `collect_analysis_parameters`

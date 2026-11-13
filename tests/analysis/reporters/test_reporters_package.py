@@ -24,9 +24,7 @@ _PACKAGE_DIR = Path(reporters.__file__).resolve().parent
 
 # Known orphans, each with its own issue. This list only ever shrinks: wire the
 # reporter into a flow or delete it, never add a name here to turn the test green.
-_KNOWN_ORPHANS: dict[str, str] = {
-    "ScriptExporter": "#696",
-}
+_KNOWN_ORPHANS: dict[str, str] = {}
 
 
 def _names_referenced_outside_package() -> set[str]:
