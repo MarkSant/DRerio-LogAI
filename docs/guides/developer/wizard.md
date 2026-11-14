@@ -54,7 +54,7 @@ metrics = WizardService.calculate_experiment_structure(groups=2, days=7, subject
 Modelos Pydantic v2 para validação type-safe dos dados do wizard:
 
 ```python
-from zebtrack.ui.wizard.models import LiveConfigData, WizardData
+from zebtrack.ui.wizard.models import LiveConfigData
 from pydantic import ValidationError
 
 # Validação automática
@@ -76,7 +76,6 @@ except ValidationError as e:
 - `CalibrationData` - Dados de calibração física
 - `ModelSelectionData` - Seleção de modelo de detecção
 - `FileSelectionData` - Seleção de vídeos pré-gravados
-- `WizardData` - Agregação de todos os steps
 
 **Validações Cross-Field**:
 

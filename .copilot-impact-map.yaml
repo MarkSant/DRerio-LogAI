@@ -200,7 +200,7 @@ domains:
         WIZARD_CREATE_PROJECT:
           publishers: ["ui/wizard/*"]
           subscribers: ["coordinators/project_lifecycle_coordinator.py"]
-          payload: "WizardData (Pydantic model in ui/wizard/models.py)"
+          payload: "dict assembled from the step models in ui/wizard/models.py"
 
   # ---------------------------------------------------------------------------
   # MULTI-AQUARIUM DOMAIN (CRITICAL)

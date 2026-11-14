@@ -47,58 +47,6 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
-class DetectorContextManager:
-    """Context manager to ensure detector context is always restored, even on exceptions.
-
-    Usage:
-        with DetectorContextManager(detector, "tracking") as manager:
-            # Do processing with new context
-            pass
-        # Context is automatically restored here
-    """
-
-    def __init__(self, detector_service: DetectorService | None, new_context: str):
-        """Initialize context manager.
-
-        Args:
-            detector_service: DetectorService instance (can be None)
-            new_context: New context to set temporarily
-        """
-        self.detector_service = detector_service
-        self.new_context = new_context
-        self.saved_context: str | None = None
-
-    def __enter__(self) -> DetectorContextManager:
-        """Save current context and set new context."""
-        if self.detector_service and self.detector_service.detector:
-            self.saved_context = getattr(self.detector_service.detector, "_context", "unknown")
-            log.debug(
-                "detector_context.saved",
-                saved=self.saved_context,
-                new=self.new_context,
-            )
-            self.detector_service.detector.set_context(self.new_context)
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        """Restore original context, even if exception occurred."""
-        if self.detector_service and self.detector_service.detector and self.saved_context:
-            try:
-                self.detector_service.detector.set_context(self.saved_context)
-                log.debug("detector_context.restored", context=self.saved_context)
-            except (AttributeError, ValueError) as e:
-                log.warning(
-                    "detector_context.restore_failed",
-                    saved_context=self.saved_context,
-                    error=str(e),
-                )
-
-
 class LiveCameraService(
     LiveSessionManagerMixin,
     CameraConnectionMixin,

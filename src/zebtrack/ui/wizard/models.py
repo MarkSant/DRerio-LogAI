@@ -685,52 +685,6 @@ class FileSelectionData(BaseModel):
         return v
 
 
-class WizardData(BaseModel):
-    """
-    Complete wizard data with validation.
-
-    This is the top-level model that aggregates all step data.
-    """
-
-    project_type: Literal["live", "pre-recorded"] = Field(
-        description="Type of project being created"
-    )
-    wizard_mode: Literal["express", "advanced"] = Field(
-        default="express", description="Wizard complexity mode"
-    )
-
-    # Step data (some are optional depending on project_type)
-    live_config: LiveConfigData | None = Field(
-        default=None, description="Live configuration (for live projects only)"
-    )
-    experimental_design: ExperimentalDesignData | None = Field(
-        default=None, description="Experimental design (for live projects)"
-    )
-    calibration: CalibrationData = Field(description="Calibration settings")
-    model_selection: ModelSelectionData | None = Field(
-        default=None, description="Model selection (advanced mode only)"
-    )
-    file_selection: FileSelectionData | None = Field(
-        default=None, description="File selection (for pre-recorded projects)"
-    )
-
-    @field_validator("live_config")
-    @classmethod
-    def validate_live_config_required(cls, v, info):
-        """Live config is required for live projects."""
-        if info.data.get("project_type") == "live" and v is None:
-            raise ValueError("Live configuration is required for live projects")
-        return v
-
-    @field_validator("file_selection")
-    @classmethod
-    def validate_file_selection_required(cls, v, info):
-        """File selection is required for pre-recorded projects."""
-        if info.data.get("project_type") == "pre-recorded" and v is None:
-            raise ValueError("A file selection is required for pre-recorded projects")
-        return v
-
-
 # Type aliases for convenience
 LiveConfig = LiveConfigData
 ExperimentalDesign = ExperimentalDesignData

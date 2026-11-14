@@ -42,7 +42,7 @@ class VideoSelectionMixin:
     """Mixin providing video selection, validation, and zone loading.
 
     Must be composed with a coordinator that satisfies
-    :class:`~zebtrack.coordinators._protocols.VideoSelectionHost`.
+    ``VideoSelectionHost``.
 
     Host-provided attributes (declared for mypy, set by coordinator __init__):
     """

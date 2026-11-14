@@ -1,5 +1,5 @@
 """
-Extended unit tests for project schemas: ROITemplateSchema and ProjectConfigSchema.
+Extended unit tests for project schemas: ROITemplateSchema.
 """
 
 from __future__ import annotations
@@ -9,9 +9,7 @@ from pydantic import ValidationError
 
 from zebtrack.core.project.schemas import (
     AssetType,
-    InvalidProjectConfigError,
     InvalidTemplateError,
-    ProjectConfigSchema,
     ROITemplateSchema,
 )
 
@@ -76,54 +74,6 @@ class TestROITemplateSchema:
             ROITemplateSchema(version=0, name="Bad", data={"polygon": []})
 
 
-class TestProjectConfigSchema:
-    def test_valid_prerecorded(self):
-        cfg = ProjectConfigSchema(
-            project_name="MyProj",
-            project_type="pre-recorded",
-            timestamp="2025-01-01T00:00:00",
-            calibration={"px_per_cm": 10.0},
-            videos=[{"path": "video.mp4"}],
-        )
-        assert cfg.project_name == "MyProj"
-
-    def test_valid_live(self):
-        cfg = ProjectConfigSchema(
-            project_name="LiveProj",
-            project_type="live",
-            timestamp="2025-01-01T00:00:00",
-            calibration={},
-            videos=[],
-        )
-        assert cfg.project_type == "live"
-
-    def test_invalid_project_type_raises(self):
-        with pytest.raises(ValidationError):
-            ProjectConfigSchema(
-                project_name="Bad",
-                project_type="invalid",
-                timestamp="2025-01-01",
-                calibration={},
-                videos=[],
-            )
-
-    def test_extra_fields_allowed(self):
-        cfg = ProjectConfigSchema.model_validate(
-            {
-                "project_name": "Compat",
-                "project_type": "live",
-                "timestamp": "2025-01-01T00:00:00",
-                "calibration": {},
-                "videos": [],
-                "some_future_field": "hello",
-            }
-        )
-        assert cfg.project_name == "Compat"
-
-
 class TestSchemaErrors:
     def test_invalid_template_error_is_value_error(self):
         assert issubclass(InvalidTemplateError, ValueError)
-
-    def test_invalid_project_config_error_is_value_error(self):
-        assert issubclass(InvalidProjectConfigError, ValueError)

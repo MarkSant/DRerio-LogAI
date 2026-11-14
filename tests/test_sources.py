@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from tests.utils.wait_helpers import wait_for_condition
-from zebtrack.io import Camera, FrameSource, VideoFileSource, create_source
+from zebtrack.io import Camera, FrameSource, VideoFileSource
 
 
 @pytest.fixture
@@ -85,35 +85,6 @@ def test_video_file_source_read_frames_and_eos(dummy_video_file):
 
 
 # --- Tests for the factory function ---
-
-
-def test_create_source_for_file(dummy_video_file):
-    """Tests that the factory function can create a VideoFileSource."""
-    video_path, _, _, _, _ = dummy_video_file
-    source = create_source("file", video_path=video_path)
-    assert isinstance(source, VideoFileSource)
-    ret, frame = source.get_frame()
-    assert ret
-    assert frame is not None
-    source.release()
-
-
-def test_create_source_invalid_type():
-    """Tests that the factory raises an error for an unknown source type."""
-    with pytest.raises(ValueError, match="Unsupported source type"):
-        create_source("invalid_source_type")
-
-
-def test_create_source_file_missing_kwarg():
-    """Tests that the factory raises an error if video_path is missing."""
-    with pytest.raises(ValueError, match="`video_path` keyword argument is required"):
-        create_source("file")
-
-
-def test_create_source_file_wrong_kwarg_type():
-    """Tests that the factory raises an error if video_path is not a string."""
-    with pytest.raises(ValueError, match="`video_path` keyword argument is required"):
-        create_source("file", video_path=123)
 
 
 # --- Tests for Camera class ---
@@ -214,10 +185,3 @@ def test_camera_release_stops_thread_and_releases_device(mock_video_capture):
     mock_video_capture.release.assert_called()
     # The thread should be stopped
     assert not thread.is_alive()
-
-
-def test_create_source_for_camera(mock_video_capture, test_settings):
-    """Tests that the factory function can create a Camera source."""
-    source = create_source("camera", settings_obj=test_settings)
-    assert isinstance(source, Camera)
-    source.release()

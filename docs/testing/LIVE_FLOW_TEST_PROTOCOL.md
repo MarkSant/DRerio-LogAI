@@ -207,8 +207,8 @@ Não construa nada em cima destes:
 
 - `VideoProcessingService.process_frame_source()` — zero chamadores em `src/` e
   em `tests/`. Parece o ponto onde os dois fluxos se encontram; não é.
-- `io/live_stream_source.py` e `io/frame_source_factory.py` — sem chamador de
-  produção.
+- `io/live_stream_source.py` — sem chamador de produção (`io/frame_source_factory.py`,
+  que estava na mesma situação, foi removido em 2026-11).
 
 Na prática existem **três** laços de tracking separados:
 `_WorkerProcess._process_single_video` (lote pré-gravado),

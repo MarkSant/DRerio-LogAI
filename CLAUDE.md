@@ -443,7 +443,7 @@ Pattern: `domain.action.result`.
 
 ### I/O & Processing
 
-- `io/{recorder,video_source,camera,live_stream_source,frame_source_factory}.py`.
+- `io/{recorder,video_source,camera,live_stream_source}.py`.
 - `analysis/{behavior,roi}.py`, `analysis/reporters/` — metrics + reports.
 - `plugins/` — detector implementations (YOLO, OpenVINO).
 

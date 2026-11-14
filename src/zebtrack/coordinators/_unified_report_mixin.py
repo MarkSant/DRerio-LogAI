@@ -38,7 +38,7 @@ class UnifiedReportMixin:
     """Mixin providing unified report generation.
 
     Must be composed with a coordinator that satisfies
-    :class:`~zebtrack.coordinators._protocols.UnifiedReportHost`.
+    ``UnifiedReportHost``.
 
     Host-provided attributes (declared for mypy, set by coordinator __init__):
     """

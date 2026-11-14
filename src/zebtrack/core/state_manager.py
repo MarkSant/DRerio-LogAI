@@ -59,13 +59,12 @@ import concurrent.futures
 import copy
 import dataclasses
 import threading
-from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 import structlog
 
@@ -313,130 +312,8 @@ class ApplicationState:
         )
 
 
-# ==================== Observer Protocol ====================
-
-
-class StateObserverProtocol(Protocol):
-    """
-    Protocol for state observers.
-
-    Observers must implement this callable signature to receive state change
-    notifications from the StateManager.
-    """
-
-    def __call__(
-        self,
-        category: StateCategory,
-        key: str,
-        old_value: Any,
-        new_value: Any,
-    ) -> None:
-        """
-        Call when observed state changes.
-
-        Args:
-            category: The state category that changed
-            key: The specific state key that changed
-            old_value: The previous value
-            new_value: The new value
-        """
-        ...
-
-
 # Type alias for backward compatibility
 StateObserver = Callable[[StateCategory, str, Any, Any], None]
-
-
-class BaseStateObserver(ABC):
-    """
-    Abstract base class for state observers.
-
-    Provides a formal interface for components that want to observe state changes.
-    Subclasses must implement on_state_changed() to react to specific state changes.
-
-    Example:
-        class MyObserver(BaseStateObserver):
-            def on_state_changed(self, category, key, old_value, new_value):
-                if category == StateCategory.RECORDING and key == "is_recording":
-                    print(f"Recording state: {new_value}")
-    """
-
-    @abstractmethod
-    def on_state_changed(
-        self,
-        category: StateCategory,
-        key: str,
-        old_value: Any,
-        new_value: Any,
-    ) -> None:
-        """
-        Call when observed state changes.
-
-        Args:
-            category: The state category that changed
-            key: The specific state key that changed
-            old_value: The previous value
-            new_value: The new value
-        """
-        pass
-
-
-class ObserverAdapter:
-    """
-    Adapter to simplify observer implementation with filtering.
-
-    Allows observing specific categories and/or keys without implementing
-    the full BaseStateObserver interface.
-
-    Example::
-
-        def handle_recording(category, key, old_value, new_value):
-            print(f"Recording changed: {key} = {new_value}")
-
-        adapter = ObserverAdapter(
-            callback=handle_recording,
-            categories={StateCategory.RECORDING},
-            keys={"is_recording", "output_path"}
-        )
-        state_manager.subscribe_observer(StateCategory.RECORDING, adapter)
-    """
-
-    def __init__(
-        self,
-        callback: Callable[[StateCategory, str, Any, Any], None],
-        categories: set[StateCategory] | None = None,
-        keys: set[str] | None = None,
-    ):
-        """
-        Initialize the adapter.
-
-        Args:
-            callback: Function to call when matching state changes occur
-            categories: If provided, only notify for these categories (None = all)
-            keys: If provided, only notify for these keys (None = all)
-        """
-        self.callback = callback
-        self.categories = categories
-        self.keys = keys
-
-    def __call__(
-        self,
-        category: StateCategory,
-        key: str,
-        old_value: Any,
-        new_value: Any,
-    ) -> None:
-        """Filter and forward notifications to callback."""
-        # Filter by category
-        if self.categories is not None and category not in self.categories:
-            return
-
-        # Filter by key
-        if self.keys is not None and key not in self.keys:
-            return
-
-        # Forward to callback
-        self.callback(category, key, old_value, new_value)
 
 
 class StateManager:
@@ -532,7 +409,7 @@ class StateManager:
         Args:
             category: The state category to observe
             observer: Callback function(category, key, old_value, new_value)
-                     Can be a plain function, method, or BaseStateObserver subclass
+                     Can be a plain function or a bound method
 
         Example:
             def on_recording_change(category, key, old_val, new_val):
@@ -561,7 +438,7 @@ class StateManager:
 
         Args:
             category: The state category to observe
-            observer: Callback function or BaseStateObserver instance
+            observer: Callback function
         """
         self.subscribe(category, observer)
 
@@ -598,7 +475,7 @@ class StateManager:
         Functionally identical to subscribe_all().
 
         Args:
-            observer: Callback function or BaseStateObserver instance
+            observer: Callback function
         """
         self.subscribe_all(observer)
 

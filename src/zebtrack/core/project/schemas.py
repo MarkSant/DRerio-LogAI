@@ -3,7 +3,7 @@
 from enum import Enum, auto
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class AssetType(Enum):
@@ -60,21 +60,5 @@ class ROITemplateSchema(BaseModel):
         return v
 
 
-class ProjectConfigSchema(BaseModel):
-    """Schema para project_config.json."""
-
-    project_name: str = Field(min_length=1, max_length=300)
-    project_type: str = Field(pattern=r"^(pre-recorded|live)$")
-    timestamp: str
-    calibration: dict[str, Any]
-    videos: list[dict[str, Any]]
-
-    model_config = ConfigDict(extra="allow")  # Allow additional fields for compatibility
-
-
 class InvalidTemplateError(ValueError):
     """Error when template is invalid."""
-
-
-class InvalidProjectConfigError(ValueError):
-    """Error when project configuration is invalid."""
