@@ -21,12 +21,14 @@ from zebtrack.core.conditions import (
     EndOfStream,
     External,
     FirstOf,
+    FrameObservation,
     FrameReached,
     Hold,
     Persist,
     RoiInside,
     TimeReached,
     WindowSpec,
+    evaluate_window,
     read_artifact,
 )
 from zebtrack.core.conditions.presets import barnes_maze_preset, external_trigger_preset
@@ -338,6 +340,48 @@ class TestPhases:
         _step(runtime, 3, T0 + 3.0, classes=rat, rois={"escape"})
         (stop,) = _step(runtime, 4, T0 + 3.5, classes=rat, rois={"escape"}).events
         assert stop.t_s == pytest.approx(3.0)
+
+
+class TestBarnesBurrowParity:
+    """#650: live and analysis end the Barnes trial at the SAME burrow entry."""
+
+    @staticmethod
+    def _trial() -> list[tuple[int, float, dict, frozenset[str]]]:
+        """Release at frame 2; the rat enters ``toca`` at 12 and stays visible there."""
+        rows = []
+        for frame in range(30):
+            if frame < 2:
+                classes = {"start_box": (0.9,), "experimenter": (0.9,), "rat": (0.9,)}
+            else:
+                classes = {"rat": (0.9,)}
+            rois = frozenset({"toca"}) if frame >= 12 else frozenset()
+            rows.append((frame, frame * 0.1, classes, rois))
+        return rows
+
+    def test_runtime_and_evaluate_window_agree_on_the_stop(self):
+        spec = barnes_maze_preset(k_frames=3, absent_s=1.0)
+        roles = {"subject": {"rat"}}
+        runtime = _runtime(spec, roles=roles)
+        live = []
+        for frame, t_s, classes, rois in self._trial():
+            live.extend(_step(runtime, frame, T0 + t_s, classes=classes, rois=rois).events)
+        live.extend(runtime.finish().events)
+
+        offline = evaluate_window(
+            spec,
+            (
+                FrameObservation(frame=frame, t_s=t_s, classes=classes, subject_rois=rois)
+                for frame, t_s, classes, rois in self._trial()
+            ),
+            role_names=roles,
+        )
+
+        live_stop = next(event for event in live if event.kind == "stop")
+        assert offline.stop is not None
+        assert (live_stop.frame, live_stop.reason) == (12, "roi_edge")
+        assert (offline.stop.frame, offline.stop.reason) == (12, "roi_edge")
+        assert live_stop.t_s == pytest.approx(offline.stop.t_s)
+        assert runtime.result.censored is offline.censored is False
 
 
 # ---------------------------------------------------------------------------

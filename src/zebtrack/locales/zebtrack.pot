@@ -4121,6 +4121,13 @@ msgid ""
 "lines, then Save."
 msgstr ""
 
+#: src/zebtrack/ui/components/analysis_window_panel.py:794
+#, python-brace-format
+msgid ""
+"This project has no ROI named {names}, so that line will never fire. Draw "
+"it, or change the line."
+msgstr ""
+
 #: src/zebtrack/ui/components/analysis_window_panel.py:1222
 msgid "Preset loaded. Review the lines, then Save."
 msgstr ""

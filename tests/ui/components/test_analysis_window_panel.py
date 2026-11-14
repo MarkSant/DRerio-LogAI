@@ -63,11 +63,14 @@ from zebtrack.ui.components.analysis_window_panel import (
     friendly_validation_message,
     hold_unit_labels,
     load_window_spec,
+    match_roi_name,
     missing_class_names,
+    missing_roi_names,
     on_start_not_met_labels,
     on_stop_labels,
     parse_number,
     referenced_class_names,
+    referenced_roi_names,
     role_labels,
     row_kind_labels,
     section_labels,
@@ -735,6 +738,43 @@ class TestClassNames:
         assert missing_class_names(_fixture_spec(), []) == []
         assert missing_class_names(_fixture_spec(), ["  "]) == []
 
+    def test_referenced_roi_names_in_order_without_duplicates(self) -> None:
+        spec = WindowSpec(
+            start=Persist(level=RoiInside(roi="center", state="inside"), hold=Hold(frames=1)),
+            stop=FirstOf(
+                children=(
+                    RoiEdge(roi="toca", edge="enter"),
+                    RoiEdge(roi="center", edge="exit"),
+                )
+            ),
+        )
+
+        assert referenced_roi_names(spec) == ["center", "toca"]
+        assert referenced_roi_names(None) == []
+        assert referenced_roi_names(_fixture_spec()) == []
+
+    def test_missing_roi_names_is_exact(self) -> None:
+        """The evaluator matches ROI names exactly, so 'Toca' does not satisfy 'toca'."""
+        spec = barnes_maze_preset()
+
+        assert missing_roi_names(spec, ["Toca", "center"]) == ["toca"]
+        assert missing_roi_names(spec, ["center", "toca"]) == []
+
+    def test_a_project_without_rois_misses_every_referenced_roi(self) -> None:
+        """Unlike class names, an empty list is an answer: the project has no ROI."""
+        assert missing_roi_names(barnes_maze_preset(), []) == ["toca"]
+        assert missing_roi_names(_fixture_spec(), []) == []
+
+    def test_match_roi_name_prefers_the_exact_name(self) -> None:
+        assert match_roi_name("toca", ["Toca", "toca"]) == "toca"
+
+    def test_match_roi_name_adopts_the_projects_spelling(self) -> None:
+        assert match_roi_name("toca", ["center", " TOCA "]) == " TOCA "
+
+    def test_match_roi_name_keeps_the_wanted_name_when_absent(self) -> None:
+        assert match_roi_name("toca", ["center"]) == "toca"
+        assert match_roi_name("toca", []) == "toca"
+
 
 class TestPersistence:
     def test_absent_key_is_no_window(self) -> None:
@@ -1019,16 +1059,68 @@ class TestAnalysisWindowPanel:
 
     def test_barnes_preset_fills_the_editor_without_saving(self, tkinter_root: Any) -> None:
         data: dict[str, Any] = {}
-        panel, pm, _bus = self._panel(tkinter_root, data, open_editor=False)
+        panel, pm, _bus = self._panel(tkinter_root, data, roi_names=["toca"], open_editor=False)
 
         panel.apply_barnes_preset()
 
         assert panel._editor is not None, "the preset opens the editor for review"
-        assert len(self._tree_rows(panel, "stop")) == 4
+        assert len(self._tree_rows(panel, "stop")) == 5
         assert panel.current_spec() == barnes_maze_preset()
         assert PROJECT_KEY not in data
         pm.save_project.assert_not_called()
         assert panel._status.cget("text") == "Preset loaded. Review the lines, then Save."  # type: ignore[union-attr]
+
+    def test_barnes_preset_warns_about_a_missing_burrow_roi(self, tkinter_root: Any) -> None:
+        panel, _pm, _bus = self._panel(tkinter_root, {}, roi_names=["center"])
+
+        panel.apply_barnes_preset()
+
+        status = panel._status.cget("text")  # type: ignore[union-attr]
+        assert "'toca'" in status
+        assert str(panel._status.cget("foreground")) == "red"  # type: ignore[union-attr]
+
+    def test_barnes_preset_adopts_the_projects_spelling_of_the_burrow(
+        self, tkinter_root: Any
+    ) -> None:
+        panel, _pm, _bus = self._panel(tkinter_root, {}, roi_names=["Toca"])
+
+        panel.apply_barnes_preset()
+
+        assert panel.current_spec() == barnes_maze_preset(burrow_roi="Toca")
+        assert "'toca'" not in panel._status.cget("text")  # type: ignore[union-attr]
+
+    def test_barnes_preset_finds_a_burrow_drawn_on_one_video_only(self, tkinter_root: Any) -> None:
+        """Pre-recorded ROIs live per video and are not mirrored into the global zones."""
+        data: dict[str, Any] = {
+            "zones_by_video": {"C:/v/a.mp4": {"roi_names": ["toca"], "roi_polygons": [[]]}}
+        }
+        panel, _pm, _bus = self._panel(tkinter_root, data, roi_names=[])
+
+        panel.apply_barnes_preset()
+
+        assert panel._status.cget("text") == "Preset loaded. Review the lines, then Save."  # type: ignore[union-attr]
+
+    def test_save_warns_about_a_missing_roi_but_keeps_the_rule(self, tkinter_root: Any) -> None:
+        data: dict[str, Any] = {}
+        panel, pm, bus = self._panel(tkinter_root, data, roi_names=["center"])
+        panel.apply_barnes_preset()
+
+        assert panel.save() is True
+
+        assert data[PROJECT_KEY] == barnes_maze_preset().model_dump(mode="json", by_alias=True)
+        pm.save_project.assert_called_once()
+        status = panel._status.cget("text")  # type: ignore[union-attr]
+        assert "'toca'" in status
+        assert str(panel._status.cget("foreground")) == "red"  # type: ignore[union-attr]
+        assert len(_published_payloads(bus)) == 1
+
+    def test_save_with_every_roi_present_reports_plain_success(self, tkinter_root: Any) -> None:
+        panel, _pm, _bus = self._panel(tkinter_root, {}, roi_names=["toca"])
+        panel.apply_barnes_preset()
+
+        assert panel.save() is True
+
+        assert panel._status.cget("text") == "Analysis window saved."  # type: ignore[union-attr]
 
     def test_barnes_preset_warns_about_missing_classes(self, tkinter_root: Any) -> None:
         panel, _pm, _bus = self._panel(tkinter_root, {}, provider=lambda: ["rat", "zebrafish"])

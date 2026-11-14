@@ -1071,15 +1071,31 @@ modules:
         replace: 'hold=Hold(frames=3),'
       - id: ceiling-ignored
         description: "teto do protocolo deixa de chegar ao Delay e todo ensaio corta em 240 s"
-        find: 'Delay(after="start", seconds=max_s),'
-        replace: 'Delay(after="start", seconds=240.0),'
+        find: 'stop_lines.append(Delay(after="start", seconds=max_s))'
+        replace: 'stop_lines.append(Delay(after="start", seconds=240.0))'
       - id: end-of-stream-dropped
         description: "fim do video sai do FIM e uma gravacao curta nunca fecha a janela"
         find: |-
           EndOfStream(),
-                      Persist(
+                  Persist(
         replace: |-
           Persist(
+      - id: burrow-line-dropped
+        description: "#650: entrada na toca sai do FIM e o ensaio real volta a sair censurado no fim do video"
+        find: 'stop_lines.append(RoiEdge(roi=burrow_roi, edge="enter"))'
+        replace: 'pass'
+      - id: burrow-edge-is-exit
+        description: "#650: FIM passa a esperar a SAIDA da toca, que nunca acontece no ensaio"
+        find: 'RoiEdge(roi=burrow_roi, edge="enter")'
+        replace: 'RoiEdge(roi=burrow_roi, edge="exit")'
+      - id: burrow-name-ignored
+        description: "#650: o nome da toca do projeto (Toca) e trocado pelo padrao e a linha nunca dispara"
+        find: 'RoiEdge(roi=burrow_roi, edge="enter")'
+        replace: 'RoiEdge(roi=BARNES_BURROW_ROI, edge="enter")'
+      - id: blank-burrow-accepted
+        description: "#650: nome de toca em branco passa a ser aceito em vez de recusado"
+        find: 'if burrow_roi is not None and not burrow_roi.strip():'
+        replace: 'if False:'
       - id: zero-ceiling-accepted
         description: "teto zero passa a ser aceito e toda janela fecha no primeiro quadro"
         find: 'if not max_s > 0:'
@@ -1162,6 +1178,52 @@ modules:
         description: "previa deixa de dizer 'assim que' para persistencia de 1 quadro"
         find: 'if node.hold.frames == 1:'
         replace: 'if node.hold.frames == 0:'
+      - id: roi-inside-not-referenced
+        description: "#650: ROI citada por 'dentro/fora' deixa de ser conferida e o editor nao avisa"
+        find: 'if isinstance(node, RoiEdge | RoiInside) and node.roi not in names:'
+        replace: 'if isinstance(node, RoiEdge) and node.roi not in names:'
+      - id: missing-roi-ignores-case
+        description: "#650: 'Toca' passa a satisfazer 'toca', mas o avaliador compara exato e a linha nunca dispara"
+        find: 'known = set(available)'
+        replace: 'known = {name.casefold() for name in available}'
+      - id: no-roi-means-unknown
+        description: "#650: projeto SEM nenhuma ROI deixa de ser avisado (vazio vira 'desconhecido')"
+        find: 'return [name for name in referenced_roi_names(spec) if name not in known]'
+        replace: 'return [name for name in referenced_roi_names(spec) if known and name not in known]'
+      - id: roi-match-not-exact-first
+        description: "#650: com 'Toca' e 'toca' no projeto, o preset adota a grafia errada"
+        find: |-
+          if wanted in names:
+                  return wanted
+        replace: |-
+          if False:
+                  return wanted
+      - id: roi-match-case-sensitive
+        description: "#650: toca desenhada como 'Toca' deixa de ser adotada pelo preset"
+        find: 'if name.strip().casefold() == folded:'
+        replace: 'if name == folded:'
+
+  zone_manager_roi_names:
+    source: src/zebtrack/core/project/zone_manager.py
+    tests:
+      - tests/core/test_zone_manager_multi_aquarium.py
+    mutations:
+      - id: per-video-rois-skipped
+        description: "#650: ROIs por video sao ignoradas e o editor acusa 'sem toca' num projeto pre-gravado que a tem"
+        find: 'for key in ("zones_by_video", "multi_aquarium_zones"):'
+        replace: 'for key in ("multi_aquarium_zones",):'
+      - id: aquarium-rois-skipped
+        description: "#650: ROIs dos aquarios de um video multi-aquario sao ignoradas"
+        find: 'for aquarium in entry.get("aquariums") or ():'
+        replace: 'for aquarium in ():'
+      - id: blank-roi-name-kept
+        description: "#650: nome de ROI em branco entra na lista oferecida ao editor"
+        find: 'if name.strip() and name not in names:'
+        replace: 'if name not in names:'
+      - id: duplicate-roi-name-kept
+        description: "#650: a mesma ROI desenhada em dois videos aparece duas vezes"
+        find: 'if name.strip() and name not in names:'
+        replace: 'if name.strip():'
 
   wizard_templates:
     source: src/zebtrack/ui/wizard/templates.py
