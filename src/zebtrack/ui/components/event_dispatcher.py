@@ -747,6 +747,7 @@ class EventDispatcher:
             lambda d: gui.canvas_manager.update_video_frame(
                 _payload_get(d, "frame"),  # type: ignore[arg-type]  # frame is Any from payload
                 _payload_get(d, "detections"),
+                class_roles=_payload_get(d, "class_roles"),
             ),
         )
         event_bus.subscribe(

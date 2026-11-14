@@ -28,6 +28,8 @@ from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
 from zebtrack.ui.wizard.templates import (
+    TEMPLATE_OVERRIDES_KEY,
+    WIZARD_TEMPLATE_ROLES_KEY,
     TemplateManager,
     format_template_banner,
     migrate_template,
@@ -661,6 +663,9 @@ class DiscoveryStep(WizardStep):
         # Assigned even when None: loading a template without a window must clear
         # the one a previously loaded template left in wizard_data.
         self.wizard_data["analysis_window"] = deepcopy(template.get("analysis_window"))
+        # Same for the class roles (v5): the model step re-validates them by name
+        # against the weight chosen there (#646).
+        self.wizard_data[WIZARD_TEMPLATE_ROLES_KEY] = deepcopy(template.get(TEMPLATE_OVERRIDES_KEY))
 
         model_selection = self.wizard_data.get("model_selection")
         if isinstance(model_selection, dict) and "use_openvino" in model_selection:

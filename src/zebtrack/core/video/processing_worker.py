@@ -20,7 +20,7 @@ import re
 import threading
 import time
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -31,7 +31,11 @@ import structlog
 
 from zebtrack.core.detection import Detector, MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.class_aliases import ClassAliases
-from zebtrack.core.detection.class_roles import ClassRoleMap, resolve_class_role_map
+from zebtrack.core.detection.class_roles import (
+    ClassRoleMap,
+    overlay_class_roles,
+    resolve_class_role_map,
+)
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
 from zebtrack.core.detection.zone_scaler import ZoneScaler, arena_membership_rule_from_settings
@@ -49,6 +53,34 @@ if TYPE_CHECKING:
     from zebtrack.core.services.worker_model_resolution import WorkerModelSpec
 
 log = structlog.get_logger()
+
+#: Key of the ``info`` mapping handed to ``on_frame_processed`` that carries the
+#: worker's ``{class id: role token}`` (see :func:`frame_info_with_roles`).
+FRAME_INFO_CLASS_ROLES = "class_roles"
+
+
+def frame_info_with_roles(msg: Mapping[str, Any]) -> Any:
+    """The ``info`` of a worker ``frame`` message, carrying its class roles (#645).
+
+    The worker sends the role map its detector resolved beside the detections;
+    ``on_frame_processed`` keeps its three arguments, so the map travels inside
+    ``info``. A message without a map passes ``info`` through untouched.
+    """
+    info = msg.get("info")
+    roles = msg.get(FRAME_INFO_CLASS_ROLES)
+    if roles is None:
+        return info
+    merged = dict(info) if isinstance(info, Mapping) else {}
+    merged[FRAME_INFO_CLASS_ROLES] = roles
+    return merged
+
+
+def class_roles_from_frame_info(info: Any) -> Mapping[int, str] | None:
+    """The worker's ``{class id: role token}`` inside a frame ``info``, if any."""
+    if not isinstance(info, Mapping):
+        return None
+    roles = info.get(FRAME_INFO_CLASS_ROLES)
+    return roles if isinstance(roles, Mapping) else None
 
 
 @dataclass
@@ -379,7 +411,7 @@ class ProcessingWorker:
                         self.callbacks.on_frame_processed(
                             frame,
                             msg.get("detections"),
-                            msg.get("info"),
+                            frame_info_with_roles(msg),
                         )
 
                 elif msg_type == "video_completed":
@@ -1073,6 +1105,10 @@ class _WorkerProcess(multiprocessing.Process):
         is_multi_aquarium = isinstance(video_zone_data, MultiAquariumZoneData) and bool(
             video_zone_data.aquariums
         )
+        # The role map this worker's detector REALLY uses, published with every
+        # preview frame so the UI never colours the boxes with a map it resolved
+        # on its own (#645). Both detectors below share it.
+        overlay_roles = overlay_class_roles(getattr(detector, "class_role_map", None))
         multi_aq_detector: MultiAquariumDetector | None = None
 
         if is_multi_aquarium:
@@ -1501,6 +1537,8 @@ class _WorkerProcess(multiprocessing.Process):
                             "info": stats,
                             "experiment_id": experiment_id,
                         }
+                        if overlay_roles is not None:
+                            frame_msg["class_roles"] = overlay_roles
 
                         if self._shm_buffer is not None:
                             try:

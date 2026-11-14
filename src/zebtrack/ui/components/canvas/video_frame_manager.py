@@ -236,7 +236,12 @@ class VideoFrameManager:
             return
         _refresh()
 
-    def update_video_frame(self, frame: np.ndarray, detections: list | None = None) -> None:
+    def update_video_frame(
+        self,
+        frame: np.ndarray,
+        detections: list | None = None,
+        class_roles: Mapping[int, str] | None = None,
+    ) -> None:
         """Update the canvas with a raw video frame (numpy array).
 
         This method is called during video analysis to display frames.
@@ -251,6 +256,10 @@ class VideoFrameManager:
             frame: The video frame as a numpy array (BGR format from OpenCV).
             detections: List of detections (not used - overlays already drawn
                 on frame).
+            class_roles: ``{class id: role token}`` the detector that produced
+                ``detections`` resolved (#645). ``None`` falls back to the map
+                the UI resolved for the project's weight; ``{}`` means the
+                detector used a legacy map and keeps the 7.2 colours.
         """
         log.debug(
             "canvas_manager.update_video_frame.called",
@@ -280,7 +289,11 @@ class VideoFrameManager:
                 self._draw_detection_overlay_on_frame(
                     frame_for_display,
                     filtered_detections,
-                    class_roles=getattr(self.gui, "overlay_class_roles", None),
+                    class_roles=(
+                        class_roles
+                        if class_roles is not None
+                        else getattr(self.gui, "overlay_class_roles", None)
+                    ),
                     class_names=getattr(self.gui, "overlay_class_names", None),
                 )
 

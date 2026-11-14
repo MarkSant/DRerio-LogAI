@@ -102,9 +102,14 @@ DRerio LogAI utilizes two coexisting event bus systems to separate domain logic 
   heard) writes the status bar — the roles apply from the next detector load / worker start — and
   calls `gui.class_roles_context.refresh()`, which re-resolves the project weight's roles for the
   overlays and the class names offered by the analysis-window editor.
-- **Related:** `UI_UPDATE_DETECTION_OVERLAY`'s `DetectionOverlayPayload` gained an optional
-  `class_roles: {class id: role token}`. No publisher fills it yet; when it is `None` the overlay
-  uses `gui.overlay_class_roles` (explicit maps only) and, without one, the 7.2 colours.
+- **Related (#645):** every payload that carries detections to the UI —
+  `DetectionOverlayPayload` (`UI_UPDATE_DETECTION_OVERLAY`), `FrameDisplayPayload`
+  (`UI_DISPLAY_FRAME`), `UIUpdateLiveFramePayload` (`UI_UPDATE_LIVE_FRAME`) and the batch worker's
+  `frame` message (inside the `info` handed to `on_frame_processed`) — carries
+  `class_roles: {class id: role token}`, the map the DETECTOR that produced the detections
+  resolved (`class_roles.overlay_class_roles`). `{}` means a legacy alias/positional map (7.2
+  colours); the UI draws with the published map even when its own resolution differs. Only `None`
+  (a publisher that knows no map) falls back to `gui.overlay_class_roles`.
 
 ### 3.5. Live Analysis Window State (v8)
 

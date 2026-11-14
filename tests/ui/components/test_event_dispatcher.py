@@ -864,3 +864,53 @@ class TestClassRolesChanged:
         status_var.set.assert_called_once_with(
             "Class roles back to automatic. They apply from the next detection run."
         )
+
+
+class TestDisplayFrameCarriesTheDetectorsRoles:
+    """#645: ``UI_DISPLAY_FRAME`` hands the publisher's role map to the canvas."""
+
+    @staticmethod
+    def _gui():
+        root = MagicMock()
+        root.after.side_effect = lambda _delay, callback: callback()
+        gui = SimpleNamespace(
+            event_bus=MagicMock(),
+            root=root,
+            widget_factory=MagicMock(),
+            dialog_manager=MagicMock(),
+            status_var=MagicMock(),
+            notebook=MagicMock(),
+            state_synchronizer=MagicMock(),
+            video_selector_manager=MagicMock(),
+            project_view_manager=MagicMock(),
+            canvas_manager=MagicMock(),
+            zone_controls=MagicMock(),
+            menu_manager=MagicMock(),
+            zone_control_builder=MagicMock(),
+        )
+        EventDispatcher(cast(Any, gui)).subscribe_to_ui_events()
+        return gui
+
+    def test_roles_reach_update_video_frame(self):
+        from zebtrack.ui import payloads
+
+        gui = self._gui()
+        handler = TestUnprefixedMessageAliases._handler_for(
+            gui.event_bus, UIEvents.UI_DISPLAY_FRAME
+        )
+        assert handler is not None
+        handler(payloads.FrameDisplayPayload(frame="f", detections=[1], class_roles={0: "arena"}))
+        gui.canvas_manager.update_video_frame.assert_called_once_with(
+            "f", [1], class_roles={0: "arena"}
+        )
+
+    def test_absent_roles_reach_the_canvas_as_none(self):
+        from zebtrack.ui import payloads
+
+        gui = self._gui()
+        handler = TestUnprefixedMessageAliases._handler_for(
+            gui.event_bus, UIEvents.UI_DISPLAY_FRAME
+        )
+        assert handler is not None
+        handler(payloads.FrameDisplayPayload(frame="f"))
+        gui.canvas_manager.update_video_frame.assert_called_once_with("f", None, class_roles=None)

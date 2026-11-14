@@ -8,6 +8,7 @@ import pytest
 from zebtrack.core.conditions.presets import barnes_maze_preset, external_trigger_preset
 from zebtrack.ui.wizard.templates import (
     NOTE_ANALYSIS_WINDOW_DROPPED,
+    NOTE_CLASS_ROLES_DROPPED,
     NOTE_EXTERNAL_TRIGGER_CONVERTED,
     TEMPLATE_SCHEMA_VERSION,
     TemplateManager,
@@ -104,7 +105,7 @@ class TestTemplateManager:
         with open(self.templates_dir / "live_t.json", encoding="utf-8") as handle:
             data = json.load(handle)
 
-        assert data["schema_version"] == 4
+        assert data["schema_version"] == 5
         for key, expected in payload.items():
             assert data[key] == expected, f"{key!r} not persisted correctly"
 
@@ -210,6 +211,39 @@ class TestApplyTemplateData:
         assert wizard_data["analysis_window"] is None
         assert "migration_notes" not in wizard_data["template_metadata"]
 
+    def test_v5_class_roles_reach_wizard_data(self):
+        from zebtrack.ui.wizard.discovery_step import DiscoveryStep
+
+        wizard_data: dict = {}
+        step = DiscoveryStep(self.root, wizard_data)
+        step.build_ui()
+
+        step._apply_template_data(
+            {"schema_version": 5, "model_overrides": {"class_roles": {"Rat": "subject"}}},
+            "rat.json",
+        )
+
+        assert wizard_data["template_class_roles"] == {
+            "class_roles": {"rat": "subject"},
+            "class_roles_weight_sha256": None,
+        }
+
+    def test_v4_template_clears_the_previous_class_roles(self):
+        from zebtrack.ui.wizard.discovery_step import DiscoveryStep
+
+        wizard_data: dict = {}
+        step = DiscoveryStep(self.root, wizard_data)
+        step.build_ui()
+        step._apply_template_data(
+            {"schema_version": 5, "model_overrides": {"class_roles": {"rat": "subject"}}},
+            "a.json",
+        )
+
+        step._apply_template_data({"schema_version": 4, "name": "Old"}, "old.json")
+
+        assert wizard_data["template_class_roles"] is None
+        assert wizard_data["template_metadata"]["schema_version"] == 4
+
 
 class TestFormatTemplateBanner:
     def test_banner_with_name_and_path(self):
@@ -236,7 +270,7 @@ class TestSaveTemplateAnalysisWindow:
         assert manager.save_template("Barnes", {"analysis_window": window})
 
         data = json.loads((tmp_path / "barnes.json").read_text(encoding="utf-8"))
-        assert data["schema_version"] == TEMPLATE_SCHEMA_VERSION == 4
+        assert data["schema_version"] == TEMPLATE_SCHEMA_VERSION == 5
         assert data["analysis_window"] == window
 
     def test_saved_template_loads_back_unchanged(self, tmp_path: Path):
@@ -369,3 +403,197 @@ class TestMigrateTemplate:
             "The template's analysis window could not be read"
         )
         assert template_migration_note_text("unknown_note") == "unknown_note"
+
+
+_BARNES_ROLES = {
+    "arena": "arena",
+    "experimenter": "context",
+    "rat": "subject",
+    "start_box": "context",
+}
+_SHA = "ab" * 32
+
+
+class TestTemplateClassRoles:
+    """#646: v5 templates keep the class roles BY NAME, with the weight's sha."""
+
+    def _saved(self, tmp_path: Path, wizard_data: dict[str, Any]) -> dict[str, Any]:
+        manager = TemplateManager(templates_dir=tmp_path)
+        assert manager.save_template("Roles", wizard_data)
+        return json.loads((tmp_path / "roles.json").read_text(encoding="utf-8"))
+
+    def test_edited_roles_are_saved_by_normalised_name_with_the_sha(self, tmp_path: Path):
+        data = self._saved(
+            tmp_path,
+            {
+                "class_roles": {" Rat ": "subject", "ARENA": "arena"},
+                "class_roles_weight_sha256": _SHA,
+            },
+        )
+
+        assert data["model_overrides"] == {
+            "class_roles": {"rat": "subject", "arena": "arena"},
+            "class_roles_weight_sha256": _SHA,
+        }
+
+    def test_loaded_template_roles_are_carried_forward(self, tmp_path: Path):
+        block = {"class_roles": _BARNES_ROLES, "class_roles_weight_sha256": None}
+        data = self._saved(tmp_path, {"class_roles": None, "template_class_roles": block})
+
+        assert data["model_overrides"] == block
+
+    def test_edited_roles_win_over_the_loaded_template(self, tmp_path: Path):
+        data = self._saved(
+            tmp_path,
+            {
+                "class_roles": {"mouse": "subject"},
+                "class_roles_weight_sha256": _SHA.upper(),
+                "template_class_roles": {"class_roles": _BARNES_ROLES},
+            },
+        )
+
+        assert data["model_overrides"] == {
+            "class_roles": {"mouse": "subject"},
+            "class_roles_weight_sha256": _SHA,
+        }
+
+    def test_unreadable_edited_roles_fall_back_to_the_template(self, tmp_path: Path):
+        data = self._saved(
+            tmp_path,
+            {
+                "class_roles": {"rat": "boss"},
+                "template_class_roles": {"class_roles": {"rat": "subject"}},
+            },
+        )
+
+        assert data["model_overrides"]["class_roles"] == {"rat": "subject"}
+
+    def test_no_roles_save_none(self, tmp_path: Path):
+        assert self._saved(tmp_path, {"project_type": "live"})["model_overrides"] is None
+
+    def test_saved_roles_load_back_unchanged(self, tmp_path: Path):
+        manager = TemplateManager(templates_dir=tmp_path)
+        manager.save_template(
+            "Barnes", {"class_roles": _BARNES_ROLES, "class_roles_weight_sha256": _SHA}
+        )
+
+        migrated, notes = migrate_template(manager.load_template("Barnes") or {})
+
+        assert migrated["model_overrides"] == {
+            "class_roles": _BARNES_ROLES,
+            "class_roles_weight_sha256": _SHA,
+        }
+        assert notes == ()
+
+    def test_old_v4_template_still_loads(self, tmp_path: Path):
+        """A v4 file on disk loads through the same path, with no class roles."""
+        window = barnes_maze_preset().model_dump(mode="json", by_alias=True)
+        path = tmp_path / "old_v4.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 4,
+                    "name": "Old v4",
+                    "project_type": "experimental",
+                    "num_aquariums": 2,
+                    "analysis_window": window,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = TemplateManager(templates_dir=tmp_path).load_template_from_path(path)
+        assert loaded is not None
+        migrated, notes = migrate_template(loaded)
+
+        assert migrated["model_overrides"] is None
+        assert migrated["analysis_window"] == window
+        assert migrated["num_aquariums"] == 2
+        assert migrated["schema_version"] == 4
+        assert notes == ()
+
+    def test_v4_stray_roles_are_not_trusted(self):
+        migrated, notes = migrate_template(
+            {"schema_version": 4, "model_overrides": {"class_roles": {"rat": "subject"}}}
+        )
+
+        assert migrated["model_overrides"] is None
+        assert notes == ()
+
+    def test_v5_roles_are_normalised(self):
+        migrated, notes = migrate_template(
+            {
+                "schema_version": 5,
+                "model_overrides": {
+                    "class_roles": {"Start Box": "context", "RAT": "subject"},
+                    "class_roles_weight_sha256": " " + _SHA.upper() + " ",
+                },
+            }
+        )
+
+        assert migrated["model_overrides"] == {
+            "class_roles": {"start_box": "context", "rat": "subject"},
+            "class_roles_weight_sha256": _SHA,
+        }
+        assert notes == ()
+
+    @pytest.mark.parametrize("sha", ["abc", 42, None, "z" * 64, "a" * 63])
+    def test_v5_invalid_sha_is_dropped_not_the_roles(self, sha: Any):
+        migrated, notes = migrate_template(
+            {
+                "schema_version": 5,
+                "model_overrides": {
+                    "class_roles": {"rat": "subject"},
+                    "class_roles_weight_sha256": sha,
+                },
+            }
+        )
+
+        assert migrated["model_overrides"] == {
+            "class_roles": {"rat": "subject"},
+            "class_roles_weight_sha256": None,
+        }
+        assert notes == ()
+
+    @pytest.mark.parametrize(
+        "block",
+        [
+            {"class_roles": {"rat": "boss"}},
+            {"class_roles": {}},
+            {"class_roles": ["rat"]},
+            "rat",
+        ],
+    )
+    def test_v5_unreadable_roles_are_dropped_with_a_note(self, block: Any):
+        migrated, notes = migrate_template({"schema_version": 5, "model_overrides": block})
+
+        assert migrated["model_overrides"] is None
+        assert notes == (NOTE_CLASS_ROLES_DROPPED,)
+
+    @pytest.mark.parametrize("block", [None, {}, {"class_roles": None}])
+    def test_v5_without_roles(self, block: Any):
+        template: dict[str, Any] = {"schema_version": 5}
+        if block is not None:
+            template["model_overrides"] = block
+
+        migrated, notes = migrate_template(template)
+
+        assert migrated["model_overrides"] is None
+        assert notes == ()
+
+    def test_window_and_roles_notes_are_both_kept(self):
+        migrated, notes = migrate_template(
+            {
+                "schema_version": 5,
+                "analysis_window": {"version": 1, "start": {"kind": "?"}},
+                "model_overrides": {"class_roles": {"rat": "boss"}},
+            }
+        )
+
+        assert notes == (NOTE_ANALYSIS_WINDOW_DROPPED, NOTE_CLASS_ROLES_DROPPED)
+        assert migrated["analysis_window"] is None
+
+    def test_roles_note_text(self):
+        assert template_migration_note_text(NOTE_CLASS_ROLES_DROPPED).startswith(
+            "The template's class roles could not be read"
+        )

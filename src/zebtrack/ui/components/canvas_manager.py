@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import threading
 import tkinter as tk
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -113,7 +114,7 @@ class CanvasManager:
         # cai no vão entre "peguei o pendente" e "zerei o pendente" e nada
         # reagenda — o preview congelaria até o frame seguinte.
         self._live_frame_lock = threading.Lock()
-        self._pending_live_frame: tuple[Any, Any] | None = None
+        self._pending_live_frame: tuple[Any, Any, Any] | None = None
         self._live_frame_render_scheduled = False
 
         # Initialize sub-components (Phase 4.1-4.2 originals)
@@ -267,17 +268,19 @@ class CanvasManager:
             return
 
         detections = _payload_get(data, "detections")
+        # The map the live detector resolved (#645); None → the UI's own map.
+        class_roles = _payload_get(data, "class_roles")
 
         root = getattr(self.gui, "root", None)
         if root is None or not hasattr(root, "after"):
             # Headless / tests: no Tk loop to marshal through.
             with self._live_frame_lock:
-                self._pending_live_frame = (frame, detections)
+                self._pending_live_frame = (frame, detections, class_roles)
             self._render_pending_live_frame()
             return
 
         with self._live_frame_lock:
-            self._pending_live_frame = (frame, detections)
+            self._pending_live_frame = (frame, detections, class_roles)
             if self._live_frame_render_scheduled:
                 return
             self._live_frame_render_scheduled = True
@@ -301,8 +304,8 @@ class CanvasManager:
         if pending is None:
             return
 
-        frame, detections = pending
-        self.update_video_frame(frame, detections)
+        frame, detections, class_roles = pending
+        self.update_video_frame(frame, detections, class_roles=class_roles)
 
     def subscribe_to_live_frames(self):
         """(Re)subscribe to live frame updates for the current session.
@@ -624,9 +627,14 @@ class CanvasManager:
         # Preserve previous invalid-path behavior while satisfying strict typing.
         self.video_frame.display_roi_video_frame(video_path if video_path is not None else "")
 
-    def update_video_frame(self, frame: np.ndarray, detections: list | None = None) -> None:
+    def update_video_frame(
+        self,
+        frame: np.ndarray,
+        detections: list | None = None,
+        class_roles: Mapping[int, str] | None = None,
+    ) -> None:
         """Update canvas with a raw video frame. Delegates to video_frame."""
-        self.video_frame.update_video_frame(frame, detections)
+        self.video_frame.update_video_frame(frame, detections, class_roles=class_roles)
 
     def load_video_frame_to_canvas(
         self, video_path: Path | str | None = None, frame_number: int = 0
