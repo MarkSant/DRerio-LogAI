@@ -95,9 +95,6 @@ EVENT_KEYWORDS = ("event_type", "event", "event_name")
 # Published today with nobody listening. NEVER add to this list.
 ALLOWED_ORPHANS = frozenset(
     {
-        # -- publicados por widgets que nunca são instanciados (código morto) --
-        "CONTROL_INTERVAL_CHANGED",
-        "CONTROL_PREVIEW_TOGGLED",
         # -- notificações redundantes, ao lado de um callback direto que funciona --
         "BEHAVIORAL_CONFIG_GEOTAXIS_TOGGLED",
         "BEHAVIORAL_CONFIG_PERSPECTIVE_CHANGED",
@@ -134,6 +131,9 @@ ALLOWED_UNPUBLISHED = frozenset(
         "SHOW_WARNING",
         "SOCIAL_SUMMARY_UPDATED",
         "UI_NAVIGATE_FROM_ANALYSIS_VIEW",
+        # o único publicador era o ControlPanelWidget morto (A2-D-009): o handler em
+        # video_selector_tree_manager.py já não rodava antes da remoção
+        "UI_REQUEST_PROCESS_VIDEOS",
         "UI_SETUP_INTERACTIVE_POLYGON",
         "VIDEO_LOADED",
         "ZONE_APPLY_ROI_SETTINGS",
@@ -153,6 +153,9 @@ ALLOWED_UNREFERENCED = frozenset(
         "ARDUINO_LOG_EVENT",
         "ARDUINO_SETUP",
         "CALIBRATION_RUN_LIVE",
+        # o único publicador era o ControlPanelWidget morto, apagado em 2026-11 (A2-D-009)
+        "CONTROL_INTERVAL_CHANGED",
+        "CONTROL_PREVIEW_TOGGLED",
         "DETECTOR_SETUP",
         "DETECTOR_SETUP_ZONES",
         "DETECTOR_UPDATE_ZONES",
@@ -188,10 +191,9 @@ ALLOWED_UNREFERENCED = frozenset(
     }
 )
 
-# Files whose string-literal publishes are tolerated. ``ProjectCoordinator`` is
-# never instantiated (audit A2-04) and its deletion is pending the maintainer;
-# its three publishes go with it. NEVER add.
-STRING_PUBLISH_EXEMPT_FILES = frozenset({"src/zebtrack/coordinators/project_coordinator.py"})
+# Files whose string-literal publishes are tolerated. Empty since the dead
+# ``ProjectCoordinator`` was deleted (audit A2-04). NEVER add.
+STRING_PUBLISH_EXEMPT_FILES: frozenset[str] = frozenset()
 
 
 # ---------------------------------------------------------------------------

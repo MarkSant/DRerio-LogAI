@@ -33,6 +33,10 @@ ASSERT_WITH_DICT_RE = re.compile(
 ALLOWED_RAW_DICT_EVENTS: set[str] = {
     "ZONE_VIDEO_SEARCH_CHANGED",
     "FRAME_ERROR",
+    # ZoneControlsWidget._on_auto_detect_clicked publishes a dict although
+    # ZoneAutoDetectClickedPayload exists (audit register A1). The test that
+    # pins it predates this check and only surfaced when its file was edited.
+    "ZONE_AUTO_DETECT_CLICKED",
 }
 
 

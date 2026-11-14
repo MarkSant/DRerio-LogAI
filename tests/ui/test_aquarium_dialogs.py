@@ -2,114 +2,15 @@
 Unit tests for multi-aquarium dialog components.
 
 Tests for:
-- MultiAquariumConfirmDialog
 - AquariumAssignmentDialog
 """
 
-import tkinter as tk
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from zebtrack.ui.dialogs.aquarium_assignment_dialog import AquariumAssignmentDialog
-from zebtrack.ui.dialogs.multi_aquarium_confirm_dialog import MultiAquariumConfirmDialog
 from zebtrack.ui.wizard.models import AquariumConfig
-
-
-@pytest.mark.gui
-class TestMultiAquariumConfirmDialog:
-    """Tests for MultiAquariumConfirmDialog."""
-
-    def test_dialog_creation(self, tkinter_root):
-        """Test that dialog can be created without errors."""
-        callbacks = {
-            "single": MagicMock(),
-            "multi": MagicMock(),
-            "cancel": MagicMock(),
-        }
-
-        # Create dialog without displaying (would block)
-        with patch.object(MultiAquariumConfirmDialog, "wait_window"):
-            dialog = MultiAquariumConfirmDialog(
-                parent=tkinter_root,
-                on_single=callbacks["single"],
-                on_multi=callbacks["multi"],
-                on_cancel=callbacks["cancel"],
-            )
-
-        # Verify dialog was created
-        assert dialog is not None
-        assert hasattr(dialog, "result")
-        assert dialog.result is None  # No result yet
-
-    def test_dialog_has_correct_title(self, tkinter_root):
-        """Test dialog has correct title."""
-        with patch.object(MultiAquariumConfirmDialog, "wait_window"):
-            dialog = MultiAquariumConfirmDialog(parent=tkinter_root)
-
-        assert dialog.title() == "Aquarium Setup"
-
-    def test_get_result_returns_selection(self, tkinter_root):
-        """Test get_result returns the selection."""
-        with patch.object(MultiAquariumConfirmDialog, "wait_window"):
-            dialog = MultiAquariumConfirmDialog(parent=tkinter_root)
-
-        # Initially no result
-        assert dialog.get_result() is None
-
-        # Set result manually
-        dialog.result = 1
-        assert dialog.get_result() == 1
-
-    def test_single_aquarium_selection(self, tkinter_root):
-        """Test single aquarium callback is triggered."""
-        callback = MagicMock()
-
-        with patch.object(MultiAquariumConfirmDialog, "wait_window"):
-            with patch.object(MultiAquariumConfirmDialog, "ok"):
-                dialog = MultiAquariumConfirmDialog(
-                    parent=tkinter_root,
-                    on_single=callback,
-                )
-                # Set selection to 1 aquarium
-                dialog._aquarium_count.set(1)
-                # Simulate confirm
-                dialog._on_confirm()
-
-        callback.assert_called_once()
-        assert dialog.result == 1
-
-    def test_multi_aquarium_selection(self, tkinter_root):
-        """Test multi aquarium callback is triggered."""
-        callback = MagicMock()
-
-        with patch.object(MultiAquariumConfirmDialog, "wait_window"):
-            with patch.object(MultiAquariumConfirmDialog, "ok"):
-                dialog = MultiAquariumConfirmDialog(
-                    parent=tkinter_root,
-                    on_multi=callback,
-                )
-                # Set selection to 2 aquariums
-                dialog._aquarium_count.set(2)
-                # Simulate confirm
-                dialog._on_confirm()
-
-        callback.assert_called_once()
-        assert dialog.result == 2
-
-    def test_cancel_callback(self, tkinter_root):
-        """Test cancel callback is triggered."""
-        callback = MagicMock()
-
-        with patch.object(MultiAquariumConfirmDialog, "wait_window"):
-            with patch.object(tk.simpledialog.Dialog, "cancel"):
-                dialog = MultiAquariumConfirmDialog(
-                    parent=tkinter_root,
-                    on_cancel=callback,
-                )
-                dialog.cancel()
-
-        callback.assert_called_once()
 
 
 @pytest.mark.gui
@@ -257,8 +158,6 @@ class TestDialogImports:
         """Test new dialogs are exported from package."""
         from zebtrack.ui.dialogs import (
             AquariumAssignmentDialog,
-            MultiAquariumConfirmDialog,
         )
 
-        assert MultiAquariumConfirmDialog is not None
         assert AquariumAssignmentDialog is not None

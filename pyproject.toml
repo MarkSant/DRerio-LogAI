@@ -217,14 +217,6 @@ module = [
 ]
 ignore_missing_imports = true
 
-# ProjectCoordinator is never instantiated (audit A2-04, deletion pending the
-# maintainer). Its three string publishes are the only arg-type errors left by
-# typing BaseCoordinator._publish_event as UIEvents (audit A1-01); the file is
-# left untouched until it is deleted. Remove this block together with it.
-[[tool.mypy.overrides]]
-module = "zebtrack.coordinators.project_coordinator"
-disable_error_code = ["arg-type"]
-
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false

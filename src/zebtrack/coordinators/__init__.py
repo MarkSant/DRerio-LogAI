@@ -6,7 +6,6 @@ by delegating to services.
 Available Coordinators:
     BaseCoordinator - Unified base class for all coordinators
     CalibrationCoordinator - Calibration scope and context management (Phase 5B)
-    ProjectCoordinator - Project lifecycle management (Sprint 3)
     DetectorSetupCoordinator - Detector setup and configuration (Phase 4.9)
     ModelDiagnosticsCoordinator - Model diagnostic tests (Phase 4.9)
     VideoProcessingCoordinator - Core video processing workflow (Phase 4)
@@ -50,10 +49,6 @@ from zebtrack.coordinators.model_diagnostics_coordinator import (
 from zebtrack.coordinators.multi_aquarium_coordinator import MultiAquariumCoordinator
 from zebtrack.coordinators.processing_types import ProcessingCoordinatorError
 from zebtrack.coordinators.progress_tracking_coordinator import ProgressTrackingCoordinator
-from zebtrack.coordinators.project_coordinator import (
-    ProjectCoordinator,
-    ProjectCoordinatorError,
-)
 from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
 from zebtrack.coordinators.recording_session_coordinator import (
     RecordingSessionCoordinator,
@@ -86,8 +81,6 @@ __all__ = [
     "MultiAquariumCoordinator",
     "ProcessingCoordinatorError",
     "ProgressTrackingCoordinator",
-    "ProjectCoordinator",
-    "ProjectCoordinatorError",
     "ProjectLifecycleCoordinator",
     "RecordingSessionCoordinator",
     "RecordingSessionCoordinatorError",

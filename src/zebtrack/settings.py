@@ -1086,7 +1086,7 @@ class UIFeatureFlags(BaseModel):
 
     use_wizard_for_project_creation: bool = Field(
         True,
-        description="Use new 5-step wizard instead of legacy CreateProjectDialog (v1.6+ default)",
+        description="Legacy flag: the wizard is the only project-creation path",
     )
     enable_event_queue: bool = Field(
         False,

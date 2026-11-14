@@ -9,19 +9,16 @@ ApplicationGUI class. Each component is a ttk.Frame subclass that:
 - Can be reused across different parts of the application
 """
 
-from zebtrack.ui.components.analysis_controls import AnalysisControlsWidget
 from zebtrack.ui.components.analysis_display import AnalysisDisplayWidget
 from zebtrack.ui.components.analysis_view_controller import AnalysisViewController
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.components.base_component import BaseUIComponent, UIComponentError
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.components.canvas.multi_aquarium_overlay import MultiAquariumOverlayManager
 from zebtrack.ui.components.canvas.video_frame_manager import VideoFrameManager
 from zebtrack.ui.components.canvas.zone_editor import ZoneEditor
 from zebtrack.ui.components.canvas_manager import CanvasManager
 from zebtrack.ui.components.config_editor import ConfigEditorWidget
-from zebtrack.ui.components.control_panel import ControlPanelWidget
 from zebtrack.ui.components.dialog_manager import DialogManager
 from zebtrack.ui.components.drawing_state_manager import DrawingStateManager
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
@@ -45,16 +42,13 @@ from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 from zebtrack.ui.components.zone_edit_guard import ZoneEditGuard
 
 __all__ = [
-    "AnalysisControlsWidget",
     "AnalysisDisplayWidget",
     "AnalysisViewController",
     "ArduinoDashboardWidget",
-    "BaseUIComponent",
     "BaseWidget",
     "BehavioralConfigWidget",
     "CanvasManager",
     "ConfigEditorWidget",
-    "ControlPanelWidget",
     "DialogManager",
     "DrawingStateManager",
     "EventDispatcher",
@@ -68,7 +62,6 @@ __all__ = [
     "SingleVideoWorkflow",
     "StateSynchronizer",
     "TabBuilder",
-    "UIComponentError",
     "ValidationManager",
     "VideoDisplayWidget",
     "VideoFrameManager",
