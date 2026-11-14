@@ -4,6 +4,8 @@ Extended unit tests for MultiAquariumDetector in core/detection/multi_aquarium_d
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -382,8 +384,7 @@ class TestMultiAquariumFrameClock:
             detector._track_partitioned({0: [self._box(_AQ0)], 1: [self._box(_AQ1)]})
         detector.set_frame_time(3 / 30)
         # Aquarium 1 gets only a box below ByteTrack's 0.1 floor: its tracker
-        # runs with no usable detection, so its track goes lost (an aquarium
-        # with NO detection skips ``update()`` altogether).
+        # runs with no usable detection, so its track goes lost.
         faint = (*self._box(_AQ1)[:4], 0.05, None, 1)
         detector._track_partitioned({0: [self._box(_AQ0)], 1: [faint]})
         return detector
@@ -394,7 +395,8 @@ class TestMultiAquariumFrameClock:
         assert tracker.lost_stracks  # lost, waiting
         lost = tracker.lost_stracks[0]
 
-        # Aquarium 1 stays empty for 10 s: ``update()`` is never called for it.
+        # No frame reaches the detector for 10 s (dropped frames, a stall): the
+        # next update must still expire the lost track before associating.
         detector.set_frame_time(10.0)
         detector._track_partitioned({0: [self._box(_AQ0)], 1: [self._box(_AQ1)]})
 
@@ -405,15 +407,15 @@ class TestMultiAquariumFrameClock:
         tracker = detector._byte_trackers_multi[1]
         lost = tracker.lost_stracks[0]
 
-        # The instant is consumed by the frame, not reused: a later frame
-        # without one counts updates, so the track is NOT removed by a stale
-        # 10 s instant.
+        # The instant reaches the EMPTY aquarium too (#668): its tracker sees
+        # the 10 s and expires the lost track.
         detector.set_frame_time(10.0)
         detector._track_partitioned({0: [self._box(_AQ0)], 1: []})
-        detector._track_partitioned({0: [self._box(_AQ0)], 1: [self._box(_AQ1)]})
 
-        assert lost not in tracker.removed_stracks
-        assert lost in tracker.lost_stracks or lost in tracker.tracked_stracks
+        assert lost in tracker.removed_stracks
+        assert {t._last_frame_time_s for t in detector._byte_trackers_multi.values()} == {10.0}
+        # Consumed by the frame, not reused by the next one.
+        assert detector._take_frame_time() is None
 
 
 # ---------------------------------------------------------------------------
@@ -567,3 +569,195 @@ class TestMultiAquariumTrackerParameters:
         detector._ensure_multi_trackers()
 
         assert detector._byte_trackers_multi[0].processing_interval == 2
+
+
+# ---------------------------------------------------------------------------
+# Issue #668: an aquarium with no detection still advances its tracker.
+# ---------------------------------------------------------------------------
+
+# Aquarium 1's animal swims right at _SPEED px per frame, vanishes for _GAP
+# frames and comes back where it would have been had it kept swimming.
+_SPEED = 4
+_SEEN = 10
+_GAP = 8
+_SIZE = 10
+
+
+def _aq1_box(frame_index: int) -> tuple:
+    x1 = 305 + _SPEED * frame_index
+    return (x1, 140, x1 + _SIZE, 140 + _SIZE, 0.95, None, 1)
+
+
+def _script(frame_index: int) -> dict[int, list[tuple]]:
+    """Detections per aquarium: aquarium 0 always sees its (still) animal."""
+    aq0 = [(140, 140, 140 + _SIZE, 140 + _SIZE, 0.95, None, 1)]
+    hidden = _SEEN <= frame_index < _SEEN + _GAP
+    return {0: aq0, 1: [] if hidden else [_aq1_box(frame_index)]}
+
+
+_PATHS = ("full_frame", "cropped", "parallel")
+
+
+def _scripted_multi(
+    path: str, max_center_distance: float = 400.0
+) -> tuple[MultiAquariumDetector, Callable[[int], dict[int, list[tuple]]]]:
+    """A real-tracker detector fed by ``_script``, through one of the three paths."""
+    detector = _fps_multi(30.0)
+    detector.settings.bytetrack.max_center_distance = max_center_distance
+    clock = {"frame": 0}
+
+    def full_frame(_frame):
+        script = _script(clock["frame"])
+        return [*script[0], *script[1]]
+
+    def window(_window, aquarium_id):
+        # Crop offset 0: the scripted boxes are already in frame coordinates.
+        return list(_script(clock["frame"])[aquarium_id]), 0, 0
+
+    detector.plugin.detect.side_effect = full_frame
+    detector._detect_in_window = window  # type: ignore[method-assign]
+    run = {
+        "full_frame": detector.detect_partitioned,
+        "cropped": detector.detect_partitioned_optimized,
+        "parallel": lambda frame: detector.detect_partitioned_parallel(frame, max_workers=2),
+    }[path]
+
+    def step(frame_index: int) -> dict[int, list[tuple]]:
+        clock["frame"] = frame_index
+        return run(_frame())
+
+    return detector, step
+
+
+class TestEmptyAquariumAdvancesItsTracker:
+    @pytest.mark.parametrize("path", _PATHS)
+    def test_frame_id_counts_every_analysed_frame(self, path):
+        detector, step = _scripted_multi(path)
+        for i in range(_SEEN + _GAP):
+            step(i)
+
+        # Aquarium 1 saw its animal in _SEEN frames, but _SEEN + _GAP were analysed.
+        assert {aq: t.frame_id for aq, t in detector._byte_trackers_multi.items()} == {
+            0: _SEEN + _GAP,
+            1: _SEEN + _GAP,
+        }
+
+    @pytest.mark.parametrize("path", _PATHS)
+    def test_kalman_prediction_keeps_moving_while_the_aquarium_is_empty(self, path):
+        detector, step = _scripted_multi(path)
+        for i in range(_SEEN):
+            step(i)
+        tracker = detector._byte_trackers_multi[1]
+        (track,) = tracker.tracked_stracks
+        last_cx = track.mean[0]
+
+        for i in range(_SEEN, _SEEN + _GAP):
+            step(i)
+
+        assert track in tracker.lost_stracks
+        # The constant-velocity prediction ran once per empty frame: it moved
+        # about _SPEED * _GAP px, not 0 (frozen at the last hit).
+        assert track.mean[0] - last_cx == pytest.approx(_SPEED * _GAP, abs=_SPEED)
+
+    @pytest.mark.parametrize("path", _PATHS)
+    def test_the_track_comes_back_where_the_prediction_waits(self, path):
+        # 20 px gate: the animal reappears _SPEED * (_GAP + 1) = 36 px from its
+        # last hit, so only a prediction that kept moving can claim it.
+        detector, step = _scripted_multi(path, max_center_distance=20.0)
+        before = step(0)[1][0][5]
+        for i in range(1, _SEEN):
+            step(i)
+        tracker = detector._byte_trackers_multi[1]
+        (track,) = tracker.tracked_stracks
+        for i in range(_SEEN, _SEEN + _GAP):
+            step(i)
+
+        after = step(_SEEN + _GAP)[1]
+
+        assert [det[5] for det in after] == [before]
+        assert before // 1000 == 1  # aquarium 1's offset id
+        assert tracker.tracked_stracks == [track]
+        # The reappearance matched the prediction, so the velocity is still the
+        # animal's. A frozen prediction reads the gap as ONE frame of motion and
+        # roughly doubles it (8.5 px/frame here).
+        assert track.mean[4] == pytest.approx(_SPEED, abs=0.5)
+
+    def test_the_three_paths_record_the_same_thing(self):
+        runs = {}
+        for path in _PATHS:
+            _, step = _scripted_multi(path, max_center_distance=20.0)
+            runs[path] = [step(i) for i in range(_SEEN + _GAP + 3)]
+
+        assert runs["cropped"] == runs["full_frame"]
+        assert runs["parallel"] == runs["full_frame"]
+
+    @pytest.mark.parametrize("path", _PATHS)
+    def test_every_frame_records_the_detection_not_the_kalman_box(self, path):
+        _, step = _scripted_multi(path)
+        for i in range(_SEEN + _GAP + 3):
+            recorded = step(i)
+            expected = {aq: [det[:5] for det in dets] for aq, dets in _script(i).items()}
+            assert {aq: [det[:5] for det in dets] for aq, dets in recorded.items()} == expected
+
+
+class _OneTrackTracker:
+    """A BYTETracker stand-in that returns one track with a chosen Kalman box."""
+
+    def __init__(self, tlbr, score=0.5, track_id=7):
+        import numpy as np
+
+        self.track = SimpleNamespace(
+            tlbr=np.array(tlbr, dtype=float), score=score, track_id=track_id
+        )
+
+    def update(self, *_args, **_kwargs):
+        return [self.track]
+
+
+class TestTrackIsRecordedWithItsDetection:
+    """#668: the multi path records like ``SingleDetector`` (IoU > 0.1 wins)."""
+
+    def _apply(self, detections, tracker):
+        return _fps_multi(30.0)._apply_byte_tracking_multi(detections, tracker)
+
+    def test_box_conf_and_class_come_from_the_overlapping_detection(self):
+        # Kalman box 12 px off the detection: the old 10 px corner test missed it
+        # and recorded the Kalman box with the default class.
+        det = (100, 100, 200, 200, 0.8, None, 2)
+
+        recorded = self._apply([det], _OneTrackTracker((112, 112, 212, 212)))
+
+        assert recorded == [(100, 100, 200, 200, 0.8, 7, 2)]
+
+    def test_the_best_overlap_wins(self):
+        far = (100, 100, 200, 200, 0.6, None, 1)
+        near = (140, 100, 240, 200, 0.9, None, 2)
+
+        recorded = self._apply([far, near], _OneTrackTracker((150, 100, 250, 200)))
+
+        assert recorded == [(140, 100, 240, 200, 0.9, 7, 2)]
+
+    def test_no_overlap_falls_back_to_the_kalman_box(self):
+        detector = _fps_multi(30.0)
+        det = (100, 100, 110, 110, 0.8, None, 2)
+
+        recorded = detector._apply_byte_tracking_multi(
+            [det], _OneTrackTracker((300.6, 300.2, 310.9, 310.4), score=0.4)
+        )
+
+        assert recorded == [(300, 300, 310, 310, 0.4, 7, detector.animal_class_id)]
+
+    def test_an_overlap_of_exactly_one_tenth_is_not_enough(self):
+        # Track box is a tenth of the detection's area and inside it: IoU == 0.1.
+        det = (0, 0, 100, 100, 0.8, None, 2)
+
+        recorded = self._apply([det], _OneTrackTracker((0, 0, 100, 10), score=0.4))
+
+        assert recorded[0][:5] == (0, 0, 100, 10, 0.4)
+
+    def test_just_over_one_tenth_takes_the_detection(self):
+        det = (0, 0, 100, 100, 0.8, None, 2)
+
+        recorded = self._apply([det], _OneTrackTracker((0, 0, 100, 11), score=0.4))
+
+        assert recorded[0][:5] == (0, 0, 100, 100, 0.8)

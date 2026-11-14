@@ -332,8 +332,8 @@ class BYTETracker:
         frame_time_s = self._trusted_frame_time(frame_time_s)
         if frame_time_s is not None:
             # On a clock, time can pass with no update at all (dropped frames,
-            # an aquarium with no detection skips the call). A track that
-            # expired in that gap must not be re-found below.
+            # a stalled source). A track that expired in that gap must not be
+            # re-found below.
             expired = [t for t in self.lost_stracks if self._lost_too_long(t, frame_time_s)]
             for track in expired:
                 track.mark_removed()

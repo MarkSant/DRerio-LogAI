@@ -223,6 +223,7 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   | `total_frames_analisados`, `validation_total_frames` e `validation_temporal_coverage_pct` contam QUADROS (#641) | contavam LINHAS (uma por detecção) | Com dois animais os quadros deixam de dobrar e a cobertura deixa de passar de 100 %; com `analysis_interval_frames = 10` uma gravação sem perdas tem cobertura 100 %, não 10 %. A cobertura é quadros distintos ÷ quadros visitados pela análise (`vão // intervalo + 1`; o intervalo é o passo mais comum entre quadros), limitada a 100 %; sem números de quadro, instantes × intervalo mediano ÷ duração da base de tempo. O aviso de trajetória curta conta quadros. Um animal detectado em todo quadro (o golden e o Barnes) não muda. |
   | Projeto NOVO pelo assistente parte do ByteTrack configurado; o reset de fábrica é o `config.yaml` (#698) | o assistente pré-preenchia constantes próprias (distância máxima 200 px, IoU 0,1) e as gravava no projeto por cima do `config.yaml` (400 px / 0,05); o reset de fábrica voltava a match 0,80 / 200 px / 0,1 | Projetos novos passam a usar o que `config.yaml` / `config.local.yaml` dizem — com o arquivo distribuído, 400 px e IoU 0,05. "Restaurar padrões de fábrica" passa a dar track 0,25 / match 0,95 / 400 px / 0,05. **Projetos existentes não mudam**: o valor salvo no projeto continua valendo. |
   | O `dt` do Kalman na sessão ao vivo de projeto é o intervalo de análise do projeto (#667) | a sessão detectava a cada N quadros do projeto, mas o tracker previa com `video_processing.processing_interval` (padrão 10) | Um projeto ao vivo com intervalo diferente do das configurações passa a prever a posição do animal com o passo real; a associação entre quadros detectados pode mudar onde a predição antiga errava. O diálogo ao vivo avulso e o lote já sincronizavam e não mudam. Os goldens agora rastreiam com `dt = 1` (antes 10) e não mudam. |
+  | Multi-aquário grava a detecção, não a bbox do Kalman, e o aquário vazio avança o tracker (#668) | o multi gravava `track.tlbr` (posição filtrada, atrasada num animal que acelera) e pegava a classe de uma detecção a até 10 px do canto; um aquário vazio congelava a predição | `x1..y2` e `confidence` do `3_CoordMovimento` de projetos multi-aquário passam a ser os da detecção, como no aquário único; distância, velocidade e pertença a ROI mudam pouco, onde a bbox filtrada se afastava da detecção. Depois de uma ausência, a trilha volta onde o animal está, com a velocidade certa. O aquário único e os goldens (aquário único) não mudam. |
 
 - Relatórios individuais, sumários parquet e o reporter do pipeline tiravam a
   taxa de quadros de `settings.video_processing.fps`; agora usam
@@ -446,6 +447,17 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   `set_processing_interval()` (mesmo padrão de `set_source_fps`), chamado pela
   sessão ao vivo (os dois caminhos) e pelo worker, e o intervalo entra na chave
   que reconstrói o tracker — antes, mudá-lo não reconstruía nada.
+- **Aquário sem detecção não avançava o seu ByteTrack (#668).**
+  `MultiAquariumDetector` só chamava `tracker.update()` num aquário com detecção
+  no quadro, nos três caminhos (quadro cheio, recortado e paralelo). O `frame_id`
+  contava só os quadros com detecção e o Kalman não previa nos vazios: quando o
+  animal voltava, a predição partia da última posição como se nenhum tempo tivesse
+  passado, e a lacuna inteira entrava como o deslocamento de UM quadro (no teste,
+  a velocidade estimada dobrava de 4 para 8,5 px/quadro). Agora todo aquário chama
+  `update(np.empty((0, 5)))` em todo quadro analisado, como o `SingleDetector`. A
+  mesma correção alinha a saída: cada trilha é gravada com a bbox, a confiança e a
+  classe da detecção com IoU > 0,1 (regra do `SingleDetector`), e a bbox do Kalman
+  fica só como fallback.
 - **Pesos que não são de zebrafish rastreavam o objeto errado sem avisar.** As
   classes eram reconhecidas por duas listas fixas de nomes (aquário e peixe),
   duplicadas em `DetectionPostProcessor` e `DetectorService`; um nome fora delas

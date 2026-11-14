@@ -2449,8 +2449,16 @@ modules:
     mutations:
       - id: instant-not-passed-to-tracker
         description: "aquario envelhece a trilha perdida por contagem, nao pelo relogio"
-        find: '            frame_time_s=frame_time_s,'
-        replace: '            frame_time_s=None,'
+        find: |-
+          det_array,
+                      frame_dims,
+                      frame_dims,
+                      frame_time_s=frame_time_s,
+        replace: |-
+          det_array,
+                      frame_dims,
+                      frame_dims,
+                      frame_time_s=None,
       - id: sequential-path-drops-instant
         description: "caminho sequencial nao repassa o instante do quadro"
         find: |-
@@ -2459,6 +2467,72 @@ modules:
         replace: |-
           tracked = self._apply_byte_tracking_multi(detections, tracker)
                           else:
+
+  # Issue #668: an aquarium with no detection still advances its BYTETracker,
+  # on every path, and a track is recorded with its detection (SingleDetector
+  # rule: IoU > 0.1), the Kalman box only as the fallback.
+  multi_aquarium_detector_empty_aquarium:
+    source: src/zebtrack/core/detection/multi_aquarium_detector.py
+    tests:
+      - tests/core/detection/test_multi_aquarium_detector_extended.py
+    mutations:
+      - id: empty-aquarium-skips-update
+        description: "aquario vazio volta a pular o update: frame_id e Kalman congelam"
+        find: |-
+          if not detections:
+                      tracker.update(
+        replace: |-
+          if not detections:
+                      return []
+                      tracker.update(
+      - id: empty-update-drops-instant
+        description: "o update do aquario vazio nao recebe o instante do quadro"
+        find: |-
+          np.empty((0, 5), dtype=np.float32),
+                          frame_dims,
+                          frame_dims,
+                          frame_time_s=frame_time_s,
+        replace: |-
+          np.empty((0, 5), dtype=np.float32),
+                          frame_dims,
+                          frame_dims,
+                          frame_time_s=None,
+      - id: sequential-path-skips-empty
+        description: "caminhos cheio e recortado pulam o aquario vazio"
+        find: 'if detections or use_bytetrack:'
+        replace: 'if detections:'
+      - id: parallel-path-skips-empty
+        description: "caminho paralelo pula o aquario vazio"
+        find: |-
+          tracked = self._apply_byte_tracking_multi(detections, tracker, frame_time_s)
+                              results[aq_id]
+        replace: |-
+          tracked = self._apply_byte_tracking_multi(detections, tracker, frame_time_s) if detections else []
+                              results[aq_id]
+      - id: records-kalman-box
+        description: "grava a bbox do Kalman em vez da deteccao casada"
+        find: 'box = best_det[:4]'
+        replace: 'box = tlbr'
+      - id: records-track-score
+        description: "grava o score da trilha em vez da confianca da deteccao"
+        find: 'conf = best_det[4]'
+        replace: 'conf = track.score'
+      - id: class-not-from-detection
+        description: "classe deixa de vir da deteccao casada"
+        find: 'class_id = best_det[6]'
+        replace: 'class_id = self.animal_class_id'
+      - id: first-overlap-wins
+        description: "a primeira deteccao com sobreposicao vence, nao a melhor"
+        find: 'if iou > best_iou:'
+        replace: 'if best_det is None and iou > 0:'
+      - id: tenth-is-enough
+        description: "IoU de exatamente 0,1 passa a valer a deteccao"
+        find: 'best_iou > _ORIGINAL_DETECTION_MIN_IOU'
+        replace: 'best_iou >= _ORIGINAL_DETECTION_MIN_IOU'
+      - id: iou-floor-raised
+        description: "limiar de IoU sobe e a deteccao com IoU 0,11 vira bbox do Kalman"
+        find: '_ORIGINAL_DETECTION_MIN_IOU: Final[float] = 0.1'
+        replace: '_ORIGINAL_DETECTION_MIN_IOU: Final[float] = 0.2'
 
   processing_worker_frame_time:
     source: src/zebtrack/core/video/processing_worker.py
