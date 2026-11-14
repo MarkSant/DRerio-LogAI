@@ -40,7 +40,7 @@ class ProcessingCallbacks:
     """
 ```
 
-**Localização**: `src/zebtrack/core/processing_worker.py:28-90`
+**Localização**: `src/zebtrack/core/video/processing_worker.py:28-90`
 
 ### Estrutura recovery_info
 
@@ -69,7 +69,7 @@ Este snapshot permite:
 - Registrar estado completo para debugging
 - Implementar lógica de recuperação parcial em versões futuras
 
-**Localização**: `src/zebtrack/core/processing_worker.py:302-315`
+**Localização**: `src/zebtrack/core/video/processing_worker.py:302-315`
 
 ## Estratégias de Recuperação
 
@@ -100,7 +100,7 @@ self.context.failed_videos.append({
 })
 ```
 
-**Localização**: `src/zebtrack/core/processing_worker.py:272-297`
+**Localização**: `src/zebtrack/core/video/processing_worker.py:272-297`
 
 #### 2. Strategy: "stop"
 
@@ -108,7 +108,7 @@ self.context.failed_videos.append({
 - **Uso**: Validação de integridade ou processamento crítico
 - **Logging**: `worker.processing.stop_on_error`
 
-**Localização**: `src/zebtrack/core/processing_worker.py:294-296`
+**Localização**: `src/zebtrack/core/video/processing_worker.py:294-296`
 
 ### Fluxo de Erro em Lote
 
@@ -232,7 +232,7 @@ UI exibe messagebox com detalhes e opções
 Logging: "worker.processing.fatal_error"
 ```
 
-**Localização**: `src/zebtrack/core/processing_worker.py:301-317`
+**Localização**: `src/zebtrack/core/video/processing_worker.py:301-317`
 
 ### 2. Erro Recuperável (Continua)
 
@@ -252,7 +252,7 @@ Verifica retry_strategy:
 Logging: "worker.processing.video_error"
 ```
 
-**Localização**: `src/zebtrack/core/processing_worker.py:272-298`
+**Localização**: `src/zebtrack/core/video/processing_worker.py:272-298`
 
 ### 3. Erro de Validação (Pré-processamento)
 
@@ -405,12 +405,12 @@ Este resumo permite gerar relatórios de falhas e reprocessar apenas vídeos pro
 
 ## Arquivos Relacionados
 
-- `src/zebtrack/core/processing_worker.py` - Implementação principal de callbacks e retry
+- `src/zebtrack/core/video/processing_worker.py` - Implementação principal de callbacks e retry
 - `src/zebtrack/core/main_view_model.py` - Handlers de callbacks no controller
 - `src/zebtrack/utils/__init__.py` - Exceções customizadas (`IntegrityError`)
 - `src/zebtrack/io/arduino_manager.py` - Exceção `SerialError`
 - `src/zebtrack/__main__.py` - Configuração de logging
-- `tests/test_processing_worker.py` - Testes de cenários de erro
+- `tests/core/test_processing_worker_unit.py` e `tests/core/video/test_processing_worker_extended.py` - Testes de cenários de erro
 
 ## Próximos Passos
 

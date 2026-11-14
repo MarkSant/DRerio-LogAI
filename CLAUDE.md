@@ -57,11 +57,11 @@ Details: [`docs/guides/developer/impact_analysis.md`](docs/guides/developer/impa
 poetry install                    # First time
 poetry run zebtrack               # Run app
 
-# Testing (fast by default, ~2778 tests)
+# Testing (fast by default, ~8635 tests)
 poetry run pytest                 # Fast tests only (excludes GUI/slow)
-poetry run pytest -m gui -n0      # GUI tests (sequential) — ~949
-poetry run pytest -m slow         # Slow tests — ~35
-poetry run pytest -m "" -n0       # Everything — ~3660+ (6-7 min)
+poetry run pytest -m gui -n0      # GUI tests (sequential) — ~1374
+poetry run pytest -m slow         # Slow tests — ~24
+poetry run pytest -m "" -n0       # Everything — ~10033
 
 # Code quality
 poetry run ruff check .           # Lint

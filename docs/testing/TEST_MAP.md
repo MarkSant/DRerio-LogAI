@@ -204,10 +204,10 @@ block in `scripts/mutation_catalog.yaml`; run it with
 Run cheatsheet:
 
 ```bash
-poetry run pytest                            # fast (default, ~2778)
-poetry run pytest -m gui -n0                 # GUI only (~949)
-poetry run pytest -m slow                    # slow only (~35)
-poetry run pytest -m "" -n0                  # everything (~3660+, 6-7 min)
+poetry run pytest                            # fast (default, ~8635)
+poetry run pytest -m gui -n0                 # GUI only (~1374)
+poetry run pytest -m slow                    # slow only (~24)
+poetry run pytest -m "" -n0                  # everything (~10033)
 poetry run pytest tests/coordinators/ -q     # by folder
 poetry run pytest -k "multi_aquarium" -q     # by keyword
 ```

@@ -679,7 +679,7 @@ serialization:
 tests:
   gui:
     command: "pytest -m gui -n0"
-    count: "~949 tests"
+    count: "~1374 tests"
     covers: ["ui/", "ui/components/", "ui/dialogs/", "ui/wizard/"]
 
   processing:
@@ -700,7 +700,7 @@ tests:
 
   full:
     command: "pytest -m '' -n0"
-    count: "~2778 tests"
+    count: "~10033 tests"
     time: "6-7 minutes"
     coverage_requirement: "45% (Linux CI), 28% (Windows CI)"
 
