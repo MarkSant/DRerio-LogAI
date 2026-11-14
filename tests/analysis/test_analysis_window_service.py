@@ -153,7 +153,11 @@ class TestResolve:
         assert artifact.spec_hash == spec_hash(_spec())
         assert artifact.offline is not None
         assert artifact.offline.start is not None and artifact.offline.start.frame == 10
-        assert set(artifact.offline.inputs) == {"trajectory_sha", "objects_sha"}
+        assert set(artifact.offline.inputs) == {
+            "trajectory_sha",
+            "objects_sha",
+            "subject_screening",
+        }
         assert artifact.fps_video == pytest.approx(10.0)
 
     def test_second_resolution_reuses_the_offline_section(self, tmp_path):
@@ -186,6 +190,27 @@ class TestResolve:
 
         assert again.reused is False
         assert again.start is not None and again.start.frame == 15
+
+    def test_a_changed_track_screening_is_recomputed(self, tmp_path):
+        """#671: the subjects the window reads depend on ``min_track_duration_s``."""
+        trajectory = _write_recording(tmp_path)
+        AnalysisWindowService().resolve(trajectory, _spec())
+
+        again = AnalysisWindowService(min_track_duration_s=0.0).resolve(trajectory, _spec())
+        same = AnalysisWindowService(min_track_duration_s=0.0).resolve(trajectory, _spec())
+
+        assert again.reused is False
+        assert same.reused is True
+
+    def test_an_artifact_from_before_the_screening_is_recomputed(self, tmp_path):
+        trajectory = _write_recording(tmp_path)
+        AnalysisWindowService().resolve(trajectory, _spec())
+        path = analysis_window_artifact_path(trajectory)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["offline"]["inputs"].pop("subject_screening")
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        assert AnalysisWindowService().resolve(trajectory, _spec()).reused is False
 
     def test_a_changed_trajectory_is_recomputed(self, tmp_path):
         trajectory = _write_recording(tmp_path)

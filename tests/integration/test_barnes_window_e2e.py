@@ -200,3 +200,48 @@ def test_artifact_is_written_and_reused(barnes):
     assert artifact.fps_video == pytest.approx(10.0)
     assert second.reused is True
     assert (second.start, second.stop) == (first.start, first.stop)
+
+
+# ---------------------------------------------------------------------------
+# #671: the same trial with the detector in MULTI-subject mode.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def barnes_multi(tmp_path_factory) -> tuple[BarnesRun, pd.DataFrame]:
+    settings = load_pristine_settings()
+    try:
+        run = run_barnes_pipeline(
+            tmp_path_factory.mktemp("barnes_multi"), settings, single_subject=False
+        )
+    except RuntimeError as exc:  # no codec on this machine
+        pytest.skip(f"Cannot build the Barnes fixture video: {exc}")
+    return run, pd.read_parquet(run.trajectory_path)
+
+
+def test_multi_subject_mode_writes_no_row_without_an_id(barnes_multi):
+    _run, trajectory = barnes_multi
+
+    assert not trajectory.empty
+    assert trajectory["track_id"].notna().all()
+    assert trajectory["track_id"].nunique() == 1
+
+
+def test_multi_subject_mode_reports_one_rat(barnes_multi):
+    run, trajectory = barnes_multi
+
+    report = _analyse(trajectory, None)
+
+    assert report["analise_roi"]["n_animais"] == 1
+    assert report["validacao"]["estatisticas"]["unique_tracks"] == 1
+
+
+def test_multi_subject_mode_window_matches_single_subject_mode(barnes, barnes_multi):
+    """Same rat, same window: the one unconfirmed frame changes nothing."""
+    single = _resolve(*barnes)
+    multi = _resolve(*barnes_multi)
+
+    assert multi.start is not None and single.start is not None
+    assert multi.start.frame == single.start.frame
+    assert multi.stop is not None and single.stop is not None
+    assert multi.stop.frame == single.stop.frame

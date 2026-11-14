@@ -11,6 +11,7 @@ from scipy.signal import savgol_filter
 from shapely.geometry import Polygon
 
 from zebtrack.analysis.gap_policy import resolve_max_gap_s
+from zebtrack.analysis.track_significance import drop_untracked_rows
 
 #: Slack on window edges. START/STOP come from the event clock and the index
 #: from the trajectory clock; both are ``POS_MSEC / 1000`` pre-recorded (or the
@@ -407,6 +408,11 @@ class BehavioralAnalyzer(ABC):
         # Drop any rows with missing data before smoothing
         df.dropna(subset=["x_cm", "y_cm"], inplace=True)
 
+        # A row without ``track_id`` next to identified tracks is not a subject
+        # (#671): the same rule ``AnalysisService`` screens with, applied here
+        # too so no caller can build an analyser that counts it as one.
+        df = drop_untracked_rows(df).trajectory
+
         # Os rótulos de track precisam existir ANTES da suavização: com vários
         # animais o Savitzky-Golay tem de rodar por sujeito.
         self._assign_track_labels(df)
@@ -424,9 +430,11 @@ class BehavioralAnalyzer(ABC):
             self._is_multi_track = False
             return
 
-        # ``use_na_sentinel=False``: linhas sem ``track_id`` formam o seu
-        # próprio grupo em vez de virarem o rótulo -1, que se misturaria com
-        # um índice válido em qualquer indexação posicional.
+        # ``use_na_sentinel=False``: a trajetória em que NENHUMA linha tem
+        # ``track_id`` (as linhas sem id ao lado de trilhas identificadas já
+        # saíram em ``drop_untracked_rows``, #671) vira um sujeito só, em vez do
+        # rótulo -1, que se misturaria com um índice válido em qualquer
+        # indexação posicional.
         codes, uniques = pd.factorize(df["track_id"], use_na_sentinel=False)
         self._track_labels = np.asarray(codes, dtype=np.int64)
         self._track_keys = list(uniques)

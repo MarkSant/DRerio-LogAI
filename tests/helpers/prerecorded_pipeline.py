@@ -509,12 +509,17 @@ class BarnesRun:
     output_dir: Path
 
 
-def run_barnes_pipeline(workdir: Path, settings: Settings) -> BarnesRun:
+def run_barnes_pipeline(
+    workdir: Path, settings: Settings, *, single_subject: bool = True
+) -> BarnesRun:
     """Run the REAL pre-recorded worker on the synthetic Barnes trial.
 
     The weight has no file: the detector gets an explicit role map
     (``class_roles`` from the weight registry, F2) with a recorded sha, which
     is what the worker writes into the ``3c`` metadata (F3).
+
+    ``single_subject=False`` runs the detector in multi-subject mode, the one
+    that wrote the rat's unconfirmed first frame with no id (#671).
     """
     from zebtrack.core.detection.class_roles import resolve_class_role_map
 
@@ -558,9 +563,10 @@ def run_barnes_pipeline(workdir: Path, settings: Settings) -> BarnesRun:
     )
     # One rat: what ``_initialize_detector`` does for a one-animal project
     # (#649), skipped here because the harness calls ``_process_single_video``
-    # directly. In multi-subject mode the rat's first frame came out with no
-    # id (ByteTrack had not confirmed it yet) and the report counted 2 animals.
-    detector.set_single_subject_mode(True)
+    # directly. In multi-subject mode the rat's first frame used to come out
+    # with no id (ByteTrack had not confirmed it yet) and the report counted 2
+    # animals (#671).
+    detector.set_single_subject_mode(single_subject)
     succeeded = worker._process_single_video(
         index=0,
         total_videos=1,

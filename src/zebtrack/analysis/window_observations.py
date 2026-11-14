@@ -35,6 +35,12 @@ import numpy as np
 import pandas as pd
 import structlog
 
+from zebtrack.analysis.time_base import resolve_time_base
+from zebtrack.analysis.track_significance import (
+    DEFAULT_MIN_TRACK_DURATION_S,
+    TrackScreening,
+    screen_subjects,
+)
 from zebtrack.core.conditions.evaluator import ExternalEvent, FrameObservation
 from zebtrack.core.conditions.model import (
     ClassPresence,
@@ -58,6 +64,7 @@ __all__ = [
     "missing_inputs",
     "no_object_sidecar_warning",
     "role_names_from_metadata",
+    "screen_window_subjects",
     "subject_rois_by_frame",
 ]
 
@@ -122,6 +129,36 @@ def _frame_times(trajectory_df: pd.DataFrame) -> pd.DataFrame:
     return table.groupby("frame", sort=True)["t_s"].first().reset_index()
 
 
+def screen_window_subjects(
+    trajectory_df: pd.DataFrame | None,
+    *,
+    min_track_duration_s: float = DEFAULT_MIN_TRACK_DURATION_S,
+) -> TrackScreening | None:
+    """The report's subject screening, applied to the trajectory the window reads.
+
+    ``AnalysisService.run_full_analysis`` drops, before anything counts
+    animals, the rows without a ``track_id`` next to identified tracks (#671)
+    and the tracks shorter than ``min_track_duration_s`` (#649). The window
+    reads the SAME trajectory file, so it runs the same
+    :func:`~zebtrack.analysis.track_significance.screen_subjects`: otherwise a
+    one-row glitch inside a ROI starts a window the report then measures
+    without that row. ``None`` when there is no trajectory.
+    """
+    if trajectory_df is None or trajectory_df.empty:
+        return None
+    timestamps = (
+        pd.to_numeric(trajectory_df["timestamp"], errors="coerce")
+        if "timestamp" in trajectory_df.columns
+        else None
+    )
+    median_dt = (
+        resolve_time_base(trajectory_df.assign(timestamp=timestamps)).median_dt
+        if timestamps is not None and timestamps.notna().any()
+        else None
+    )
+    return screen_subjects(trajectory_df, min_duration_s=min_track_duration_s, median_dt=median_dt)
+
+
 def subject_rois_by_frame(
     trajectory_df: pd.DataFrame | None,
     rois: Sequence[ROI],
@@ -129,14 +166,30 @@ def subject_rois_by_frame(
     *,
     pixelcm: tuple[float, float] = (1.0, 1.0),
     mask_source: Any = None,
+    min_track_duration_s: float = DEFAULT_MIN_TRACK_DURATION_S,
 ) -> dict[int, frozenset[str]]:
     """ROIs the subject occupies on each trajectory frame, by the report's rule.
 
     Multi-animal: a ROI counts as occupied while ANY subject is inside
     (``any_track``, the report's group semantics). Frames without a subject row
-    are absent from the result (the subject is in no ROI there).
+    are absent from the result (the subject is in no ROI there). Only the
+    subjects the report analyses count (:func:`screen_window_subjects`).
     """
-    if trajectory_df is None or trajectory_df.empty or not rois:
+    screening = screen_window_subjects(trajectory_df, min_track_duration_s=min_track_duration_s)
+    if screening is None:
+        return {}
+    return _rois_by_frame(screening.trajectory, rois, roi_rule, pixelcm, mask_source)
+
+
+def _rois_by_frame(
+    trajectory_df: pd.DataFrame,
+    rois: Sequence[ROI],
+    roi_rule: RoiRuleConfig | None,
+    pixelcm: tuple[float, float],
+    mask_source: Any,
+) -> dict[int, frozenset[str]]:
+    """:func:`subject_rois_by_frame` on a trajectory already screened."""
+    if trajectory_df.empty or not rois:
         return {}
     if "frame" not in trajectory_df.columns or "timestamp" not in trajectory_df.columns:
         return {}
@@ -263,6 +316,7 @@ def build_window_observations(
     clock: str | None = None,
     pixelcm: tuple[float, float] = (1.0, 1.0),
     mask_source: Any = None,
+    min_track_duration_s: float = DEFAULT_MIN_TRACK_DURATION_S,
 ) -> WindowObservations:
     """Rebuild the observation stream of one recording (one aquarium).
 
@@ -282,10 +336,20 @@ def build_window_observations(
         clock: Clock of the trajectory when there is no ``3c``.
         pixelcm: Calibration, for the buffered-centroid ROI rule only.
         mask_source: ``3b_Mascaras_`` sidecar, for the ``seg_overlap`` rule.
+        min_track_duration_s: The report's ``min_track_duration_s``, so the
+            window screens the same short tracks (``<= 0`` disables it).
     """
     warnings: list[str] = []
-    rois_by_frame = subject_rois_by_frame(
-        trajectory_df, rois, roi_rule, pixelcm=pixelcm, mask_source=mask_source
+    # One screening for the ROI presence AND the trajectory-only stream: the
+    # window sees the subjects the report analyses (#671).
+    screening = screen_window_subjects(trajectory_df, min_track_duration_s=min_track_duration_s)
+    if screening is not None:
+        trajectory_df = screening.trajectory
+        warnings.extend(screening.warnings)
+    rois_by_frame = (
+        {}
+        if trajectory_df is None
+        else _rois_by_frame(trajectory_df, rois, roi_rule, pixelcm, mask_source)
     )
 
     if objects_df is not None and not objects_df.empty:

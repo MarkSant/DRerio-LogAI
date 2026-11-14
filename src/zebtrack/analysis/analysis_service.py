@@ -29,7 +29,7 @@ from zebtrack.analysis.metrics_cache import MetricsCache
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.analysis.time_base import resolve_time_base
-from zebtrack.analysis.track_significance import min_track_duration_from, screen_short_tracks
+from zebtrack.analysis.track_significance import min_track_duration_from, screen_subjects
 from zebtrack.analysis.trajectory_validator import (
     TrajectoryQualityValidator,
     count_unique_frames,
@@ -354,11 +354,12 @@ class AnalysisService:
                 f"(from resolve_analysis_window), got {type(window).__name__}."
             )
 
-        # Tracks too short to be an animal (a one-row id from a tracker glitch)
-        # leave the analysis HERE, before the validator and the behaviour
-        # analyser count track ids, so the report's semantics, ``n_animais``
-        # and ``por_animal`` agree (#649).
-        screening = screen_short_tracks(
+        # What is not an animal leaves the analysis HERE, before the validator
+        # and the behaviour analyser count track ids, so the report's
+        # semantics, ``n_animais`` and ``por_animal`` agree: tracks too short to
+        # be an animal (a one-row id from a tracker glitch, #649) and rows
+        # without a ``track_id`` next to identified tracks (#671).
+        screening = screen_subjects(
             trajectory_df,
             min_duration_s=min_track_duration_from(self.settings),
             median_dt=resolve_time_base(trajectory_df, fallback_fps=fps).median_dt,

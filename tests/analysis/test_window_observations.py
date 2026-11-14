@@ -249,6 +249,73 @@ class TestSubjectRoisRule:
         assert subject_rois_by_frame(_trajectory([0], [50.0]), [], CENTROID_RULE) == {}
 
 
+class TestSameSubjectsAsTheReport:
+    """#671: the window reads the trajectory through the report's subject screening.
+
+    The animal (id 1) stays OUTSIDE the ROI the whole time. Rows without an id
+    (unconfirmed by ByteTrack, a pre-fix parquet) and a one-row glitch (id 9)
+    sit INSIDE it: neither is an animal, so the ROI is never occupied.
+    """
+
+    @staticmethod
+    def _trajectory() -> pd.DataFrame:
+        animal = _trajectory(range(45), [300.0] * 45)
+        untracked = _trajectory(range(10, 30), [50.0] * 20, track_ids=[np.nan] * 20)
+        glitch = _trajectory([35], [50.0], track_ids=[9])
+        return (
+            pd.concat([animal, untracked, glitch]).sort_values("frame", kind="stable")
+        ).reset_index(drop=True)
+
+    def test_rows_that_are_not_an_animal_never_occupy_a_roi(self):
+        by_frame = subject_rois_by_frame(self._trajectory(), [ROI_SQUARE], CENTROID_RULE)
+
+        assert by_frame
+        assert not any(by_frame.values())
+
+    def test_a_disabled_screening_keeps_the_short_track(self):
+        by_frame = subject_rois_by_frame(
+            self._trajectory(), [ROI_SQUARE], CENTROID_RULE, min_track_duration_s=0.0
+        )
+
+        assert [frame for frame, rois in sorted(by_frame.items()) if rois] == [35]
+
+    def test_the_window_sees_the_report_presence(self):
+        from zebtrack.analysis.analysis_service import AnalysisService
+        from zebtrack.settings import load_settings
+
+        trajectory = self._trajectory()
+        service = AnalysisService(settings_obj=load_settings())
+        rule = service.resolve_roi_rule()
+        _report, _b, r_analyzer, *_ = service.run_full_analysis(
+            trajectory_df=trajectory.copy(),
+            pixelcm_x=1.0,
+            pixelcm_y=1.0,
+            video_height_px=400,
+            arena_polygon_px=[(0, 0), (400, 0), (400, 400), (0, 400)],
+            rois=[ROI_SQUARE],
+            fps=10.0,
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=1.0,
+        )
+
+        by_frame = subject_rois_by_frame(trajectory, [ROI_SQUARE], rule)
+
+        assert r_analyzer is not None
+        report_inside = int(r_analyzer.presence_timeline()["toca"].sum())
+        window_inside = sum(1 for rois in by_frame.values() if "toca" in rois)
+        assert report_inside == window_inside == 0
+
+    def test_build_window_observations_carries_the_screening_warnings(self):
+        built = build_window_observations(
+            self._trajectory(), rois=[ROI_SQUARE], roi_rule=CENTROID_RULE
+        )
+
+        assert built.observations
+        assert not any(o.subject_rois for o in built.observations)
+        assert any("20 row(s)" in w for w in built.warnings)
+        assert any("track_id 9" in w for w in built.warnings)
+
+
 class TestTrajectoryOnly:
     def test_grid_frames_without_a_subject_row_are_absences(self):
         trajectory = _trajectory([0, 1, 4, 5], [300.0] * 4)
