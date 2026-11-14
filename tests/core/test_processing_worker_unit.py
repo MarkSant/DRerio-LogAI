@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import os
 import queue
 import threading
 import typing
@@ -6,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
 from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
@@ -1071,3 +1073,661 @@ def test_worker_frame_messages_carry_the_detectors_role_map(tmp_path):
     assert frames, "the worker sent no preview frame"
     expected = {0: "arena", 1: "context", 2: "subject", 3: "context"}
     assert all(m.get("class_roles") == expected for m in frames)
+
+
+# ---------------------------------------------------------------------------
+# ProcessingWorker (parent side): start_in_thread / _monitor_loop / cancel
+# (TASK-087). Nothing here starts a process: the child is a scripted stand-in
+# and the queues are plain in-memory queues, so the real parent-side code runs
+# on the test thread and the assertions are on what the callbacks received.
+# ---------------------------------------------------------------------------
+
+
+class _ScriptedQueue:
+    """Queue whose ``get`` never blocks: yields its items, then ``queue.Empty``.
+
+    ``hook`` (optional) runs on every ``get`` with the 1-based call number, so
+    a test can flip the cancel event between two polls of the monitor loop.
+    """
+
+    def __init__(self, items=(), hook=None):
+        self.items = list(items)
+        self.hook = hook
+        self.gets = 0
+        self.puts: list[Any] = []
+
+    def put(self, item):
+        self.puts.append(item)
+
+    def get(self, timeout=None):
+        self.gets += 1
+        if self.hook is not None:
+            self.hook(self.gets)
+        if not self.items:
+            raise queue.Empty
+        return self.items.pop(0)
+
+    def get_nowait(self):
+        return self.get()
+
+
+class _FakeChild:
+    """Stands in for ``_WorkerProcess`` in the parent."""
+
+    script: typing.ClassVar[list[Any]] = []
+    instances: typing.ClassVar[list["_FakeChild"]] = []
+
+    def __init__(self, config, result_queue, command_queue):
+        self.config = config
+        self.result_queue = result_queue
+        self.command_queue = command_queue
+        self.started = False
+        self.alive = False
+        self.terminated = False
+        self.join_timeouts: list[Any] = []
+        type(self).instances.append(self)
+
+    def start(self):
+        self.started = True
+        for message in type(self).script:
+            self.result_queue.put(message)
+
+    def is_alive(self):
+        return self.alive
+
+    def join(self, timeout=None):
+        self.join_timeouts.append(timeout)
+
+    def terminate(self):
+        self.terminated = True
+
+
+class _Calls:
+    """Records every callback of a ``ProcessingCallbacks``."""
+
+    def __init__(self):
+        self.events: list[tuple[str, tuple[Any, ...]]] = []
+
+    def _rec(self, name):
+        def _record(*args):
+            self.events.append((name, args))
+
+        return _record
+
+    def named(self, name):
+        return [args for event, args in self.events if event == name]
+
+    def callbacks(self):
+        from zebtrack.core.video.processing_worker import ProcessingCallbacks
+
+        return ProcessingCallbacks(
+            on_started=self._rec("started"),
+            on_progress=self._rec("progress"),
+            on_frame_processed=self._rec("frame"),
+            on_video_completed=self._rec("video_completed"),
+            on_error=self._rec("error"),
+            on_completed=self._rec("completed"),
+            on_fatal_error=self._rec("fatal"),
+        )
+
+
+def _make_parent(monkeypatch, *, zone_data=None, model_spec=None, settings=None, **context_kw):
+    """A ``ProcessingWorker`` wired to in-memory queues and the fake child."""
+    from zebtrack.core.video import processing_worker as pw
+
+    monkeypatch.setattr(pw.multiprocessing, "Queue", queue.Queue)
+    _FakeChild.script = []
+    _FakeChild.instances = []
+    monkeypatch.setattr(pw, "_WorkerProcess", _FakeChild)
+    calls = _Calls()
+    context = pw.ProcessingContext(
+        videos_to_process=[{"path": "a.mp4"}],
+        output_base_dir="out_dir",
+        cancel_event=threading.Event(),
+        settings=settings if settings is not None else SimpleNamespace(),
+        zone_data=zone_data,
+        model_spec=model_spec,
+        **context_kw,
+    )
+    worker = pw.ProcessingWorker(context, calls.callbacks())
+    return worker, calls
+
+
+def _scripted_clock(monkeypatch, values):
+    """Replace ``time.monotonic`` as the monitor loop sees it."""
+    from zebtrack.core.video import processing_worker as pw
+
+    ticks = iter(values)
+    monkeypatch.setattr(pw, "time", SimpleNamespace(monotonic=lambda: next(ticks)))
+
+
+def _frame(value=7):
+    return np.full((4, 6, 3), value, dtype=np.uint8)
+
+
+class TestMonitorLoopMessages:
+    def test_each_message_type_reaches_its_callback_with_exact_arguments(self, monkeypatch):
+        worker, calls = _make_parent(monkeypatch)
+        frame = _frame()
+        worker.result_queue = _ScriptedQueue(
+            [
+                {
+                    "type": "progress",
+                    "index": 2,
+                    "total": 5,
+                    "experiment_id": "E2",
+                    "fraction": 0.5,
+                    "message": "half",
+                    "stats": {"fps": 3},
+                },
+                # No index/total/experiment_id/stats: the documented defaults.
+                {"type": "progress", "fraction": 0.1, "message": "tick"},
+                {
+                    "type": "frame",
+                    "frame": frame,
+                    "detections": [(1, 2, 3, 4, 0.9, 7, 0)],
+                    "info": {"frame": 3},
+                    "class_roles": {0: "subject"},
+                },
+                {"type": "video_completed", "index": 4, "experiment_id": "E4", "success": False},
+                {"type": "error", "error": "disk full", "experiment_id": "E5"},
+                {"type": "error", "error": "no id"},
+                {"type": "completed", "cancelled": True, "summary": {"n": 1}},
+                {"type": "progress", "fraction": 1.0, "message": "never read"},
+            ]
+        )
+        worker.process = _FakeChild(None, None, None)
+
+        worker._monitor_loop()
+
+        assert calls.named("started") == [()]
+        assert calls.named("progress") == [
+            (2, 5, "E2", 0.5, "half", {"fps": 3}),
+            (0, 1, "", 0.1, "tick", None),
+        ]
+        ((got_frame, detections, info),) = calls.named("frame")
+        assert got_frame is frame
+        assert detections == [(1, 2, 3, 4, 0.9, 7, 0)]
+        # ``info`` travels with the role map merged in (frame_info_with_roles).
+        assert info == {"frame": 3, "class_roles": {0: "subject"}}
+        # The total is not echoed back by the child, so the parent reports 0.
+        assert calls.named("video_completed") == [(4, 0, "E4", False)]
+        errors = calls.named("error")
+        assert [(str(e), exp) for e, exp in errors] == [("disk full", "E5"), ("no id", "unknown")]
+        # ``completed`` carries the PARENT's output dir and ends the loop: the
+        # progress queued after it is never consumed.
+        assert calls.named("completed") == [(True, "out_dir", {"n": 1})]
+        assert len(worker.result_queue.items) == 1
+
+    def test_frame_without_pixels_is_not_forwarded(self, monkeypatch):
+        worker, calls = _make_parent(monkeypatch)
+        worker.result_queue = _ScriptedQueue(
+            [{"type": "frame", "detections": []}, {"type": "completed"}]
+        )
+        worker.process = _FakeChild(None, None, None)
+
+        worker._monitor_loop()
+
+        assert calls.named("frame") == []
+        # ``cancelled`` and ``summary`` default to False / None.
+        assert calls.named("completed") == [(False, "out_dir", None)]
+
+    def test_frame_is_read_from_shared_memory_and_falls_back_to_the_pickle(self, monkeypatch):
+        from zebtrack.core.video.shared_frame_buffer import SharedFrameBuffer
+
+        worker, calls = _make_parent(monkeypatch)
+        buffer = SharedFrameBuffer(name=f"zt_test_{id(worker)}", max_bytes=4 * 6 * 3, create=True)
+        worker._shm_buffer = buffer
+        shm_pixels = _frame(200)
+        meta = buffer.write(shm_pixels)
+        pickled = _frame(9)
+        worker.result_queue = _ScriptedQueue(
+            [
+                # Matching sequence: the shared-memory pixels win over the payload.
+                {"type": "frame", "frame": pickled, **meta},
+                # Stale sequence: ``read`` returns None, the pickled frame is used.
+                {"type": "frame", "frame": pickled, "shm_seq": meta["shm_seq"] + 5},
+                {"type": "completed"},
+            ]
+        )
+        worker.process = _FakeChild(None, None, None)
+
+        worker._monitor_loop()
+
+        frames = [args[0] for args in calls.named("frame")]
+        assert len(frames) == 2
+        assert np.array_equal(frames[0], shm_pixels)
+        assert frames[1] is pickled
+        # The loop releases the block it owns and forgets it.
+        assert worker._shm_buffer is None
+
+    def test_fatal_error_prefers_the_fatal_callback_and_stops_the_loop(self, monkeypatch):
+        worker, calls = _make_parent(monkeypatch)
+        worker.result_queue = _ScriptedQueue(
+            [{"type": "fatal_error", "error": "boom"}, {"type": "progress", "fraction": 1}]
+        )
+        worker.process = _FakeChild(None, None, None)
+
+        worker._monitor_loop()
+
+        ((error, context, info),) = calls.named("fatal")
+        assert (str(error), context, info) == (
+            "boom",
+            "Fatal Worker Error",
+            {"affected_videos": []},
+        )
+        assert calls.named("error") == []
+        assert calls.named("progress") == []
+        assert calls.named("completed") == []
+
+    def test_fatal_error_degrades_to_on_error_without_a_fatal_callback(self, monkeypatch):
+        worker, calls = _make_parent(monkeypatch)
+        worker.callbacks.on_fatal_error = cast(Any, None)
+        worker.result_queue = _ScriptedQueue([{"type": "fatal_error", "error": "boom"}])
+        worker.process = _FakeChild(None, None, None)
+
+        worker._monitor_loop()
+
+        ((error, context),) = calls.named("error")
+        assert (str(error), context) == ("boom", "Fatal Worker Error")
+
+    @pytest.mark.parametrize("has_fatal", [True, False])
+    def test_a_raising_callback_ends_the_loop_through_the_error_channel(
+        self, monkeypatch, has_fatal
+    ):
+        worker, calls = _make_parent(monkeypatch)
+
+        def explode(*_args):
+            raise RuntimeError("callback bug")
+
+        worker.callbacks.on_progress = explode
+        if not has_fatal:
+            worker.callbacks.on_fatal_error = cast(Any, None)
+        worker.result_queue = _ScriptedQueue(
+            [
+                {"type": "progress", "fraction": 0.1, "message": "x"},
+                {"type": "video_completed", "index": 0, "experiment_id": "E", "success": True},
+            ]
+        )
+        worker.process = _FakeChild(None, None, None)
+
+        worker._monitor_loop()
+
+        channel = calls.named("fatal" if has_fatal else "error")
+        ((error, *rest),) = channel
+        assert str(error) == "callback bug"
+        assert rest[0] == "Monitor loop failure"
+        # The loop stopped at the failure: the next message is still queued.
+        assert len(worker.result_queue.items) == 1
+        assert calls.named("video_completed") == []
+
+    def test_unknown_message_types_are_counted_and_ignored(self, monkeypatch):
+        worker, calls = _make_parent(monkeypatch)
+        worker.result_queue = _ScriptedQueue([{"type": "mystery"}, {"type": "completed"}])
+        worker.process = _FakeChild(None, None, None)
+
+        worker._monitor_loop()
+
+        assert [event for event, _ in calls.events] == ["started", "completed"]
+
+
+class TestMonitorLoopLifecycle:
+    def test_cancel_is_forwarded_once_however_long_the_loop_keeps_polling(self, monkeypatch):
+        worker, calls = _make_parent(monkeypatch)
+        worker.command_queue = _ScriptedQueue()
+        child = _FakeChild(None, None, None)
+        child.alive = True
+        worker.process = child
+
+        results = _ScriptedQueue()
+
+        def hook(call_number):
+            if call_number == 1:
+                worker.context.cancel_event.set()
+            if call_number == 4:
+                results.items.append({"type": "completed", "cancelled": True})
+
+        results.hook = hook
+        worker.result_queue = results
+
+        worker._monitor_loop()
+
+        assert worker.command_queue.puts == ["cancel"]
+        assert calls.named("completed") == [(True, "out_dir", None)]
+
+    def test_a_child_that_dies_silently_is_reported_after_the_grace_window(self, monkeypatch):
+        worker, calls = _make_parent(monkeypatch)
+        child = _FakeChild(None, None, None)  # not alive
+        worker.process = child
+        worker.result_queue = _ScriptedQueue()
+        # 1st empty poll arms the timer (t=100); 2nd is inside the 1 s window
+        # (100.9); 3rd is past it (101.0 is exactly 1.0 s: not "< 1.0").
+        _scripted_clock(monkeypatch, [100.0, 100.9, 101.0])
+
+        worker._monitor_loop()
+
+        assert worker.result_queue.gets == 3
+        ((error, context, info),) = calls.named("fatal")
+        assert str(error) == "Worker exited without completion signal"
+        assert (context, info) == ("Worker monitor", {"affected_videos": []})
+        assert calls.named("completed") == []
+
+    def test_a_message_resets_the_grace_window(self, monkeypatch):
+        worker, calls = _make_parent(monkeypatch)
+        worker.process = _FakeChild(None, None, None)  # dead from the start
+        worker.result_queue = _ScriptedQueue()
+        script = [
+            "empty",  # arms the timer at t=10
+            {"type": "progress", "fraction": 0.2, "message": "late flush"},
+            "empty",  # arms it AGAIN at t=50 — not 40 s past the old one
+            "empty",  # t=50.2: inside the window
+            "empty",  # t=51.5: past it
+        ]
+
+        def feed(call_number):
+            step = script[call_number - 1]
+            if step != "empty":
+                worker.result_queue.items.append(step)
+
+        worker.result_queue.hook = feed
+        _scripted_clock(monkeypatch, [10.0, 50.0, 50.2, 51.5])
+
+        worker._monitor_loop()
+
+        assert worker.result_queue.gets == 5
+        assert len(calls.named("progress")) == 1
+        assert len(calls.named("fatal")) == 1
+
+    def test_a_dead_child_without_fatal_callback_still_ends_the_loop(self, monkeypatch):
+        worker, calls = _make_parent(monkeypatch)
+        worker.callbacks.on_fatal_error = cast(Any, None)
+        worker.process = _FakeChild(None, None, None)
+        worker.result_queue = _ScriptedQueue()
+        _scripted_clock(monkeypatch, [1.0, 5.0])
+
+        worker._monitor_loop()
+
+        assert calls.events == [("started", ())]
+
+    def test_a_child_that_outlives_the_join_is_terminated(self, monkeypatch):
+        worker, _ = _make_parent(monkeypatch)
+        child = _FakeChild(None, None, None)
+        child.alive = True
+        worker.process = child
+        worker.result_queue = _ScriptedQueue([{"type": "completed"}])
+
+        worker._monitor_loop()
+
+        assert child.join_timeouts == [2.0]
+        assert child.terminated is True
+
+    def test_a_child_that_exits_in_time_is_left_alone(self, monkeypatch):
+        worker, _ = _make_parent(monkeypatch)
+        child = _FakeChild(None, None, None)
+        worker.process = child
+        worker.result_queue = _ScriptedQueue([{"type": "completed"}])
+
+        worker._monitor_loop()
+
+        assert child.terminated is False
+
+    def test_cancel_sets_the_event_and_reports_whether_the_monitor_stopped(self, monkeypatch):
+        worker, _ = _make_parent(monkeypatch)
+        # No monitor thread yet: nothing to wait for.
+        assert worker.cancel() is True
+        assert worker.context.cancel_event.is_set()
+
+        release = threading.Event()
+        stuck = threading.Thread(target=release.wait, daemon=True)
+        stuck.start()
+        worker._monitor_thread = stuck
+        try:
+            # A monitor that does not stop within the timeout is reported as running.
+            assert worker.cancel(timeout=0.01) is False
+            assert worker.is_running is True
+        finally:
+            release.set()
+            stuck.join(5)
+        assert worker.cancel(timeout=5) is True
+        assert worker.is_running is False
+
+
+class TestStartInThread:
+    def _run(self, worker):
+        thread = worker.start_in_thread()
+        thread.join(10)
+        assert not thread.is_alive()
+        return thread
+
+    def test_the_child_gets_the_spec_model_and_the_monitor_is_a_daemon(self, monkeypatch):
+        spec = SimpleNamespace(
+            model_type="openvino",
+            model_path="weights/mouse_openvino_model",
+            weight_name="mouse",
+            resolved_from="project",
+            class_roles_source="project",
+            weight_sha256="ab" * 32,
+            class_roles={"mouse": "subject"},
+        )
+        worker, calls = _make_parent(
+            monkeypatch,
+            model_spec=spec,
+            analysis_interval_frames=7,
+            display_interval_frames=3,
+            single_video_config={"x": 1},
+        )
+        _FakeChild.script = [{"type": "completed"}]
+
+        thread = worker.start_in_thread()
+        assert thread.daemon is True
+        assert thread.name == "ProcessingMonitor"
+        thread.join(10)
+
+        (child,) = _FakeChild.instances
+        assert child.started is True
+        config = child.config
+        assert (config.model_type, config.model_path) == (
+            "openvino",
+            "weights/mouse_openvino_model",
+        )
+        assert config.weight_sha256 == "ab" * 32
+        assert config.class_roles == {"mouse": "subject"}
+        assert config.class_roles_source == "project"
+        assert config.single_video_mode is True
+        assert (config.analysis_interval_frames, config.display_interval_frames) == (7, 3)
+        assert config.output_base_dir == "out_dir"
+        assert config.tasks == [{"path": "a.mp4"}]
+        # The shared block was created, then released by the monitor at the end.
+        assert config.shm_name == f"zebtrack_preview_{os.getpid()}"
+        assert worker._shm_buffer is None
+        assert calls.named("completed") == [(False, "out_dir", None)]
+
+    def test_a_spec_without_roles_sends_none_and_an_empty_source(self, monkeypatch):
+        spec = SimpleNamespace(
+            model_type="yolo",
+            model_path="m.pt",
+            weight_name=None,
+            resolved_from="settings",
+            class_roles_source=None,
+            weight_sha256="",
+            class_roles=None,
+        )
+        worker, _ = _make_parent(monkeypatch, model_spec=spec)
+        _FakeChild.script = [{"type": "completed"}]
+
+        self._run(worker)
+
+        config = _FakeChild.instances[0].config
+        assert config.class_roles is None
+        assert config.class_roles_source == ""
+        assert config.single_video_mode is False
+
+    def test_without_a_spec_the_model_is_rebuilt_from_the_settings(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        settings = SimpleNamespace(
+            model_selection=SimpleNamespace(use_openvino=False, animal_method="det"),
+            yolo_model=SimpleNamespace(path="legacy.pt"),
+        )
+        worker, _ = _make_parent(monkeypatch, settings=settings)
+        _FakeChild.script = [{"type": "completed"}]
+
+        self._run(worker)
+
+        config = _FakeChild.instances[0].config
+        assert (config.model_type, config.model_path) == ("yolo", "legacy.pt")
+        assert config.weight_sha256 == ""
+        assert config.class_roles_source == ""
+
+    def test_a_second_start_returns_the_running_monitor_without_a_second_child(self, monkeypatch):
+        worker, _ = _make_parent(monkeypatch)
+        gate = threading.Event()
+        worker._monitor_thread = threading.Thread(target=gate.wait, daemon=True)
+        worker._monitor_thread.start()
+        try:
+            assert worker.start_in_thread() is worker._monitor_thread
+            assert _FakeChild.instances == []
+        finally:
+            gate.set()
+            worker._monitor_thread.join(5)
+
+    def test_zone_data_is_serialised_for_the_child(self, monkeypatch):
+        from zebtrack.core.project.zone_manager import ZoneManager
+
+        zone = ZoneData(
+            polygon=[[0, 0], [9, 0], [9, 9]],
+            roi_polygons=[[[1, 1], [2, 1], [2, 2]]],
+            roi_names=["r"],
+            roi_colors=[(1, 2, 3)],
+            metadata={"source_video_width": 9},
+        )
+        worker, _ = _make_parent(monkeypatch, zone_data=zone)
+        _FakeChild.script = [{"type": "completed"}]
+        self._run(worker)
+        assert _FakeChild.instances[0].config.zone_data == {
+            "polygon": [[0, 0], [9, 0], [9, 9]],
+            "roi_polygons": [[[1, 1], [2, 1], [2, 2]]],
+            "roi_names": ["r"],
+            "roi_colors": [(1, 2, 3)],
+            "metadata": {"source_video_width": 9},
+        }
+
+        # A dict passes through untouched.
+        as_dict = {"polygon": [[1, 1]], "extra": True}
+        worker, _ = _make_parent(monkeypatch, zone_data=as_dict)
+        _FakeChild.script = [{"type": "completed"}]
+        self._run(worker)
+        assert _FakeChild.instances[0].config.zone_data is as_dict
+
+        # Multi-aquarium data goes through ZoneManager and keeps its marker.
+        multi = MultiAquariumZoneData(aquariums=[], video_width=640, video_height=480)
+        worker, _ = _make_parent(monkeypatch, zone_data=multi)
+        _FakeChild.script = [{"type": "completed"}]
+        self._run(worker)
+        assert _FakeChild.instances[
+            0
+        ].config.zone_data == ZoneManager.multi_aquarium_zone_data_to_dict(multi)
+
+        # No zones at all: the child is told there is nothing to restore.
+        worker, _ = _make_parent(monkeypatch, zone_data=None)
+        _FakeChild.script = [{"type": "completed"}]
+        self._run(worker)
+        assert _FakeChild.instances[0].config.zone_data is None
+
+    def test_without_shared_memory_the_child_is_told_to_use_the_pickle(self, monkeypatch):
+        from zebtrack.core.video import processing_worker as pw
+
+        def refuse(*_a, **_k):
+            raise OSError("no shm here")
+
+        monkeypatch.setattr(pw, "SharedFrameBuffer", refuse)
+        worker, _ = _make_parent(monkeypatch)
+        _FakeChild.script = [{"type": "completed"}]
+
+        self._run(worker)
+
+        assert _FakeChild.instances[0].config.shm_name == ""
+        assert worker._shm_buffer is None
+
+
+class TestModelFromSettings:
+    @staticmethod
+    def _settings(*, use_openvino, method, det="det.pt", seg="seg.pt", source_dir="weights"):
+        weights = SimpleNamespace(
+            source_dir=source_dir,
+            get_filenames_for_perspective=lambda perspective: SimpleNamespace(
+                det_filename=det, seg_filename=seg, perspective=perspective
+            ),
+        )
+        return SimpleNamespace(
+            model_selection=SimpleNamespace(use_openvino=use_openvino, animal_method=method),
+            weights=weights,
+            behavioral_analysis=SimpleNamespace(aquarium_perspective="top_down"),
+            yolo_model=SimpleNamespace(path="fallback.pt"),
+        )
+
+    def test_settings_without_model_selection_default_to_yolo_and_no_path(self):
+        from zebtrack.core.video.processing_worker import ProcessingWorker
+
+        assert ProcessingWorker._model_from_settings(SimpleNamespace()) == ("yolo", "")
+
+    def test_the_weight_file_on_disk_wins_and_follows_the_animal_method(
+        self, monkeypatch, tmp_path
+    ):
+        from zebtrack.core.video.processing_worker import ProcessingWorker
+
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "weights").mkdir()
+        (tmp_path / "weights" / "det.pt").write_bytes(b"x")
+        (tmp_path / "weights" / "seg.pt").write_bytes(b"x")
+
+        det = ProcessingWorker._model_from_settings(
+            self._settings(use_openvino=False, method="det")
+        )
+        seg = ProcessingWorker._model_from_settings(
+            self._settings(use_openvino=False, method="seg")
+        )
+
+        assert det == ("yolo", os.path.join("weights", "det.pt"))
+        assert seg == ("yolo", os.path.join("weights", "seg.pt"))
+
+    def test_a_missing_weight_file_falls_back_to_the_yolo_model_path(self, monkeypatch, tmp_path):
+        from zebtrack.core.video.processing_worker import ProcessingWorker
+
+        monkeypatch.chdir(tmp_path)
+        result = ProcessingWorker._model_from_settings(
+            self._settings(use_openvino=False, method="det")
+        )
+        assert result == ("yolo", "fallback.pt")
+
+        blank = ProcessingWorker._model_from_settings(
+            self._settings(use_openvino=False, method="det", det="")
+        )
+        assert blank == ("yolo", "fallback.pt")
+
+    def test_openvino_uses_the_cached_export_when_it_exists(self, monkeypatch, tmp_path):
+        from zebtrack.core.video.processing_worker import ProcessingWorker
+
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "weights").mkdir()
+        (tmp_path / "weights" / "det.pt").write_bytes(b"x")
+        cache = tmp_path / "openvino_model_cache" / "det_openvino_model"
+        cache.mkdir(parents=True)
+
+        result = ProcessingWorker._model_from_settings(
+            self._settings(use_openvino=True, method="det")
+        )
+
+        assert result == ("openvino", os.path.abspath(cache))
+
+    def test_openvino_without_a_cached_export_degrades_to_yolo(self, monkeypatch, tmp_path):
+        from zebtrack.core.video.processing_worker import ProcessingWorker
+
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "weights").mkdir()
+        (tmp_path / "weights" / "det.pt").write_bytes(b"x")
+
+        result = ProcessingWorker._model_from_settings(
+            self._settings(use_openvino=True, method="det")
+        )
+
+        assert result == ("yolo", os.path.join("weights", "det.pt"))
