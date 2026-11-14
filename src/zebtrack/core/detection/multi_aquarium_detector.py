@@ -32,6 +32,9 @@ log = structlog.get_logger()
 # Track-ID offset multiplier: global_id = aquarium_id * MULTIPLIER + local_id
 AQUARIUM_TRACK_ID_MULTIPLIER: Final[int] = 1000
 MAX_LOCAL_TRACK_ID: Final[int] = AQUARIUM_TRACK_ID_MULTIPLIER - 1
+#: A track is recorded with the detection it overlaps by more than this (the
+#: ``SingleDetector`` rule); below it, the Kalman box (#668).
+_ORIGINAL_DETECTION_MIN_IOU: Final[float] = 0.1
 
 __all__ = [
     "AQUARIUM_TRACK_ID_MULTIPLIER",
@@ -838,22 +841,20 @@ class MultiAquariumDetector:
                         results[aq_id] = []
                         continue
 
-                    # Tracking must be sequential (ByteTracker is not thread-safe)
-                    if detections:
-                        tracker = self._byte_trackers_multi.get(aq_id)
-                        if tracker is None:
-                            log.error(
-                                "multi_aquarium_detector.parallel.tracker_missing",
-                                aquarium_id=aq_id,
-                            )
-                            errors[aq_id] = f"ByteTracker not initialised for aquarium {aq_id}"
-                            results[aq_id] = []
-                            continue
-
-                        tracked = self._apply_byte_tracking_multi(detections, tracker, frame_time_s)
-                        results[aq_id] = self._offset_track_ids(tracked, aq_id)
-                    else:
+                    # Tracking must be sequential (ByteTracker is not thread-safe).
+                    # An empty aquarium still advances its tracker (#668).
+                    tracker = self._byte_trackers_multi.get(aq_id)
+                    if tracker is None:
+                        log.error(
+                            "multi_aquarium_detector.parallel.tracker_missing",
+                            aquarium_id=aq_id,
+                        )
+                        errors[aq_id] = f"ByteTracker not initialised for aquarium {aq_id}"
                         results[aq_id] = []
+                        continue
+
+                    tracked = self._apply_byte_tracking_multi(detections, tracker, frame_time_s)
+                    results[aq_id] = self._offset_track_ids(tracked, aq_id)
                 # except Exception justified: zone/ROI — heterogeneous errors
                 except Exception as e:
                     aq_id = futures[future]
@@ -919,7 +920,9 @@ class MultiAquariumDetector:
         }
 
         for aq_id, detections in partitioned.items():
-            if detections:
+            # ByteTrack runs for EVERY aquarium, empty or not (#668); the simple
+            # tracker keeps its last assignment across an empty frame.
+            if detections or use_bytetrack:
                 if use_bytetrack:
                     tracker = self._byte_trackers_multi.get(aq_id)
                     if tracker is None:
@@ -994,6 +997,18 @@ class MultiAquariumDetector:
     ) -> list[tuple]:
         """Apply ByteTracker to detections for one aquarium.
 
+        An aquarium with no detection still advances its tracker (issue #668):
+        ``frame_id`` counts every analysed frame and the Kalman prediction keeps
+        moving, so the animal is looked for where it would be when it comes
+        back, as in ``SingleDetector``. Skipping the call froze the prediction at
+        the last hit and read the whole gap as one frame's worth of motion.
+
+        Each track is recorded with the box, confidence and class of the
+        detection it overlaps best (IoU > ``_ORIGINAL_DETECTION_MIN_IOU``), the
+        ``SingleDetector`` rule; the Kalman box is only the fallback. Until #668
+        the multi path recorded the Kalman box and took the class from a
+        detection whose top-left corner was within 10 px of it.
+
         Args:
             detections: List of detection tuples.
             tracker: ByteTracker instance for this aquarium.
@@ -1002,38 +1017,63 @@ class MultiAquariumDetector:
         Returns:
             List of detections with updated track_ids.
         """
+        frame_dims = [self._last_height or 720, self._last_width or 1280]
         if not detections:
+            tracker.update(
+                np.empty((0, 5), dtype=np.float32),
+                frame_dims,
+                frame_dims,
+                frame_time_s=frame_time_s,
+            )
             return []
 
         det_array = np.array([[d[0], d[1], d[2], d[3], d[4]] for d in detections])
 
         online_targets = tracker.update(
             det_array,
-            [self._last_height or 720, self._last_width or 1280],
-            [self._last_height or 720, self._last_width or 1280],
+            frame_dims,
+            frame_dims,
             frame_time_s=frame_time_s,
         )
 
         tracked = []
         for track in online_targets:
             tlbr = track.tlbr
-            x1, y1, x2, y2 = (
-                int(tlbr[0]),
-                int(tlbr[1]),
-                int(tlbr[2]),
-                int(tlbr[3]),
-            )
-            track_id = track.track_id
-            conf = track.score
-
-            # Find original class_id from closest detection
-            class_id = self.animal_class_id
+            best_det = None
+            best_iou = 0.0
             for det in detections:
-                if abs(det[0] - x1) < 10 and abs(det[1] - y1) < 10:
-                    class_id = det[6]
-                    break
+                iou = DetectionPostProcessor.calculate_iou(
+                    tlbr[0], tlbr[1], tlbr[2], tlbr[3], det[0], det[1], det[2], det[3]
+                )
+                if iou > best_iou:
+                    best_iou = iou
+                    best_det = det
 
-            tracked.append((x1, y1, x2, y2, conf, track_id, class_id))
+            if best_det is not None and best_iou > _ORIGINAL_DETECTION_MIN_IOU:
+                box = best_det[:4]
+                conf = best_det[4]
+                class_id = best_det[6]
+            else:
+                box = tlbr
+                conf = track.score
+                class_id = self.animal_class_id
+                log.warning(
+                    "multi_aquarium_detector.bytetrack.no_matching_detection",
+                    track_id=track.track_id,
+                    best_iou=best_iou,
+                )
+
+            tracked.append(
+                (
+                    int(box[0]),
+                    int(box[1]),
+                    int(box[2]),
+                    int(box[3]),
+                    float(conf),
+                    track.track_id,
+                    class_id,
+                )
+            )
 
         return tracked
 

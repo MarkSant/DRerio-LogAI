@@ -6,6 +6,33 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-13] Multi-aquário: aquário vazio também avança o BYTETracker (#668)
+
+__ID:__ TASK-081
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
+__Branch:__ claude/668-empty-aquarium-update-85ed60 (a partir de `release/8.0`, cb1068ec)
+__Description:__
+`MultiAquariumDetector` só chamava `tracker.update()` num aquário que tinha detecção no
+quadro. O `frame_id` do tracker contava só os quadros com detecção e o Kalman não previa
+nos quadros vazios: ao reaparecer, a predição partia do último estado como se nenhum tempo
+tivesse passado. Agora todo aquário chama `update(np.empty((0, 5)))` em todo quadro
+analisado, como o `SingleDetector`, nos três caminhos (cheio, recortado e paralelo).
+
+__Critério de pronto:__
+
+- Aquário vazio por N quadros: `frame_id` avança N e a predição de Kalman se desloca.
+- A trilha reaparece casando com a predição (mesmo `track_id`).
+- Caminhos sequencial, recortado e paralelo produzem a mesma saída.
+- A trilha é gravada com a detecção de IoU > 0,1 (regra do `SingleDetector`), não com a
+  bbox do Kalman; sem tocar `single_detector.py` (a S6/#671 mexe nele).
+- PR contra `release/8.0` com CI verde e "Closes #668".
+
+__Resultado (2026-11-13):__ 16 testes novos (10 vermelhos sem o update vazio, 6 sem a
+regra da bbox); mutation check escopado 30/30 (bloco novo de 10 + o `find` do #654 que
+passou a casar duas linhas); goldens, multi-aquário e ao vivo multi (#635) verdes; ruff e
+`mypy .` limpos.
+
 ### [2026-11-13] ByteTrack: limiares e intervalo configurados chegam ao tracker (#698, #667)
 
 __ID:__ TASK-079
