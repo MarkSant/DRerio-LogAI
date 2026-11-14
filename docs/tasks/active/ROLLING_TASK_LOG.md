@@ -19,7 +19,8 @@ não há peso de roedor embutido), instalado na pasta de templates do usuário. 
 de velocidade no `BehavioralConfigWidget` e na aba Configurações Avançadas: grava
 `behavioral_config["max_plausible_speed_cm_s"]` no projeto, cai para as settings, e não escreve
 o valor do projeto no `Settings` compartilhado. (3) `AnalysisPipelineRunner` sem
-`behavioral_config`: só depois da decisão do usuário (muda o xlsx de zebrafish).
+`behavioral_config`: o usuário decidiu corrigir para todos os projetos. O runner passa a
+usar `behavioral_policy.resolve_behavioral_config()`, a mesma regra de "Gerar relatórios".
 
 __Critério de pronto:__
 

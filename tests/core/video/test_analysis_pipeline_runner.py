@@ -368,3 +368,162 @@ class TestAnalysisWindowResolution:
             )
 
         assert context.call_args.kwargs["window"] is sentinel
+
+
+def _behavioural_settings(perspective: str = "lateral") -> SimpleNamespace:
+    settings = _make_settings()
+    settings.behavioral_analysis = SimpleNamespace(
+        default_thigmotaxis_distance_cm=1.5,
+        default_geotaxis_distance_cm=1.5,
+        default_geotaxis_num_zones=3,
+        default_geotaxis_bottom_zones=1,
+        aquarium_perspective=perspective,
+        geotaxis_mode="zones",
+        max_plausible_speed_cm_s=50.0,
+    )
+    return settings
+
+
+@pytest.mark.unit
+class TestReportBehavioralConfig:
+    """#695 item 3: the automatic pre-recorded report reads the project's
+    behavioural config, as "Generate reports" always did. Until then the
+    ``ReporterContext`` got ``{}``: the xlsx said ``lateral`` and 1.5 cm for a
+    top-down rat project and never had geotaxis for a side-view fish project.
+    """
+
+    def test_project_values_reach_the_report(self, runner):
+        runner.settings = _behavioural_settings()
+        runner.settings_baseline = _behavioural_settings()
+        runner.project_manager.project_data = {
+            "behavioral_config": {
+                "aquarium_perspective": "top_down",
+                "thigmotaxis_distance_cm": 15.0,
+            }
+        }
+
+        config = runner._resolve_report_behavioral_config(None)
+
+        assert config["aquarium_perspective"] == "top_down"
+        assert config["thigmotaxis_distance_cm"] == 15.0
+        assert config["geotaxis_enabled"] is False
+
+    def test_a_side_view_project_gets_geotaxis(self, runner):
+        runner.settings = _behavioural_settings()
+        runner.settings_baseline = _behavioural_settings()
+        runner.project_manager.project_data = {
+            "behavioral_config": {"aquarium_perspective": "lateral"}
+        }
+
+        assert runner._resolve_report_behavioral_config(None)["geotaxis_enabled"] is True
+
+    def test_project_defaults_come_from_the_baseline_not_the_polluted_settings(self, runner):
+        """An ad-hoc run rewrites the SHARED settings; the project must not inherit it."""
+        runner.settings = _behavioural_settings("top_down")
+        runner.settings.behavioral_analysis.default_thigmotaxis_distance_cm = 33.0
+        runner.settings_baseline = _behavioural_settings("lateral")
+        runner.project_manager.project_data = {}
+
+        config = runner._resolve_report_behavioral_config(None)
+
+        assert config["thigmotaxis_distance_cm"] == 1.5
+        assert config["aquarium_perspective"] == "lateral"
+
+    def test_single_video_uses_its_dialog_config(self, runner):
+        runner.settings = _behavioural_settings()
+        runner.project_manager.project_data = {
+            "behavioral_config": {"thigmotaxis_distance_cm": 2.0}
+        }
+        single = {
+            "behavioral_analysis": {
+                "aquarium_perspective": "top_down",
+                "thigmotaxis_distance_cm": 12.0,
+            }
+        }
+
+        config = runner._resolve_report_behavioral_config(single)
+
+        assert config["thigmotaxis_distance_cm"] == 12.0
+        assert config["aquarium_perspective"] == "top_down"
+
+    def test_single_video_without_dialog_config_reads_the_project_data(self, runner):
+        runner.settings = _behavioural_settings()
+        runner.project_manager.project_data = {
+            "behavioral_config": {"thigmotaxis_distance_cm": 2.0}
+        }
+
+        config = runner._resolve_report_behavioral_config({"aquarium_width_cm": 10})
+
+        assert config["thigmotaxis_distance_cm"] == 2.0
+
+    def test_reporter_context_receives_it(self, runner, trajectory_df):
+        from unittest.mock import patch
+
+        with patch("zebtrack.core.video.analysis_pipeline_runner.ReporterContext") as context:
+            runner._create_reporter_instance(
+                filtered_df=trajectory_df,
+                metadata={},
+                calibration=SimpleNamespace(target_dims_px=(100, 100)),
+                arena_polygon_warped=[],
+                rois=[],
+                roi_colors={},
+                video_path="v.mp4",
+                pixelcm_x=1.0,
+                pixelcm_y=1.0,
+                sharp_turn_threshold=90.0,
+                freezing_threshold=1.5,
+                freezing_duration=1.0,
+                smoothing_window=5,
+                smoothing_polyorder=2,
+                behavioral_config={"aquarium_perspective": "top_down"},
+            )
+
+        assert context.call_args.kwargs["behavioral_config"] == {"aquarium_perspective": "top_down"}
+
+    def test_the_pipeline_hands_it_to_the_reporter(self, runner, trajectory_df):
+        import threading
+        from unittest.mock import patch
+
+        runner.settings = _behavioural_settings()
+        runner.settings_baseline = _behavioural_settings()
+        runner.project_manager.project_data = {
+            "calibration": {"aquarium_width_cm": 30.0, "aquarium_height_cm": 20.0},
+            "behavioral_config": {
+                "aquarium_perspective": "top_down",
+                "thigmotaxis_distance_cm": 15.0,
+            },
+        }
+        runner.project_manager.get_metadata_for_experiment.return_value = {"group_id": "G"}
+        runner.cancel_event = threading.Event()
+        runner.load_trajectory_dataframe = Mock(return_value=trajectory_df)
+        runner.ensure_arena_polygon = Mock(return_value=[(0, 0), (10, 0), (10, 10)])
+        seen: dict = {}
+
+        def fake_create(**kwargs):
+            seen.update(kwargs)
+            runner.cancel_event.set()  # stop right after the context is built
+            return Mock()
+
+        with (
+            patch.object(
+                runner,
+                "_prepare_analysis_calibration_context",
+                return_value=(Mock(), [(0, 0)], [], {}, 1.0, 1.0),
+            ),
+            patch.object(runner, "_resolve_analysis_window", return_value=None),
+            patch.object(runner, "_create_reporter_instance", side_effect=fake_create),
+        ):
+            ok = runner._run_analysis_pipeline(
+                experiment_id="exp1",
+                video_path="/v/exp1.mp4",
+                results_dir="/r",
+                arena_polygon_px=[(0, 0), (10, 0), (10, 10)],
+                metadata_context={},
+                single_video_config=None,
+                progress_callback=None,
+                analysis_profile=None,
+            )
+
+        assert ok is False
+        assert seen["behavioral_config"]["aquarium_perspective"] == "top_down"
+        assert seen["behavioral_config"]["thigmotaxis_distance_cm"] == 15.0

@@ -27,7 +27,7 @@ from typing import Any
 from zebtrack.analysis.perspective_utils import normalize_aquarium_perspective
 from zebtrack.settings import DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S
 
-__all__ = ["geotaxis_applies", "resolve_max_plausible_speed"]
+__all__ = ["geotaxis_applies", "resolve_behavioral_config", "resolve_max_plausible_speed"]
 
 
 def geotaxis_applies(behavioral_config: Mapping[str, Any] | None) -> bool:
@@ -46,6 +46,52 @@ def geotaxis_applies(behavioral_config: Mapping[str, Any] | None) -> bool:
     if normalize_aquarium_perspective(config.get("aquarium_perspective")) != "lateral":
         return False
     return config.get("geotaxis_enabled") is not False
+
+
+def resolve_behavioral_config(
+    project_data: Mapping[str, Any] | None, settings_obj: Any
+) -> dict[str, Any]:
+    """The behavioural config every report path hands the reporters (#695).
+
+    Settings defaults (under the PROJECT key names) < the project's
+    ``behavioral_config`` (or the legacy ``behavioral_analysis`` key), with the
+    perspective normalised and ``geotaxis_enabled`` always re-derived by
+    :func:`geotaxis_applies`. ``AnalysisService.collect_analysis_parameters``
+    ("Generate reports") and the automatic pre-recorded pipeline both read it;
+    until #695 the pipeline passed ``{}``, so its xlsx said ``lateral`` and
+    1.5 cm whatever the project declared, and never carried geotaxis.
+
+    Returns a new dict; neither argument is modified.
+    """
+    config: dict[str, Any] = {}
+    behavioral = getattr(settings_obj, "behavioral_analysis", None) if settings_obj else None
+    if behavioral is not None:
+        perspective = normalize_aquarium_perspective(
+            getattr(behavioral, "aquarium_perspective", "lateral")
+        )
+        config = {
+            "thigmotaxis_distance_cm": behavioral.default_thigmotaxis_distance_cm,
+            "geotaxis_distance_cm": behavioral.default_geotaxis_distance_cm,
+            "geotaxis_num_zones": behavioral.default_geotaxis_num_zones,
+            "geotaxis_bottom_zones": behavioral.default_geotaxis_bottom_zones,
+            "aquarium_perspective": perspective,
+            "geotaxis_enabled": perspective == "lateral",
+        }
+
+    if project_data:
+        if "behavioral_config" in project_data:
+            project_block = project_data["behavioral_config"]
+        else:
+            project_block = project_data.get("behavioral_analysis")
+        if isinstance(project_block, Mapping):
+            config.update(project_block)
+
+    if config:
+        config["aquarium_perspective"] = normalize_aquarium_perspective(
+            config.get("aquarium_perspective")
+        )
+        config["geotaxis_enabled"] = geotaxis_applies(config)
+    return config
 
 
 def resolve_max_plausible_speed(

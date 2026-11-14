@@ -2177,12 +2177,14 @@ modules:
         find: |-
           smoothing_polyorder=smoothing_polyorder,
                       window=window,
+                      behavioral_config=behavioral_config,
                   )
 
               def _resolve_analysis_window(
         replace: |-
           smoothing_polyorder=smoothing_polyorder,
                       window=None,
+                      behavioral_config=behavioral_config,
                   )
 
               def _resolve_analysis_window(
@@ -3430,10 +3432,10 @@ _load_registry()"
         description: "geotaxia volta a ser calculada em video top-down (#631)"
         find: 'if geo_dist is not None and geotaxis_applies(behavioral_config):'
         replace: 'if geo_dist is not None:'
-      - id: inherited-enabled-flag-survives
-        description: "projeto top-down herda o geotaxis_enabled=True do padrao lateral (#631)"
-        find: 'params["behavioral_config"]["geotaxis_enabled"] = geotaxis_applies('
-        replace: 'params["behavioral_config"]["geotaxis_enabled_unused"] = geotaxis_applies('
+      - id: project-behavioural-block-ignored
+        description: "collect_analysis_parameters deixa de ler o behavioral_config do projeto (#631, #695)"
+        find: 'params["behavioral_config"] = resolve_behavioral_config(project_data, self.settings)'
+        replace: 'params["behavioral_config"] = resolve_behavioral_config(None, self.settings)'
       - id: speed-ceiling-hardcoded
         description: "o validador volta a usar 50 cm/s fixo, ignorando projeto e settings (#631)"
         find: 'max_plausible_speed_cm_s, behavioral_config, self.settings'
@@ -3682,3 +3684,47 @@ _load_registry()"
         description: "#695: o limite do teto deixa de ser o das settings (1000 cm/s)"
         find: 'MAX_PLAUSIBLE_SPEED_LIMIT_CM_S: Final[float] = 1000.0'
         replace: 'MAX_PLAUSIBLE_SPEED_LIMIT_CM_S: Final[float] = 2000.0'
+
+  behavioral_config_resolver:
+    source: src/zebtrack/analysis/behavioral_policy.py
+    tests:
+      - tests/analysis/test_behavioral_policy.py
+    mutations:
+      - id: inherited-enabled-flag-survives
+        description: "projeto top-down herda o geotaxis_enabled=True do padrao lateral (#631, #695)"
+        find: 'config["geotaxis_enabled"] = geotaxis_applies(config)'
+        replace: 'config.setdefault("geotaxis_enabled", geotaxis_applies(config))'
+      - id: legacy-key-wins
+        description: "a chave legada behavioral_analysis passa a vencer o behavioral_config (#695)"
+        find: 'if "behavioral_config" in project_data:'
+        replace: 'if "behavioral_analysis" not in project_data:'
+      - id: perspective-not-normalised
+        description: "perspectiva 'Top-Down' do projeto chega crua aos relatorios (#695)"
+        find: 'config["aquarium_perspective"] = normalize_aquarium_perspective('
+        replace: 'config["_unused_perspective"] = normalize_aquarium_perspective('
+      - id: settings-thigmotaxis-dropped
+        description: "a tigmotaxia padrao das settings deixa de chegar ao relatorio (#695)"
+        find: '"thigmotaxis_distance_cm": behavioral.default_thigmotaxis_distance_cm,'
+        replace: '"thigmotaxis_distance_cm": 1.0,'
+
+  pipeline_report_behavioral_config:
+    source: src/zebtrack/core/video/analysis_pipeline_runner.py
+    tests:
+      - tests/core/video/test_analysis_pipeline_runner.py
+    mutations:
+      - id: reporter-gets-empty-config
+        description: "o pipeline pre-gravado volta a montar o ReporterContext com behavioral_config {} (#695)"
+        find: 'behavioral_config=self._resolve_report_behavioral_config(single_video_config),'
+        replace: 'behavioral_config=None,'
+      - id: context-drops-the-config
+        description: "_create_reporter_instance recebe o config e nao o repassa (#695)"
+        find: '            behavioral_config=behavioral_config,'
+        replace: '            behavioral_config=None,'
+      - id: project-defaults-from-polluted-settings
+        description: "padroes do projeto vem do Settings compartilhado, nao do snapshot (#695)"
+        find: 'return resolve_behavioral_config(project_data, snapshot)'
+        replace: 'return resolve_behavioral_config(project_data, self.settings)'
+      - id: single-video-dialog-ignored
+        description: "video unico ignora o behavioral_analysis do dialogo (#695)"
+        find: 'if isinstance(dialog_block, dict)'
+        replace: 'if False'
