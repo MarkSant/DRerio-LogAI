@@ -203,3 +203,83 @@ class TestWorkerConfigShm:
             shm_name="zebtrack_preview_99",
         )
         assert cfg.shm_name == "zebtrack_preview_99"
+
+
+# ---------------------------------------------------------------------------
+# Header validation, lifecycle faults and the gaps around them (TASK-087)
+# ---------------------------------------------------------------------------
+
+
+def _unique(prefix):
+    import uuid
+
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+class TestSharedBufferEdges:
+    def test_creating_a_block_that_already_exists_raises(self):
+        name = _unique("zt_dup")
+        first = SharedFrameBuffer(name=name, max_bytes=64, create=True)
+        try:
+            with pytest.raises(FileExistsError):
+                SharedFrameBuffer(name=name, max_bytes=64, create=True)
+        finally:
+            first.close_and_unlink()
+
+    def test_attaching_to_a_block_that_does_not_exist_raises(self):
+        with pytest.raises(FileNotFoundError):
+            SharedFrameBuffer(name=_unique("zt_missing"), max_bytes=64, create=False)
+
+    def test_a_fresh_buffer_reports_its_name_and_capacity_and_reads_nothing(self):
+        name = _unique("zt_fresh")
+        buffer = SharedFrameBuffer(name=name, max_bytes=64, create=True)
+        try:
+            assert buffer.max_bytes == 64
+            assert buffer.name.endswith(name) or buffer.name == name
+            assert name in repr(buffer)
+            # Sequence 0 with an all-zero header: no frame has been written.
+            assert buffer.read(0) is None
+        finally:
+            buffer.close_and_unlink()
+
+    def test_a_grayscale_frame_round_trips_with_its_two_d_shape(self):
+        buffer = SharedFrameBuffer(name=_unique("zt_gray"), max_bytes=64, create=True)
+        try:
+            frame = np.arange(12, dtype=np.uint8).reshape(3, 4)
+            meta = buffer.write(frame)
+            assert meta == {"shm_seq": 1, "shm_shape": (3, 4), "shm_dtype": "uint8"}
+            assert np.array_equal(buffer.read(1), frame)
+        finally:
+            buffer.close_and_unlink()
+
+    def test_a_frame_over_capacity_is_refused_and_leaves_the_sequence_alone(self):
+        buffer = SharedFrameBuffer(name=_unique("zt_big"), max_bytes=10, create=True)
+        try:
+            with pytest.raises(ValueError, match="exceeds buffer capacity"):
+                buffer.write(np.zeros((4, 4), dtype=np.uint8))
+            assert buffer.write(np.zeros((3, 3), dtype=np.uint8))["shm_seq"] == 1
+        finally:
+            buffer.close_and_unlink()
+
+    def test_a_header_that_claims_more_pixels_than_the_block_holds_reads_as_none(self):
+        import struct
+
+        from zebtrack.core.video.shared_frame_buffer import HEADER_FMT, HEADER_SIZE
+
+        buffer = SharedFrameBuffer(name=_unique("zt_lie"), max_bytes=16, create=True)
+        try:
+            buf = buffer._shm.buf
+            assert buf is not None
+            buf[:HEADER_SIZE] = struct.pack(HEADER_FMT, 5, 100, 100, 3)
+            assert buffer.read(5) is None
+            # A zero-sized frame is just as unusable.
+            buf[:HEADER_SIZE] = struct.pack(HEADER_FMT, 6, 0, 4, 3)
+            assert buffer.read(6) is None
+        finally:
+            buffer.close_and_unlink()
+
+    def test_closing_and_unlinking_twice_never_raises(self):
+        buffer = SharedFrameBuffer(name=_unique("zt_twice"), max_bytes=16, create=True)
+        buffer.close_and_unlink()
+        buffer.close()
+        buffer.unlink()

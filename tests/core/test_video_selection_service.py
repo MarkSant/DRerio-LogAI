@@ -113,3 +113,21 @@ def test_select_pending_statuses(status, expected):
     result = service.select_candidates([{"path": "x.mp4", "status": status}])
 
     assert result.candidate_count == expected
+
+
+def test_paths_that_cannot_be_normalised_are_never_selectable(monkeypatch):
+    service = VideoSelectionService()
+    monkeypatch.setattr(_NORMALIZE_ATTR, lambda path: None if path.startswith("bad") else path)
+
+    all_videos: list[dict[str, object]] = [
+        {"path": "bad.mp4", "status": "pending"},
+        {"path": "good.mp4", "status": "pending"},
+    ]
+
+    # The video whose path cannot be normalised is invisible to a targeted
+    # selection, and a target that cannot be normalised is dropped, not "missing".
+    result = service.select_candidates(all_videos, target_paths=["bad.mp4", "good.mp4"])
+
+    assert [entry["path"] for entry in result.candidate_entries] == ["good.mp4"]
+    assert result.missing_targets == []
+    assert result.selection_mode == "targeted"
