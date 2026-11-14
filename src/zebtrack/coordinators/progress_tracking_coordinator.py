@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -451,21 +452,34 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         detections = frame_data.get("detections", [])
         frame = frame_data.get("frame")
         frame_number = frame_data.get("frame_number", 0)
+        class_roles = frame_data.get("class_roles")
 
         if frame is not None:
             self.root.after(
                 0,
-                lambda f=frame, d=detections, n=frame_number: self._update_frame_display(f, d, n),
+                lambda f=frame, d=detections, n=frame_number, r=class_roles: (
+                    self._update_frame_display(f, d, n, class_roles=r)
+                ),
             )
 
-    def _update_frame_display(self, frame: Any, detections: list, frame_number: int) -> None:
-        """Update frame display with detections overlay (must run on main thread)."""
+    def _update_frame_display(
+        self,
+        frame: Any,
+        detections: list,
+        frame_number: int,
+        class_roles: Mapping[int, str] | None = None,
+    ) -> None:
+        """Update frame display with detections overlay (must run on main thread).
+
+        ``class_roles`` is the map the worker's detector resolved (#645); ``None``
+        lets the canvas fall back to the map the UI resolved for the project.
+        """
         if not self.view:
             return
         try:
             canvas_manager = getattr(self.view, "canvas_manager", None)
             if canvas_manager and hasattr(canvas_manager, "update_video_frame"):
-                canvas_manager.update_video_frame(frame, detections)
+                canvas_manager.update_video_frame(frame, detections, class_roles=class_roles)
         except Exception:  # except Exception justified: Tkinter canvas + getattr fallible
             log.debug("progress_tracking.frame_display.suppressed", exc_info=True)
 

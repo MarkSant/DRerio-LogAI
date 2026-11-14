@@ -74,6 +74,7 @@ class ProgressNotifierMixin:
             frame=None,
             stats=None,
             detections=None,
+            class_roles=None,
         ):
             if self.cancel_event.is_set():
                 return
@@ -140,6 +141,7 @@ class ProgressNotifierMixin:
                             data=DetectionOverlayPayload(
                                 detections=detections,
                                 report=processing_report,
+                                class_roles=class_roles,
                             ),
                         )
                     )
@@ -152,6 +154,7 @@ class ProgressNotifierMixin:
                             data=FrameDisplayPayload(
                                 frame=frame,
                                 detections=detections or [],
+                                class_roles=class_roles,
                             ),
                         )
                     )
@@ -174,6 +177,7 @@ class ProgressNotifierMixin:
             frame=None,
             stats=None,
             detections=None,
+            class_roles=None,
         ):
             if self.cancel_event.is_set():
                 return
@@ -215,6 +219,7 @@ class ProgressNotifierMixin:
                             data=DetectionOverlayPayload(
                                 detections=detections,
                                 report=processing_report,
+                                class_roles=class_roles,
                             ),
                         )
                     )
@@ -227,6 +232,7 @@ class ProgressNotifierMixin:
                             data=FrameDisplayPayload(
                                 frame=frame,
                                 detections=detections or [],
+                                class_roles=class_roles,
                             ),
                         )
                     )

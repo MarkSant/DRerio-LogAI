@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.canvas.video_frame_manager import VideoFrameManager
 from zebtrack.ui.components.canvas_manager import CanvasManager
 from zebtrack.ui.event_bus_v2 import UIEvents
@@ -411,7 +412,7 @@ class TestCanvasAccessAndEvents:
         assert delay == 0
 
         callback()  # o laco do Tk executa
-        canvas_manager.update_video_frame.assert_called_once_with(frame, [1, 2])
+        canvas_manager.update_video_frame.assert_called_once_with(frame, [1, 2], class_roles=None)
 
     def test_live_frames_drop_latest_instead_of_queueing(self, canvas_manager, mock_gui):
         """Frame novo SUBSTITUI o nao desenhado; so um redraw fica agendado."""
@@ -429,7 +430,7 @@ class TestCanvasAccessAndEvents:
 
         mock_gui.root.after.call_args[0][1]()
 
-        canvas_manager.update_video_frame.assert_called_once_with(third, [7])
+        canvas_manager.update_video_frame.assert_called_once_with(third, [7], class_roles=None)
 
     def test_live_frame_reschedules_after_rendering(self, canvas_manager, mock_gui):
         """Depois de desenhar, o proximo frame precisa agendar de novo."""
@@ -453,7 +454,7 @@ class TestCanvasAccessAndEvents:
         late = np.ones((2, 2, 3), dtype=np.uint8)
         drawn = []
 
-        def draw(frame, detections):
+        def draw(frame, detections, class_roles=None):
             drawn.append(frame)
             if len(drawn) == 1:
                 # Chega enquanto o primeiro esta sendo desenhado.
@@ -483,7 +484,7 @@ class TestCanvasAccessAndEvents:
 
         canvas_manager._on_live_frame_update({"frame": frame, "detections": []})
 
-        canvas_manager.update_video_frame.assert_called_once_with(frame, [])
+        canvas_manager.update_video_frame.assert_called_once_with(frame, [], class_roles=None)
 
     def test_unsubscribe_discards_the_pending_frame(self, canvas_manager, mock_gui):
         """Um frame pendente nao pode repintar o preview APOS o fim da sessao."""
@@ -1119,6 +1120,51 @@ class TestDetectionOverlay:
         canvas_manager._update_analysis_track_options_from_detections(detections)
 
         mock_gui.state_synchronizer._update_track_options.assert_called_once_with(["All", "1", "3"])
+
+
+class TestOverlayUsesTheDetectorsMap:
+    """#645: the map that came with the detections beats the one the UI resolved."""
+
+    @staticmethod
+    def _drawn_roles(canvas_manager, mock_gui, class_roles):
+        mock_gui.overlay_class_roles = {0: "arena", 1: "subject"}
+        mock_gui.overlay_class_names = None
+        frame = np.zeros((4, 4, 3), dtype=np.uint8)
+        with (
+            patch.object(VideoFrameManager, "_draw_detection_overlay_on_frame") as draw,
+            patch.object(
+                canvas_manager.video_frame, "_update_analysis_track_options_from_detections"
+            ),
+        ):
+            canvas_manager.update_video_frame(
+                frame, [(0, 0, 1, 1, 0.9, 1, 0)], class_roles=class_roles
+            )
+        return draw.call_args.kwargs["class_roles"]
+
+    def test_worker_map_wins_when_it_diverges(self, canvas_manager, mock_gui):
+        drawn = self._drawn_roles(canvas_manager, mock_gui, {0: "subject", 1: "context"})
+        assert drawn == {0: "subject", 1: "context"}
+
+    def test_empty_worker_map_keeps_legacy_colours(self, canvas_manager, mock_gui):
+        # The worker resolved a legacy alias map: no explicit roles to draw.
+        assert self._drawn_roles(canvas_manager, mock_gui, {}) == {}
+
+    def test_no_worker_map_falls_back_to_the_ui_map(self, canvas_manager, mock_gui):
+        drawn = self._drawn_roles(canvas_manager, mock_gui, None)
+        assert drawn == {0: "arena", 1: "subject"}
+
+    def test_live_frame_roles_reach_the_draw(self, canvas_manager, mock_gui):
+        canvas_manager.update_video_frame = Mock()
+        mock_gui.root = None
+        frame = np.zeros((2, 2, 3), dtype=np.uint8)
+        canvas_manager._on_live_frame_update(
+            payloads.UIUpdateLiveFramePayload(
+                frame=frame, detections=[], class_roles={0: "subject"}
+            )
+        )
+        canvas_manager.update_video_frame.assert_called_once_with(
+            frame, [], class_roles={0: "subject"}
+        )
 
 
 class TestFrameOverlayByRole:

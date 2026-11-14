@@ -50,6 +50,7 @@ from zebtrack.core.detection.class_roles import (
     ClassRoleMap,
     ClassRoleSource,
     ClassRolesUnresolvedError,
+    overlay_class_roles,
     parse_class_roles,
     resolve_class_role_map,
 )
@@ -280,9 +281,7 @@ def overlay_roles_for(role_map: ClassRoleMap | None) -> dict[int, str] | None:
     Only an EXPLICIT map (project or weight) recolours the boxes: an alias map of
     a zebrafish weight must leave the 7.2 overlay exactly as it was.
     """
-    if role_map is None or not role_map.is_explicit or not role_map.names:
-        return None
-    return {class_id: role_map.role_of_id(class_id).value for class_id in sorted(role_map.names)}
+    return overlay_class_roles(role_map) or None
 
 
 # ---------------------------------------------------------------------------

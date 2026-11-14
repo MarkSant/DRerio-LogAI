@@ -33,6 +33,7 @@ from zebtrack.core.video.processing_worker import (
     ProcessingCallbacks,
     ProcessingContext,
     ProcessingWorker,
+    class_roles_from_frame_info,
 )
 from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
@@ -878,7 +879,13 @@ class VideoProcessingCoordinator(
         def _on_frame_processed_wrapper(frame: Any, detections: Any, frame_number: Any) -> None:
             if ptc:
                 ptc._on_frame_processed(
-                    {"frame": frame, "detections": detections, "frame_number": frame_number}
+                    {
+                        "frame": frame,
+                        "detections": detections,
+                        "frame_number": frame_number,
+                        # The map the worker's detector resolved (#645).
+                        "class_roles": class_roles_from_frame_info(frame_number),
+                    }
                 )
 
         def _on_fatal_error_wrapper(exc: Exception, msg: str, data: dict) -> None:

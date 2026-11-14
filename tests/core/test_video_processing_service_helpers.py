@@ -216,13 +216,12 @@ def test_schedule_analysis_metadata_update_publishes():
     # execution so the test can assert on the final publish call.
     service.ui_coordinator.schedule_after.side_effect = lambda _delay, fn, *a, **kw: fn(*a, **kw)
 
-    service._schedule_analysis_metadata_update({"group": "G1"})
+    metadata = {"group": "G1"}
+    service._schedule_analysis_metadata_update(metadata)
 
+    expected = AnalysisMetadataPayload(metadata=metadata)
     service.ui_event_bus.publish.assert_called_once_with(
-        Event(
-            type=UIEvents.UI_UPDATE_ANALYSIS_METADATA,
-            data=AnalysisMetadataPayload(metadata={"group": "G1"}),
-        )
+        Event(type=UIEvents.UI_UPDATE_ANALYSIS_METADATA, data=expected)
     )
 
 
@@ -256,6 +255,39 @@ def test_make_progress_callback_publishes_status():
             ),
         )
     )
+
+
+def _published(service, event_type):
+    return [
+        call.args[0].data
+        for call in service.ui_event_bus.publish.call_args_list
+        if call.args[0].type == event_type
+    ]
+
+
+def test_progress_callbacks_publish_the_detectors_roles():
+    """#645: both callback variants forward the role map with the detections."""
+    for factory in ("_make_progress_callback", "create_progress_callback"):
+        service = _make_service()
+        callback = getattr(service, factory)(index=0, total_videos=1, experiment_id="exp1")
+        callback(0.5, "Processing", "frame", None, [(0, 0, 1, 1)], class_roles={2: "subject"})
+
+        overlay = _published(service, UIEvents.UI_UPDATE_DETECTION_OVERLAY)
+        frames = _published(service, UIEvents.UI_DISPLAY_FRAME)
+        assert [p.class_roles for p in overlay] == [{2: "subject"}], factory
+        assert [p.class_roles for p in frames] == [{2: "subject"}], factory
+
+
+def test_progress_callbacks_without_roles_publish_none():
+    for factory in ("_make_progress_callback", "create_progress_callback"):
+        service = _make_service()
+        callback = getattr(service, factory)(index=0, total_videos=1, experiment_id="exp1")
+        callback(0.5, "Processing", "frame", None, [])
+
+        overlay = _published(service, UIEvents.UI_UPDATE_DETECTION_OVERLAY)
+        frames = _published(service, UIEvents.UI_DISPLAY_FRAME)
+        assert [p.class_roles for p in overlay] == [None], factory
+        assert [p.class_roles for p in frames] == [None], factory
 
 
 def test_snapshot_results_dir_missing_returns_empty(tmp_path):
