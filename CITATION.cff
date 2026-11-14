@@ -14,7 +14,7 @@ authors:
     affiliation: "São Paulo State University (UNESP), Botucatu, Brazil"
 title: "DRerio LogAI"
 version: 8.0.0
-date-released: "2026-11-04"
+date-released: "2026-11-14"
 abstract: "An open-source, GPU-free platform for automated tracking, closed-loop stimulation and behavioural analysis of adult zebrafish (Danio rerio), combining YOLOv11 detection, BYTETracker multi-object tracking and Intel OpenVINO inference in an event-driven architecture."
 keywords:
   - "zebrafish"

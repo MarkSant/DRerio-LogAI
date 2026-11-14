@@ -518,9 +518,14 @@ it tracks the rat and not whatever class came first; a weight with no class reco
 animal is refused instead of tracking the wrong object. Each recording can also have its own
 **start and end of analysis**, defined by conditions (classes present or absent, ROI entries,
 time, Arduino codes, a manual mark) and measured on the recording's own clock — with a ready-made
-preset for the Barnes maze. Some numbers change on purpose (ROI latency, recording duration, the
-frame rate of variable-rate videos); the [release notes](docs/releases/RELEASE_NOTES_v8.0.0.md)
-say which and why.
+preset for the Barnes maze, which ends the trial when the rat enters the escape hole. Behaviour
+defaults no longer assume a fish: geotaxis is off in top-down views, the thigmotaxis band and the
+speed ceiling are set per project, and a _Rodent, top view_ wizard template fills them in. Live
+sessions with two aquariums now record and analyse each aquarium, with Arduino bindings per
+aquarium. The bundled weights are still the zebrafish ones: a weight for another species is added
+to the weight catalogue by you, with the role of each class. Some numbers change on purpose (ROI
+latency, recording duration, the frame rate of variable-rate videos, tracking gaps); the
+[release notes](docs/releases/RELEASE_NOTES_v8.0.0.md) say which and why.
 
 **Version 7.2.0** — the installer now installs Python and Poetry itself when they are missing,
 instead of asking you to do it in a terminal; the documentation was rewritten for people who have

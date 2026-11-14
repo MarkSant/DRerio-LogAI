@@ -9,10 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> **8.0.0 (unreleased)** — ainda sem tag e sem release. Quando o mantenedor
-> cortar a versão, esta seção vira `## [8.0.0] - <data>` e o `[Unreleased]` fica
-> vazio (`docs/guides/developer/RELEASE.md`, §5). O DOI da 8.0.0 ainda não
-> existe; os metadados citam o DOI conceitual.
+## [8.0.0] - 2026-11-14
 
 A 8.0.0 tira duas suposições herdadas do zebrafish: que todo peso tem exatamente
 duas classes (aquário e peixe) e que a análise começa no primeiro quadro em que o
@@ -22,6 +19,12 @@ definidos por condições — o caso que motivou a versão é o labirinto de Bar
 gravado a ~9,9 fps com tempo de quadro variável, em que o rato só deve ser
 medido depois que o experimentador sai de cena e a caixa de partida é retirada.
 Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
+
+**Pesos distribuídos.** O `fetch-weights` continua instalando só os seis pesos de
+zebrafish do `v7.0.0` (`weights_manifest.json` não mudou). Um peso de outra espécie,
+como o de rato do Barnes, é do usuário: ele o adiciona ao catálogo e diz o papel de
+cada classe (no peso, no projeto ou no assistente). É para esse uso que os papéis
+existem.
 
 ### Added
 
@@ -250,6 +253,9 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   | O `dt` do Kalman na sessão ao vivo de projeto é o intervalo de análise do projeto (#667) | a sessão detectava a cada N quadros do projeto, mas o tracker previa com `video_processing.processing_interval` (padrão 10) | Um projeto ao vivo com intervalo diferente do das configurações passa a prever a posição do animal com o passo real; a associação entre quadros detectados pode mudar onde a predição antiga errava. O diálogo ao vivo avulso e o lote já sincronizavam e não mudam. Os goldens agora rastreiam com `dt = 1` (antes 10) e não mudam. |
   | Multi-aquário grava a detecção, não a bbox do Kalman, e o aquário vazio avança o tracker (#668) | o multi gravava `track.tlbr` (posição filtrada, atrasada num animal que acelera) e pegava a classe de uma detecção a até 10 px do canto; um aquário vazio congelava a predição | `x1..y2` e `confidence` do `3_CoordMovimento` de projetos multi-aquário passam a ser os da detecção, como no aquário único; distância, velocidade e pertença a ROI mudam pouco, onde a bbox filtrada se afastava da detecção. Depois de uma ausência, a trilha volta onde o animal está, com a velocidade certa. O aquário único e os goldens (aquário único) não mudam. |
   | O relatório automático do pré-gravado (lote e vídeo único) lê o `behavioral_config` do projeto (#695) | o `AnalysisPipelineRunner` montava o `ReporterContext` com `{}`, enquanto "Gerar relatórios" já lia o projeto: o mesmo projeto saía com dois `.xlsx` diferentes | Projeto lateral: as colunas de geotaxia (`geotaxis_avg_bottom_distance_cm`, `geotaxis_time_near_bottom_pct`, limiar) passam a vir preenchidas e surgem `geotaxis_zone_*_pct` e `geotaxis_bottom_zones_pct`; o limiar de tigmotaxia é o do projeto. Projeto top-down: `aquarium_perspective` passa de `lateral` a `top_down`, a tigmotaxia usa o limiar do projeto (ex.: 15 cm em vez de 1,5) e o `.docx` perde os gráficos e as linhas de zona da geotaxia |
+  | Linhas sem `track_id` não são um animal (#671) | no multi-sujeito o detector gravava com `track_id=None` as detecções que o ByteTrack não confirmou, e cada leitor contava o NaN de um jeito: o validador o ignorava, o analisador de comportamento o tratava como mais um animal e a janela de análise não fazia triagem | O detector não grava mais essas linhas. Em parquets antigos, se existe ao menos uma trilha identificada, as linhas sem id saem da ANÁLISE com aviso (o `3_CoordMovimento` não muda), e `n_animais`, `unique_tracks` e `por_animal` concordam (no teste, 3 → 2 animais). Uma trajetória inteira sem id continua sendo um sujeito. Os `7_AnalysisWindow_` antigos são recalculados uma vez |
+  | `processing_offset` vale, com a mesma fase nos dois fluxos (#638) | o offset era validado e documentado, mas nenhum laço o lia; o pré-gravado analisava os quadros 0, N, 2N… e o ao vivo, N, 2N… | Os dois fluxos analisam os quadros da fonte k, N+k, 2N+k… (contados a partir de 0). Com o padrão do `config.yaml` (offset 1, intervalo 10), o pré-gravado passa de 0, 10, 20… para 1, 11, 21…, e o ao vivo passa a analisar o mesmo 2º quadro de cada 10: a fase muda em 1 quadro. Projetos com `analysis_interval_frames = 1` e os goldens não mudam |
+  | Máscaras `3b` e trajetória do sumário no mesmo espaço das ROIs (#640) | o relatório individual deslocava trajetória e ROIs para o espaço local da arena, mas entregava as máscaras cruas ao `seg_overlap`; o sumário padrão media a trajetória crua contra a arena retificada | Com a regra `seg_overlap` e a arena fora da origem, o tempo em ROI deixa de sair 0 s sem aviso. No sumário padrão, tempo em ROI, tigmotaxia e geotaxia passam a ser medidos contra a arena certa. Os goldens não mudam |
 
 - Relatórios individuais, sumários parquet e o reporter do pipeline tiravam a
   taxa de quadros de `settings.video_processing.fps`; agora usam
@@ -314,6 +320,17 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   dos scripts exportados. A marca no assistente passou a "DRerio LogAI" (o pacote
   continua `zebtrack`). Nenhuma chave persistida mudou; "Número de aquários"
   continua nomeando o recurso multi-aquário.
+- **torch, ultralytics e openvino carregam no primeiro uso (#643).** Seis módulos
+  os importavam no topo, entre eles `utils/__init__.py` e o registro de plugins; um
+  import qualquer do pacote pagava ~4 s. Agora `utils/optional_deps.py` os carrega
+  sob demanda e os atributos públicos (`YOLO`, `torch`, `DETECTOR_PLUGINS`…) são
+  resolvidos por `__getattr__` (PEP 562). Importar `zebtrack.core.detection` caiu de
+  4,5 s para 1 s; `tests/test_lazy_heavy_imports.py` verifica isso num interpretador
+  novo.
+- **bandit e pip-audit também rodam no pre-push, com uma única lista de exceções
+  (#648).** As exceções do pip-audit saíram do `ci.yml` para
+  `scripts/pip_audit_ignores.txt`, com as justificativas, e `scripts/run_pip_audit.py`
+  audita o mesmo conjunto no CI e localmente. Sem rede, o hook local só avisa.
 - Catálogo pt_BR completo: 272 msgids novas ou órfãs traduzidas (218 da v8 e
   antigas sem tradução, 54 da generalização) nos domínios `zebtrack` e
   `reporter`. O parágrafo "Definições" da validação no `.docx` estava fora de
@@ -328,8 +345,17 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   `analysis/reporters/html_reporter.py`, `time_axis.seconds_on_axis` (usado só
   por ele), o `plotly` e o `narwhals` do lock. O `.docx` e o `.xlsx` não mudam.
   Um guarda novo (`tests/analysis/reporters/test_reporters_package.py`) reprova
-  todo reporter público sem chamador fora do pacote; `ScriptExporter` está na
-  lista de órfãos conhecidos até #696 decidir o destino dele.
+  todo reporter público sem chamador fora do pacote.
+- **Exportação de scripts R/Python e `.feather` (`ScriptExporter`, #696).** Mesmo
+  caso do `HtmlReporter`: só os próprios testes o chamavam, e nenhum fluxo gravava o
+  `.feather` nem os modelos `.R`/`.py`. Saem o módulo, o re-export em
+  `analysis/reporters/__init__.py` e os testes; a lista de órfãos conhecidos do
+  guarda ficou vazia. O `.docx` e o `.xlsx` não mudam.
+- **Ajudantes de rastreio em processo sem chamador (#647).**
+  `core/video/tracking_session_runner.py` fica só com `run_tracking_if_needed`, que
+  entrega o vídeo ao `ProcessingWorker`. O caminho removido passava `calibration=`
+  ao `start_recording`, o que tiraria a trajetória dos pixels crus; o worker nunca
+  fez isso.
 - **"Frame skip dinâmico" do ao vivo (`_adjust_fps_dynamically`, #669).** Rodava
   depois de cada `detect()` e o veredito de pular só chegava a um `log.debug`:
   nenhum quadro deixava de ser analisado. Media a vazão da inferência (não a
@@ -541,6 +567,31 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   O e2e do Barnes passa a rodar o detector em modo sujeito único, como o worker
   faz para um projeto de 1 animal. Rodando em multi, a primeira linha do rato
   saía sem id e o relatório sem janela contava 2 animais. As asserções não mudam.
+- **O overlay desenhava com um mapa de papéis próprio, e os templates do assistente
+  perdiam os papéis (#645, #646).** Nenhum publicador preenchia
+  `DetectionOverlayPayload.class_roles`, e a interface resolvia o seu próprio mapa,
+  que podia divergir do usado pelo worker. Agora todo payload com detecções (lote,
+  vídeo único, ao vivo) leva o mapa do detector (`class_roles.overlay_class_roles`),
+  e a interface só resolve o seu quando o payload não traz nenhum. Os templates do
+  assistente passam ao schema 5, com um bloco `model_overrides` que guarda os
+  papéis pelo NOME normalizado e o sha256 do peso (ou `null` num template
+  distribuído). Ao aplicar um template com outro peso, `fit_class_roles()`
+  revalida os nomes, preenche os que casam e lista o que sobrou dos dois lados;
+  nunca cai para a posição. Templates v4 continuam abrindo, sem papéis.
+- **O painel de bindings do Arduino perdia o aquário do binding (#701).** O #656
+  deu a cada binding um `aquarium_id` opcional, mas o painel não tinha como
+  escolhê-lo, salvar por ele apagava o campo, e a linha da tabela era identificada
+  só pelo nome da ROI, de modo que ROIs homônimas em aquários diferentes colidiam
+  (um JSON com `Z1` nos dois aquários levantava `TclError`). O painel ganha a coluna
+  e o seletor "Aquário" (Todos / 1 / 2…), visíveis com dois ou mais aquários; a
+  linha passa a ser `(aquarium_id, roi)`, e o round trip preserva o campo.
+- **Bindings do Arduino não eram salvos num projeto recém-criado (#644).** Com o
+  `project_data` ainda vazio, o painel gravava os bindings num dicionário
+  descartável, o projeto era salvo sem eles e o status dizia "Configuração salva.".
+- **O aviso de divergência da janela ao vivo saía em meia frase inglesa (#642).**
+  O texto encaixava o token `START`/`STOP` numa frase traduzida. Agora há uma frase
+  completa por borda ("A sessão ao vivo iniciou/encerrou a janela de análise no
+  frame…").
 
 ## [7.2.0] - 2026-09-15
 

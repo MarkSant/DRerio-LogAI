@@ -6,11 +6,39 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-14] Preparação do release 8.0.0
+
+__ID:__ TASK-086
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ In Progress 🔄
+__Branch:__ release/8.0.0-prep (a partir de `release/8.0`, 695f6686)
+__Description:__
+Último PR antes do #629 (`release/8.0` → `main`) e da tag `v8.0.0`, conforme
+`docs/guides/developer/RELEASE.md` §5. Itens:
+
+- `CHANGELOG.md`: `[Unreleased]` vira `[8.0.0] - 2026-11-14`, completado com as entradas dos
+  PRs que não a atualizaram (#638, #640, #642, #643, #644, #645/#646, #647, #648, #671, #696
+  e #701);
+- `date-released` e `publication_date` na data da tag;
+- descrição do `.zenodo.json` explicando "qualquer peso, qualquer classe". O título fica como
+  está, por decisão do mantenedor;
+- notas de release da 8.0.0 com tudo o que entrou desde 04/11, e limitações conhecidas
+  revistas.
+
+Decisão do mantenedor: o peso do Barnes/rato __não__ entra no release. Ele fica de uso local,
+carregado à mão, com os papéis definidos manualmente; o `weights_manifest.json` continua
+apontando para os pesos de zebrafish do `v7.0.0`.
+
+__Critério de pronto:__
+
+- As cinco declarações de versão concordam, e as datas são as da tag.
+- Gates do §5 verdes; PR contra `release/8.0`.
+
 ### [2026-11-14] Padrões de roedor: template top-down e campo do teto de velocidade (#695)
 
 __ID:__ TASK-085
 __Agent:__ Claude Code (Opus 5.5)
-__Status:__ In Progress 🔄
+__Status:__ Completed ✅ (PR #714, mergeado em `release/8.0` como 695f6686)
 __Branch:__ claude/695-rodent-defaults-1e6b0e (a partir de `release/8.0`, 9765f510)
 __Description:__
 Sobra do #631. (1) Template embutido "roedor, vista superior" em `resources/wizard_templates/`
