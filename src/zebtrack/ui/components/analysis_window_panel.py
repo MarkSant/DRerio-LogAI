@@ -70,7 +70,7 @@ from zebtrack.core.conditions import (
     iter_nodes,
     spec_hash,
 )
-from zebtrack.core.conditions.presets import barnes_maze_preset
+from zebtrack.core.conditions.presets import BARNES_BURROW_ROI, barnes_maze_preset
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -783,6 +783,57 @@ def missing_class_names(spec: WindowSpec | None, available: Iterable[str]) -> li
     return [name for name in referenced_class_names(spec) if name not in known]
 
 
+def referenced_roi_names(spec: WindowSpec | None) -> list[str]:
+    """ROI names a spec waits for (``RoiEdge``/``RoiInside``), in order of first appearance."""
+    if spec is None:
+        return []
+    names: list[str] = []
+    for root in (spec.start, spec.stop):
+        if root is None:
+            continue
+        for node in iter_nodes(cast(ConditionNode, root)):
+            if isinstance(node, RoiEdge | RoiInside) and node.roi not in names:
+                names.append(node.roi)
+    return names
+
+
+def missing_roi_names(spec: WindowSpec | None, available: Iterable[str]) -> list[str]:
+    """ROI names the spec needs that the project does not define (#650).
+
+    Compared EXACTLY, as the evaluator does: a rule on ``toca`` never fires on a
+    ROI drawn as ``Toca``. Unlike :func:`missing_class_names`, an empty
+    ``available`` is an answer, not "unknown": a project with no ROI misses every
+    ROI the rule names, and a rule that waits for one would never fire.
+    """
+    known = set(available)
+    return [name for name in referenced_roi_names(spec) if name not in known]
+
+
+def match_roi_name(wanted: str, available: Iterable[str]) -> str:
+    """The project's own spelling of ``wanted``: exact first, then case-insensitive.
+
+    Lets a preset adopt a ROI the lab drew as ``Toca`` instead of naming one the
+    project does not have. Falls back to ``wanted`` when nothing matches, so the
+    editor can warn about it.
+    """
+    names = list(available)
+    if wanted in names:
+        return wanted
+    folded = wanted.strip().casefold()
+    for name in names:
+        if name.strip().casefold() == folded:
+            return name
+    return wanted
+
+
+def missing_roi_warning(missing: Iterable[str]) -> str:
+    """Sentence telling the researcher a rule waits for ROIs the project lacks."""
+    return _(
+        "This project has no ROI named {names}, so that line will never fire. "
+        "Draw it, or change the line."
+    ).format(names=", ".join(f"'{name}'" for name in missing))
+
+
 def _normalized_class_name(name: str) -> str:
     """The model's own normalization (``"Start Box"`` → ``"start_box"``)."""
     return ClassTarget.of_class(name).class_name or ""
@@ -1198,8 +1249,13 @@ class AnalysisWindowPanel(ttk.Frame):
         self._on_draft_changed()
 
     def apply_barnes_preset(self) -> None:
-        """Fill the editor with the Barnes-maze preset (not saved until "Save")."""
-        spec = barnes_maze_preset()
+        """Fill the editor with the Barnes-maze preset (not saved until "Save").
+
+        The burrow line takes the project's own spelling of ``toca`` when one
+        exists; a project without it gets the line anyway, with a warning (#650).
+        """
+        roi_names = self._roi_names()
+        spec = barnes_maze_preset(burrow_roi=match_roi_name(BARNES_BURROW_ROI, roi_names))
         drafts = drafts_from_spec(spec)
         if drafts is None:  # pragma: no cover - guarded by the round-trip test
             log.error("analysis_window_panel.preset.not_representable")
@@ -1209,15 +1265,20 @@ class AnalysisWindowPanel(ttk.Frame):
         self.on_stop.set(on_stop_labels()[spec.on_stop])
         self.open_editor()
         self._on_draft_changed()
+        problems: list[str] = []
         missing = missing_class_names(spec, self._class_names())
         if missing:
-            self._set_status(
+            problems.append(
                 _(
                     "Preset loaded. The current model has no class named {names}; "
                     "review the lines, then Save."
-                ).format(names=", ".join(f"'{name}'" for name in missing)),
-                error=True,
+                ).format(names=", ".join(f"'{name}'" for name in missing))
             )
+        missing_rois = missing_roi_names(spec, roi_names)
+        if missing_rois:
+            problems.append(missing_roi_warning(missing_rois))
+        if problems:
+            self._set_status(" ".join(problems), error=True)
         else:
             self._set_status(_("Preset loaded. Review the lines, then Save."))
 
@@ -1252,9 +1313,9 @@ class AnalysisWindowPanel(ttk.Frame):
         try:
             if getattr(self.project_manager, "project_path", None):
                 self.project_manager.save_project()
-                self._set_status(_("Analysis window saved."))
+                done = _("Analysis window saved.")
             else:
-                self._set_status(_("Analysis window applied (project has no path on disk)."))
+                done = _("Analysis window applied (project has no path on disk).")
         # except Exception justified: disk/serialization errors must not crash the
         # UI; the in-memory value is rolled back so memory and disk agree.
         except Exception as exc:
@@ -1267,6 +1328,13 @@ class AnalysisWindowPanel(ttk.Frame):
         self._dirty = False
         self._show_notice("")
         self._update_preview()
+        missing_rois = missing_roi_names(spec, self._roi_names())
+        if missing_rois:
+            # Kept as the researcher asked, but never silently (#650).
+            log.warning("analysis_window_panel.save.missing_rois", rois=missing_rois)
+            self._set_status(f"{done} {missing_roi_warning(missing_rois)}", error=True)
+        else:
+            self._set_status(done)
         log.info(
             "analysis_window_panel.save.success",
             has_window=spec is not None,
@@ -1434,13 +1502,23 @@ class AnalysisWindowPanel(ttk.Frame):
         return [str(name) for name in names if str(name).strip()]
 
     def _roi_names(self) -> list[str]:
+        """ROIs of the current zones, then every other ROI the project defines.
+
+        A pre-recorded project keeps its ROIs per video, so the current zones alone
+        may hold none while every video has a ``toca``.
+        """
+        from zebtrack.core.project.zone_manager import ZoneManager
+
         try:
             zone_data = self.project_manager.get_zone_data()
         # except Exception justified: zone data may be unavailable early on.
         except Exception:
-            return []
-        names = list(getattr(zone_data, "roi_names", []) or [])
-        return [str(n) for n in names if str(n).strip()]
+            zone_data = None
+        names = [str(n) for n in (getattr(zone_data, "roi_names", []) or []) if str(n).strip()]
+        for name in ZoneManager.roi_names_in_project(self._project_data()):
+            if name not in names:
+                names.append(name)
+        return names
 
     def _set_status(self, message: str, *, error: bool = False) -> None:
         for label in (self._status, self._editor_status):

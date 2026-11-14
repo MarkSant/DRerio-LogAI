@@ -19,10 +19,13 @@ from zebtrack.core.conditions.model import (
     FirstOf,
     Hold,
     Persist,
+    RoiEdge,
+    TriggerNode,
     WindowSpec,
 )
 
 __all__ = [
+    "BARNES_BURROW_ROI",
     "BARNES_EXPERIMENTER_CLASS",
     "BARNES_START_BOX_CLASS",
     "BARNES_SUBJECT_CLASS",
@@ -38,6 +41,11 @@ BARNES_START_BOX_CLASS = "start_box"
 BARNES_EXPERIMENTER_CLASS = "experimenter"
 BARNES_SUBJECT_CLASS = "rat"
 
+#: Default name of the escape-hole ROI. It is the name the lab draws, matched
+#: EXACTLY by the evaluator (``RoiEdge``), so it is a project-data token, never
+#: translated. The editor adopts the project's own spelling when it differs.
+BARNES_BURROW_ROI = "toca"
+
 #: Codes of the pre-v8 "External Trigger Mode": the Arduino sends 1 to start
 #: the recording and 0 to end it (see ``LiveConfigStep``'s tooltip).
 LEGACY_TRIGGER_START_CODE = 1
@@ -48,6 +56,7 @@ def barnes_maze_preset(
     k_frames: int = 5,
     absent_s: float = 3.0,
     max_s: float = 240.0,
+    burrow_roi: str | None = BARNES_BURROW_ROI,
 ) -> WindowSpec:
     """Barnes-maze window: start on release, stop on escape or at the ceiling.
 
@@ -56,7 +65,17 @@ def barnes_maze_preset(
       event is back-dated to the first frame of that run.
     - **STOP** — the first of: the recording ends; the rat is absent for
       ``absent_s`` seconds (it entered the escape box, back-dated to the first
-      absent frame); ``max_s`` seconds after START (protocol ceiling, censored).
+      absent frame); the rat enters the ``burrow_roi`` ROI (#650); ``max_s``
+      seconds after START (protocol ceiling, censored).
+
+    The burrow line exists because the rat is often still detected when the
+    recording stops — the lab's videos end on the protocol's abort — so the
+    absence line never fires and the trial came out censored at the end of the
+    video. ``burrow_roi=None`` leaves it out. A project without a ROI of that
+    name never fires it (the other lines still close the window); the analysis
+    window editor warns about it instead of accepting it silently. It sits before
+    the ceiling so that, on the rare frame where both fire, the trial reads as an
+    escape rather than as censored.
 
     Production defaults (``5`` frames, ``3.0`` s, ``240.0`` s):
 
@@ -72,17 +91,19 @@ def barnes_maze_preset(
       within that time resets the run, as the protocol wants (four paws in).
     - ``max_s=240.0`` is the protocol's trial ceiling (AUDIT §6).
 
-    ``tests/fixtures/conditions/barnes_window.json`` is the same shape with test
-    numbers (``k_frames=3``, ``absent_s=2.0``); its test calls this function with
-    those values explicitly.
+    ``tests/fixtures/conditions/barnes_window.json`` predates the burrow line: it
+    is this function with test numbers (``k_frames=3``, ``absent_s=2.0``) and
+    ``burrow_roi=None``; its test calls it with those values explicitly.
 
     Raises:
         ValueError: ``max_s`` is not positive (a zero ceiling would close every
-            window on its first frame). ``pydantic.ValidationError`` for
-            ``k_frames < 1`` or ``absent_s <= 0``.
+            window on its first frame), or ``burrow_roi`` is blank.
+            ``pydantic.ValidationError`` for ``k_frames < 1`` or ``absent_s <= 0``.
     """
     if not max_s > 0:
         raise ValueError(f"max_s must be positive, got {max_s!r}")
+    if burrow_roi is not None and not burrow_roi.strip():
+        raise ValueError(f"burrow_roi must be a ROI name or None, got {burrow_roi!r}")
     start = Persist(
         level=AllOfLevel(
             children=(
@@ -102,20 +123,20 @@ def barnes_maze_preset(
         ),
         hold=Hold(frames=k_frames),
     )
-    stop = FirstOf(
-        children=(
-            EndOfStream(),
-            Persist(
-                level=ClassPresence(
-                    target=ClassTarget.of_class(BARNES_SUBJECT_CLASS),
-                    present=False,
-                ),
-                hold=Hold(seconds=absent_s),
+    stop_lines: list[TriggerNode] = [
+        EndOfStream(),
+        Persist(
+            level=ClassPresence(
+                target=ClassTarget.of_class(BARNES_SUBJECT_CLASS),
+                present=False,
             ),
-            Delay(after="start", seconds=max_s),
-        )
-    )
-    return WindowSpec(start=start, stop=stop)
+            hold=Hold(seconds=absent_s),
+        ),
+    ]
+    if burrow_roi is not None:
+        stop_lines.append(RoiEdge(roi=burrow_roi, edge="enter"))
+    stop_lines.append(Delay(after="start", seconds=max_s))
+    return WindowSpec(start=start, stop=FirstOf(children=tuple(stop_lines)))
 
 
 def external_trigger_preset(

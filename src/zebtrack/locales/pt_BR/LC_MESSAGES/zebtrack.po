@@ -4979,6 +4979,15 @@ msgstr ""
 "Predefinição carregada. O modelo atual não tem classe chamada {names}; "
 "revise as linhas e depois clique em Salvar."
 
+#: src/zebtrack/ui/components/analysis_window_panel.py:794
+#, python-brace-format
+msgid ""
+"This project has no ROI named {names}, so that line will never fire. Draw "
+"it, or change the line."
+msgstr ""
+"Este projeto não tem ROI chamada {names}, então essa linha nunca vai "
+"disparar. Desenhe a ROI ou altere a linha."
+
 #: src/zebtrack/ui/components/analysis_window_panel.py:1222
 msgid "Preset loaded. Review the lines, then Save."
 msgstr "Predefinição carregada. Revise as linhas e depois clique em Salvar."

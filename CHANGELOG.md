@@ -194,8 +194,16 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   como lista fechada. Evento `ANALYSIS_WINDOW_SPEC_CHANGED`.
 - **Predefinição "labirinto de Barnes"** (`core/conditions/presets.py`): início
   quando a caixa de partida e o experimentador somem e o rato aparece, por 5
-  quadros seguidos; fim no primeiro de fim do vídeo, rato ausente por 3 s ou 240 s
-  após o início. Avisa sobre classes que o peso não tem.
+  quadros seguidos; fim no primeiro de fim do vídeo, rato ausente por 3 s, rato
+  entrando na ROI `toca` ou 240 s após o início. Avisa sobre classes que o peso
+  não tem.
+- **O fim do Barnes também é a entrada na toca (#650).** Nos vídeos reais o rato
+  fica visível até o último quadro (a gravação termina no "abort" do protocolo),
+  então "rato ausente" nunca disparava e o fim saía censurado no fim do vídeo. O
+  preset adota a grafia do projeto (`Toca`) quando ela difere; se o projeto não
+  tem a ROI, o editor da janela avisa ao carregar o preset e ao salvar, em vez de
+  aceitar uma linha que nunca dispara. A procura olha as ROIs de cada vídeo, não
+  só as globais (um projeto pré-gravado não as espelha mais).
 - **Templates do assistente na versão 4**: guardam a janela de análise. Um
   template v3 com "Modo de Gatilho Externo" ligado é convertido ao carregar em uma
   janela equivalente (código 1 do Arduino inicia, código 0 para e encerra a sessão
