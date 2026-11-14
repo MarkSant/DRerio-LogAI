@@ -573,3 +573,98 @@ class TestSessionIntervalReachesTheDetector:
 
         assert tracker is not None
         assert tracker.processing_interval == 3
+
+
+class _Recorder:
+    """Records how it was stopped; raises when told to."""
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.error = error
+        self.calls: list[dict[str, Any]] = []
+
+    def stop_recording(self, **kwargs: Any) -> None:
+        self.calls.append(kwargs)
+        if self.error is not None:
+            raise self.error
+
+
+class TestFinalizeRecorder:
+    """A failed save at the end of a live session must reach the operator (audit A5-S-002)."""
+
+    @staticmethod
+    def _service(tmp_path: Path, recorder: _Recorder | None) -> DummyLiveService:
+        service = DummyLiveService(tmp_path)
+        service.recorder = recorder  # type: ignore[assignment]
+        service.current_output_dir = tmp_path / "live_20261114_120000"
+        return service
+
+    @staticmethod
+    def _shown_errors(service: DummyLiveService) -> list[Any]:
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        events = [call.args[0] for call in service.event_bus.publish.call_args_list]
+        return [event for event in events if event.type is UIEvents.SHOW_ERROR]
+
+    def test_a_normal_end_stops_without_forcing_and_reports_nothing(self, tmp_path: Path):
+        recorder = _Recorder()
+        service = self._service(tmp_path, recorder)
+
+        service._finalize_recorder(cancelled_session=False, threads_hung=False)
+
+        assert recorder.calls == [{}]
+        assert service._recorder_stop_error is None
+        assert self._shown_errors(service) == []
+
+    def test_a_failed_save_is_shown_with_the_cause_and_the_folder(self, tmp_path: Path):
+        service = self._service(tmp_path, _Recorder(OSError("disk full")))
+
+        service._finalize_recorder(cancelled_session=False, threads_hung=False)
+
+        assert service._recorder_stop_error == "disk full"
+        (event,) = self._shown_errors(service)
+        assert event.data.title == "Recording not saved"
+        assert "disk full" in event.data.message
+        assert str(service.current_output_dir) in event.data.message
+        assert "_BACKUP.json" in event.data.message
+
+    def test_a_failed_save_does_not_abort_the_shutdown(self, tmp_path: Path):
+        # Camera, preview and buttons are released after this call: it must return.
+        service = self._service(tmp_path, _Recorder(RuntimeError("writer lost")))
+        service.event_bus = None
+
+        service._finalize_recorder(cancelled_session=False, threads_hung=False)
+
+        assert service._recorder_stop_error == "writer lost"
+
+    def test_a_cancelled_session_is_forced_and_its_failure_is_not_an_error(self, tmp_path: Path):
+        recorder = _Recorder(OSError("already closed"))
+        service = self._service(tmp_path, recorder)
+
+        service._finalize_recorder(cancelled_session=True, threads_hung=False)
+
+        assert recorder.calls == [{"force_stop": True, "reason": "user_cancelled"}]
+        # The data is being discarded on purpose: nothing was lost that the user wanted.
+        assert service._recorder_stop_error is None
+        assert self._shown_errors(service) == []
+
+    def test_a_hung_thread_is_recorded_as_the_reason(self, tmp_path: Path):
+        recorder = _Recorder()
+        service = self._service(tmp_path, recorder)
+
+        service._finalize_recorder(cancelled_session=False, threads_hung=True)
+
+        assert recorder.calls == [{"force_stop": True, "reason": "thread_hang"}]
+
+    def test_an_earlier_failure_does_not_leak_into_the_next_session(self, tmp_path: Path):
+        service = self._service(tmp_path, _Recorder(OSError("disk full")))
+        service._finalize_recorder(cancelled_session=False, threads_hung=False)
+
+        service.recorder = _Recorder()  # type: ignore[assignment]
+        service._finalize_recorder(cancelled_session=False, threads_hung=False)
+
+        assert service._recorder_stop_error is None
+
+    def test_without_a_recorder_there_is_nothing_to_do(self, tmp_path: Path):
+        service = self._service(tmp_path, None)
+        service._finalize_recorder(cancelled_session=False, threads_hung=False)
+        assert service._recorder_stop_error is None

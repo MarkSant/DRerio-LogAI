@@ -933,15 +933,26 @@ class Recorder:
         """
         Stop recording for all aquariums.
 
+        Every aquarium is stopped even when an earlier one fails, so one bad
+        write never costs the others their data. The failures are then raised
+        together: until 8.0 they were only logged, the worker reported the
+        video as finished and an aquarium was left without a trajectory, while
+        the single-aquarium path re-raised the very same failure.
+
         Args:
-            force_stop: If True, forces cleanup without saving data.
+            force_stop: If True, forces cleanup without saving data. A forced
+                stop is the error-state path and never raises.
             reason: Forwarded to every sub-recorder's ``stop_recording``.
+
+        Raises:
+            RecorderError: One or more aquariums could not be finalised.
         """
         if not self._multi_aquarium_mode:
             log.warning("recorder.multi_aquarium.stop.not_active")
             return
 
         self._release_session_video()
+        failures: list[tuple[int, str]] = []
         for aq_id, recorder in list(self._aquarium_recorders.items()):
             try:
                 recorder.stop_recording(force_stop=force_stop, reason=reason)
@@ -949,7 +960,8 @@ class Recorder:
                     "recorder.multi_aquarium.recorder_stopped",
                     aquarium_id=aq_id,
                 )
-            # except Exception justified: stop_recording per aquarium
+            # except Exception justified: keep stopping the other aquariums;
+            # the failure is collected and raised after the loop
             except Exception as e:
                 log.error(
                     "recorder.multi_aquarium.stop_failed",
@@ -957,10 +969,17 @@ class Recorder:
                     error=str(e),
                     exc_info=True,
                 )
+                failures.append((aq_id, str(e)))
 
         self._aquarium_recorders.clear()
         self._multi_aquarium_mode = False
-        log.info("recorder.multi_aquarium.stopped")
+        log.info("recorder.multi_aquarium.stopped", failed_aquariums=len(failures))
+
+        if failures and not force_stop:
+            from zebtrack.core.exceptions import RecorderError
+
+            details = "; ".join(f"aquarium {aq_id + 1}: {error}" for aq_id, error in failures)
+            raise RecorderError(f"Recording could not be finalised for {details}")
 
     def is_multi_aquarium_mode(self) -> bool:
         """Check if recorder is in multi-aquarium mode."""

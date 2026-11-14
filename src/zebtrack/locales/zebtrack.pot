@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-14 08:44-0300\n"
+"POT-Creation-Date: 2026-11-14 20:57-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,7 +18,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: src/zebtrack/analysis/analysis_service.py:425
+#: src/zebtrack/analysis/analysis_service.py:426
 #, python-brace-format
 msgid ""
 "Trajectory with {count} animals (track_ids). The ROI metrics at the top "
@@ -30,41 +30,41 @@ msgid ""
 "caution."
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1443
+#: src/zebtrack/analysis/analysis_service.py:1412
 #: src/zebtrack/coordinators/ui_state_coordinator.py:710
 #, python-brace-format
 msgid "Starting processing for {count} videos..."
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1537
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2054
+#: src/zebtrack/analysis/analysis_service.py:1506
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2082
 msgid "Analysis Error"
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1538
+#: src/zebtrack/analysis/analysis_service.py:1507
 #, python-brace-format
 msgid "An unexpected error occurred: {error}"
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1582
+#: src/zebtrack/analysis/analysis_service.py:1551
 #: src/zebtrack/coordinators/ui_state_coordinator.py:731
 msgid "Cancelled"
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1582
+#: src/zebtrack/analysis/analysis_service.py:1551
 msgid "Video analysis was cancelled."
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1586
+#: src/zebtrack/analysis/analysis_service.py:1555
 #, python-brace-format
 msgid ""
 "Analysis finished. Results saved to:\n"
 "{path}"
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1587
+#: src/zebtrack/analysis/analysis_service.py:1556
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:760
-#: src/zebtrack/coordinators/video_processing_coordinator.py:548
+#: src/zebtrack/coordinators/video_processing_coordinator.py:549
 #: src/zebtrack/ui/components/canvas/event_handler.py:792
 #: src/zebtrack/ui/components/canvas/multi_aquarium_overlay.py:235
 #: src/zebtrack/ui/components/canvas/zone_editor.py:968
@@ -75,9 +75,9 @@ msgstr ""
 msgid "Success"
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1589
+#: src/zebtrack/analysis/analysis_service.py:1558
 #: src/zebtrack/coordinators/_unified_report_mixin.py:237
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:526
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:540
 #: src/zebtrack/coordinators/recording_session_coordinator.py:657
 #: src/zebtrack/ui/components/canvas/zone_editor.py:322
 msgid "Ready."
@@ -272,7 +272,7 @@ msgid ""
 msgstr ""
 
 #: src/zebtrack/coordinators/_single_video_mixin.py:107
-#: src/zebtrack/coordinators/video_processing_coordinator.py:1056
+#: src/zebtrack/coordinators/video_processing_coordinator.py:1063
 msgid "Incomplete Configuration"
 msgstr ""
 
@@ -301,9 +301,9 @@ msgstr ""
 #: src/zebtrack/coordinators/project_lifecycle_coordinator.py:452
 #: src/zebtrack/core/recording/recording_service.py:154
 #: src/zebtrack/core/recording/recording_service.py:207
-#: src/zebtrack/ui/builders/analysis_widgets.py:319
-#: src/zebtrack/ui/builders/analysis_widgets.py:433
-#: src/zebtrack/ui/builders/analysis_widgets.py:573
+#: src/zebtrack/ui/builders/analysis_widgets.py:351
+#: src/zebtrack/ui/builders/analysis_widgets.py:462
+#: src/zebtrack/ui/builders/analysis_widgets.py:616
 #: src/zebtrack/ui/builders/zone_widgets.py:144
 #: src/zebtrack/ui/builders/zone_widgets.py:150
 #: src/zebtrack/ui/components/arduino_dashboard.py:309
@@ -324,7 +324,7 @@ msgstr ""
 #: src/zebtrack/ui/components/dialog_manager.py:1824
 #: src/zebtrack/ui/components/dialog_manager.py:1867
 #: src/zebtrack/ui/components/event_dispatcher.py:358
-#: src/zebtrack/ui/components/event_dispatcher.py:1272
+#: src/zebtrack/ui/components/event_dispatcher.py:1273
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:606
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:621
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:629
@@ -355,11 +355,8 @@ msgstr ""
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:1202
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:1246
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:1851
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:396
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:236
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:244
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:541
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:579
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:547
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:585
 #: src/zebtrack/ui/dialogs/start_recording_dialog.py:235
 #: src/zebtrack/ui/gui.py:174 src/zebtrack/ui/gui.py:913
 #: src/zebtrack/ui/gui.py:991 src/zebtrack/ui/project_workflow_adapter.py:215
@@ -532,13 +529,12 @@ msgid "No video is currently registered in the project"
 msgstr ""
 
 #: src/zebtrack/coordinators/_video_selection_mixin.py:216
-#: src/zebtrack/coordinators/video_processing_coordinator.py:959
+#: src/zebtrack/coordinators/video_processing_coordinator.py:966
 msgid "Validation Failed"
 msgstr ""
 
 #: src/zebtrack/coordinators/_video_selection_mixin.py:226
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:57
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:62
 #: src/zebtrack/ui/wizard/detection_step.py:221
 msgid "No video selected."
 msgstr ""
@@ -607,12 +603,12 @@ msgstr ""
 msgid "No project loaded; changes update the global defaults."
 msgstr ""
 
-#: src/zebtrack/coordinators/detector_setup_coordinator.py:553
+#: src/zebtrack/coordinators/detector_setup_coordinator.py:526
 #, python-brace-format
 msgid "Invalid scope: {scope}. It must be 'global' or 'project'."
 msgstr ""
 
-#: src/zebtrack/coordinators/detector_setup_coordinator.py:613
+#: src/zebtrack/coordinators/detector_setup_coordinator.py:586
 #, python-brace-format
 msgid "Invalid detector parameter: {detail}"
 msgstr ""
@@ -744,8 +740,8 @@ msgid "No Project Loaded"
 msgstr ""
 
 #: src/zebtrack/coordinators/dialog_coordinator.py:405
-#: src/zebtrack/coordinators/video_processing_coordinator.py:500
-#: src/zebtrack/coordinators/video_processing_coordinator.py:605
+#: src/zebtrack/coordinators/video_processing_coordinator.py:501
+#: src/zebtrack/coordinators/video_processing_coordinator.py:606
 msgid "No Video Found"
 msgstr ""
 
@@ -755,10 +751,10 @@ msgstr ""
 
 #: src/zebtrack/coordinators/dialog_coordinator.py:426
 #: src/zebtrack/coordinators/dialog_coordinator.py:436
-#: src/zebtrack/ui/builders/analysis_widgets.py:285
-#: src/zebtrack/ui/builders/analysis_widgets.py:427
-#: src/zebtrack/ui/builders/analysis_widgets.py:443
-#: src/zebtrack/ui/components/event_dispatcher.py:1267
+#: src/zebtrack/ui/builders/analysis_widgets.py:317
+#: src/zebtrack/ui/builders/analysis_widgets.py:456
+#: src/zebtrack/ui/builders/analysis_widgets.py:472
+#: src/zebtrack/ui/components/event_dispatcher.py:1268
 #: src/zebtrack/ui/components/validation_manager.py:147
 #: src/zebtrack/ui/components/validation_manager.py:162
 #: src/zebtrack/ui/components/validation_manager.py:1628
@@ -852,7 +848,7 @@ msgid ""
 msgstr ""
 
 #: src/zebtrack/coordinators/live_calibration_coordinator.py:1213
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:711
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:791
 msgid "Detection Error"
 msgstr ""
 
@@ -906,20 +902,20 @@ msgid "Analysis finished."
 msgstr ""
 
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1109
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1946
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2518
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1974
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2546
 msgid "Countdown to start the live analysis."
 msgstr ""
 
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1111
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1948
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2520
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:1976
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2548
 msgid "Starting the live analysis."
 msgstr ""
 
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:1212
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2020
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2592
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2048
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2620
 msgid "Live analysis in progress."
 msgstr ""
 
@@ -947,22 +943,23 @@ msgstr ""
 msgid "Failed to end the recording: {error}"
 msgstr ""
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2040
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2068
 #, python-brace-format
 msgid "Analysing camera {camera} (analysis: {analysis}f, display: {display}f)"
 msgstr ""
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2055
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2083
 #, python-brace-format
 msgid "Failed to start the analysis of camera {camera}."
 msgstr ""
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2127
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2155
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:76
 #, python-brace-format
 msgid " (port {port})"
 msgstr ""
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2129
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2157
 #, python-brace-format
 msgid ""
 "This project uses External Trigger Mode, but the Arduino is not "
@@ -975,7 +972,7 @@ msgid ""
 "IDE, serial monitor), and reopen the project to reconnect."
 msgstr ""
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2139
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2167
 msgid ""
 "This project has External Trigger Mode on, but no Arduino configured.\n"
 "\n"
@@ -984,23 +981,23 @@ msgid ""
 "trigger off in the project settings."
 msgstr ""
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2149
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2177
 #: src/zebtrack/coordinators/recording_session_coordinator.py:554
 msgid "External Trigger Unavailable"
 msgstr ""
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2183
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2211
 #: src/zebtrack/coordinators/recording_session_coordinator.py:581
 #, python-brace-format
 msgid "Waiting for external signal... (port {port})"
 msgstr ""
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2366
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2394
 #: src/zebtrack/ui/components/project_initializer.py:422
 msgid "Camera not found"
 msgstr ""
 
-#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2368
+#: src/zebtrack/coordinators/live_camera_session_coordinator.py:2396
 #, python-brace-format
 msgid ""
 "The camera saved in the project ('{name}') was not detected.\n"
@@ -1241,108 +1238,108 @@ msgid ""
 "detection — check it before analysing if the tank is not rectangular."
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:261
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:262
 #, python-brace-format
 msgid "Processing: {name}"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:404
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:405
 #, python-brace-format
 msgid "Processing frames: {done}/{total}"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:437
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:438
 #, python-brace-format
 msgid "Processing: {done}/{total} frames ({pct}%) - {detected} detections"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:477
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:491
 msgid "Unknown error"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:490
-#: src/zebtrack/core/video/analysis_pipeline_runner.py:769
-#: src/zebtrack/core/video/analysis_pipeline_runner.py:803
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:504
+#: src/zebtrack/core/video/analysis_pipeline_runner.py:798
+#: src/zebtrack/core/video/analysis_pipeline_runner.py:832
 #: src/zebtrack/core/video/video_context_factory.py:297
 #: src/zebtrack/core/video/video_context_factory.py:317
 msgid "Processing Error"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:495
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:509
 msgid "Unknown fatal error"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:518
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:532
 msgid "Fatal Error"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:532
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:546
 msgid "Finalizing..."
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:590
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:604
 msgid "Processing finished successfully."
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:592
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:606
 #, python-brace-format
 msgid ""
 "\n"
 "Results in: {directory}"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:596
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:610
 #: src/zebtrack/ui/components/canvas/zone_editor.py:643
 msgid "Finished"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:628
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:642
 #, python-brace-format
 msgid "Batch processing finished in {seconds}s."
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:629
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:643
 #, python-brace-format
 msgid ""
 "\n"
 "✅ Finished: {count}"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:631
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:645
 #, python-brace-format
 msgid "❌ Failures: {count}"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:633
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:647
 #, python-brace-format
 msgid "⏭️ Skipped: {count}"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:635
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:649
 msgid ""
 "\n"
 "Errors:"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:639
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:653
 #, python-brace-format
 msgid "  ... (+{count} errors)"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:645
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:659
 msgid "Batch Processing"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:685
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:699
 msgid "Cancelling processing..."
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:709
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:723
 #: src/zebtrack/ui/components/project_views/report_asset_actions.py:108
 msgid "video"
 msgstr ""
 
-#: src/zebtrack/coordinators/progress_tracking_coordinator.py:731
+#: src/zebtrack/coordinators/progress_tracking_coordinator.py:745
 #, python-brace-format
 msgid "Processing {name}: {done}/{total} ({pct}%) - {detected} detections{eta}"
 msgstr ""
@@ -1555,7 +1552,7 @@ msgid "The video analysis was cancelled."
 msgstr ""
 
 #: src/zebtrack/coordinators/ui_state_coordinator.py:736
-#: src/zebtrack/coordinators/video_processing_coordinator.py:523
+#: src/zebtrack/coordinators/video_processing_coordinator.py:524
 msgid "Processing Finished"
 msgstr ""
 
@@ -1567,104 +1564,103 @@ msgid ""
 "{directory}"
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:485
-#: src/zebtrack/coordinators/video_processing_coordinator.py:590
+#: src/zebtrack/coordinators/video_processing_coordinator.py:486
+#: src/zebtrack/coordinators/video_processing_coordinator.py:591
 msgid "Select Videos or Folders to Add to the Project"
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:487
-#: src/zebtrack/coordinators/video_processing_coordinator.py:592
+#: src/zebtrack/coordinators/video_processing_coordinator.py:488
+#: src/zebtrack/coordinators/video_processing_coordinator.py:593
 #: src/zebtrack/ui/components/dialog_manager.py:518
 #: src/zebtrack/ui/components/dialog_manager.py:547
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:562
 #: src/zebtrack/ui/components/roi_template_manager.py:425
 #: src/zebtrack/ui/dialogs/save_roi_template_dialog.py:225
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:525
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:531
 msgid "All files"
-msgstr ""
-
-#: src/zebtrack/coordinators/video_processing_coordinator.py:488
-#: src/zebtrack/coordinators/video_processing_coordinator.py:593
-#: src/zebtrack/ui/components/model_diagnostics_panel.py:822
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:285
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:524
-#: src/zebtrack/ui/wizard/file_selection_step.py:240
-msgid "Video files"
 msgstr ""
 
 #: src/zebtrack/coordinators/video_processing_coordinator.py:489
 #: src/zebtrack/coordinators/video_processing_coordinator.py:594
+#: src/zebtrack/ui/components/model_diagnostics_panel.py:822
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:530
+#: src/zebtrack/ui/wizard/file_selection_step.py:240
+msgid "Video files"
+msgstr ""
+
+#: src/zebtrack/coordinators/video_processing_coordinator.py:490
+#: src/zebtrack/coordinators/video_processing_coordinator.py:595
 msgid "Folders"
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:501
-#: src/zebtrack/coordinators/video_processing_coordinator.py:606
+#: src/zebtrack/coordinators/video_processing_coordinator.py:502
+#: src/zebtrack/coordinators/video_processing_coordinator.py:607
 msgid "No new video file was found in the selected paths."
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:512
+#: src/zebtrack/coordinators/video_processing_coordinator.py:513
 msgid "Videos Added"
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:514
+#: src/zebtrack/coordinators/video_processing_coordinator.py:515
 #, python-brace-format
 msgid "{count} video(s) were added to the project without reprocessing."
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:524
+#: src/zebtrack/coordinators/video_processing_coordinator.py:525
 msgid "No new video to process."
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:549
+#: src/zebtrack/coordinators/video_processing_coordinator.py:550
 #, python-brace-format
 msgid "{count} video(s) added for processing."
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:627
+#: src/zebtrack/coordinators/video_processing_coordinator.py:628
 msgid "No New Video"
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:628
+#: src/zebtrack/coordinators/video_processing_coordinator.py:629
 msgid "Every selected video is already registered in the project."
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:660
+#: src/zebtrack/coordinators/video_processing_coordinator.py:661
 msgid "Import Cancelled"
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:661
+#: src/zebtrack/coordinators/video_processing_coordinator.py:662
 msgid "No video was confirmed for import."
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:681
+#: src/zebtrack/coordinators/video_processing_coordinator.py:682
 #, python-brace-format
 msgid "{count} video(s) imported into the project."
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:683
+#: src/zebtrack/coordinators/video_processing_coordinator.py:684
 #, python-brace-format
 msgid " {count} already existed and were skipped."
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:694
-#: src/zebtrack/coordinators/video_processing_coordinator.py:713
+#: src/zebtrack/coordinators/video_processing_coordinator.py:695
+#: src/zebtrack/coordinators/video_processing_coordinator.py:714
 msgid "Import Finished"
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:714
+#: src/zebtrack/coordinators/video_processing_coordinator.py:715
 msgid " No imported video needs processing right now."
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:1029
+#: src/zebtrack/coordinators/video_processing_coordinator.py:1036
 msgid "Processing Videos"
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:1030
+#: src/zebtrack/coordinators/video_processing_coordinator.py:1037
 msgid "No eligible video with data for analysis was found."
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:1048
-#: src/zebtrack/core/detection/multi_aquarium_detector.py:1156
+#: src/zebtrack/coordinators/video_processing_coordinator.py:1055
+#: src/zebtrack/core/detection/multi_aquarium_detector.py:1196
 #: src/zebtrack/ui/components/canvas/renderer.py:397
 #: src/zebtrack/ui/components/project_views/report_tree_builder.py:634
 #: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:184
@@ -1672,7 +1668,7 @@ msgstr ""
 msgid "Aquarium {number}"
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:1058
+#: src/zebtrack/coordinators/video_processing_coordinator.py:1065
 #, python-brace-format
 msgid ""
 "Video '{video}' has aquariums with no subject defined:\n"
@@ -1682,25 +1678,25 @@ msgid ""
 "Configure the aquariums before processing."
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:1096
+#: src/zebtrack/coordinators/video_processing_coordinator.py:1103
 msgid "Error Starting Processing"
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:1097
+#: src/zebtrack/coordinators/video_processing_coordinator.py:1104
 #, python-brace-format
 msgid "Failed to create the processing worker: {error}"
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:1126
+#: src/zebtrack/coordinators/video_processing_coordinator.py:1133
 #, python-brace-format
 msgid "Batch processing started: {count} video(s)."
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:1135
+#: src/zebtrack/coordinators/video_processing_coordinator.py:1142
 msgid "Processing Started"
 msgstr ""
 
-#: src/zebtrack/coordinators/video_processing_coordinator.py:1136
+#: src/zebtrack/coordinators/video_processing_coordinator.py:1143
 #, python-brace-format
 msgid "Processing of {count} video(s) has started."
 msgstr ""
@@ -1771,7 +1767,7 @@ msgstr ""
 msgid "Recommended, but the model is not converted. Use 'Diagnostics' to convert."
 msgstr ""
 
-#: src/zebtrack/core/detection/class_roles.py:114
+#: src/zebtrack/core/detection/class_roles.py:117
 #, python-brace-format
 msgid ""
 "None of the model classes ({classes}) is recognised as the animal to "
@@ -2071,7 +2067,7 @@ msgid "{step}. Generate reports"
 msgstr ""
 
 #: src/zebtrack/core/project/project_workflow_service.py:1456
-#: src/zebtrack/ui/builders/analysis_widgets.py:221
+#: src/zebtrack/ui/builders/analysis_widgets.py:253
 msgid "Processing and Reports"
 msgstr ""
 
@@ -2143,7 +2139,7 @@ msgstr ""
 msgid "Invalid template in {path}: {error}"
 msgstr ""
 
-#: src/zebtrack/core/project/zone_manager.py:649
+#: src/zebtrack/core/project/zone_manager.py:684
 msgid "Project data not initialised"
 msgstr ""
 
@@ -2182,18 +2178,18 @@ msgstr ""
 msgid "The start condition was never met: the whole recording will be analysed."
 msgstr ""
 
-#: src/zebtrack/core/recording/frame_processing_pipeline.py:834
+#: src/zebtrack/core/recording/frame_processing_pipeline.py:835
 #, python-brace-format
 msgid "⏳ Stabilizing image... ({current}/{total})"
 msgstr ""
 
-#: src/zebtrack/core/recording/frame_processing_pipeline.py:847
+#: src/zebtrack/core/recording/frame_processing_pipeline.py:848
 #, python-brace-format
 msgid "🔍 Detecting aquarium... ({current}/{total})"
 msgstr ""
 
-#: src/zebtrack/core/recording/frame_processing_pipeline.py:1000
-#: src/zebtrack/core/recording/live_session_manager.py:1279
+#: src/zebtrack/core/recording/frame_processing_pipeline.py:1001
+#: src/zebtrack/core/recording/live_session_manager.py:1328
 #: src/zebtrack/ui/dialogs/live_preview_window.py:127
 msgid "● Recording"
 msgstr ""
@@ -2443,40 +2439,53 @@ msgstr ""
 msgid "⏳ Waiting for video..."
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1323
+#: src/zebtrack/core/recording/live_session_manager.py:1307
+msgid "Recording not saved"
+msgstr ""
+
+#: src/zebtrack/core/recording/live_session_manager.py:1309
+#, python-brace-format
+msgid ""
+"The recording of this session could not be finalised: {error}\n"
+"\n"
+"Do not trust the analysis of this session. Look for a _BACKUP.json file "
+"in {folder} before recording again."
+msgstr ""
+
+#: src/zebtrack/core/recording/live_session_manager.py:1372
 #, python-brace-format
 msgid "● Recording: {elapsed}s / {total}s (Remaining: {remaining}s)"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1344
+#: src/zebtrack/core/recording/live_session_manager.py:1393
 #, python-brace-format
 msgid "Recording: {elapsed}s / {total}s"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1413
+#: src/zebtrack/core/recording/live_session_manager.py:1462
 msgid ""
 "⚠️ Video: 1 frame dropped — check the disk / OneDrive (the recording may "
 "have gaps)"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1416
+#: src/zebtrack/core/recording/live_session_manager.py:1465
 #, python-brace-format
 msgid ""
 "⚠️ Video: {count} frames dropped — check the disk / OneDrive (the "
 "recording may have gaps)"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1441
+#: src/zebtrack/core/recording/live_session_manager.py:1490
 #, python-brace-format
 msgid "⏳ Analysing... ({seconds:.1f}s behind) - Recording OK"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1446
+#: src/zebtrack/core/recording/live_session_manager.py:1495
 #, python-brace-format
 msgid "⏳ Analysis is behind ({seconds:.1f}s) - Recording continues normally"
 msgstr ""
 
-#: src/zebtrack/core/recording/live_session_manager.py:1450
+#: src/zebtrack/core/recording/live_session_manager.py:1499
 #, python-brace-format
 msgid "⚠️ Analysis is far behind ({seconds:.1f}s) - Recording OK, analysis queued"
 msgstr ""
@@ -2571,7 +2580,7 @@ msgid "Project overrides updated from this calibration."
 msgstr ""
 
 #: src/zebtrack/core/services/model_service.py:115
-#: src/zebtrack/ui/components/class_roles_panel.py:1078
+#: src/zebtrack/ui/components/class_roles_panel.py:1112
 msgid "No weight selected."
 msgstr ""
 
@@ -2672,7 +2681,7 @@ msgid "The Arduino port must be specified when Arduino is enabled"
 msgstr ""
 
 #: src/zebtrack/core/services/wizard_service.py:94
-#: src/zebtrack/ui/wizard/models.py:157
+#: src/zebtrack/ui/wizard/models.py:166
 msgid "External trigger mode requires Arduino to be enabled"
 msgstr ""
 
@@ -2720,7 +2729,7 @@ msgid "Group names must be a list"
 msgstr ""
 
 #: src/zebtrack/core/services/wizard_service.py:726
-#: src/zebtrack/ui/wizard/models.py:206
+#: src/zebtrack/ui/wizard/models.py:215
 #, python-brace-format
 msgid "Expected {expected} group names, but got {actual}"
 msgstr ""
@@ -2842,11 +2851,11 @@ msgstr ""
 msgid "Invalid regex pattern: {error}"
 msgstr ""
 
-#: src/zebtrack/core/video/analysis_pipeline_runner.py:770
+#: src/zebtrack/core/video/analysis_pipeline_runner.py:799
 msgid "Incomplete calibration data."
 msgstr ""
 
-#: src/zebtrack/core/video/analysis_pipeline_runner.py:804
+#: src/zebtrack/core/video/analysis_pipeline_runner.py:833
 msgid "Failed to prepare the calibration data."
 msgstr ""
 
@@ -2855,26 +2864,25 @@ msgid "Individual"
 msgstr ""
 
 #: src/zebtrack/core/video/processing_mode.py:30
-#: src/zebtrack/ui/components/analysis_controls.py:65
 msgid "Multi-individual"
 msgstr ""
 
-#: src/zebtrack/core/video/processing_worker.py:609
+#: src/zebtrack/core/video/processing_worker.py:641
 #, python-brace-format
 msgid "Starting: {name}"
 msgstr ""
 
-#: src/zebtrack/core/video/processing_worker.py:1521
+#: src/zebtrack/core/video/processing_worker.py:1559
 #: src/zebtrack/ui/dialogs/diagnostic_progress_dialog.py:107
 msgid "Processing..."
 msgstr ""
 
-#: src/zebtrack/core/video/progress_notifier.py:81
+#: src/zebtrack/core/video/progress_notifier.py:82
 #, python-brace-format
 msgid "Processing {current}/{total}: {experiment_id}"
 msgstr ""
 
-#: src/zebtrack/core/video/progress_notifier.py:84
+#: src/zebtrack/core/video/progress_notifier.py:85
 #, python-brace-format
 msgid "Step: {status}"
 msgstr ""
@@ -2912,45 +2920,45 @@ msgstr ""
 msgid "Report generation finished."
 msgstr ""
 
-#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:186
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:187
 #, python-brace-format
 msgid "Command {command} sent ({source})"
 msgstr ""
 
-#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:188
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:189
 #, python-brace-format
 msgid "Command {command} failed ({source})"
 msgstr ""
 
-#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:289
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:290
 msgid "🔲 Arena (det)"
 msgstr ""
 
-#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:290
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:291
 msgid "🔲 Arena (seg)"
 msgstr ""
 
-#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:291
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:292
 msgid "🐾 Animal (det)"
 msgstr ""
 
-#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:292
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:293
 msgid "🐾 Animal (seg)"
 msgstr ""
 
-#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:388
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:389
 msgid "Load New Weight"
 msgstr ""
 
-#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:389
+#: src/zebtrack/core/viewmodels/hardware_status_view_model.py:390
 msgid "YOLO/OpenVINO models"
 msgstr ""
 
-#: src/zebtrack/core/viewmodels/main_view_model_runtime.py:564
+#: src/zebtrack/core/viewmodels/main_view_model_runtime.py:567
 msgid "Critical Error"
 msgstr ""
 
-#: src/zebtrack/core/viewmodels/main_view_model_runtime.py:566
+#: src/zebtrack/core/viewmodels/main_view_model_runtime.py:569
 msgid "The camera thread did not shut down correctly. The application will close."
 msgstr ""
 
@@ -3021,7 +3029,6 @@ msgstr ""
 msgid "Disabled."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_controls.py:48
 #: src/zebtrack/ui/components/analysis_display.py:63
 #: src/zebtrack/ui/components/analysis_display.py:480
 #: src/zebtrack/ui/components/analysis_view_controller.py:221
@@ -3040,8 +3047,6 @@ msgstr ""
 msgid "No task in progress."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_controls.py:69
-#: src/zebtrack/ui/components/analysis_controls.py:214
 #: src/zebtrack/ui/components/analysis_display.py:76
 #: src/zebtrack/ui/components/analysis_display.py:317
 #: src/zebtrack/ui/components/analysis_display.py:325
@@ -3055,19 +3060,19 @@ msgstr ""
 msgid "Open a project before adjusting the specific calibration."
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:418
+#: src/zebtrack/ui/builders/analysis_widgets.py:447
 #: src/zebtrack/ui/components/state_synchronizer.py:430
 #: src/zebtrack/ui/gui.py:768
 msgid "Form reloaded"
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:419
+#: src/zebtrack/ui/builders/analysis_widgets.py:448
 #: src/zebtrack/ui/components/state_synchronizer.py:431
 #: src/zebtrack/ui/gui.py:769
 msgid "Values restored to reflect the current settings."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1273
+#: src/zebtrack/ui/components/event_dispatcher.py:1274
 #: src/zebtrack/ui/components/model_diagnostics_panel.py:671
 #: src/zebtrack/ui/gui.py:914
 msgid "Could not apply the detector parameters. See the log for details."
@@ -3180,11 +3185,11 @@ msgstr ""
 msgid "Batch report generated ({count} sessions): {batch_id}"
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:58
+#: src/zebtrack/ui/builders/analysis_widgets.py:90
 msgid "Discard the recording?"
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:60
+#: src/zebtrack/ui/builders/analysis_widgets.py:92
 msgid ""
 "Cancelling DISCARDS this live session: the video, the trajectory and the "
 "session folder are deleted, and no report is generated.\n"
@@ -3194,16 +3199,15 @@ msgid ""
 "Discard the recording?"
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:121
-#: src/zebtrack/ui/components/analysis_controls.py:167
+#: src/zebtrack/ui/builders/analysis_widgets.py:153
 msgid "Video Analysis"
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:263
+#: src/zebtrack/ui/builders/analysis_widgets.py:295
 msgid "Advanced Settings"
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:287
+#: src/zebtrack/ui/builders/analysis_widgets.py:319
 #, python-brace-format
 msgid ""
 "A field could not be read as a number: {error}\n"
@@ -3211,84 +3215,78 @@ msgid ""
 "Check that every field is filled in correctly."
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:319
+#: src/zebtrack/ui/builders/analysis_widgets.py:351
 msgid "Settings unavailable. Could not load."
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:433
+#: src/zebtrack/ui/builders/analysis_widgets.py:462
 msgid "Settings unavailable. Could not save."
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:462
+#: src/zebtrack/ui/builders/analysis_widgets.py:491
 #: src/zebtrack/ui/components/validation_manager.py:130
-#: src/zebtrack/ui/components/validators/config_validator.py:39
 msgid "FPS must be greater than 0."
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:464
+#: src/zebtrack/ui/builders/analysis_widgets.py:493
 #: src/zebtrack/ui/components/validation_manager.py:132
-#: src/zebtrack/ui/components/validators/config_validator.py:41
 msgid "The processing interval must be greater than 0."
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:466
+#: src/zebtrack/ui/builders/analysis_widgets.py:495
 #: src/zebtrack/ui/components/validation_manager.py:136
-#: src/zebtrack/ui/components/validators/config_validator.py:43
 msgid "The offset must be greater than or equal to 0."
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:468
+#: src/zebtrack/ui/builders/analysis_widgets.py:497
 #: src/zebtrack/ui/components/validation_manager.py:138
-#: src/zebtrack/ui/components/validators/config_validator.py:45
 msgid "The flush interval must be >= 0."
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:470
+#: src/zebtrack/ui/builders/analysis_widgets.py:499
 msgid "The flush row threshold must be >= 1."
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:472
+#: src/zebtrack/ui/builders/analysis_widgets.py:501
 #: src/zebtrack/ui/components/validation_manager.py:142
-#: src/zebtrack/ui/components/validators/config_validator.py:49
 msgid "Window length must be odd and at least 3."
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:474
+#: src/zebtrack/ui/builders/analysis_widgets.py:503
 #: src/zebtrack/ui/components/validation_manager.py:144
-#: src/zebtrack/ui/components/validators/config_validator.py:51
 msgid "Polyorder must be at least 1."
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:536
+#: src/zebtrack/ui/builders/analysis_widgets.py:579
 msgid "Project Settings Updated"
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:538
+#: src/zebtrack/ui/builders/analysis_widgets.py:581
 msgid ""
 "The changes were saved to the CURRENT PROJECT ONLY.\n"
 "The global file (config.local.yaml) was NOT modified."
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:547
+#: src/zebtrack/ui/builders/analysis_widgets.py:590
 msgid "Error Saving to Project"
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:548
+#: src/zebtrack/ui/builders/analysis_widgets.py:591
 #, python-brace-format
 msgid "Failed to update the project settings: {error}"
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:574
+#: src/zebtrack/ui/builders/analysis_widgets.py:617
 #: src/zebtrack/ui/components/validation_manager.py:184
 #, python-brace-format
 msgid "Could not save config.local.yaml: {error}"
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:595
+#: src/zebtrack/ui/builders/analysis_widgets.py:638
 msgid "Settings Saved"
 msgstr ""
 
-#: src/zebtrack/ui/builders/analysis_widgets.py:595
+#: src/zebtrack/ui/builders/analysis_widgets.py:638
 msgid "Changes recorded in config.local.yaml."
 msgstr ""
 
@@ -3309,12 +3307,11 @@ msgid "Analyze Single Video"
 msgstr ""
 
 #: src/zebtrack/ui/builders/button_factory.py:59
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:183
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:248
 msgid "Analyze Live Camera"
 msgstr ""
 
 #: src/zebtrack/ui/builders/button_factory.py:65
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:43
 msgid "Create New Project"
 msgstr ""
 
@@ -3379,8 +3376,7 @@ msgstr ""
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:985
 #: src/zebtrack/ui/dialogs/calibration_dialog.py:301
 #: src/zebtrack/ui/dialogs/diagnostic_progress_dialog.py:122
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:637
-#: src/zebtrack/ui/dialogs/multi_aquarium_confirm_dialog.py:155
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:717
 #: src/zebtrack/ui/dialogs/pending_videos_dialog.py:143
 #: src/zebtrack/ui/dialogs/project_video_import_dialog.py:605
 #: src/zebtrack/ui/dialogs/start_recording_dialog.py:214
@@ -3460,13 +3456,11 @@ msgstr ""
 
 #: src/zebtrack/ui/builders/project_widgets.py:348
 #: src/zebtrack/ui/components/project_initializer.py:43
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:173
 msgid "Live"
 msgstr ""
 
 #: src/zebtrack/ui/builders/project_widgets.py:350
 #: src/zebtrack/ui/components/project_initializer.py:45
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:166
 msgid "Pre-recorded"
 msgstr ""
 
@@ -3501,8 +3495,6 @@ msgstr ""
 msgid "The aquarium polygon data could not be retrieved."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_controls.py:52
-#: src/zebtrack/ui/components/analysis_controls.py:202
 #: src/zebtrack/ui/components/analysis_display.py:66
 #: src/zebtrack/ui/components/analysis_display.py:313
 #: src/zebtrack/ui/components/project_views/project_view_helpers.py:94
@@ -3512,8 +3504,6 @@ msgstr ""
 msgid "Group: {value}"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_controls.py:55
-#: src/zebtrack/ui/components/analysis_controls.py:203
 #: src/zebtrack/ui/components/analysis_display.py:69
 #: src/zebtrack/ui/components/analysis_display.py:314
 #: src/zebtrack/ui/components/project_views/project_view_helpers.py:96
@@ -3523,8 +3513,6 @@ msgstr ""
 msgid "Day: {value}"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_controls.py:58
-#: src/zebtrack/ui/components/analysis_controls.py:204
 #: src/zebtrack/ui/components/analysis_display.py:72
 #: src/zebtrack/ui/components/analysis_display.py:315
 #: src/zebtrack/ui/components/state_synchronizer.py:478
@@ -3533,33 +3521,18 @@ msgstr ""
 msgid "Individual: {value}"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_controls.py:61
-#: src/zebtrack/ui/components/analysis_controls.py:206
-#, python-brace-format
-msgid "Task: {value}"
-msgstr ""
-
-#: src/zebtrack/ui/components/analysis_controls.py:65
-#: src/zebtrack/ui/components/analysis_controls.py:210
 #: src/zebtrack/ui/components/analysis_display.py:80
 #: src/zebtrack/ui/components/analysis_display.py:321
 #, python-brace-format
 msgid "Tracking mode: {value}"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_controls.py:74
-#: src/zebtrack/ui/components/analysis_display.py:485
-#: src/zebtrack/ui/components/state_synchronizer.py:585
-msgid "Social interactions: waiting for data."
-msgstr ""
-
-#: src/zebtrack/ui/components/analysis_controls.py:145
-#: src/zebtrack/ui/components/analysis_display.py:172
-msgid "Active track ID:"
-msgstr ""
-
 #: src/zebtrack/ui/components/analysis_display.py:84
 msgid "Social interactions: not applicable right now."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_display.py:172
+msgid "Active track ID:"
 msgstr ""
 
 #: src/zebtrack/ui/components/analysis_display.py:218
@@ -3594,7 +3567,12 @@ msgstr ""
 msgid "Cancel Analysis"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_profile.py:18
+#: src/zebtrack/ui/components/analysis_display.py:485
+#: src/zebtrack/ui/components/state_synchronizer.py:585
+msgid "Social interactions: waiting for data."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_profile.py:19
 msgid ""
 "Shows the analysis configuration applied to this session. When no "
 "specific rule matches the group, day or individual, the project uses the "
@@ -4015,40 +3993,47 @@ msgstr ""
 msgid "code {code}"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:902
+#: src/zebtrack/ui/components/analysis_window_panel.py:832
+#, python-brace-format
+msgid ""
+"This project has no ROI named {names}, so that line will never fire. Draw"
+" it, or change the line."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:999
 msgid "Analysis Window (Optional)"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:918
+#: src/zebtrack/ui/components/analysis_window_panel.py:1018
 msgid "Edit conditions…"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:919
+#: src/zebtrack/ui/components/analysis_window_panel.py:1019
 msgid "Barnes maze preset"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:932
+#: src/zebtrack/ui/components/analysis_window_panel.py:1032
 msgid "Analysis window: Start and Stop conditions"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:949
-#: src/zebtrack/ui/components/class_roles_panel.py:982
+#: src/zebtrack/ui/components/analysis_window_panel.py:1052
+#: src/zebtrack/ui/components/class_roles_panel.py:1015
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:981
 #: src/zebtrack/ui/wizard/custom_regex_dialog.py:466
 #: src/zebtrack/ui/wizard/design_editor_dialog.py:266
 msgid "Save"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:950
+#: src/zebtrack/ui/components/analysis_window_panel.py:1053
 msgid "Revert"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:951
+#: src/zebtrack/ui/components/analysis_window_panel.py:1054
 msgid "Clear all"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:952
-#: src/zebtrack/ui/components/class_roles_panel.py:1293
+#: src/zebtrack/ui/components/analysis_window_panel.py:1055
+#: src/zebtrack/ui/components/class_roles_panel.py:1408
 #: src/zebtrack/ui/components/menu_manager.py:259
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:355
 #: src/zebtrack/ui/dialogs/calibration_dialog.py:235
@@ -4057,158 +4042,128 @@ msgstr ""
 msgid "Close"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:992
+#: src/zebtrack/ui/components/analysis_window_panel.py:1095
 msgid "Combine the lines:"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1004
+#: src/zebtrack/ui/components/analysis_window_panel.py:1107
 msgid "Condition"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1005
+#: src/zebtrack/ui/components/analysis_window_panel.py:1108
 msgid "Value"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1014
+#: src/zebtrack/ui/components/analysis_window_panel.py:1117
 msgid "Remove selected"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1017
+#: src/zebtrack/ui/components/analysis_window_panel.py:1120
 msgid "Move up"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1021
+#: src/zebtrack/ui/components/analysis_window_panel.py:1124
 msgid "Add a line"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1026
+#: src/zebtrack/ui/components/analysis_window_panel.py:1129
 msgid "To:"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1036
+#: src/zebtrack/ui/components/analysis_window_panel.py:1139
 msgid "Condition:"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1045
+#: src/zebtrack/ui/components/analysis_window_panel.py:1148
 #: src/zebtrack/ui/wizard/design_editor_dialog.py:192
 msgid "Name:"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1048
+#: src/zebtrack/ui/components/analysis_window_panel.py:1151
 msgid "Number:"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1063
+#: src/zebtrack/ui/components/analysis_window_panel.py:1166
 msgid "Add line"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1068
+#: src/zebtrack/ui/components/analysis_window_panel.py:1171
 msgid "If Start never happens:"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1078
+#: src/zebtrack/ui/components/analysis_window_panel.py:1181
 msgid "When Stop happens:"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1143
+#: src/zebtrack/ui/components/analysis_window_panel.py:1246
 msgid "Choose a condition."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1216
+#: src/zebtrack/ui/components/analysis_window_panel.py:1325
 #, python-brace-format
 msgid ""
 "Preset loaded. The current model has no class named {names}; review the "
 "lines, then Save."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:794
-#, python-brace-format
-msgid ""
-"This project has no ROI named {names}, so that line will never fire. Draw "
-"it, or change the line."
-msgstr ""
-
-#: src/zebtrack/ui/components/analysis_window_panel.py:1222
-msgid "Preset loaded. Review the lines, then Save."
-msgstr ""
-
-#: src/zebtrack/ui/components/analysis_window_panel.py
+#: src/zebtrack/ui/components/analysis_window_panel.py:1335
 msgid "Preset loaded. Review the lines."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py
+#: src/zebtrack/ui/components/analysis_window_panel.py:1337
+msgid "Preset loaded. Review the lines, then Save."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1369
 msgid "Analysis window set for this session."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py
-msgid ""
-"This analysis window waits for an Arduino code, but no Arduino is enabled for this session, so the code could never arrive.\n"
-"\n"
-"Remove the Arduino condition from the analysis window, or open a project with the Arduino enabled."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py
-#, python-brace-format
-msgid ""
-"This analysis window waits for an Arduino code, but the Arduino is not connected{port}.\n"
-"\n"
-"Check the cable and whether another program holds the port, or remove the Arduino condition from the analysis window."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py
-msgid "Invalid Analysis Window"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py
-msgid "Analysis Window Not Allowed"
-msgstr ""
-
-#: src/zebtrack/ui/components/analysis_window_panel.py:1255
+#: src/zebtrack/ui/components/analysis_window_panel.py:1372
 msgid "Analysis window saved."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1257
+#: src/zebtrack/ui/components/analysis_window_panel.py:1374
 msgid "Analysis window applied (project has no path on disk)."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1263
+#: src/zebtrack/ui/components/analysis_window_panel.py:1380
 #: src/zebtrack/ui/components/arduino_bindings_panel.py:472
 #, python-brace-format
 msgid "Error while saving: {error}"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1335
+#: src/zebtrack/ui/components/analysis_window_panel.py:1461
 #, python-brace-format
 msgid ""
 "{rule}\n"
 "(not saved yet)"
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1380
+#: src/zebtrack/ui/components/analysis_window_panel.py:1506
 msgid "How long ALL the class lines above must hold together."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1381
+#: src/zebtrack/ui/components/analysis_window_panel.py:1507
 msgid "Seconds from the beginning of the video."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1382
+#: src/zebtrack/ui/components/analysis_window_panel.py:1508
 msgid "Frame number (the first frame is 0)."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1383
+#: src/zebtrack/ui/components/analysis_window_panel.py:1509
 msgid "Seconds after the window started."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1384
+#: src/zebtrack/ui/components/analysis_window_panel.py:1510
 msgid "Code sent by the Arduino; leave blank to accept any code."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1385
+#: src/zebtrack/ui/components/analysis_window_panel.py:1511
 msgid "Fires when the operator gives the manual signal."
 msgstr ""
 
-#: src/zebtrack/ui/components/analysis_window_panel.py:1386
+#: src/zebtrack/ui/components/analysis_window_panel.py:1512
 msgid "Fires when the recording ends."
 msgstr ""
 
@@ -4282,7 +4237,7 @@ msgid "Exit:"
 msgstr ""
 
 #: src/zebtrack/ui/components/arduino_bindings_panel.py:203
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:218
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:283
 msgid "Device:"
 msgstr ""
 
@@ -4541,118 +4496,139 @@ msgstr ""
 msgid "Connected"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:124
+#: src/zebtrack/ui/components/behavioral_config_widget.py:138
 msgid "Behavioural Analysis Configuration"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:143
+#: src/zebtrack/ui/components/behavioral_config_widget.py:160
 msgid "Aquarium Perspective *"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:149
+#: src/zebtrack/ui/components/behavioral_config_widget.py:166
 msgid "Select how the camera sees the aquarium:"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:156
+#: src/zebtrack/ui/components/behavioral_config_widget.py:173
 msgid "Top-Down View"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:157
+#: src/zebtrack/ui/components/behavioral_config_widget.py:174
 msgid "Side View"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:166
+#: src/zebtrack/ui/components/behavioral_config_widget.py:183
 msgid "Perspective:"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:188
+#: src/zebtrack/ui/components/behavioral_config_widget.py:205
 msgid "Thigmotaxis (Proximity to the Walls)"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:195
+#: src/zebtrack/ui/components/behavioral_config_widget.py:212
 msgid "Distance threshold for considering the fish close to the aquarium walls:"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:204
+#: src/zebtrack/ui/components/behavioral_config_widget.py:221
 msgid "Distance (cm):"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:219
+#: src/zebtrack/ui/components/behavioral_config_widget.py:236
 msgid "(default: 1.5 cm)"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:224
+#: src/zebtrack/ui/components/behavioral_config_widget.py:241
 msgid "Geotaxis (Proximity to the Bottom) - Side View Only"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:231
+#: src/zebtrack/ui/components/behavioral_config_widget.py:248
 msgid "Enable geotaxis analysis"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:245
+#: src/zebtrack/ui/components/behavioral_config_widget.py:262
 msgid "Calculation mode:"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:249
+#: src/zebtrack/ui/components/behavioral_config_widget.py:266
 msgid "By Distance"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:258
+#: src/zebtrack/ui/components/behavioral_config_widget.py:275
 msgid "By Vertical Zones"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:269
+#: src/zebtrack/ui/components/behavioral_config_widget.py:286
 msgid "Distance from the bottom (cm):"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:293
+#: src/zebtrack/ui/components/behavioral_config_widget.py:310
 msgid "Split the aquarium into:"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:306
+#: src/zebtrack/ui/components/behavioral_config_widget.py:323
 msgid "vertical zones"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:312
+#: src/zebtrack/ui/components/behavioral_config_widget.py:329
 msgid "Consider as 'bottom':"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:325
+#: src/zebtrack/ui/components/behavioral_config_widget.py:342
 msgid "lowest zone(s)"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:512
+#: src/zebtrack/ui/components/behavioral_config_widget.py:349
+msgid "Plausible Speed"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:355
+msgid ""
+"Frames faster than this are flagged as implausible. 50 cm/s suits adult "
+"zebrafish; rodents sprint faster."
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:364
+msgid "Maximum speed (cm/s):"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:567
 #, python-brace-format
 msgid "Thigmotaxis distance must be between {minimum} and {maximum} cm"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:521
+#: src/zebtrack/ui/components/behavioral_config_widget.py:576
+#, python-brace-format
+msgid ""
+"The maximum plausible speed must be greater than 0 and at most {maximum} "
+"cm/s"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:584
 msgid "Geotaxis can only be enabled for the side perspective"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:527
+#: src/zebtrack/ui/components/behavioral_config_widget.py:590
 msgid "Geotaxis distance must be between 0.1 and 10.0 cm"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:533
+#: src/zebtrack/ui/components/behavioral_config_widget.py:596
 msgid "The number of zones must be between 2 and 10"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:536
+#: src/zebtrack/ui/components/behavioral_config_widget.py:599
 msgid "The number of bottom zones must be 1 or 2"
 msgstr ""
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:539
+#: src/zebtrack/ui/components/behavioral_config_widget.py:602
 msgid "Bottom zones cannot exceed the total number of zones"
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:128
+#: src/zebtrack/ui/components/class_roles_panel.py:131
 msgid "Subject (tracked animal)"
 msgstr ""
 
 #: src/zebtrack/ui/components/canvas/overlay_roles.py:114
 #: src/zebtrack/ui/components/canvas/overlay_roles.py:139
-#: src/zebtrack/ui/components/class_roles_panel.py:129
+#: src/zebtrack/ui/components/class_roles_panel.py:132
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:30
 #: src/zebtrack/ui/components/validation_manager.py:899
 #: src/zebtrack/ui/components/validation_manager.py:1000
@@ -4660,131 +4636,147 @@ msgstr ""
 msgid "Arena"
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:130
+#: src/zebtrack/ui/components/class_roles_panel.py:133
 msgid "Context (observed, not tracked)"
 msgstr ""
 
 #: src/zebtrack/ui/components/canvas/overlay_roles.py:117
 #: src/zebtrack/ui/components/canvas/overlay_roles.py:142
-#: src/zebtrack/ui/components/class_roles_panel.py:131
+#: src/zebtrack/ui/components/class_roles_panel.py:134
 msgid "Ignored"
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:146
+#: src/zebtrack/ui/components/class_roles_panel.py:149
 msgid "set in this project"
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:147
+#: src/zebtrack/ui/components/class_roles_panel.py:150
 msgid "saved with the weight"
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:148
+#: src/zebtrack/ui/components/class_roles_panel.py:151
 msgid "automatic, recognised by class name"
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:149
+#: src/zebtrack/ui/components/class_roles_panel.py:152
 msgid "automatic, by class position (no class names)"
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:192
+#: src/zebtrack/ui/components/class_roles_panel.py:195
 msgid "Choose at least one class as the subject (the animal to track)."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:194
+#: src/zebtrack/ui/components/class_roles_panel.py:197
 #, python-brace-format
 msgid "Only one class can be the arena; {names} are all marked as arena."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:199
+#: src/zebtrack/ui/components/class_roles_panel.py:202
 #, python-brace-format
 msgid ""
 "Classes named '{name}' must share one role: roles are stored by class "
 "name."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:201
+#: src/zebtrack/ui/components/class_roles_panel.py:204
 msgid "The class roles are not valid."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:945
-msgid "Id"
+#: src/zebtrack/ui/components/class_roles_panel.py:288
+msgid ""
+"The template's class roles do not name a subject class of this weight; "
+"the roles below are the automatic ones."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:946
-msgid "Class"
+#: src/zebtrack/ui/components/class_roles_panel.py:294
+#, python-brace-format
+msgid "Template classes missing from this weight: {names}."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:947
-msgid "Role"
-msgstr ""
-
-#: src/zebtrack/ui/components/class_roles_panel.py:960
-msgid "Role of the selected class(es):"
+#: src/zebtrack/ui/components/class_roles_panel.py:300
+#, python-brace-format
+msgid "Classes of this weight the template does not mention (ignored): {names}."
 msgstr ""
 
 #: src/zebtrack/ui/components/class_roles_panel.py:978
+msgid "Id"
+msgstr ""
+
+#: src/zebtrack/ui/components/class_roles_panel.py:979
+msgid "Class"
+msgstr ""
+
+#: src/zebtrack/ui/components/class_roles_panel.py:980
+msgid "Role"
+msgstr ""
+
+#: src/zebtrack/ui/components/class_roles_panel.py:993
+msgid "Role of the selected class(es):"
+msgstr ""
+
+#: src/zebtrack/ui/components/class_roles_panel.py:1011
 msgid "Restore automatic"
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:1035
+#: src/zebtrack/ui/components/class_roles_panel.py:1068
 #, python-brace-format
 msgid "Reading the classes of '{name}'…"
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:1076
+#: src/zebtrack/ui/components/class_roles_panel.py:1110
 #, python-brace-format
 msgid "Weight: {name}"
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:1083
+#: src/zebtrack/ui/components/class_roles_panel.py:1117
 #, python-brace-format
 msgid "Roles in use: {source}."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:1105
+#: src/zebtrack/ui/components/class_roles_panel.py:1139
 #, python-brace-format
 msgid ""
 "Could not read the classes of '{name}': the file is missing or is not a "
 "YOLO model."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:1112
+#: src/zebtrack/ui/components/class_roles_panel.py:1146
 msgid ""
 "This project's class roles were set for a different weight file (the "
 "weight changed or was retrained). They are ignored and will be discarded "
 "when you save; the roles below are the automatic ones."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:1120
+#: src/zebtrack/ui/components/class_roles_panel.py:1154
 msgid ""
 "No class of this weight is recognised as the animal to track. Recording "
 "and analysis refuse it until you choose the subject class and save."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:1180
+#: src/zebtrack/ui/components/class_roles_panel.py:1214
 msgid "Select one or more classes first."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:1215
-#: src/zebtrack/ui/components/class_roles_panel.py:1232
+#: src/zebtrack/ui/components/class_roles_panel.py:1328
+#: src/zebtrack/ui/components/class_roles_panel.py:1347
 msgid "The class roles could not be saved; nothing changed."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:1218
+#: src/zebtrack/ui/components/class_roles_panel.py:1331
 msgid "Class roles saved."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:1227
-#: src/zebtrack/ui/components/class_roles_panel.py:1235
+#: src/zebtrack/ui/components/class_roles_panel.py:1342
+#: src/zebtrack/ui/components/class_roles_panel.py:1350
 msgid "Automatic roles restored."
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:1264
+#: src/zebtrack/ui/components/class_roles_panel.py:1379
 #, python-brace-format
 msgid "Class roles — {name}"
 msgstr ""
 
-#: src/zebtrack/ui/components/class_roles_panel.py:1271
+#: src/zebtrack/ui/components/class_roles_panel.py:1386
 msgid ""
 "Say what each class of this weight is. Saved with the weight, so every "
 "project that uses it gets these roles unless the project sets its own."
@@ -4815,7 +4807,6 @@ msgid "Monitored files: {default} → {local}"
 msgstr ""
 
 #: src/zebtrack/ui/components/config_editor.py:177
-#: src/zebtrack/ui/components/control_panel.py:96
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:599
 msgid "Video Processing"
 msgstr ""
@@ -5116,40 +5107,6 @@ msgstr ""
 msgid ""
 "The advanced validations (offset < interval, polyorder < window, etc.) "
 "are applied automatically on save."
-msgstr ""
-
-#: src/zebtrack/ui/components/control_panel.py:58
-msgid "Recording and Processing Controls"
-msgstr ""
-
-#: src/zebtrack/ui/components/control_panel.py:64
-msgid "Recording"
-msgstr ""
-
-#: src/zebtrack/ui/components/control_panel.py:72
-#: src/zebtrack/ui/components/zone_controls.py:232
-msgid "▶️ Start Recording"
-msgstr ""
-
-#: src/zebtrack/ui/components/control_panel.py:84
-msgid "⏹️ Stop Recording"
-msgstr ""
-
-#: src/zebtrack/ui/components/control_panel.py:101
-msgid "🎬 Process Video"
-msgstr ""
-
-#: src/zebtrack/ui/components/control_panel.py:107
-#: src/zebtrack/ui/components/menu_manager.py:69
-msgid "Settings"
-msgstr ""
-
-#: src/zebtrack/ui/components/control_panel.py:113
-msgid "Show Preview During Processing"
-msgstr ""
-
-#: src/zebtrack/ui/components/control_panel.py:123
-msgid "Processing Interval (frames):"
 msgstr ""
 
 #: src/zebtrack/ui/components/dialog_manager.py:103
@@ -5622,51 +5579,51 @@ msgstr ""
 msgid "Warning"
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:822
+#: src/zebtrack/ui/components/event_dispatcher.py:823
 #, python-brace-format
 msgid "✓ Reconnected on port {port}."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:824
+#: src/zebtrack/ui/components/event_dispatcher.py:825
 #, python-brace-format
 msgid "✗ Could not connect on port {port}."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1082
+#: src/zebtrack/ui/components/event_dispatcher.py:1083
 msgid "Position adjusted. Click 'Save Edit' to confirm."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1086
+#: src/zebtrack/ui/components/event_dispatcher.py:1087
 msgid "✓ Drawing finished. Click 'Save Edit' to confirm."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1100
-#: src/zebtrack/ui/components/event_dispatcher.py:1108
+#: src/zebtrack/ui/components/event_dispatcher.py:1101
+#: src/zebtrack/ui/components/event_dispatcher.py:1109
 msgid "Advanced Settings tab is not available yet."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1180
+#: src/zebtrack/ui/components/event_dispatcher.py:1181
 msgid "Class roles back to automatic. They apply from the next detection run."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1182
+#: src/zebtrack/ui/components/event_dispatcher.py:1183
 msgid "Class roles saved. They apply from the next detection run."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1210
+#: src/zebtrack/ui/components/event_dispatcher.py:1211
 msgid "Analysis window removed: the whole recording will be analysed."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1212
+#: src/zebtrack/ui/components/event_dispatcher.py:1213
 msgid "Analysis window saved. Run the analysis again to apply it."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1377
-#: src/zebtrack/ui/components/event_dispatcher.py:1393
+#: src/zebtrack/ui/components/event_dispatcher.py:1378
+#: src/zebtrack/ui/components/event_dispatcher.py:1394
 msgid "ROI Rule Applied"
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1379
+#: src/zebtrack/ui/components/event_dispatcher.py:1380
 #, python-brace-format
 msgid ""
 "{description}\n"
@@ -5675,7 +5632,7 @@ msgid ""
 "and to the live Arduino trigger."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1395
+#: src/zebtrack/ui/components/event_dispatcher.py:1396
 #, python-brace-format
 msgid ""
 "{description}\n"
@@ -5683,25 +5640,25 @@ msgid ""
 "Applied to this session. With no project open it is not saved to disk."
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1408
+#: src/zebtrack/ui/components/event_dispatcher.py:1409
 #, python-brace-format
 msgid "buffer radius {value:g} cm"
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1410
+#: src/zebtrack/ui/components/event_dispatcher.py:1411
 msgid "any non-zero area overlap"
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1412
+#: src/zebtrack/ui/components/event_dispatcher.py:1413
 #, python-brace-format
 msgid "minimum overlap {value:g} (basis: {basis})"
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1417
+#: src/zebtrack/ui/components/event_dispatcher.py:1418
 msgid "no additional parameters"
 msgstr ""
 
-#: src/zebtrack/ui/components/event_dispatcher.py:1418
+#: src/zebtrack/ui/components/event_dispatcher.py:1419
 #, python-brace-format
 msgid "Rule '{rule}' ({detail})."
 msgstr ""
@@ -5849,7 +5806,7 @@ msgid "Optimise with OpenVINO (for Intel hardware)"
 msgstr ""
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:328
-#: src/zebtrack/ui/wizard/model_selection_step.py:521
+#: src/zebtrack/ui/wizard/model_selection_step.py:527
 msgid "OpenVINO device:"
 msgstr ""
 
@@ -6176,6 +6133,10 @@ msgstr ""
 #: src/zebtrack/ui/dialogs/pending_videos_dialog.py:95
 #: src/zebtrack/ui/dialogs/project_video_import_dialog.py:483
 msgid "File"
+msgstr ""
+
+#: src/zebtrack/ui/components/menu_manager.py:69
+msgid "Settings"
 msgstr ""
 
 #: src/zebtrack/ui/components/menu_manager.py:70
@@ -7438,7 +7399,6 @@ msgid "The display interval must be greater than 0."
 msgstr ""
 
 #: src/zebtrack/ui/components/validation_manager.py:140
-#: src/zebtrack/ui/components/validators/config_validator.py:47
 msgid "The flush row limit must be >= 1."
 msgstr ""
 
@@ -7551,7 +7511,6 @@ msgid ""
 msgstr ""
 
 #: src/zebtrack/ui/components/validation_manager.py:1581
-#: src/zebtrack/ui/components/validators/config_validator.py:90
 msgid "Overlap fraction must be between 0 and 1"
 msgstr ""
 
@@ -7690,6 +7649,10 @@ msgstr ""
 msgid "Aquarium model: {value}"
 msgstr ""
 
+#: src/zebtrack/ui/components/zone_controls.py:232
+msgid "▶️ Start Recording"
+msgstr ""
+
 #: src/zebtrack/ui/components/zone_controls.py:239
 msgid "✖ Cancel Session"
 msgstr ""
@@ -7798,7 +7761,6 @@ msgid "Single Video Analysis Options"
 msgstr ""
 
 #: src/zebtrack/ui/components/zone_controls.py:629
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:124
 msgid "Analysis Interval (frames):"
 msgstr ""
 
@@ -8115,42 +8077,42 @@ msgstr ""
 msgid "Error Displaying Frame"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:531
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:544
 msgid "open another video"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:543
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:556
 msgid "No Video Selected"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:544
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:557
 msgid "Please select a video from the list to load."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:553
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:563
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:566
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:576
 msgid "Select a Video"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:554
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:567
 msgid "Please choose an item with a fish icon (🐟) to load the frame."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:564
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:577
 msgid "Please choose an item with a video icon (🎬) to load the frame."
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:577
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:590
 #, python-brace-format
 msgid "✓ Frame loaded: {name}"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:581
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:594
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:889
 msgid "Error Loading"
 msgstr ""
 
-#: src/zebtrack/ui/components/canvas/video_frame_manager.py:582
+#: src/zebtrack/ui/components/canvas/video_frame_manager.py:595
 #: src/zebtrack/ui/components/project_views/video_selector_tree_manager.py:890
 #, python-brace-format
 msgid ""
@@ -8741,10 +8703,6 @@ msgstr ""
 msgid "Frame loaded: {name}"
 msgstr ""
 
-#: src/zebtrack/ui/components/validators/config_validator.py:88
-msgid "Buffer radius must be >= 0"
-msgstr ""
-
 #: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:92
 msgid "Aquarium Configuration"
 msgstr ""
@@ -8817,7 +8775,6 @@ msgid "Day:"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:538
-#: src/zebtrack/ui/dialogs/multi_aquarium_confirm_dialog.py:147
 msgid "Confirm"
 msgstr ""
 
@@ -9057,9 +9014,7 @@ msgid "Select the camera:"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:756
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:679
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:141
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:172
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:759
 #: src/zebtrack/ui/dialogs/start_recording_dialog.py:178
 #: src/zebtrack/ui/wizard/live_config_step.py:729
 #, python-brace-format
@@ -9716,211 +9671,6 @@ msgstr ""
 msgid "Choose the colour for this region of interest:"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:83
-#: src/zebtrack/ui/wizard/confirmation_step.py:125
-msgid "Project Name:"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:89
-msgid "Project Folder:"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:92
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:386
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:165
-#: src/zebtrack/ui/wizard/confirmation_step.py:154
-msgid "Browse..."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:95
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:190
-msgid "Number of Aquariums:"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:102
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:207
-msgid "Animals per Aquarium:"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:109
-msgid "Aquarium Width (cm):"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:116
-msgid "Aquarium Height (cm):"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:138
-msgid "Method for Aquarium:"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:150
-msgid "Method for Animals:"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:163
-msgid "Project Type:"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:185
-msgid "Select Videos..."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:192
-msgid "Select Folder..."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:206
-msgid "Use timed recording?"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:214
-msgid "minutes"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:219
-msgid "Use a countdown?"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:231
-msgid "Experimental Design (Live Project)"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:235
-msgid "Total Experiment Days:"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:241
-msgid "Subjects per Group:"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:247
-#: src/zebtrack/ui/wizard/experimental_design_step.py:338
-msgid "Number of Groups:"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:256
-#: src/zebtrack/ui/wizard/experimental_design_step.py:394
-msgid "Group Names"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:262
-#, python-brace-format
-msgid "Group {number}:"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:276
-msgid "Select a Base Folder for the Project"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:284
-#: src/zebtrack/ui/wizard/file_selection_step.py:239
-msgid "Select the Video Files"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:301
-#: src/zebtrack/ui/wizard/file_selection_step.py:252
-msgid "Select a Folder Containing Videos"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:316
-#: src/zebtrack/ui/wizard/file_selection_step.py:62
-#: src/zebtrack/ui/wizard/file_selection_step.py:293
-msgid "No video/folder selected."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:326
-#: src/zebtrack/ui/wizard/confirmation_step.py:738
-#: src/zebtrack/ui/wizard/file_selection_step.py:305
-#: src/zebtrack/ui/wizard/file_selection_step.py:566
-msgid "1 file"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:326
-#: src/zebtrack/ui/wizard/confirmation_step.py:738
-#: src/zebtrack/ui/wizard/file_selection_step.py:305
-#: src/zebtrack/ui/wizard/file_selection_step.py:566
-#, python-brace-format
-msgid "{count} files"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:330
-#: src/zebtrack/ui/wizard/confirmation_step.py:734
-#: src/zebtrack/ui/wizard/file_selection_step.py:309
-#: src/zebtrack/ui/wizard/file_selection_step.py:563
-msgid "1 folder"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:332
-#: src/zebtrack/ui/wizard/confirmation_step.py:734
-#: src/zebtrack/ui/wizard/file_selection_step.py:311
-#: src/zebtrack/ui/wizard/file_selection_step.py:563
-#, python-brace-format
-msgid "{count} folders"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:336
-#: src/zebtrack/ui/wizard/file_selection_step.py:314
-#, python-brace-format
-msgid "Selected: {parts}"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:338
-msgid "The selection contains invalid paths."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:365
-msgid "Not applicable to live projects."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:405
-msgid "Please select a valid base folder."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:409
-msgid "The project name cannot be empty."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:413
-msgid "A project folder with this name already exists and is not empty."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:423
-msgid ""
-"Please select at least one video file or folder for the pre-recorded "
-"analysis."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:437
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:557
-msgid "The values must be positive."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:452
-msgid "The number of groups must be between 1 and 6."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:455
-#, python-brace-format
-msgid "The name of Group {number} cannot be empty."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:459
-msgid "The experimental design parameters must be valid positive numbers."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:467
-msgid "The recording duration must be a positive number."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:475
-msgid "The countdown duration must be a positive whole number."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/create_project_dialog.py:486
-msgid "The analysis and display intervals must be positive whole numbers."
-msgstr ""
-
 #: src/zebtrack/ui/dialogs/diagnostic_progress_dialog.py:25
 msgid "Diagnostics in Progress"
 msgstr ""
@@ -9945,37 +9695,55 @@ msgstr ""
 msgid "Wait for the current processing to finish..."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:199
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:69
+msgid ""
+"This analysis window waits for an Arduino code, but no Arduino is enabled"
+" for this session, so the code could never arrive.\n"
+"\n"
+"Remove the Arduino condition from the analysis window, or open a project "
+"with the Arduino enabled."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:78
+#, python-brace-format
+msgid ""
+"This analysis window waits for an Arduino code, but the Arduino is not "
+"connected{port}.\n"
+"\n"
+"Check the cable and whether another program holds the port, or remove the"
+" Arduino condition from the analysis window."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:264
 msgid "Live Camera Analysis"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:206
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:271
 msgid "Set up and start a real-time analysis session."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:212
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:277
 msgid "Camera Selection"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:226
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:291
 msgid "Select the camera for live analysis."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:228
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:90
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:293
 #: src/zebtrack/ui/wizard/live_config_step.py:269
 msgid "🔍 Detect"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:246
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:311
 msgid "Timing and Processing"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:254
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:319
 msgid "Duration (s):"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:260
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:325
 msgid ""
 "Recording/Analysis Time\n"
 "\n"
@@ -9984,12 +9752,12 @@ msgid ""
 "• 300s = 5 minutes."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:286
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:369
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:351
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:370
 msgid "Analysis interval:"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:292
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:357
 msgid ""
 "Analysis Interval (frames)\n"
 "\n"
@@ -9998,15 +9766,15 @@ msgid ""
 "• Recommended for live: 1 or 2."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:326
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:401
 msgid "Session Options"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:334
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:409
 msgid "Experiment ID:"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:340
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:415
 msgid ""
 "Experiment Identifier\n"
 "\n"
@@ -10014,63 +9782,69 @@ msgid ""
 "• If left blank, the system generates a name from the date and time."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:351
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:426
 msgid "Record video with overlay"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:358
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:433
 msgid "Use OpenVINO acceleration"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:368
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:443
 #, python-brace-format
 msgid "Countdown of {seconds}s before starting"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:379
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:454
 msgid "Output folder:"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:391
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:461
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:166
+#: src/zebtrack/ui/wizard/confirmation_step.py:154
+msgid "Browse..."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:466
 msgid ""
 "Directory where the results will be saved.\n"
 "• If left blank, uses the default folder "
 "'~/ZebTrack/live_analysis_sessions'."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:399
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:474
 msgid "Advanced AI and Setup Parameters"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:410
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:403
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:485
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:404
 msgid "Arena AI:"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:414
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:489
 msgid ""
 "Segmentation or Detection model for the arena.\n"
 "• seg: slower, but outlines the edges better.\n"
 "• det: very fast."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:430
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:452
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:505
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:453
 msgid "Animal AI:"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:433
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:508
 msgid ""
 "Model for the animal.\n"
 "• Use 'seg' if there is more than one animal per arena."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:459
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:430
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:534
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:431
 msgid "Preserve the real arena shape (mask)"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:468
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:543
 msgid ""
 "Arena Outline\n"
 "\n"
@@ -10081,29 +9855,29 @@ msgid ""
 "Requires the 'seg' arena model."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:489
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:564
 msgid "No. of aquariums:"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:495
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:570
 msgid ""
 "Live analysis handles ONE aquarium at a time.\n"
 "For multiple aquariums, create a live project."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:508
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:583
 msgid "Animals/aquarium:"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:511
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:586
 msgid "Number of animals inside each aquarium."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:532
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:607
 msgid "Arena width (cm):"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:538
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:613
 msgid ""
 "Real WIDTH of the arena, in centimetres.\n"
 "\n"
@@ -10115,11 +9889,11 @@ msgid ""
 "the proportions entered do not match the real ones."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:557
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:632
 msgid "Arena height (cm):"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:563
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:638
 msgid ""
 "Real HEIGHT of the arena, in centimetres — the vertical extent as the "
 "camera sees it.\n"
@@ -10128,62 +9902,62 @@ msgid ""
 "a fish tank, not the water column)."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:583
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:658
 msgid ""
 "ℹ️ Live analysis covers ONE aquarium at a time. To record several "
 "aquariums at once, create a live project."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:591
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:666
 msgid "Behavioural Analysis"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:634
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:714
 msgid "Start Analysis"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:652
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:732
 msgid "Select the output folder for the results"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:661
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:741
 #: src/zebtrack/ui/wizard/live_config_step.py:716
 #: src/zebtrack/ui/wizard/live_config_step.py:761
 msgid "Detecting..."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:691
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:771
 #: src/zebtrack/ui/wizard/live_config_step.py:739
 msgid "✓ 1 camera detected"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:693
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:773
 #: src/zebtrack/ui/wizard/live_config_step.py:741
 #, python-brace-format
 msgid "✓ {count} cameras detected"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:700
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:780
 #: src/zebtrack/ui/wizard/live_config_step.py:754
 msgid "✗ No camera detected"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:707
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:787
 msgid "✗ Error detecting cameras"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:712
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:792
 #, python-brace-format
 msgid ""
 "Failed to detect cameras:\n"
 "{error}"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:740
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:820
 msgid "Invalid Output Folder"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:742
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:822
 #, python-brace-format
 msgid ""
 "Cannot write to the output folder:\n"
@@ -10194,123 +9968,131 @@ msgid ""
 "Pick another folder before starting the recording."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:762
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:842
 msgid "The smoothing window must be >= 3"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:764
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:844
 msgid "The smoothing window must be odd"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:766
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:846
 msgid "The polynomial order must be >= 1"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:768
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:848
 msgid "The polynomial order must be smaller than the window"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:778
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:858
 msgid "Invalid Parameter"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:779
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:859
 #, python-brace-format
 msgid ""
 "Validation error:\n"
 "{error}"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:792
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:872
 msgid "No Camera Selected"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:793
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:873
 msgid "Please select a camera for the analysis."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:801
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:881
 msgid "Invalid Camera"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:802
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:882
 #, python-brace-format
 msgid "Camera index not found for: {camera}"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:811
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:891
 msgid "Duration must be positive"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:816
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:896
 msgid "Duration Too Long"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:817
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:897
 #, python-brace-format
 msgid ""
 "Maximum allowed duration: {value}s\n"
 "Adjusting to the maximum..."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:827
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:907
 msgid "Invalid Duration"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:828
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:908
 #, python-brace-format
 msgid ""
 "Duration must be a positive number:\n"
 "{error}"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:844
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:924
 msgid "Intervals must be >= 1"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:848
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:928
 msgid "Invalid Interval"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:849
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:929
 #, python-brace-format
 msgid ""
 "Intervals must be positive whole numbers:\n"
 "{error}"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:862
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:942
 msgid "The number of aquariums and animals must be >= 1"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:864
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:944
 msgid "The arena dimensions must be positive"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:868
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:948
 msgid "Invalid Calibration Parameter"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:869
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:949
 #, python-brace-format
 msgid ""
 "Calibration error:\n"
 "{error}"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:881
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:961
 msgid "Behavioural parameters must be non-negative"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:885
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:965
 msgid "Invalid Behavioural Parameter"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:886
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:966
 #, python-brace-format
 msgid ""
 "Error in the behavioural parameters:\n"
 "{error}"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:990
+msgid "Invalid Analysis Window"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py:1005
+msgid "Analysis Window Not Allowed"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py:68
@@ -10426,48 +10208,6 @@ msgstr ""
 msgid "Recording Only"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:43
-msgid "No camera found"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:60
-msgid "Live Analysis Configuration"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:83
-#: src/zebtrack/ui/wizard/live_config_step.py:200
-msgid "Select Camera:"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:105
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:249
-msgid "Use Arduino"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:114
-#: src/zebtrack/ui/wizard/live_config_step.py:253
-msgid "Arduino Port:"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:126
-msgid "No serial port found"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:194
-msgid " [no handshake]"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:237
-msgid "No camera detected. A live session cannot be started."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/live_config_dialog.py:246
-#, python-brace-format
-msgid ""
-"Arduino is enabled, but no serial port was found. Please check the "
-"connection or turn off the '{option}' option."
-msgstr ""
-
 #: src/zebtrack/ui/dialogs/live_preview_window.py:51
 #, python-brace-format
 msgid "Live Analysis - Camera {index}"
@@ -10551,38 +10291,6 @@ msgstr ""
 
 #: src/zebtrack/ui/dialogs/model_diagnostics_dialog.py:22
 msgid "Global Model Diagnostics"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/multi_aquarium_confirm_dialog.py:57
-msgid "Aquarium Setup"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/multi_aquarium_confirm_dialog.py:73
-msgid "How many aquariums are in this video?"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/multi_aquarium_confirm_dialog.py:80
-msgid ""
-"Select how many aquariums there are so that\n"
-"automatic detection is configured correctly."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/multi_aquarium_confirm_dialog.py:100
-msgid "1 aquarium (default)"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/multi_aquarium_confirm_dialog.py:108
-msgid "    Standard detection for videos with 1 aquarium"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/multi_aquarium_confirm_dialog.py:120
-msgid "2 aquariums"
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/multi_aquarium_confirm_dialog.py:129
-msgid ""
-"    Detects 2 separate aquariums in the same video\n"
-"    (each aquarium can belong to a different group)"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:59
@@ -11019,19 +10727,23 @@ msgstr ""
 msgid "Zone template"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:56
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:57
 msgid "Single Video Analysis Configuration"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:149
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:150
 msgid "Video File"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:182
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:183
 msgid "Experimental Configuration"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:196
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:191
+msgid "Number of Aquariums:"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:197
 msgid ""
 "Number of Aquariums\n"
 "\n"
@@ -11040,7 +10752,11 @@ msgid ""
 "• 2: lets you draw two arenas and process them together."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:213
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:208
+msgid "Animals per Aquarium:"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:214
 msgid ""
 "Animals per Aquarium\n"
 "\n"
@@ -11049,11 +10765,11 @@ msgid ""
 "• >1: requires Segmentation (seg) mode to avoid ID swaps."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:224
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:225
 msgid "Arena Width (cm):"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:230
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:231
 msgid ""
 "Real Width (cm)\n"
 "\n"
@@ -11061,26 +10777,26 @@ msgid ""
 "• Essential to compute speed in cm/s and total distance."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:240
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:241
 msgid "Arena Height (cm):"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:245
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:246
 msgid ""
 "Real Height (cm)\n"
 "\n"
 "Vertical size of the arena in centimetres."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:252
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:253
 msgid "Behaviour Metrics"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:260
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:261
 msgid "Sharp turn (degrees/s):"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:266
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:267
 msgid ""
 "Sharp Turn Threshold\n"
 "\n"
@@ -11089,11 +10805,11 @@ msgid ""
 "• Default: 180.0 degrees/s."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:277
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:278
 msgid "Freezing (cm/s):"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:283
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:284
 msgid ""
 "Freezing Threshold (Speed)\n"
 "\n"
@@ -11102,11 +10818,11 @@ msgid ""
 "• Default: 0.5 cm/s."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:294
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:295
 msgid "Min. duration (s):"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:300
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:301
 msgid ""
 "Minimum Freezing Duration\n"
 "\n"
@@ -11114,15 +10830,15 @@ msgid ""
 "• E.g. 1.0s means brief pauses (<1s) are ignored."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:312
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:313
 msgid "Trajectory Smoothing"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:320
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:321
 msgid "Smoothing window:"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:326
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:327
 msgid ""
 "Smoothing Window (frames)\n"
 "\n"
@@ -11131,11 +10847,11 @@ msgid ""
 "• Default: 5 (Express) or 7 (Full)."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:337
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:338
 msgid "Polynomial order:"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:343
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:344
 msgid ""
 "Polynomial Order\n"
 "\n"
@@ -11143,15 +10859,15 @@ msgid ""
 "• Default: 2."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:355
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:356
 msgid "ℹ️ Removes jitter without erasing real movement."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:361
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:362
 msgid "Processing Optimization"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:375
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:376
 msgid ""
 "Analysis Interval (frames)\n"
 "\n"
@@ -11161,11 +10877,11 @@ msgid ""
 "• Recommended: 5 or 10 depending on the video speed."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:395
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:396
 msgid "AI Models"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:409
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:410
 msgid ""
 "Model for Arena Detection\n"
 "\n"
@@ -11173,7 +10889,7 @@ msgid ""
 "• det: box detection (faster)."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:439
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:440
 msgid ""
 "Arena Outline\n"
 "\n"
@@ -11184,7 +10900,7 @@ msgid ""
 "Requires the 'seg' arena model."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:458
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:459
 msgid ""
 "Model for Animal Tracking\n"
 "\n"
@@ -11192,39 +10908,43 @@ msgid ""
 "• det: recommended for 1 animal (very fast)."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:475
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:476
 msgid "Use OpenVINO acceleration (Intel)"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:522
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:528
 msgid "Select a Video File"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:541
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:547
 msgid "Please select a video file before continuing."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:559
-msgid "The interval must be a positive whole number."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:561
-msgid "The smoothing window must be positive."
-msgstr ""
-
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:563
-msgid "The smoothing window must be an odd number."
+msgid "The values must be positive."
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/single_video_config_dialog.py:565
+msgid "The interval must be a positive whole number."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:567
+msgid "The smoothing window must be positive."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:569
+msgid "The smoothing window must be an odd number."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:571
 msgid "The polynomial order must be at least 1."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:568
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:574
 msgid "The polynomial order must be smaller than the smoothing window."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:581
+#: src/zebtrack/ui/dialogs/single_video_config_dialog.py:587
 #, python-brace-format
 msgid ""
 "Validation error: {error}\n"
@@ -11655,11 +11375,11 @@ msgstr ""
 msgid "🧠 Behavioural Analysis"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/calibration_step.py:322
+#: src/zebtrack/ui/wizard/calibration_step.py:323
 msgid "About Calibration"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/calibration_step.py:328
+#: src/zebtrack/ui/wizard/calibration_step.py:329
 msgid ""
 "Physical calibration makes it possible to convert pixel coordinates into "
 "centimetres.\n"
@@ -11673,7 +11393,7 @@ msgid ""
 "values and adjust them later in the project settings."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/calibration_step.py:360
+#: src/zebtrack/ui/wizard/calibration_step.py:361
 #: src/zebtrack/ui/wizard/live_config_step.py:972
 #, python-brace-format
 msgid "Error validating data: {error}"
@@ -11685,6 +11405,10 @@ msgstr ""
 
 #: src/zebtrack/ui/wizard/confirmation_step.py:98
 msgid "Review the settings and create your project."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:125
+msgid "Project Name:"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/confirmation_step.py:142
@@ -11884,13 +11608,13 @@ msgstr ""
 
 #: src/zebtrack/ui/wizard/confirmation_step.py:520
 #: src/zebtrack/ui/wizard/detection_step.py:42
-#: src/zebtrack/ui/wizard/model_selection_step.py:54
+#: src/zebtrack/ui/wizard/model_selection_step.py:59
 msgid "Segmentation (seg)"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/confirmation_step.py:521
 #: src/zebtrack/ui/wizard/detection_step.py:43
-#: src/zebtrack/ui/wizard/model_selection_step.py:55
+#: src/zebtrack/ui/wizard/model_selection_step.py:60
 msgid "Detection (det)"
 msgstr ""
 
@@ -12078,6 +11802,32 @@ msgstr ""
 msgid "(selection)"
 msgstr ""
 
+#: src/zebtrack/ui/wizard/confirmation_step.py:734
+#: src/zebtrack/ui/wizard/file_selection_step.py:309
+#: src/zebtrack/ui/wizard/file_selection_step.py:563
+msgid "1 folder"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:734
+#: src/zebtrack/ui/wizard/file_selection_step.py:311
+#: src/zebtrack/ui/wizard/file_selection_step.py:563
+#, python-brace-format
+msgid "{count} folders"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:738
+#: src/zebtrack/ui/wizard/file_selection_step.py:305
+#: src/zebtrack/ui/wizard/file_selection_step.py:566
+msgid "1 file"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/confirmation_step.py:738
+#: src/zebtrack/ui/wizard/file_selection_step.py:305
+#: src/zebtrack/ui/wizard/file_selection_step.py:566
+#, python-brace-format
+msgid "{count} files"
+msgstr ""
+
 #: src/zebtrack/ui/wizard/confirmation_step.py:741
 #: src/zebtrack/ui/wizard/file_selection_step.py:568
 msgid "empty"
@@ -12100,7 +11850,7 @@ msgid "Save Wizard Template"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/confirmation_step.py:785
-#: src/zebtrack/ui/wizard/discovery_step.py:570
+#: src/zebtrack/ui/wizard/discovery_step.py:572
 msgid "Wizard Templates"
 msgstr ""
 
@@ -12661,123 +12411,123 @@ msgstr ""
 msgid "Previous results (use '{button}' to refresh)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:107
+#: src/zebtrack/ui/wizard/discovery_step.py:109
 msgid "Welcome to the Project Creation Wizard"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:114
+#: src/zebtrack/ui/wizard/discovery_step.py:116
 msgid "Let's start by understanding the context of your project."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:124
+#: src/zebtrack/ui/wizard/discovery_step.py:126
 msgid "📂 Load Template..."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:160
+#: src/zebtrack/ui/wizard/discovery_step.py:162
 msgid "1. Project Type"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:165
+#: src/zebtrack/ui/wizard/discovery_step.py:167
 msgid "Experimental (pre-recorded videos with groups, days, subjects)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:172
+#: src/zebtrack/ui/wizard/discovery_step.py:174
 msgid ""
 "Projects with a formal design: treatment groups, controls, time series, "
 "etc."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:178
+#: src/zebtrack/ui/wizard/discovery_step.py:180
 msgid "Live (record straight from the camera in real time)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:184
+#: src/zebtrack/ui/wizard/discovery_step.py:186
 msgid "Record experiments in real time using a camera connected to the computer."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:188
+#: src/zebtrack/ui/wizard/discovery_step.py:190
 msgid "2. Folder Organization"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:193
+#: src/zebtrack/ui/wizard/discovery_step.py:195
 msgid "Yes - folders represent the experimental structure (e.g. Group/Day/)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:199
+#: src/zebtrack/ui/wizard/discovery_step.py:201
 msgid ""
 "The wizard will detect groups, days and subjects automatically from the "
 "folder structure (e.g. /Control/Day01/Subject01.mp4)."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:206
+#: src/zebtrack/ui/wizard/discovery_step.py:208
 msgid "Yes - but only for organization (arbitrary names)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:211
+#: src/zebtrack/ui/wizard/discovery_step.py:213
 msgid "Folders are used only for organization, with no experimental meaning."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:216
+#: src/zebtrack/ui/wizard/discovery_step.py:218
 msgid "No - every video is in a single directory"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:221
+#: src/zebtrack/ui/wizard/discovery_step.py:223
 msgid "Every video is in one flat folder, with no subfolders."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:227
+#: src/zebtrack/ui/wizard/discovery_step.py:229
 msgid "3. Existing Parquet Files"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:235
+#: src/zebtrack/ui/wizard/discovery_step.py:237
 msgid "Do you have .parquet files from previous analyses?"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:241
+#: src/zebtrack/ui/wizard/discovery_step.py:243
 msgid "Yes - I want to import only the arena"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:249
+#: src/zebtrack/ui/wizard/discovery_step.py:251
 msgid ""
 "Import only the arena from *_arena.parquet files. ROIs and trajectories "
 "will be defined/generated again."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:256
+#: src/zebtrack/ui/wizard/discovery_step.py:258
 msgid "Yes - I want to import zones (arena and ROIs)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:264
+#: src/zebtrack/ui/wizard/discovery_step.py:266
 msgid ""
 "Import the arena and ROIs from *_arena.parquet and *_rois.parquet files. "
 "Trajectories will be generated again."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:271
+#: src/zebtrack/ui/wizard/discovery_step.py:273
 msgid "Yes - I want to import everything (zones + trajectory)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:279
+#: src/zebtrack/ui/wizard/discovery_step.py:281
 msgid ""
 "Import arenas, ROIs and trajectories from *_arena.parquet, *_rois.parquet"
 " and *_trajectory.parquet files. Saves time by avoiding reprocessing."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:287
+#: src/zebtrack/ui/wizard/discovery_step.py:289
 msgid "No - start from scratch"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:295
+#: src/zebtrack/ui/wizard/discovery_step.py:297
 msgid ""
 "Process everything from the start: draw the arena, define ROIs and "
 "generate trajectories."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:303
+#: src/zebtrack/ui/wizard/discovery_step.py:305
 msgid "What do these terms mean?"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:313
+#: src/zebtrack/ui/wizard/discovery_step.py:315
 msgid ""
 "• Parquet: an efficient file format for storing data\n"
 "\n"
@@ -12792,23 +12542,23 @@ msgid ""
 "Importing this data from previous analyses avoids reprocessing."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:569
+#: src/zebtrack/ui/wizard/discovery_step.py:571
 msgid "Load Wizard Template"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:581
+#: src/zebtrack/ui/wizard/discovery_step.py:583
 msgid "Load Template"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:582
+#: src/zebtrack/ui/wizard/discovery_step.py:584
 msgid "Could not load the selected template. Check the file and try again."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:590
+#: src/zebtrack/ui/wizard/discovery_step.py:592
 msgid "Template Loaded"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/discovery_step.py:591
+#: src/zebtrack/ui/wizard/discovery_step.py:593
 msgid "Settings loaded. Review each step before continuing."
 msgstr ""
 
@@ -12869,6 +12619,10 @@ msgid ""
 "You can type directly or use the +/- buttons."
 msgstr ""
 
+#: src/zebtrack/ui/wizard/experimental_design_step.py:338
+msgid "Number of Groups:"
+msgstr ""
+
 #: src/zebtrack/ui/wizard/experimental_design_step.py:357
 msgid "groups"
 msgstr ""
@@ -12885,6 +12639,10 @@ msgid ""
 "• 3+ groups: Multiple treatments or doses\n"
 "\n"
 "You can type directly or use the +/- buttons."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/experimental_design_step.py:394
+msgid "Group Names"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/experimental_design_step.py:402
@@ -12909,6 +12667,11 @@ msgstr ""
 #: src/zebtrack/ui/wizard/experimental_design_step.py:501
 #, python-brace-format
 msgid "📊 Total: {sessions} recordings ({animals} animals x {days} days)"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/file_selection_step.py:62
+#: src/zebtrack/ui/wizard/file_selection_step.py:293
+msgid "No video/folder selected."
 msgstr ""
 
 #: src/zebtrack/ui/wizard/file_selection_step.py:74
@@ -12981,6 +12744,19 @@ msgstr ""
 msgid ""
 "💡 Tip: when you select folders, every video inside them (including "
 "subfolders) is included."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/file_selection_step.py:239
+msgid "Select the Video Files"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/file_selection_step.py:252
+msgid "Select a Folder Containing Videos"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/file_selection_step.py:314
+#, python-brace-format
+msgid "Selected: {parts}"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/file_selection_step.py:319
@@ -13134,6 +12910,10 @@ msgstr ""
 msgid "Camera Configuration"
 msgstr ""
 
+#: src/zebtrack/ui/wizard/live_config_step.py:200
+msgid "Select Camera:"
+msgstr ""
+
 #: src/zebtrack/ui/wizard/live_config_step.py:214
 msgid "Select the camera for live recording."
 msgstr ""
@@ -13152,6 +12932,10 @@ msgstr ""
 
 #: src/zebtrack/ui/wizard/live_config_step.py:244
 msgid "Enable Arduino to synchronize external events with the recording."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/live_config_step.py:253
+msgid "Arduino Port:"
 msgstr ""
 
 #: src/zebtrack/ui/wizard/live_config_step.py:278
@@ -13431,61 +13215,61 @@ msgid ""
 "disable the Arduino."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:68
+#: src/zebtrack/ui/wizard/model_selection_step.py:73
 msgid "  ⭐ Recommended"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:410
+#: src/zebtrack/ui/wizard/model_selection_step.py:416
 msgid "Models and Weights"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:416
+#: src/zebtrack/ui/wizard/model_selection_step.py:422
 msgid ""
 "Adjust how DRerio LogAI will use each detection model.\n"
 "If you prefer, keep the recommended defaults and move on."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:460
+#: src/zebtrack/ui/wizard/model_selection_step.py:466
 msgid "Methods and Weights per Role"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:470
+#: src/zebtrack/ui/wizard/model_selection_step.py:476
 msgid "Arena (apparatus detection)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:479
+#: src/zebtrack/ui/wizard/model_selection_step.py:485
 msgid "Animals (tracking)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:499
+#: src/zebtrack/ui/wizard/model_selection_step.py:505
 msgid "Acceleration / OpenVINO"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:507
+#: src/zebtrack/ui/wizard/model_selection_step.py:513
 msgid "Use OpenVINO (requires converting the weight)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:514
+#: src/zebtrack/ui/wizard/model_selection_step.py:520
 msgid ""
 "Enable this once the matching OpenVINO model has been converted. It "
 "allows faster inference on compatible CPUs."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:534
+#: src/zebtrack/ui/wizard/model_selection_step.py:540
 msgid ""
 "AUTO lets OpenVINO choose the target automatically.\n"
 "Pick CPU/GPU/NPU to force the target, when available."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:541
+#: src/zebtrack/ui/wizard/model_selection_step.py:547
 msgid "Detection Parameters (YOLO)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:549
+#: src/zebtrack/ui/wizard/model_selection_step.py:555
 msgid "Minimum confidence (0-1):"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:553
+#: src/zebtrack/ui/wizard/model_selection_step.py:559
 msgid ""
 "🎯 Minimum Confidence (Confidence Threshold)\n"
 "\n"
@@ -13502,11 +13286,11 @@ msgid ""
 "💡 Recommended default: 0.25"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:567
+#: src/zebtrack/ui/wizard/model_selection_step.py:573
 msgid "NMS (overlap, 0-1):"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:571
+#: src/zebtrack/ui/wizard/model_selection_step.py:577
 msgid ""
 "🔲 NMS - Non-Maximum Suppression\n"
 "\n"
@@ -13523,26 +13307,26 @@ msgid ""
 "💡 Recommended default: 0.45"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:587
+#: src/zebtrack/ui/wizard/model_selection_step.py:593
 msgid "Tracking Parameters (ByteTrack)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:600
+#: src/zebtrack/ui/wizard/model_selection_step.py:606
 msgid "Use ByteTrack (Recommended)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:608
+#: src/zebtrack/ui/wizard/model_selection_step.py:614
 msgid ""
 "Enables the ByteTrack algorithm for robust tracking with a Kalman filter."
 "\n"
 "Recommended for most experiments."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:626
+#: src/zebtrack/ui/wizard/model_selection_step.py:632
 msgid "Track Threshold (0-1):"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:631
+#: src/zebtrack/ui/wizard/model_selection_step.py:637
 msgid ""
 "🛤️ Track Threshold\n"
 "\n"
@@ -13552,11 +13336,11 @@ msgid ""
 "💡 Default: 0.25"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:640
+#: src/zebtrack/ui/wizard/model_selection_step.py:646
 msgid "Match Threshold (0-1):"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:645
+#: src/zebtrack/ui/wizard/model_selection_step.py:651
 msgid ""
 "🔗 Match Threshold\n"
 "\n"
@@ -13566,11 +13350,11 @@ msgid ""
 "💡 Default: 0.95 (for fast animals such as zebrafish)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:655
+#: src/zebtrack/ui/wizard/model_selection_step.py:661
 msgid "Track Buffer (frames):"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:660
+#: src/zebtrack/ui/wizard/model_selection_step.py:666
 #, python-brace-format
 msgid ""
 "🧠 Track Buffer\n"
@@ -13582,12 +13366,12 @@ msgid ""
 " video's frame rate)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:670
-#: src/zebtrack/ui/wizard/model_selection_step.py:888
+#: src/zebtrack/ui/wizard/model_selection_step.py:676
+#: src/zebtrack/ui/wizard/model_selection_step.py:926
 msgid "Max distance (px):"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:675
+#: src/zebtrack/ui/wizard/model_selection_step.py:681
 #, python-brace-format
 msgid ""
 "📏 Maximum Centre Distance\n"
@@ -13598,12 +13382,12 @@ msgid ""
 "💡 Default: {pixels:g} px"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:685
-#: src/zebtrack/ui/wizard/model_selection_step.py:889
+#: src/zebtrack/ui/wizard/model_selection_step.py:691
+#: src/zebtrack/ui/wizard/model_selection_step.py:927
 msgid "IoU Threshold (0-1):"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:690
+#: src/zebtrack/ui/wizard/model_selection_step.py:696
 #, python-brace-format
 msgid ""
 "🔳 IoU Threshold\n"
@@ -13614,7 +13398,7 @@ msgid ""
 "💡 Default: {value:g}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:703
+#: src/zebtrack/ui/wizard/model_selection_step.py:709
 msgid ""
 "📊 Quick Guide:\n"
 "• Track Thresh: ↓ to keep a weak trail\n"
@@ -13623,43 +13407,43 @@ msgid ""
 "• Distance: ↑ for very fast animals"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:723
+#: src/zebtrack/ui/wizard/model_selection_step.py:729
 msgid "💡 Tip: adjust ONE parameter at a time (±0.05) and test!"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:738
+#: src/zebtrack/ui/wizard/model_selection_step.py:744
 #, python-brace-format
 msgid "Current YOLO defaults: confidence {confidence}, NMS {nms}."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:754
+#: src/zebtrack/ui/wizard/model_selection_step.py:760
 msgid "🔄 Restore Recommended Defaults"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:766
+#: src/zebtrack/ui/wizard/model_selection_step.py:772
 msgid ""
 "Restores every threshold to its recommended default value.\n"
 "\n"
 "Useful if you have made adjustments and want to start over."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:774
+#: src/zebtrack/ui/wizard/model_selection_step.py:780
 msgid ""
 "Tip: keep the defaults if you are still setting up the videos. You can "
 "review these values later in the project settings."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:821
+#: src/zebtrack/ui/wizard/model_selection_step.py:827
 msgid "Class roles (optional)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:828
+#: src/zebtrack/ui/wizard/model_selection_step.py:834
 msgid ""
 "What each class of the animal weight is. Leave it untouched to resolve "
 "the roles automatically; a change is saved in the project."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:884
+#: src/zebtrack/ui/wizard/model_selection_step.py:922
 #, python-brace-format
 msgid ""
 "ℹ️ ByteTrack disabled. The system will use a simplified hybrid tracker "
@@ -13667,105 +13451,105 @@ msgid ""
 " for 1 animal per arena."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:900
+#: src/zebtrack/ui/wizard/model_selection_step.py:938
 msgid ""
 "💡 ByteTrack uses a Kalman filter to predict positions even when the "
 "animal briefly disappears. Adjust the fields below for more stability."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:927
+#: src/zebtrack/ui/wizard/model_selection_step.py:965
 msgid ""
 "Segmentation supports several animals per arena.\n"
 "Detection is optimized for one animal per arena and uses ByteTrack."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:942
+#: src/zebtrack/ui/wizard/model_selection_step.py:980
 msgid "Select the weight file loaded for this role."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1013
+#: src/zebtrack/ui/wizard/model_selection_step.py:1051
 msgid "❌ Confidence must be between 0 and 1"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1014
+#: src/zebtrack/ui/wizard/model_selection_step.py:1052
 msgid "❌ NMS must be between 0 and 1"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1015
+#: src/zebtrack/ui/wizard/model_selection_step.py:1053
 msgid "❌ Track must be between 0 and 1"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1016
+#: src/zebtrack/ui/wizard/model_selection_step.py:1054
 msgid "❌ Match must be between 0 and 1"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1046
+#: src/zebtrack/ui/wizard/model_selection_step.py:1084
 msgid "❌ Value must be a decimal (e.g. 0.25)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1159
+#: src/zebtrack/ui/wizard/model_selection_step.py:1197
 msgid ""
 "⚠️ Detection (det) is recommended for only 1 animal per arena. Consider "
 "segmentation (seg) for several animals."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1321
+#: src/zebtrack/ui/wizard/model_selection_step.py:1360
 msgid "Enter decimal values between 0 and 1 for the parameters."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1324
+#: src/zebtrack/ui/wizard/model_selection_step.py:1363
 msgid "The confidence parameter must be between 0 and 1."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1325
+#: src/zebtrack/ui/wizard/model_selection_step.py:1364
 msgid "The NMS parameter must be between 0 and 1."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1326
+#: src/zebtrack/ui/wizard/model_selection_step.py:1365
 msgid "The track parameter must be between 0 and 1."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1327
+#: src/zebtrack/ui/wizard/model_selection_step.py:1366
 msgid "The match parameter must be between 0 and 1."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1344
+#: src/zebtrack/ui/wizard/model_selection_step.py:1383
 msgid "The track buffer must be a whole number of frames."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1346
+#: src/zebtrack/ui/wizard/model_selection_step.py:1385
 msgid "The track buffer must be at least 1 frame."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1351
+#: src/zebtrack/ui/wizard/model_selection_step.py:1390
 msgid "The maximum distance must be a number of pixels."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1353
+#: src/zebtrack/ui/wizard/model_selection_step.py:1392
 msgid "The maximum distance must be greater than 0 pixels."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1358
+#: src/zebtrack/ui/wizard/model_selection_step.py:1397
 msgid "The IoU threshold must be a decimal number."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1360
+#: src/zebtrack/ui/wizard/model_selection_step.py:1399
 msgid "The IoU threshold must be between 0 and 1."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1364
+#: src/zebtrack/ui/wizard/model_selection_step.py:1403
 msgid ""
 "Select a valid weight for the arena. The file must match the chosen "
 "method."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1369
+#: src/zebtrack/ui/wizard/model_selection_step.py:1408
 msgid ""
 "Select a valid weight for the animals. The file must match the chosen "
 "method."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/templates.py:95
+#: src/zebtrack/ui/wizard/templates.py:223
 msgid ""
 "This template used 'External Trigger Mode'. It was converted into an "
 "analysis window: Arduino code 1 starts it, code 0 stops it and ends the "
@@ -13773,13 +13557,19 @@ msgid ""
 "exists."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/templates.py:100
+#: src/zebtrack/ui/wizard/templates.py:228
 msgid ""
 "The template's analysis window could not be read and was dropped: the "
 "whole recording will be analysed."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/templates.py:442
+#: src/zebtrack/ui/wizard/templates.py:232
+msgid ""
+"The template's class roles could not be read and were dropped: the roles "
+"of the weight's classes will be resolved automatically."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/templates.py:651
 #, python-brace-format
 msgid "Template loaded: {details}"
 msgstr ""
@@ -13810,33 +13600,33 @@ msgstr ""
 msgid "Discard the project draft?"
 msgstr ""
 
-#: src/zebtrack/utils/hardware_benchmark.py:874
+#: src/zebtrack/utils/hardware_benchmark.py:892
 msgid "Step 1/7 — Detecting hardware..."
 msgstr ""
 
-#: src/zebtrack/utils/hardware_benchmark.py:886
+#: src/zebtrack/utils/hardware_benchmark.py:904
 msgid ""
 "Step 2/7 — Preparing the model for your hardware (one time, may take a "
 "minute)..."
 msgstr ""
 
-#: src/zebtrack/utils/hardware_benchmark.py:901
+#: src/zebtrack/utils/hardware_benchmark.py:919
 msgid "Step 3/7 — Testing video decoding..."
 msgstr ""
 
-#: src/zebtrack/utils/hardware_benchmark.py:908
+#: src/zebtrack/utils/hardware_benchmark.py:926
 msgid "Step 4/7 — Testing inference performance..."
 msgstr ""
 
-#: src/zebtrack/utils/hardware_benchmark.py:923
+#: src/zebtrack/utils/hardware_benchmark.py:941
 msgid "Step 5/7 — Testing live camera pipeline..."
 msgstr ""
 
-#: src/zebtrack/utils/hardware_benchmark.py:937
+#: src/zebtrack/utils/hardware_benchmark.py:955
 msgid "Step 6/7 — Testing batch processing..."
 msgstr ""
 
-#: src/zebtrack/utils/hardware_benchmark.py:959
+#: src/zebtrack/utils/hardware_benchmark.py:977
 msgid "Step 7/7 — Generating recommendations..."
 msgstr ""
 
@@ -13969,37 +13759,4 @@ msgstr ""
 
 #: src/zebtrack/utils/report_files.py:117
 msgid "recorded video"
-msgstr ""
-
-#: src/zebtrack/ui/wizard/templates.py
-msgid "The template's class roles could not be read and were dropped: the roles of the weight's classes will be resolved automatically."
-msgstr ""
-
-#: src/zebtrack/ui/components/class_roles_panel.py
-msgid "The template's class roles do not name a subject class of this weight; the roles below are the automatic ones."
-msgstr ""
-
-#: src/zebtrack/ui/components/class_roles_panel.py
-msgid "Template classes missing from this weight: {names}."
-msgstr ""
-
-#: src/zebtrack/ui/components/class_roles_panel.py
-msgid "Classes of this weight the template does not mention (ignored): {names}."
-msgstr ""
-
-#: src/zebtrack/ui/components/behavioral_config_widget.py
-msgid "Plausible Speed"
-msgstr ""
-
-#: src/zebtrack/ui/components/behavioral_config_widget.py
-msgid "Frames faster than this are flagged as implausible. 50 cm/s suits adult zebrafish; rodents sprint faster."
-msgstr ""
-
-#: src/zebtrack/ui/components/behavioral_config_widget.py
-msgid "Maximum speed (cm/s):"
-msgstr ""
-
-#: src/zebtrack/ui/components/behavioral_config_widget.py
-#, python-brace-format
-msgid "The maximum plausible speed must be greater than 0 and at most {maximum} cm/s"
 msgstr ""

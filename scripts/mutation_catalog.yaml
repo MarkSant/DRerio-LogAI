@@ -4164,3 +4164,49 @@ _load_registry()"
         description: "quadro sobrescrito (sequencia velha) e entregue como atual"
         find: 'if seq != expected_seq:'
         replace: 'if False:'
+
+  # ---------------------------------------------------------------------------
+  # A5 silent failures (TASK-087)
+  # ---------------------------------------------------------------------------
+
+  recorder_multi_aquarium_stop_failure:
+    source: src/zebtrack/io/recorder.py
+    tests:
+      - tests/io/test_recorder_multi_aquarium.py
+    mutations:
+      - id: aquarium-stop-failure-swallowed
+        description: "falha ao finalizar um aquario volta a ser so logada e o video sai como concluido (A5-S-001)"
+        find: 'if failures and not force_stop:'
+        replace: 'if False:'
+      - id: forced-stop-raises
+        description: "parada forcada (caminho de erro) passa a levantar uma segunda falha"
+        find: 'if failures and not force_stop:'
+        replace: 'if failures:'
+      - id: failed-aquarium-not-recorded
+        description: "a falha de um aquario deixa de ser coletada"
+        find: '                failures.append((aq_id, str(e)))'
+        replace: '                pass'
+
+  live_recorder_stop_failure:
+    source: src/zebtrack/core/recording/live_session_manager.py
+    tests:
+      - tests/core/recording/test_live_session_manager_extended.py
+    mutations:
+      - id: failed-save-not-shown
+        description: "falha ao salvar a sessao ao vivo deixa de chegar ao operador (A5-S-002)"
+        find: '            self._report_recorder_stop_failure(str(e))'
+        replace: '            pass'
+      - id: cancelled-session-reported-as-lost
+        description: "sessao cancelada de proposito passa a ser reportada como gravacao perdida"
+        find: |-
+          if forced:
+                          log.warning("live_camera_service.recorder_stop_error", error=str(e))
+                          return
+        replace: |-
+          if False:
+                          log.warning("live_camera_service.recorder_stop_error", error=str(e))
+                          return
+      - id: stale-stop-error-kept
+        description: "erro de uma sessao anterior vaza para a seguinte"
+        find: '        self._recorder_stop_error: str | None = None'
+        replace: '        self._recorder_stop_error = getattr(self, "_recorder_stop_error", None)'

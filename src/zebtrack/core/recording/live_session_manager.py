@@ -1143,27 +1143,7 @@ class LiveSessionManagerMixin:
 
         # NOW it's safe to close writers — no thread is writing anymore
         # (or we've promoted to force_stop above if a thread hung).
-        if self.recorder:
-            try:
-                if cancelled_session or threads_hung:
-                    # ``reason`` vem do que REALMENTE aconteceu no laco acima.
-                    # Ele era derivado de um segundo ``is_alive()`` feito aqui
-                    # embaixo, depois do ledger -- e uma thread que morresse
-                    # nesse intervalo transformava uma trava genuina em
-                    # "user_cancelled", corrompendo justamente o campo que se
-                    # le para explicar o ocorrido.
-                    reason = "thread_hang" if threads_hung else "user_cancelled"
-                    self.recorder.stop_recording(force_stop=True, reason=reason)
-                else:
-                    self.recorder.stop_recording()
-                log.info(
-                    "live_camera_service.recorder_stopped",
-                    cancelled=cancelled_session,
-                    threads_hung=threads_hung,
-                )
-            # except Exception justified: graceful shutdown
-            except Exception as e:
-                log.warning("live_camera_service.recorder_stop_error", error=str(e))
+        self._finalize_recorder(cancelled_session=cancelled_session, threads_hung=threads_hung)
 
         # Cancelamento manual explícito: descarta a sessão por completo. Apaga a
         # subpasta ``live_<timestamp>`` recém-criada para não deixar MP4/parquet
@@ -1264,6 +1244,75 @@ class LiveSessionManagerMixin:
                 )
 
         return True
+
+    def _finalize_recorder(self, *, cancelled_session: bool, threads_hung: bool) -> None:
+        """Close the recorder at the end of a session and report a failed save.
+
+        A cancelled or hung session is force-stopped: its data is being
+        discarded, so a failure there is only logged. A session that ended
+        normally is different. Until 8.0 a failing ``stop_recording()`` was
+        logged as a warning and the session carried on as complete, so the
+        post-analysis ran on a trajectory that had never been finalised. The
+        rest of the shutdown (camera, preview, buttons) must still run, so the
+        failure is not re-raised: it is kept in ``_recorder_stop_error`` and
+        shown to the operator.
+        """
+        self._recorder_stop_error: str | None = None
+        if not self.recorder:
+            return
+
+        forced = cancelled_session or threads_hung
+        try:
+            if forced:
+                # ``reason`` vem do que REALMENTE aconteceu no laco de join.
+                # Ele era derivado de um segundo ``is_alive()`` feito depois do
+                # ledger -- e uma thread que morresse nesse intervalo
+                # transformava uma trava genuina em "user_cancelled",
+                # corrompendo justamente o campo que se le para explicar o
+                # ocorrido.
+                reason = "thread_hang" if threads_hung else "user_cancelled"
+                self.recorder.stop_recording(force_stop=True, reason=reason)
+            else:
+                self.recorder.stop_recording()
+            log.info(
+                "live_camera_service.recorder_stopped",
+                cancelled=cancelled_session,
+                threads_hung=threads_hung,
+            )
+        # except Exception justified: the rest of the shutdown must still run
+        except Exception as e:
+            if forced:
+                log.warning("live_camera_service.recorder_stop_error", error=str(e))
+                return
+            self._recorder_stop_error = str(e)
+            log.error(
+                "live_camera_service.recorder_stop.failed",
+                error=str(e),
+                output_dir=str(self.current_output_dir),
+                exc_info=True,
+            )
+            self._report_recorder_stop_failure(str(e))
+
+    def _report_recorder_stop_failure(self, error: str) -> None:
+        """Tell the operator that the recording of this session was not saved."""
+        if not self.event_bus:
+            return
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+        self.event_bus.publish(
+            Event(
+                type=UIEvents.SHOW_ERROR,
+                data=payloads.MessagePayload(
+                    title=_("Recording not saved"),
+                    message=_(
+                        "The recording of this session could not be finalised: {error}\n\n"
+                        "Do not trust the analysis of this session. Look for a _BACKUP.json "
+                        "file in {folder} before recording again."
+                    ).format(error=error, folder=self.current_output_dir),
+                ),
+            )
+        )
 
     def _on_session_active(self) -> None:
         """Called when the first frame is processed to start the timer."""
