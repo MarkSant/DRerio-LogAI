@@ -152,10 +152,12 @@ max-complexity = 20
 [tool.coverage.run]
 source = ["src"]
 parallel = true
+# ``__init__.py`` is measured on purpose: several of them hold real logic (the
+# lazy plugin registry, ``utils.calculate_sha256``/``set_seed``, the reporters'
+# lazy exports), and while they were omitted no test of that code counted.
 omit = [
   "*/tests/*",
   "*/conftest.py",
-  "*/__init__.py",
   "*/test_*.py",
 ]
 

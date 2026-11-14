@@ -91,11 +91,27 @@ def _resolve_openvino_cache_dir(raw: str | os.PathLike[str] | None) -> str | Non
 
 
 def _scale_image(masks: np.ndarray, target_hw: tuple[int, int]) -> np.ndarray:
-    """Resize masks (H, W, C) to target (H, W) using bilinear interpolation.
+    """Map letterboxed masks (H, W, C) back onto the original frame (H, W).
 
-    Replaces ultralytics.utils.ops.scale_image removed in v8.4.
+    Replaces ``ultralytics.utils.ops.scale_image``, removed in v8.4. The masks
+    arrive in MODEL-INPUT space, where a frame of another aspect ratio sits
+    between two padding bands (see :func:`_letterbox`). The bands are cropped
+    away before resizing: stretching the padded mask straight onto the frame
+    squeezes every contour towards the centre — on a 640x480 frame a mask was
+    drawn up to 20 px away from its own bounding box, which is what the
+    ``seg_overlap`` ROI rule measures against.
     """
-    return cv2.resize(masks, (target_hw[1], target_hw[0]), interpolation=cv2.INTER_LINEAR)
+    in_h, in_w = masks.shape[:2]
+    out_h, out_w = int(target_hw[0]), int(target_hw[1])
+    gain = min(in_h / out_h, in_w / out_w)
+    pad_h = (in_h - out_h * gain) / 2
+    pad_w = (in_w - out_w * gain) / 2
+    # Same rounding as _letterbox, so the crop removes exactly what it added.
+    top, left = round(pad_h - 0.1), round(pad_w - 0.1)
+    bottom, right = in_h - round(pad_h + 0.1), in_w - round(pad_w + 0.1)
+    if bottom > top and right > left:
+        masks = masks[top:bottom, left:right]
+    return cv2.resize(masks, (out_w, out_h), interpolation=cv2.INTER_LINEAR)
 
 
 log = structlog.get_logger()
@@ -408,17 +424,6 @@ class OpenVINOPlugin(DetectorPlugin):
             log.info("openvino.warmup.complete", elapsed_ms=round(elapsed_ms, 1))
         except Exception as e:  # except Exception justified: warm-up is best-effort
             log.warning("openvino.warmup.failed", error=str(e))
-
-    def get_context_info(self) -> dict:
-        """Get current context and aquarium region status for debugging."""
-        return {
-            "context": self._context,
-            "aquarium_region_defined": self._aquarium_region_defined,
-            "conf_threshold": self.conf_threshold,
-            "nms_threshold": self.nms_threshold,
-            "track_threshold": self.track_threshold,
-            "match_threshold": self.match_threshold,
-        }
 
     def set_context(self, context: str) -> None:
         """Set the execution context (tracking/analysis)."""
@@ -754,7 +759,10 @@ class OpenVINOPlugin(DetectorPlugin):
             else:
                 h, w = 640, 640  # Last resort fallback
 
-        letterboxed_frame, _, _ = _letterbox(frame, new_shape=(w, h), auto=False)
+        # ``new_shape`` is (height, width). Passing (w, h) went unnoticed while
+        # every exported model was square; a 384x640 model received a 640x384
+        # tensor, which a static-shape model rejects.
+        letterboxed_frame, _, _ = _letterbox(frame, new_shape=(h, w), auto=False)
 
         # Optimized path: Embedded preprocessing (GPU friendly)
         if getattr(self, "_use_embedded_preprocessing", False):

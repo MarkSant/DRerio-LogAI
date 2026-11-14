@@ -456,16 +456,3 @@ class HardwareCapabilityDetector:
             )
 
         return warnings
-
-
-def assess_hardware_for_live_multi_aquarium(settings_obj: Settings) -> HardwareCapabilityReport:
-    """Convenience function to assess hardware capability.
-
-    Args:
-        settings_obj: Application settings
-
-    Returns:
-        Hardware capability report
-    """
-    detector = HardwareCapabilityDetector(settings_obj)
-    return detector.assess_capability()

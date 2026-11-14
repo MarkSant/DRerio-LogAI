@@ -128,7 +128,7 @@ retry_strategy == "continue"?
 
 **Propósito**: Indicar falhas de integridade de arquivos (checksum, corrupção)
 
-**Localização**: `src/zebtrack/utils.py:24-27`
+**Localização**: `src/zebtrack/utils/__init__.py`
 
 ```python
 class IntegrityError(Exception):
@@ -407,7 +407,7 @@ Este resumo permite gerar relatórios de falhas e reprocessar apenas vídeos pro
 
 - `src/zebtrack/core/processing_worker.py` - Implementação principal de callbacks e retry
 - `src/zebtrack/core/main_view_model.py` - Handlers de callbacks no controller
-- `src/zebtrack/utils.py` - Exceções customizadas (`IntegrityError`)
+- `src/zebtrack/utils/__init__.py` - Exceções customizadas (`IntegrityError`)
 - `src/zebtrack/io/arduino_manager.py` - Exceção `SerialError`
 - `src/zebtrack/__main__.py` - Configuração de logging
 - `tests/test_processing_worker.py` - Testes de cenários de erro

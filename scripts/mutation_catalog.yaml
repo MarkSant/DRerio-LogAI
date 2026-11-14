@@ -391,7 +391,7 @@ modules:
     source: src/zebtrack/settings.py
     tests:
       - tests/test_settings.py
-      - tests/test_plugins_ultralytics.py
+      - tests/plugins/test_ultralytics_detector.py
     mutations:
       - id: animal-threshold-ignored
         description: "limiar do animal deixa de ser lido e o da arena volta a governar"
@@ -1000,7 +1000,7 @@ modules:
   openvino_nms:
     source: src/zebtrack/plugins/openvino_detector.py
     tests:
-      - tests/plugins/test_openvino_detector_extended.py
+      - tests/plugins/test_openvino_detector.py
     mutations:
       - id: nms-always-agnostic
         description: "NMS do OpenVINO volta a ser agnostico e o rato dentro da caixa some"
@@ -1435,7 +1435,7 @@ modules:
   session_output_labels:
     source: src/zebtrack/utils/report_files.py
     tests:
-      - tests/utils/test_session_output_listing.py
+      - tests/utils/test_report_files.py
     mutations:
       - id: object-sidecar-unlabelled
         description: "3c_Objetos_ volta a aparecer sem rotulo na lista de saidas"
@@ -2280,7 +2280,7 @@ modules:
   ultralytics_plugin_track_buffer:
     source: src/zebtrack/plugins/ultralytics_detector.py
     tests:
-      - tests/plugins/test_ultralytics_detector_extended.py
+      - tests/plugins/test_ultralytics_detector.py
     mutations:
       - id: plugin-pins-track-buffer
         description: "plugin volta a fixar track_buffer = 60 (#666)"
@@ -2370,7 +2370,7 @@ modules:
   plugin_bytetrack_threshold_hints:
     source: src/zebtrack/plugins/base.py
     tests:
-      - tests/plugins/test_detector_plugin_base_extended.py
+      - tests/plugins/test_base.py
     mutations:
       - id: openvino-match-fallback-returns
         description: "fallback do match sem settings volta a 0.80 (OpenVINO, #698)"
@@ -3728,3 +3728,139 @@ _load_registry()"
         description: "video unico ignora o behavioral_analysis do dialogo (#695)"
         find: 'if isinstance(dialog_block, dict)'
         replace: 'if False'
+
+  # ---------------------------------------------------------------------------
+  # plugins/ and utils/ coverage campaign (TASK-087)
+  # ---------------------------------------------------------------------------
+
+  openvino_geometry_and_devices:
+    source: src/zebtrack/plugins/openvino_detector.py
+    tests:
+      - tests/plugins/test_openvino_detector.py
+    mutations:
+      - id: letterbox-shape-swapped
+        description: "altura e largura trocadas a caminho do letterbox: modelo retangular recebe tensor transposto"
+        find: 'letterboxed_frame, _, _ = _letterbox(frame, new_shape=(h, w), auto=False)'
+        replace: 'letterboxed_frame, _, _ = _letterbox(frame, new_shape=(w, h), auto=False)'
+      - id: mask-padding-not-cropped
+        description: "mascara volta a ser esticada com as faixas do letterbox e o contorno sai fora do bbox"
+        find: '        masks = masks[top:bottom, left:right]'
+        replace: '        pass'
+      - id: masks-always-decoded
+        description: "decode de mascara roda em todo frame mesmo com a captura desligada"
+        find: 'results, frame.shape, input_shape, decode_masks=self._capture_masks'
+        replace: 'results, frame.shape, input_shape, decode_masks=True'
+      - id: missing-device-not-replaced
+        description: "dispositivo que a maquina nao tem deixa de cair para AUTO"
+        find: 'if device_name != "AUTO" and device_name not in available_devices:'
+        replace: 'if False:'
+      - id: npu-failure-retries-on-auto
+        description: "falha de compilacao no NPU volta a tentar AUTO em vez de CPU"
+        find: 'fallback_device = "CPU" if device_name == "NPU" else "AUTO"'
+        replace: 'fallback_device = "AUTO"'
+      - id: request-pool-not-capped
+        description: "fila assincrona pede mais requests do que ha frames"
+        find: 'nireq = max(1, min(nireq, len(frames)))'
+        replace: 'nireq = max(1, nireq)'
+
+  plugin_registry_degradation:
+    source: src/zebtrack/plugins/__init__.py
+    tests:
+      - tests/plugins/test_plugins_init.py
+    mutations:
+      - id: missing-openvino-reported-available
+        description: "backend OpenVINO ausente passa a ser anunciado como disponivel"
+        find: 'namespace.setdefault("OPENVINO_PLUGIN_AVAILABLE", openvino_cls is not None)'
+        replace: 'namespace.setdefault("OPENVINO_PLUGIN_AVAILABLE", True)'
+      - id: pinned-flag-overwritten
+        description: "construcao do registro sobrescreve uma flag ja definida"
+        find: 'namespace.setdefault("OPENVINO_PLUGIN_AVAILABLE", openvino_cls is not None)'
+        replace: 'namespace["OPENVINO_PLUGIN_AVAILABLE"] = openvino_cls is not None'
+
+  hardware_benchmark_decisions:
+    source: src/zebtrack/utils/hardware_benchmark.py
+    tests:
+      - tests/utils/test_hardware_benchmark.py
+    mutations:
+      - id: nvidia-without-cuda-sent-to-pytorch
+        description: "placa NVIDIA vista so pelo OpenVINO e mandada para PyTorch/cuda sem CUDA"
+        find: 'if profile.gpu_type == GPUType.NVIDIA and profile.cuda_available:'
+        replace: 'if profile.gpu_type == GPUType.NVIDIA:'
+      - id: fp16-recommended-on-a-tie
+        description: "FP16 recomendado sem ser mais rapido"
+        find: 'if compute_results["GPU_LATENCY_FP16"].fps > compute_results["GPU_LATENCY"].fps:'
+        replace: 'if compute_results["GPU_LATENCY_FP16"].fps >= compute_results["GPU_LATENCY"].fps:'
+      - id: eight-gb-treated-as-low-memory
+        description: "maquina de 8 GB cai no modo de pouca memoria"
+        find: 'if profile.total_memory_gb < 8:'
+        replace: 'if profile.total_memory_gb <= 8:'
+      - id: unmeasured-run-reported-conclusive
+        description: "benchmark que nao mediu nada deixa de se declarar inconclusivo e e congelado no cache"
+        find: 'result.inconclusive = not compute_results and not pipeline_live_results'
+        replace: 'result.inconclusive = False'
+      - id: cache-of-other-hardware-accepted
+        description: "cache de outra maquina passa a valer depois de trocar o hardware"
+        find: 'if result.hardware.fingerprint != current_profile.fingerprint:'
+        replace: 'if False:'
+      - id: compiled-cache-follows-cwd
+        description: "cache compilado do benchmark volta a depender do diretorio corrente"
+        find: 'return str(repo_root() / OPENVINO_CACHE_DIRNAME / "compiled_cache")'
+        replace: 'return "openvino_model_cache/compiled_cache"'
+      - id: npu-missing-from-fingerprint
+        description: "instalar um NPU deixa de invalidar o cache do benchmark"
+        find: 'f"{profile.cpu_name}|{profile.gpu_name}|{profile.gpu_memory_gb}|npu={has_npu}"'
+        replace: 'f"{profile.cpu_name}|{profile.gpu_name}|{profile.gpu_memory_gb}|npu=False"'
+
+  hardware_capability_tiers:
+    source: src/zebtrack/utils/hardware_capability.py
+    tests:
+      - tests/utils/test_hardware_capability.py
+    mutations:
+      - id: four-gb-machine-refused
+        description: "maquina de exatamente 4 GB vira insuficiente"
+        find: 'if cpu_cores < 2 or total_memory_gb < 4:'
+        replace: 'if cpu_cores < 2 or total_memory_gb <= 4:'
+      - id: excellent-without-gpu
+        description: "maquina sem GPU e classificada como excelente"
+        find: 'if has_gpu and cpu_cores >= 8 and total_memory_gb >= 16:'
+        replace: 'if cpu_cores >= 8 and total_memory_gb >= 16:'
+      - id: aquarium-cap-removed
+        description: "teto de 6 aquarios deixa de valer"
+        find: 'return min(max_from_cpu, max_from_memory, 6)'
+        replace: 'return min(max_from_cpu, max_from_memory)'
+      - id: insufficient-machine-allowed-realtime
+        description: "maquina insuficiente e liberada para tempo real"
+        find: 'can_process_realtime = capability not in (MultiAquariumCapability.INSUFFICIENT,)'
+        replace: 'can_process_realtime = True'
+
+  polygon_simplification:
+    source: src/zebtrack/utils/geometry.py
+    tests:
+      - tests/utils/test_geometry.py
+    mutations:
+      - id: epsilon-floor-removed
+        description: "epsilon deixa de ter piso de 1 px e o ruido de borda sobrevive"
+        find: 'epsilon = max(1.0, epsilon_factor * perimeter)'
+        replace: 'epsilon = epsilon_factor * perimeter'
+      - id: collapsed-outline-returned
+        description: "aproximacao que colapsa abaixo de um triangulo e devolvida como arena"
+        find: 'if approx is None or len(approx) < 3:'
+        replace: 'if approx is None:'
+
+  coverage_summary_floors:
+    source: scripts/coverage_summary.py
+    tests:
+      - tests/quality/test_coverage_summary.py
+    mutations:
+      - id: floor-exactly-met-fails
+        description: "pacote exatamente no piso passa a reprovar"
+        find: 'if counts.line_rate < floor:'
+        replace: 'if counts.line_rate <= floor:'
+      - id: prefix-swallows-sibling-package
+        description: "piso de 'core' passa a somar um pacote 'coreutils'"
+        find: 'own.startswith(package + ".")'
+        replace: 'own.startswith(package)'
+      - id: unknown-package-passes
+        description: "piso num pacote que nao existe no relatorio passa em silencio"
+        find: 'if unknown:'
+        replace: 'if False:'

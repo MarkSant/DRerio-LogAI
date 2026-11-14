@@ -343,6 +343,18 @@ jobs:
           xvfb-run --auto-servernum poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=57.0 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
+      # The gate above is one number for ~60 000 statements: a whole package can
+      # lose its tests without moving it. These floors pin the packages a focused
+      # campaign has already raised, so that gain cannot be handed back behind
+      # the global average. Same ratchet rule as the global gate: a PR that
+      # raises a package raises its floor, and the measured values live in
+      # docs/testing/COVERAGE_BASELINE.md. An unknown package name exits 2 —
+      # a typo must not pass as "nothing to check".
+      - name: "Per-package coverage floors (Linux)"
+        if: runner.os == 'Linux' && matrix.suite == 'core'
+        run: |
+          poetry run python scripts/coverage_summary.py coverage-core.xml --fail-under plugins=94 --fail-under utils=92
+
       # Coverage proves a line ran; only a failing assertion proves it is checked.
       # This breaks the silently-degrading contracts on purpose and fails the job
       # on any defect the suite does not notice. Runs as a step in the existing

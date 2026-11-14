@@ -30,7 +30,7 @@ The test tree mirrors `src/zebtrack/`, with two exceptions:
 | `src/zebtrack/core/video/`            | 14    | `tests/core/test_video_*.py`, `tests/core/video/test_*.py` | (mixed) |
 | `src/zebtrack/core/viewmodels/`       | 4     | `tests/core/test_*view_model*.py`               | (mixed) |
 | `src/zebtrack/io/`                    | 10    | `tests/io/test_*.py` + root `tests/test_io_*.py`| 8 + 3 |
-| `src/zebtrack/plugins/`               | 3     | `tests/test_plugins_*.py`                       | (root) |
+| `src/zebtrack/plugins/`               | 4     | `tests/plugins/test_*.py` (one per module)      | 5 (+ root `tests/test_openvino_*.py`) |
 | `src/zebtrack/tracker/`               | 4     | `tests/test_*tracker*.py`, `test_hybrid_matching` | (root) |
 | `src/zebtrack/ui/builders/`           | 7     | `tests/ui/builders/test_*.py`                   | 3     |
 | `src/zebtrack/ui/components/`         | 28    | `tests/ui/components/test_*.py`                 | 27    |
@@ -39,7 +39,7 @@ The test tree mirrors `src/zebtrack/`, with two exceptions:
 | `src/zebtrack/ui/dialogs/`            | 25    | `tests/ui/dialogs/test_*.py` + `test_dialogs_batch*.py` | 10 |
 | `src/zebtrack/ui/wizard/`             | 18    | `tests/ui/wizard/test_*.py`                     | 13    |
 | `src/zebtrack/ui/` (root)             | 11    | `tests/ui/test_*.py`                            | 16    |
-| `src/zebtrack/utils/`                 | 10    | `tests/utils/test_*.py`                         | 10    |
+| `src/zebtrack/utils/`                 | 11    | `tests/utils/test_*.py` (one per module)        | 12    |
 
 **Cross-cutting (no source mirror):**
 
@@ -136,7 +136,13 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `core/detection/multi_aquarium_detector.py` (roles) | `tests/core/detection/test_multi_aquarium_detector_extended.py` + `--module multi_aquarium_detector_class_roles` |
 | `core/detection/detection_post_processor.py` (context helpers) | `tests/core/detection/test_detection_post_processor_extended.py` + `--module detection_post_processor_class_roles` |
 | `core/services/detector_service.py` (role gate) | `tests/core/test_detector_service.py`, `tests/test_class_names_validation.py` + `--module detector_service_class_roles` |
-| `plugins/openvino_detector.py` (NMS per class) | `tests/plugins/test_openvino_detector_extended.py` + `--module openvino_nms` |
+| `plugins/openvino_detector.py` (NMS per class, letterbox, masks, devices, batch) | `tests/plugins/test_openvino_detector.py` (fake runtime: `tests/helpers/fake_backends.py`) + `--module openvino_nms`, `openvino_geometry_and_devices` |
+| `plugins/__init__.py` (lazy registry) | `tests/plugins/test_plugins_init.py`, `tests/test_lazy_heavy_imports.py` + `--module plugin_registry_degradation`, `lazy_heavy_imports_plugins` |
+| `utils/hardware_benchmark.py` | `tests/utils/test_hardware_benchmark.py` + `--module hardware_benchmark_decisions` |
+| `utils/hardware_capability.py` | `tests/utils/test_hardware_capability.py` + `--module hardware_capability_tiers` |
+| `utils/geometry.py` (polygon simplification) | `tests/utils/test_geometry.py` + `--module polygon_simplification` |
+| `utils/__init__.py` (`calculate_sha256`, `set_seed`, its own `polygon_centroid`) | `tests/utils/test_utils_init.py` + `--module lazy_heavy_imports_utils` |
+| `scripts/coverage_summary.py` (per-package floors) | `tests/quality/test_coverage_summary.py` + `--module coverage_summary_floors` |
 | `core/project/project_lifecycle_manager.py` (v8 migrations) | `tests/core/project/test_project_lifecycle_manager_extended.py`, `tests/integration/test_legacy_project_7_2_0.py` + `--module project_v8_migrations` |
 | `core/project/project_workflow_service.py` (`model_selection`, wizard class roles) | `tests/core/test_project_workflow_service.py` (`TestWizardClassRoles`) + `--module project_workflow_model_selection` |
 | 7.2.0 compatibility (ADR-013 invariant 4) | `tests/integration/test_legacy_project_7_2_0.py` |
@@ -146,7 +152,7 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `core/video/processing_worker.py` (model spec, object sidecar writes) | `tests/core/test_processing_worker_unit.py` + `--module processing_worker_model_spec`, `--module processing_worker_object_sidecar` |
 | `core/video/tracking_session_runner.py` (hands tracking to the worker) | `tests/core/test_video_processing_service_tracking.py` |
 | `core/project/parquet_io_manager.py` (sidecar set on import) | `tests/test_parquet_import.py` + `--module parquet_import_sidecars` |
-| `utils/report_files.py` (`3c_`/`7_` labels) | `tests/utils/test_session_output_listing.py` + `--module session_output_labels` |
+| `utils/report_files.py` (`3c_`/`7_` labels) | `tests/utils/test_report_files.py` + `--module session_output_labels` |
 | `core/conditions/*.py` | `tests/core/conditions/` (unit + Barnes VFR + hypothesis properties: batch ≡ online, back-dating, STOP ≥ START, duplicates) + `--module conditions_model`, `conditions_evaluator`, `conditions_artifact` |
 | `core/conditions/presets.py` | `tests/core/conditions/test_presets.py` (Barnes preset ≡ acceptance fixture by hash with `burrow_roi=None`; burrow STOP #650; legacy-trigger preset), `tests/core/recording/test_condition_runtime.py` (`TestBarnesBurrowParity`: live ≡ analysis STOP), `tests/integration/test_barnes_window_e2e.py` + `--module conditions_presets` |
 | `analysis/window_observations.py` | `tests/analysis/test_window_observations.py` (3c heartbeat → observations, report ROI rule, external events, trajectory-only fallback, `missing_inputs`, report subject screening #671) + `--module window_observations` |

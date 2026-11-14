@@ -6,6 +6,34 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-14] Campanha de cobertura (`plugins/`, `utils/`) e auditoria de pontas soltas
+
+__ID:__ TASK-087
+__Agent:__ Claude Code (Fable 5.2)
+__Status:__ In progress 🚧
+__Branch:__ worktree-cov-plugins-utils (a partir de `main`, b03e5546)
+__Description:__
+Aumentar a cobertura de testes começando por `src/zebtrack/plugins` e `src/zebtrack/utils`, e
+auditar o código atrás de eventos sem ouvinte, código morto, registros de DI decorativos, falhas
+silenciosas e fluxos quebrados. Os achados ficam em
+[`docs/audits/2026-11_loose_ends.md`](../../audits/2026-11_loose_ends.md).
+
+Frentes, na ordem:
+
+- [x] Fase 0 — régua: medição fresca com ramos, tabela por pacote em `COVERAGE_BASELINE.md`,
+  `__init__.py` de volta à medição, piso por pacote (`scripts/coverage_summary.py --fail-under`).
+- [x] Fase 1 — `plugins/` e `utils/` a ≥ 85 % de linha: decidir o código morto local, fundir os 15
+  arquivos `*_extended`, fakes compartilhados de backend, `openvino_detector.py`,
+  `hardware_benchmark.py`, blocos novos no catálogo de mutação.
+- [ ] A1 — eventos: publicações por string, guarda cega aos wrappers e às direções inversas.
+- [ ] A2/A3 — código morto e DI.
+- [ ] A4/A5 — fonte única, corretude científica e falhas silenciosas.
+- [ ] Fase 2 — restante do código, por risco (lógica não-UI primeiro, depois diálogos em 0 %).
+- [ ] A6–A8 — threads/Tk, configuração e documentação defasadas, fluxos ponta a ponta.
+
+Regra da campanha: código morto é decidido ANTES de ganhar teste, e apagar é decisão do
+mantenedor — o registro traz a evidência e nada sai sem aprovação.
+
 ### [2026-11-14] Preparação do release 8.0.0
 
 __ID:__ TASK-086

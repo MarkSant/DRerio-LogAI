@@ -43,6 +43,18 @@ TOTAL_BENCHMARK_STEPS = 7
 log = structlog.get_logger()
 
 
+def _compiled_cache_dir() -> str:
+    """Where the benchmark lets OpenVINO cache compiled GPU/NPU blobs.
+
+    The same folder the detector plugin resolves from the default
+    ``openvino.cache_dir`` setting, anchored at the repository root. As a bare
+    relative path it followed the working directory: a benchmark started from
+    anywhere but the repository created a stray ``openvino_model_cache/`` there
+    and compiled blobs the application never found again.
+    """
+    return str(repo_root() / OPENVINO_CACHE_DIRNAME / "compiled_cache")
+
+
 class GPUType(Enum):
     """Type of GPU/accelerator detected in the system."""
 
@@ -542,7 +554,7 @@ def _benchmark_openvino_inference(
         try:
             config = {"PERFORMANCE_HINT": hint}
             if device == "GPU":
-                config["CACHE_DIR"] = "openvino_model_cache/compiled_cache"
+                config["CACHE_DIR"] = _compiled_cache_dir()
                 if "FP16" in key:
                     config["INFERENCE_PRECISION_HINT"] = "f16"
 
@@ -657,12 +669,18 @@ def _benchmark_pipeline_complete(
 
         config = {"PERFORMANCE_HINT": hint}
         if device in ("GPU", "NPU"):
-            config["CACHE_DIR"] = "openvino_model_cache/compiled_cache"
+            config["CACHE_DIR"] = _compiled_cache_dir()
 
         compiled = core.compile_model(model, device, config)
         infer_request = compiled.create_infer_request()
-
         cap = cv2.VideoCapture(str(video_path))
+    except Exception as e:
+        log.warning("benchmark.pipeline_failed", device=device, hint=hint, error=str(e))
+        return None
+
+    # ``finally`` so a run that fails midway (an unreadable frame, a device
+    # error) does not leave the video file open for the rest of the process.
+    try:
         if not cap.isOpened():
             return None
 
@@ -700,8 +718,6 @@ def _benchmark_pipeline_complete(
 
             times.append((time.perf_counter() - start) * 1000)
 
-        cap.release()
-
         avg = sum(times) / len(times)
         return BenchmarkResult(
             name=f"Pipeline ({device} {hint})",
@@ -716,6 +732,8 @@ def _benchmark_pipeline_complete(
     except Exception as e:
         log.warning("benchmark.pipeline_failed", device=device, hint=hint, error=str(e))
         return None
+    finally:
+        cap.release()
 
 
 def _generate_recommendation(
@@ -1092,48 +1110,6 @@ def get_or_run_benchmark(
     save_benchmark_cache(result)
 
     return result
-
-
-def get_optimal_settings(
-    benchmark_result: SystemBenchmarkResult | None = None,
-) -> dict[str, Any]:
-    """
-    Get optimal settings dictionary based on benchmark results.
-
-    This returns settings that can be used to configure the application.
-
-    Args:
-        benchmark_result: Optional pre-loaded benchmark result.
-
-    Returns:
-        Dictionary with optimal settings.
-    """
-    if benchmark_result is None:
-        benchmark_result = get_or_run_benchmark()
-
-    rec = benchmark_result.recommendation
-    if rec is None:
-        return {}
-
-    return {
-        "use_openvino": rec.backend == "openvino",
-        "openvino": {
-            "device": rec.device_live,
-            "device_batch": rec.device_batch,
-            "performance_hint_live": rec.openvino_hint_live,
-            "performance_hint_batch": rec.openvino_hint_batch,
-            "precision": rec.openvino_precision,
-            "enable_model_cache": rec.enable_model_cache,
-        },
-        "performance": {
-            "memory_mode": rec.recommended_memory_mode,
-        },
-        "decode_backend": rec.decode_backend,
-        "batch_size": rec.recommended_batch_size,
-        "estimated_fps_live": rec.estimated_fps_live,
-        "estimated_fps_batch": rec.estimated_fps_batch,
-        "recommended_inference_size": rec.recommended_inference_size,
-    }
 
 
 def print_benchmark_summary(result: SystemBenchmarkResult) -> None:
