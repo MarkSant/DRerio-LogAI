@@ -9,7 +9,9 @@ do barramento de eventos. A proximidade social tem módulo próprio:
 
 from __future__ import annotations
 
+import threading
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import Mock
 
 import pandas as pd
@@ -17,6 +19,7 @@ import pytest
 
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.video.analysis_pipeline_runner import AnalysisPipelineRunnerMixin
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 def _make_settings():
@@ -527,3 +530,355 @@ class TestReportBehavioralConfig:
         assert ok is False
         assert seen["behavioral_config"]["aquarium_perspective"] == "top_down"
         assert seen["behavioral_config"]["thigmotaxis_distance_cm"] == 15.0
+
+
+# ---------------------------------------------------------------------------
+# _run_analysis_pipeline orchestration and report generation (TASK-087)
+# ---------------------------------------------------------------------------
+
+
+class _Cancel:
+    """``threading.Event`` look-alike whose ``is_set`` answers from a script."""
+
+    def __init__(self, *answers):
+        self.answers = list(answers)
+        self.asked = 0
+
+    def is_set(self):
+        self.asked += 1
+        return self.answers.pop(0) if self.answers else self.answers_default
+
+    answers_default = True
+
+
+class _Reporter:
+    """Records the export a reporter was asked for, in a shared log."""
+
+    def __init__(self, log, name):
+        self.log = log
+        self.name = name
+
+    def __call__(self, ctx):
+        self.ctx = ctx
+        return self
+
+    def export_summary(self, path):
+        self.log.append((self.name, path))
+
+    def export_individual_report_step_by_step(self, path, progress):
+        self.log.append((self.name, path, progress))
+
+
+@pytest.fixture
+def reporters(monkeypatch):
+    from zebtrack.core.video import analysis_pipeline_runner as module
+
+    log: list[tuple] = []
+    monkeypatch.setattr(module, "ParquetSummaryReporter", _Reporter(log, "parquet"))
+    monkeypatch.setattr(module, "ExcelReporter", _Reporter(log, "excel"))
+    monkeypatch.setattr(module, "WordReporter", _Reporter(log, "word"))
+    return log
+
+
+class TestGenerateReportsForVideo:
+    def test_all_three_reports_are_written_next_to_the_trajectory(
+        self, runner, reporters, tmp_path
+    ):
+        progress = object()
+
+        paths = runner._generate_reports_for_video(
+            ctx=object(),
+            experiment_id="E1",
+            results_dir=str(tmp_path),
+            progress_callback=progress,
+            cancel_event=None,
+        )
+
+        parquet = str(tmp_path / "E1_summary.parquet")
+        excel = str(tmp_path / "E1_summary.xlsx")
+        word = str(tmp_path / "E1_report.docx")
+        assert paths == (parquet, excel, word)
+        assert reporters == [("parquet", parquet), ("excel", excel), ("word", word, progress)]
+
+    @pytest.mark.parametrize(
+        ("answers", "written"),
+        [
+            # cancelled before anything is written
+            ([True], []),
+            # cancelled between the two entry checks
+            ([False, True], []),
+            # cancelled after the parquet summary
+            ([False, False, True], ["parquet"]),
+            # cancelled after the excel summary
+            ([False, False, False, True], ["parquet", "excel"]),
+        ],
+    )
+    def test_a_cancel_stops_the_remaining_reports(
+        self, runner, reporters, tmp_path, answers, written
+    ):
+        result = runner._generate_reports_for_video(
+            ctx=object(),
+            experiment_id="E1",
+            results_dir=str(tmp_path),
+            progress_callback=None,
+            cancel_event=_Cancel(*answers),
+        )
+
+        assert result is None
+        assert [entry[0] for entry in reporters] == written
+
+
+def _pipeline_rig(runner, monkeypatch, tmp_path, **over):
+    """Stub every heavy step of ``_run_analysis_pipeline`` and record the calls."""
+    runner.cancel_event = threading.Event()
+    calls: list[tuple] = []
+    state: dict[str, Any] = {
+        "trajectory": pd.DataFrame({"frame": [0, 1], "track_id": [1, 2]}),
+        "params": ({"experiment_id": "E1"}, 30.0, 20.0, 90.0, 1.5, 1.0, 5, 2),
+        "arena": [[0, 0], [10, 0], [10, 10]],
+        "calibration": (object(), [(0.0, 0.0)], [], {}, 20.0, 20.0),
+        "reports": ("p.parquet", "e.xlsx", "r.docx"),
+    }
+    state.update(over)
+
+    def load(path, experiment_id):
+        calls.append(("load", path, experiment_id))
+        return state["trajectory"]
+
+    def collect(**kw):
+        calls.append(("collect", kw))
+        return state["params"]
+
+    def ensure(arena, video_path, video_context=None):
+        calls.append(("ensure_arena", arena, video_path, video_context))
+        return state["arena"]
+
+    def prepare(**kw):
+        calls.append(("prepare", kw))
+        return state["calibration"]
+
+    def window(**kw):
+        calls.append(("window", kw))
+        return "WINDOW"
+
+    def create(**kw):
+        calls.append(("reporter", kw))
+        return SimpleNamespace(validation_warnings=[])
+
+    def social(**kw):
+        calls.append(("social", kw))
+        return SimpleNamespace(result={"pairs": 3})
+
+    def warn(ctx, outcome):
+        calls.append(("warn", outcome))
+
+    def reports(**kw):
+        calls.append(("reports", kw))
+        return state["reports"]
+
+    def register(**kw):
+        calls.append(("register", kw))
+
+    for name, fn in {
+        "load_trajectory_dataframe": load,
+        "_collect_analysis_parameters": collect,
+        "ensure_arena_polygon": ensure,
+        "_prepare_analysis_calibration_context": prepare,
+        "_resolve_analysis_window": window,
+        "_create_reporter_instance": create,
+        "_resolve_report_behavioral_config": lambda _cfg: {"cfg": 1},
+        "_analyze_social_proximity": social,
+        "_record_social_outcome_warning": warn,
+        "_generate_reports_for_video": reports,
+        "_register_project_outputs": register,
+    }.items():
+        monkeypatch.setattr(runner, name, fn)
+    runner.project_manager.get_zone_data.return_value = ZoneData(polygon=[[0, 0]])
+    return calls, state
+
+
+def _run(runner, tmp_path, **kw):
+    kw.setdefault("analysis_profile", None)
+    return runner._run_analysis_pipeline(
+        experiment_id="E1",
+        video_path="/v/E1.mp4",
+        results_dir=str(tmp_path),
+        arena_polygon_px=[[1, 1]],
+        metadata_context=None,
+        single_video_config=None,
+        progress_callback="PROGRESS",
+        **kw,
+    )
+
+
+def _events(runner):
+    return [call.args[0] for call in runner.ui_event_bus.publish.call_args_list]
+
+
+class TestRunAnalysisPipeline:
+    def test_a_complete_run_registers_the_outputs_and_publishes_the_social_summary(
+        self, runner, monkeypatch, tmp_path
+    ):
+        calls, _ = _pipeline_rig(runner, monkeypatch, tmp_path)
+
+        assert _run(runner, tmp_path, analysis_profile={"name": "Focal", "track_ids": [2]}) is True
+
+        names = [c[0] for c in calls]
+        assert names == [
+            "load",
+            "collect",
+            "ensure_arena",
+            "prepare",
+            "window",
+            "reporter",
+            "social",
+            "warn",
+            "reports",
+            "register",
+        ]
+        trajectory_path = str(tmp_path / "3_CoordMovimento_E1.parquet")
+        assert calls[0] == ("load", trajectory_path, "E1")
+        register = calls[-1][1]
+        assert register == {
+            "video_path": "/v/E1.mp4",
+            "results_dir": str(tmp_path),
+            "trajectory_path": trajectory_path,
+            "summary_parquet": "p.parquet",
+            "summary_excel": "e.xlsx",
+            "report_path": "r.docx",
+        }
+        reports = next(c for c in calls if c[0] == "reports")[1]
+        assert reports["progress_callback"] == "PROGRESS"
+        assert reports["cancel_event"] is runner.cancel_event
+        # The profile narrows the trajectory the reporter sees, and its name and
+        # tracks are stamped into the metadata the reporter gets.
+        reporter = next(c for c in calls if c[0] == "reporter")[1]
+        assert reporter["filtered_df"]["track_id"].tolist() == [2]
+        assert reporter["metadata"]["analysis_profile"] == "Focal"
+        assert reporter["window"] == "WINDOW"
+        (summary,) = [e for e in _events(runner) if e.type == UIEvents.UI_UPDATE_SOCIAL_SUMMARY]
+        assert summary.data.profile == "Focal"
+        assert summary.data.stats == {"pairs": 3}
+        assert summary.data.tracks == ["2"]
+
+    def test_without_a_profile_the_summary_is_published_as_default(
+        self, runner, monkeypatch, tmp_path
+    ):
+        _pipeline_rig(runner, monkeypatch, tmp_path)
+
+        assert _run(runner, tmp_path) is True
+
+        (summary,) = [e for e in _events(runner) if e.type == UIEvents.UI_UPDATE_SOCIAL_SUMMARY]
+        assert summary.data.profile == "default"
+        assert summary.data.tracks == ["1", "2"]
+
+    def test_a_missing_trajectory_ends_the_run_quietly(self, runner, monkeypatch, tmp_path):
+        calls, _ = _pipeline_rig(runner, monkeypatch, tmp_path, trajectory=None)
+
+        assert _run(runner, tmp_path) is False
+
+        assert [c[0] for c in calls] == ["load"]
+
+    def test_a_cancel_before_the_pipeline_skips_every_step(self, runner, monkeypatch, tmp_path):
+        calls, _ = _pipeline_rig(runner, monkeypatch, tmp_path)
+        runner.cancel_event.set()
+
+        assert _run(runner, tmp_path) is False
+
+        assert [c[0] for c in calls] == ["load"]
+
+    @pytest.mark.parametrize(
+        "params",
+        [
+            ({"experiment_id": "E1"}, None, 20.0, 90.0, 1.5, 1.0, 5, 2),
+            ({"experiment_id": "E1"}, 30.0, 0, 90.0, 1.5, 1.0, 5, 2),
+        ],
+    )
+    def test_missing_aquarium_dimensions_show_the_calibration_error(
+        self, runner, monkeypatch, tmp_path, params
+    ):
+        calls, _ = _pipeline_rig(runner, monkeypatch, tmp_path, params=params)
+
+        assert _run(runner, tmp_path) is False
+
+        (error,) = [e for e in _events(runner) if e.type == UIEvents.SHOW_ERROR]
+        assert error.data.message == "Incomplete calibration data."
+        assert "prepare" not in [c[0] for c in calls]
+
+    def test_a_missing_arena_shows_the_same_error(self, runner, monkeypatch, tmp_path):
+        _pipeline_rig(runner, monkeypatch, tmp_path, arena=None)
+
+        assert _run(runner, tmp_path) is False
+
+        (error,) = [e for e in _events(runner) if e.type == UIEvents.SHOW_ERROR]
+        assert error.data.message == "Incomplete calibration data."
+
+    @pytest.mark.parametrize(
+        "calibration",
+        [
+            (None, [(0.0, 0.0)], [], {}, 20.0, 20.0),
+            (object(), None, [], {}, 20.0, 20.0),
+            (object(), [(0.0, 0.0)], [], {}, None, 20.0),
+            (object(), [(0.0, 0.0)], [], {}, 20.0, None),
+        ],
+    )
+    def test_an_unusable_calibration_stops_before_the_reports(
+        self, runner, monkeypatch, tmp_path, calibration
+    ):
+        calls, _ = _pipeline_rig(runner, monkeypatch, tmp_path, calibration=calibration)
+
+        assert _run(runner, tmp_path) is False
+
+        (error,) = [e for e in _events(runner) if e.type == UIEvents.SHOW_ERROR]
+        assert error.data.message == "Failed to prepare the calibration data."
+        assert "reporter" not in [c[0] for c in calls]
+
+    def test_a_cancel_after_the_context_is_built_skips_social_and_reports(
+        self, runner, monkeypatch, tmp_path
+    ):
+        calls, _ = _pipeline_rig(runner, monkeypatch, tmp_path)
+        original = runner._create_reporter_instance
+
+        def create_then_cancel(**kw):
+            runner.cancel_event.set()
+            return original(**kw)
+
+        monkeypatch.setattr(runner, "_create_reporter_instance", create_then_cancel)
+
+        assert _run(runner, tmp_path) is False
+
+        names = [c[0] for c in calls]
+        assert "social" not in names and "reports" not in names
+
+    def test_cancelled_reports_mean_no_registration_and_no_summary(
+        self, runner, monkeypatch, tmp_path
+    ):
+        calls, _ = _pipeline_rig(runner, monkeypatch, tmp_path, reports=None)
+
+        assert _run(runner, tmp_path) is False
+
+        assert "register" not in [c[0] for c in calls]
+        assert [e for e in _events(runner) if e.type == UIEvents.UI_UPDATE_SOCIAL_SUMMARY] == []
+
+
+class TestRegisterOutputsWithoutBus:
+    def test_the_refresh_event_is_skipped_when_there_is_no_bus(self, runner):
+        runner.ui_event_bus = None
+
+        runner._register_project_outputs(
+            video_path="v",
+            results_dir="r",
+            trajectory_path="t",
+            summary_parquet="p",
+            summary_excel="e",
+            report_path="d",
+        )
+
+        runner.project_manager.register_processing_outputs.assert_called_once_with(
+            "v",
+            results_dir="r",
+            trajectory_path="t",
+            summary_parquet="p",
+            summary_excel="e",
+            report_path="d",
+        )

@@ -3957,3 +3957,210 @@ _load_registry()"
         description: "sem coordenador a exclusao de hierarquia finge ter apagado algo"
         find: 'return 0, 0'
         replace: 'return 1, 1'
+
+  # core/video coverage (TASK-087)
+  processing_worker_monitor_loop:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+    mutations:
+      - id: exit-grace-window-collapsed
+        description: "filho morto sem sinal e declarado fatal sem esperar o flush da fila"
+        find: 'if time.monotonic() - worker_exit_detected_at < 1.0:'
+        replace: 'if time.monotonic() - worker_exit_detected_at < 0.0:'
+      - id: exit-grace-not-reset-by-messages
+        description: "uma mensagem que chega tarde nao rearma a janela de tolerancia"
+        find: 'worker_exit_detected_at = None'
+        replace: 'pass'
+      - id: cancel-flooded
+        description: "o comando cancel e reenviado a cada volta do monitor"
+        find: 'if self.context.cancel_event.is_set() and not cancel_sent:'
+        replace: 'if self.context.cancel_event.is_set():'
+      - id: join-without-wait
+        description: "o monitor nao espera o filho sair antes de decidir terminar"
+        find: 'self.process.join(timeout=2.0)'
+        replace: 'self.process.join(timeout=0.0)'
+      - id: progress-total-default
+        description: "progresso sem total reporta 0 videos em vez de 1"
+        find: 'msg.get("total", 1)'
+        replace: 'msg.get("total", 0)'
+
+  processing_worker_frame_loop:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+    mutations:
+      - id: skipped-frames-not-grabbed
+        description: "quadros fora do intervalo nao sao consumidos e o fim do video nao e visto"
+        find: 'ret = cap.grab()'
+        replace: 'ret = True'
+      - id: pts-in-wrong-unit
+        description: "timestamp da trajetoria deixa de ser o PTS em segundos"
+        find: 'timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0'
+        replace: 'timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 100.0'
+      - id: preview-not-scaled
+        description: "preview largo vai ao UI sem reduzir as caixas"
+        find: 'scale = 1280 / width'
+        replace: 'scale = 1.0'
+      - id: results-folder-name
+        description: "pasta de resultados ao lado do video muda de nome"
+        find: 'results_dir = os.path.join(video_dir, f"{experiment_id}_results")'
+        replace: 'results_dir = os.path.join(video_dir, f"{experiment_id}_out")'
+      - id: single-video-mode-inverted
+        description: "video unico grava na pasta do lote e vice-versa"
+        find: 'if self.config.single_video_mode:'
+        replace: 'if not self.config.single_video_mode:'
+
+  processing_worker_run_ids:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+    mutations:
+      - id: aquarium-suffix-off-by-one
+        description: "sufixo _aqN comeca em 0 e colide com o aquario 1"
+        find: "video_info['aquarium_id'] + 1"
+        replace: "video_info['aquarium_id'] + 0"
+      - id: anonymous-video-id
+        description: "tarefa sem caminho nem id perde a numeracao 1-based"
+        find: 'else f"video_{index + 1}"'
+        replace: 'else f"video_{index}"'
+      - id: completed-ignores-cancel
+        description: "sinal final diz que nao houve cancelamento"
+        find: '{"type": "completed", "cancelled": self._cancel_requested}'
+        replace: '{"type": "completed", "cancelled": False}'
+
+  progress_notifier_metadata:
+    source: src/zebtrack/core/video/progress_notifier.py
+    tests:
+      - tests/core/test_video_processing_service_helpers.py
+    mutations:
+      - id: entry-top-level-overrides-metadata
+        description: "chave de topo da entrada vence o metadata do projeto"
+        find: 'if value not in (None, "") and key not in combined:'
+        replace: 'if value not in (None, ""):'
+      - id: single-config-overrides
+        description: "config de video unico sobrescreve o que o projeto ja sabia"
+        find: 'combined.setdefault(target_key, value)'
+        replace: 'combined[target_key] = value'
+      - id: experiment-id-overrides
+        description: "experiment_id do contexto e substituido pelo do argumento"
+        find: 'combined.setdefault("experiment_id", experiment_id)'
+        replace: 'combined["experiment_id"] = experiment_id'
+      - id: metadata-update-delayed
+        description: "atualizacao da vista de analise espera 1 s na thread principal"
+        find: 'self.ui_coordinator.schedule_after(0, _publish)'
+        replace: 'self.ui_coordinator.schedule_after(1000, _publish)'
+      - id: profile-tracks-not-copied
+        description: "trilhas do perfil entram como o objeto original, nao como lista"
+        find: 'combined["analysis_profile_tracks"] = list(track_ids)'
+        replace: 'combined["analysis_profile_tracks"] = track_ids'
+
+  video_processing_service_orchestration:
+    source: src/zebtrack/core/video/video_processing_service.py
+    tests:
+      - tests/core/test_video_processing_service.py
+    mutations:
+      - id: active-zone-video-not-set
+        description: "zonas do video anterior continuam ativas durante o processamento"
+        find: 'self.project_manager.set_active_zone_video(video_path)'
+        replace: 'pass'
+      - id: first-frame-not-shown
+        description: "o primeiro quadro ja lido nao e reaproveitado na UI"
+        find: 'self.display_initial_frame(video_path, frame=video_context.first_frame)'
+        replace: 'self.display_initial_frame(video_path, frame=None)'
+      - id: detector-cache-kept
+        description: "cache do detector sobrevive ao proximo video"
+        find: 'if detector and hasattr(detector, "clear_cache"):'
+        replace: 'if False:'
+      - id: capture-leaked
+        description: "a captura do video nunca e liberada"
+        find: 'video_context.release()'
+        replace: 'pass'
+      - id: failed-analysis-reported-ok
+        description: "analise que falhou volta como sucesso"
+        find: 'return analysis_success, results_dir'
+        replace: 'return True, results_dir'
+
+  tracking_session_runner_worker:
+    source: src/zebtrack/core/video/tracking_session_runner.py
+    tests:
+      - tests/core/test_video_processing_service_tracking.py
+    mutations:
+      - id: existing-trajectory-ignored
+        description: "trajetoria ja gravada e refeita em vez de reaproveitada"
+        find: 'if os.path.exists(trajectory_path):'
+        replace: 'if False:'
+      - id: completion-always-success
+        description: "video que falhou no worker volta como concluido"
+        find: 'result_status["success"] = success'
+        replace: 'result_status["success"] = True'
+      - id: stats-dropped
+        description: "estatisticas do worker nao chegam ao callback de progresso"
+        find: 'progress_callback(fraction, message, stats=stats)'
+        replace: 'progress_callback(fraction, message, stats=None)'
+      - id: six-field-progress-rejected
+        description: "formato de seis campos do worker e descartado como invalido"
+        find: 'elif len(args) == 6:'
+        replace: 'elif len(args) == 5:'
+
+  analysis_pipeline_runner_orchestration:
+    source: src/zebtrack/core/video/analysis_pipeline_runner.py
+    tests:
+      - tests/core/video/test_analysis_pipeline_runner.py
+    mutations:
+      - id: cancelled-reports-registered
+        description: "relatorios cancelados ainda sao registrados como saida"
+        find: 'if generated_outputs is None:'
+        replace: 'if False:'
+      - id: summary-profile-name
+        description: "perfil sem nome deixa de ser publicado como default"
+        find: 'profile_name = profile_dict.get("name", "default")'
+        replace: 'profile_name = profile_dict.get("name", "unnamed")'
+      - id: calibration-x-ignored
+        description: "razao px/cm em x ausente nao interrompe a analise"
+        find: 'or pixelcm_x is None'
+        replace: 'or False'
+      - id: excel-summary-skipped
+        description: "resumo em Excel deixa de ser gerado"
+        find: 'ExcelReporter(ctx).export_summary(summary_excel_path)'
+        replace: 'pass'
+
+  video_context_factory_calibration:
+    source: src/zebtrack/core/video/video_context_factory.py
+    tests:
+      - tests/core/test_video_context_factory.py
+    mutations:
+      - id: fast-seek-boundary
+        description: "seek de exatamente 10 ms conta como rapido"
+        find: 'if seek_time_ms < 10:'
+        replace: 'if seek_time_ms <= 10:'
+      - id: medium-seek-boundary
+        description: "seek de exatamente 50 ms conta como medio"
+        find: 'elif seek_time_ms < 50:'
+        replace: 'elif seek_time_ms <= 50:'
+      - id: fps-fallback-lost
+        description: "cabecalho sem fps nao cai no fps das settings"
+        find: 'or getattr(self.settings.video_processing, "fps", 30.0)'
+        replace: 'or 0.0'
+      - id: full-frame-arena-transposed
+        description: "arena de quadro inteiro sai com largura e altura trocadas"
+        find: 'return [[0, 0], [width, 0], [width, height], [0, height]]'
+        replace: 'return [[0, 0], [height, 0], [height, width], [0, width]]'
+
+  shared_frame_buffer_header:
+    source: src/zebtrack/core/video/shared_frame_buffer.py
+    tests:
+      - tests/core/test_shared_frame_buffer.py
+    mutations:
+      - id: zero-sized-frame-accepted
+        description: "quadro de largura ou altura zero e lido como valido"
+        find: 'if h == 0 or w == 0:'
+        replace: 'if h == 0 and w == 0:'
+      - id: oversized-header-accepted
+        description: "cabecalho que promete mais pixels que o bloco e lido"
+        find: 'if HEADER_SIZE + nbytes > self._shm.size:'
+        replace: 'if False:'
+      - id: stale-sequence-accepted
+        description: "quadro sobrescrito (sequencia velha) e entregue como atual"
+        find: 'if seq != expected_seq:'
+        replace: 'if False:'
