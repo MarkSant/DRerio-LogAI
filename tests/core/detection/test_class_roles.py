@@ -29,6 +29,8 @@ from zebtrack.core.detection.class_roles import (
     ClassRoleMap,
     ClassRoleSource,
     ClassRolesUnresolvedError,
+    fit_class_roles,
+    overlay_class_roles,
     resolve_class_role_map,
 )
 from zebtrack.core.exceptions import DetectorError
@@ -329,3 +331,115 @@ class TestZebrafishRegression:
         role_map = resolve_class_role_map({0: "arena", 1: "mouse", 2: "rat"})
         assert role_map.subject_ids == frozenset({1})
         assert role_map.role_of_id(2) is ClassRole.IGNORED
+
+
+class TestOverlayClassRoles:
+    """What the detector publishes with its detections (#645)."""
+
+    def test_no_map_means_the_ui_may_resolve_its_own(self):
+        assert overlay_class_roles(None) is None
+
+    def test_legacy_alias_map_publishes_an_empty_map(self):
+        # ``{}`` is "the detector resolved, nobody named the roles": 7.2 colours.
+        assert overlay_class_roles(resolve_class_role_map({0: "aqua", 1: "zebrafish"})) == {}
+
+    def test_unnamed_weight_publishes_an_empty_map(self):
+        assert overlay_class_roles(resolve_class_role_map({})) == {}
+
+    def test_explicit_map_publishes_every_class_by_id(self):
+        role_map = resolve_class_role_map(BARNES, weight_entry={"class_roles": BARNES_ROLES})
+        assert overlay_class_roles(role_map) == {
+            0: "arena",
+            1: "context",
+            2: "subject",
+            3: "context",
+        }
+
+    def test_ids_follow_the_weight_not_the_saved_order(self):
+        retrained = {0: "rat", 1: "arena", 2: "start_box", 3: "experimenter"}
+        role_map = resolve_class_role_map(retrained, weight_entry={"class_roles": BARNES_ROLES})
+        assert overlay_class_roles(role_map) == {
+            0: "subject",
+            1: "arena",
+            2: "context",
+            3: "context",
+        }
+
+
+class TestFitClassRoles:
+    """Template roles re-applied to the weight chosen in the wizard (#646)."""
+
+    def test_same_names_apply_exactly(self):
+        fit = fit_class_roles(BARNES_ROLES, BARNES, weight_sha256="a" * 64)
+        assert fit.applied
+        assert fit.is_exact
+        assert fit.roles == BARNES_ROLES
+        assert fit.role_map.source is ClassRoleSource.PROJECT
+        assert fit.role_map.subject_ids == frozenset({2})
+        assert fit.role_map.weight_sha256 == "a" * 64
+
+    def test_matching_is_by_name_never_by_id(self):
+        retrained = {0: "start_box", 1: "rat", 2: "experimenter", 3: "arena"}
+        fit = fit_class_roles(BARNES_ROLES, retrained)
+        assert fit.role_map.subject_ids == frozenset({1})
+        assert fit.role_map.arena_id == 3
+        assert fit.role_map.context_ids == frozenset({0, 2})
+
+    def test_names_are_normalised(self):
+        fit = fit_class_roles({" Rat ": "subject"}, {0: "RAT", 1: "Arena"})
+        assert fit.applied
+        assert fit.roles == {"rat": "subject"}
+        assert fit.unassigned == ("arena",)
+
+    def test_reports_saved_names_the_weight_lacks(self):
+        other = {0: "arena", 1: "rat", 2: "lid"}
+        fit = fit_class_roles(BARNES_ROLES, other)
+        assert fit.applied
+        assert not fit.is_exact
+        assert fit.unmatched == ("experimenter", "start_box")
+        assert fit.unassigned == ("lid",)
+        assert fit.roles == {"arena": "arena", "rat": "subject"}
+        assert fit.role_map.role_of_id(2) is ClassRole.IGNORED
+
+    def test_subject_missing_from_the_weight_resolves_automatically(self):
+        mouse = {0: "arena", 1: "mouse"}
+        fit = fit_class_roles(BARNES_ROLES, mouse)
+        assert not fit.applied
+        assert fit.roles == {}
+        assert fit.role_map.source is ClassRoleSource.ALIASES
+        assert fit.role_map.subject_ids == frozenset({1})
+
+    def test_weight_entry_beats_the_aliases_when_the_template_does_not_apply(self):
+        fit = fit_class_roles(
+            {"rat": "subject"},
+            {0: "arena", 1: "mouse", 2: "lid"},
+            weight_entry={"class_roles": {"lid": "subject"}},
+        )
+        assert not fit.applied
+        assert fit.role_map.source is ClassRoleSource.WEIGHT
+        assert fit.role_map.subject_ids == frozenset({2})
+
+    def test_never_falls_back_to_position(self):
+        coco_like = {0: "person", 1: "bicycle", 2: "car"}
+        with pytest.raises(ClassRolesUnresolvedError) as exc_info:
+            fit_class_roles(BARNES_ROLES, coco_like)
+        assert exc_info.value.class_names == coco_like
+
+    def test_invalid_saved_roles_resolve_automatically(self):
+        fit = fit_class_roles({"rat": "boss"}, {0: "aqua", 1: "zebrafish"})
+        assert not fit.applied
+        assert fit.unmatched == ()
+        assert fit.role_map.source is ClassRoleSource.ALIASES
+
+    def test_two_arena_names_are_rejected_not_half_applied(self):
+        fit = fit_class_roles(
+            {"rat": "subject", "arena": "arena", "lid": "arena"},
+            {0: "arena", 1: "rat", 2: "lid"},
+        )
+        assert not fit.applied
+        assert fit.role_map.source is ClassRoleSource.ALIASES
+
+    def test_unnamed_weight_never_applies_the_template(self):
+        fit = fit_class_roles(BARNES_ROLES, {})
+        assert not fit.applied
+        assert fit.role_map.source is ClassRoleSource.LEGACY_POSITIONAL

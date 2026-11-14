@@ -17871,3 +17871,19 @@ msgstr "vídeo gravado"
 # | msgid "The {label} must be between 0 and 1."
 #~ msgid "Thigmotaxis distance must be between 0.1 and 10.0 cm"
 #~ msgstr "Distância de thigmotaxis deve estar entre 0.1 e 10.0 cm"
+
+#: src/zebtrack/ui/wizard/templates.py
+msgid "The template's class roles could not be read and were dropped: the roles of the weight's classes will be resolved automatically."
+msgstr "Os papéis de classe do template não puderam ser lidos e foram descartados: os papéis das classes do peso serão resolvidos automaticamente."
+
+#: src/zebtrack/ui/components/class_roles_panel.py
+msgid "The template's class roles do not name a subject class of this weight; the roles below are the automatic ones."
+msgstr "Os papéis de classe do template não indicam uma classe sujeito deste peso; os papéis abaixo são os automáticos."
+
+#: src/zebtrack/ui/components/class_roles_panel.py
+msgid "Template classes missing from this weight: {names}."
+msgstr "Classes do template ausentes neste peso: {names}."
+
+#: src/zebtrack/ui/components/class_roles_panel.py
+msgid "Classes of this weight the template does not mention (ignored): {names}."
+msgstr "Classes deste peso que o template não menciona (ignoradas): {names}."

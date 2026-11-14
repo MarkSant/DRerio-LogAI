@@ -16,6 +16,7 @@ import cv2
 import numpy as np
 import structlog
 
+from zebtrack.core.detection.class_roles import overlay_class_roles
 from zebtrack.core.recording.frame_ledger import OUTCOME_DROPPED_ON_STOP
 from zebtrack.core.services.processing_interval_resolver import (
     is_analysis_frame as _is_analysis_frame,
@@ -1221,6 +1222,7 @@ class FrameProcessingMixin:
                                 frame=frame,
                                 detections=detections,
                                 fps=self._actual_fps,
+                                class_roles=self._live_overlay_class_roles(),
                             ),
                         ),
                     )
@@ -1285,6 +1287,16 @@ class FrameProcessingMixin:
     # ------------------------------------------------------------------
     # Per-zone Arduino command loop
     # ------------------------------------------------------------------
+    def _live_overlay_class_roles(self) -> dict[int, str] | None:
+        """``{class id: role}`` of the live detector, for the canvas overlay (#645).
+
+        The map the detector REALLY resolved travels with the detections, so the
+        integrated canvas never colours them with a map it resolved on its own.
+        ``None`` (no detector yet) lets the canvas fall back to the UI's map.
+        """
+        detector = getattr(self.detector_service, "detector", None)
+        return overlay_class_roles(getattr(detector, "class_role_map", None))
+
     def _draw_zone_overlay(self, detector: Any, frame: Any) -> None:
         """Burn the ZONES onto the preview frame (never the boxes, see the loop).
 

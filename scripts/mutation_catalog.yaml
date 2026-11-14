@@ -826,6 +826,36 @@ modules:
         description: "classe ausente de um mapa explicito vira contexto em vez de ignorada"
         find: 'parsed.get(normalized, ClassRole.IGNORED)'
         replace: 'parsed.get(normalized, ClassRole.CONTEXT)'
+      - id: overlay-alias-map-recoloured
+        description: "detector com mapa por aliases publica papeis e o overlay do zebrafish muda de cor (#645)"
+        find: '    if not role_map.is_explicit or not role_map.names:'
+        replace: '    if not role_map.names:'
+      - id: overlay-no-map-claims-legacy
+        description: "publicador sem mapa diz 'mapa legado' e a UI deixa de usar o mapa que resolveu (#645)"
+        find: |-
+          if role_map is None:
+                  return None
+              if not role_map.is_explicit
+        replace: |-
+          if role_map is None:
+                  return {}
+              if not role_map.is_explicit
+      - id: template-fit-by-position
+        description: "template que nao serve ao peso cai para a posicao em vez de levantar (#646)"
+        find: |-
+          aliases=aliases,
+                      strict=True,
+        replace: |-
+          aliases=aliases,
+                      strict=False,
+      - id: template-unmatched-names-kept
+        description: "nomes do template ausentes no peso vao para o projeto mesmo assim (#646)"
+        find: 'matched = {name: role for name, role in parsed.items() if name in weight_names}'
+        replace: 'matched = dict(parsed)'
+      - id: template-roles-stored-when-not-applied
+        description: "papeis do template sem sujeito no peso ainda viram o mapa do projeto (#646)"
+        find: 'roles={name: role.value for name, role in matched.items()} if applied else {},'
+        replace: 'roles={name: role.value for name, role in matched.items()},'
 
   worker_model_resolution:
     source: src/zebtrack/core/services/worker_model_resolution.py
@@ -1202,24 +1232,24 @@ modules:
     mutations:
       - id: v3-not-migrated
         description: "template v3 deixa de ser migrado e o gatilho externo nao vira janela"
-        find: 'if _template_schema_version(template) < 4:'
-        replace: 'if _template_schema_version(template) < 3:'
+        find: '    if version < 4:'
+        replace: '    if version < 3:'
       - id: legacy-flag-kept-on
         description: "gatilho legado continua ligado ao lado da janela convertida (configuracao dupla invalida)"
         find: 'migrated["external_trigger_mode"] = False'
         replace: 'migrated["external_trigger_mode"] = True'
       - id: conversion-not-announced
         description: "conversao do gatilho deixa de ser avisada na etapa de confirmacao"
-        find: 'notes.append(NOTE_EXTERNAL_TRIGGER_CONVERTED)'
-        replace: 'pass'
+        find: 'return [NOTE_EXTERNAL_TRIGGER_CONVERTED]'
+        replace: 'return []'
       - id: dropped-window-silent
         description: "janela ilegivel de um template v4 e descartada sem aviso"
-        find: 'return migrated, (NOTE_ANALYSIS_WINDOW_DROPPED,)'
-        replace: 'return migrated, ()'
+        find: 'return [NOTE_ANALYSIS_WINDOW_DROPPED]'
+        replace: 'return []'
       - id: schema-not-bumped
-        description: "templates continuam sendo gravados como v3 e reabrem convertendo de novo"
-        find: 'TEMPLATE_SCHEMA_VERSION = 4'
-        replace: 'TEMPLATE_SCHEMA_VERSION = 3'
+        description: "templates continuam sendo gravados como v4 e reabrem sem os papeis de classe"
+        find: 'TEMPLATE_SCHEMA_VERSION = 5'
+        replace: 'TEMPLATE_SCHEMA_VERSION = 4'
       - id: garbled-version-read-as-current
         description: "schema_version ilegivel passa por v4 e o gatilho legado deixa de ser convertido"
         find: |-
@@ -1236,6 +1266,30 @@ modules:
         description: "salvar template deixa de gravar a janela de analise"
         find: '"analysis_window": deepcopy(wizard_data.get("analysis_window")),'
         replace: '"analysis_window": None,'
+      - id: class-roles-not-saved
+        description: "salvar template deixa de gravar os papeis de classe (#646)"
+        find: 'TEMPLATE_OVERRIDES_KEY: template_model_overrides(wizard_data),'
+        replace: 'TEMPLATE_OVERRIDES_KEY: None,'
+      - id: loaded-roles-not-carried
+        description: "regravar um template perde os papeis que ele trouxe quando ninguem os editou"
+        find: 'for candidate in (edited, wizard_data.get(WIZARD_TEMPLATE_ROLES_KEY)):'
+        replace: 'for candidate in (edited,):'
+      - id: v4-stray-roles-trusted
+        description: "papeis num template v4 (que nao os conhecia) passam a ser aceitos"
+        find: '    if version < 5:'
+        replace: '    if version < 4:'
+      - id: dropped-roles-silent
+        description: "papeis ilegiveis de um template v5 sao descartados sem aviso"
+        find: 'return [NOTE_CLASS_ROLES_DROPPED]'
+        replace: 'return []'
+      - id: roles-not-normalised
+        description: "nomes do template entram sem normalizar e nao casam com model.names"
+        find: 'TEMPLATE_ROLES_KEY: {name: role.value for name, role in roles.items()},'
+        replace: 'TEMPLATE_ROLES_KEY: dict(raw_roles),'
+      - id: sha-not-validated
+        description: "sha ilegivel do template e guardado como se fosse o hash do peso"
+        find: 'if len(sha) != 64 or any(c not in "0123456789abcdef" for c in sha):'
+        replace: 'if False:'
 
   object_capture:
     source: src/zebtrack/core/services/object_capture.py
@@ -1458,8 +1512,8 @@ modules:
         replace: 'if False:'
       - id: alias-map-recolours-overlay
         description: "peso de zebrafish sem mapa explicito passa a ter o overlay recolorido por papel"
-        find: 'if role_map is None or not role_map.is_explicit or not role_map.names:'
-        replace: 'if role_map is None or not role_map.names:'
+        find: 'return overlay_class_roles(role_map) or None'
+        replace: 'return overlay_class_roles(role_map)'
       - id: change-not-announced
         description: "salvar papeis deixa de publicar CLASS_ROLES_CHANGED"
         find: '        self._publish(view, mapping)'
@@ -1476,6 +1530,25 @@ modules:
         replace: |-
           if False:
                       return  # a newer refresh superseded this load
+      - id: template-seed-error-swallowed
+        description: "peso sem sujeito para o template deixa de ser reportado e o wizard segue (#646)"
+        find: '            self._seed_error = exc'
+        replace: '            self._seed_error = None'
+      - id: template-seed-survives-restore
+        description: "restaurar automatico mantem os papeis do template e o proximo peso os reaplica (#646)"
+        find: '            self.seed_roles(None)'
+        replace: '            pass'
+      - id: template-seed-not-applied-on-load
+        description: "papeis do template nao sao aplicados quando as classes do peso carregam (#646)"
+        find: |-
+          self._show_view(self.editor.view(names, target), target)
+                  self._apply_seed()
+        replace: |-
+          self._show_view(self.editor.view(names, target), target)
+      - id: template-fit-not-shown
+        description: "linhas do editor ignoram o encaixe do template (#646)"
+        find: '        self._rows = rows_from_role_map(fit.role_map)'
+        replace: '        pass'
 
   overlay_roles:
     source: src/zebtrack/ui/components/canvas/overlay_roles.py
@@ -2423,6 +2496,48 @@ modules:
         description: "wizard volta a pre-preencher as proprias constantes, ignorando o config (#698)"
         find: '                defaults[key] = float(getattr(bytetrack, key, fallback))'
         replace: '                defaults[key] = float(fallback)'
+
+  model_selection_template_roles:
+    source: src/zebtrack/ui/wizard/model_selection_step.py
+    tests:
+      - tests/ui/wizard/test_model_selection_step.py
+    mutations:
+      - id: unresolved-template-passes
+        description: "template que nao serve a um peso sem sujeito deixa o wizard seguir (#646)"
+        find: '                raise error'
+        replace: '                return None, None'
+      - id: template-roles-never-seeded
+        description: "os papeis do template carregado nunca chegam ao painel (#646)"
+        find: '        panel.seed_roles(roles)'
+        replace: '        pass'
+
+  processing_worker_overlay_roles:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+    mutations:
+      - id: frame-without-roles
+        description: "o quadro de preview do worker sai sem o mapa de papeis do detector (#645)"
+        find: '                            frame_msg["class_roles"] = overlay_roles'
+        replace: '                            pass'
+      - id: roles-dropped-by-monitor
+        description: "o monitor descarta o mapa e a UI volta a resolver o seu (#645)"
+        find: '    merged[FRAME_INFO_CLASS_ROLES] = roles'
+        replace: '    pass'
+
+  video_frame_overlay_roles:
+    source: src/zebtrack/ui/components/canvas/video_frame_manager.py
+    tests:
+      - tests/ui/components/test_canvas_manager.py
+    mutations:
+      - id: empty-worker-map-falls-back
+        description: "mapa legado do detector ({}) e trocado pelo mapa que a UI resolveu (#645)"
+        find: '                        if class_roles is not None'
+        replace: '                        if class_roles'
+      - id: ui-map-wins
+        description: "o mapa resolvido pela UI passa por cima do mapa do detector (#645)"
+        find: '                        if class_roles is not None'
+        replace: '                        if False'
 
   single_detector_source_fps:
     source: src/zebtrack/core/detection/single_detector.py

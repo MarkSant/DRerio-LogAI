@@ -263,6 +263,25 @@ class TestProcessingLifecycle:
         coordinator._update_frame_display(MagicMock(), [{"class": 0}], 42)
         coordinator.view.canvas_manager.update_video_frame.assert_called_once()
 
+    def test_worker_roles_reach_the_canvas(self, coordinator):
+        """The map the worker's detector resolved is drawn with (#645)."""
+        frame = MagicMock()
+        coordinator._on_frame_processed(
+            {"frame": frame, "detections": [], "class_roles": {2: "subject"}}
+        )
+        coordinator.root.after.call_args[0][1]()
+        coordinator.view.canvas_manager.update_video_frame.assert_called_once_with(
+            frame, [], class_roles={2: "subject"}
+        )
+
+    def test_without_worker_roles_the_canvas_gets_none(self, coordinator):
+        frame = MagicMock()
+        coordinator._on_frame_processed({"frame": frame, "detections": []})
+        coordinator.root.after.call_args[0][1]()
+        coordinator.view.canvas_manager.update_video_frame.assert_called_once_with(
+            frame, [], class_roles=None
+        )
+
 
 # =====================================================================
 # Processing Completion

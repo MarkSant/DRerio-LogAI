@@ -6,6 +6,32 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-14] Papéis de classe no overlay e nos templates do wizard (#645, #646)
+
+__ID:__ TASK-082
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (PR #712 contra `release/8.0`; aguarda o mantenedor)
+__Branch:__ claude/645-646-class-roles-0e91fd (a partir de `release/8.0`, efacc9da)
+__Description:__
+Issue #645: os payloads que levam detecções à UI (`DetectionOverlayPayload`, `FrameDisplayPayload`,
+`UIUpdateLiveFramePayload` e a mensagem `frame` do worker de lote) passam a carregar o mapa
+`{id: papel}` que o detector REALMENTE resolveu; a UI prefere esse mapa e só resolve sozinha
+quando o payload não traz nenhum. #646: os templates do wizard passam ao schema v5 e guardam
+`model_overrides.class_roles` por NOME normalizado junto com o sha256 do peso; ao aplicar com
+outro peso, os nomes são revalidados e o que não casou vira aviso. Nunca cai para a posição.
+
+__Critério de pronto:__
+
+- overlay usa o mapa do worker mesmo quando diverge do que a UI resolveria;
+- template v4 antigo continua carregando; v5 guarda papéis por nome + sha;
+- peso com nomes, 3+ classes e sem sujeito ⇒ `ClassRolesUnresolvedError` capturada pelo tipo;
+- PR contra `release/8.0` com CI verde, "Closes #645" e "Closes #646".
+
+__Resultado (2026-11-14):__ suíte rápida 8301 passed; GUI 1339 passed (+ o flaky conhecido
+`test_fps_calculation`, verde isolado); ruff e `mypy .` limpos; testes novos vermelhos sem a
+mudança (24 do #645, 16 do #646 + erros de import); mutation check escopado sem sobreviventes
+(blocos novos do overlay, do encaixe do template, da semente do painel e do gate do wizard).
+
 ### [2026-11-14] Preset do Barnes: FIM pela entrada na toca (#650)
 
 __ID:__ TASK-083

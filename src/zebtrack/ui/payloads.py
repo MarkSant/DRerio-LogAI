@@ -79,10 +79,16 @@ class FramePayload:
 
 @dataclass(frozen=True)
 class FrameDisplayPayload:
+    """A processed frame for the analysis view.
+
+    ``class_roles`` follows the :class:`DetectionOverlayPayload` contract.
+    """
+
     frame: Any
     detections: Sequence[Any] | None = None
     frame_number: int | None = None
     info: Mapping[str, Any] | None = None
+    class_roles: Mapping[int, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -114,11 +120,13 @@ class ProcessingCountPayload:
 class DetectionOverlayPayload:
     """Detections to draw over the zone canvas.
 
-    ``class_roles`` maps a class id to its role token (``subject``/``arena``/
-    ``context``/``ignored``) when the publisher knows the weight's explicit role
-    map. ``None`` (every publisher today) lets the UI use the map it resolved for
-    the project's weight (``gui.overlay_class_roles``), and without one the 7.2
-    colours stay exactly as they were (class 0 = aquarium).
+    ``class_roles`` is the map the DETECTOR that produced ``detections`` resolved
+    (``class_roles.overlay_class_roles``, #645): ``{class id: role token}``
+    (``subject``/``arena``/``context``/``ignored``) for an explicit map, ``{}``
+    for a legacy alias/positional map (the 7.2 colours, class 0 = aquarium). The
+    UI draws with it even when it would resolve a different map itself. Only
+    ``None`` — a publisher that knows no map — lets the UI fall back to the map it
+    resolved for the project's weight (``gui.overlay_class_roles``).
     """
 
     detections: Sequence[Any]
@@ -1045,10 +1053,16 @@ class LivePolygonSourceChangedPayload:
 
 @dataclass(frozen=True)
 class UIUpdateLiveFramePayload:
+    """A live frame for the integrated canvas.
+
+    ``class_roles`` follows the :class:`DetectionOverlayPayload` contract.
+    """
+
     frame: Any
     detections: Sequence[Any] | None = None
     frame_number: int | None = None
     fps: float | None = None
+    class_roles: Mapping[int, str] | None = None
 
 
 # ---------------------------------------------------------------------------

@@ -16,6 +16,7 @@ from pydantic import ValidationError
 
 from zebtrack.core.conditions import WindowSpec
 from zebtrack.core.conditions.presets import external_trigger_preset
+from zebtrack.core.detection.class_roles import parse_class_roles
 from zebtrack.i18n import _
 
 log = structlog.get_logger()
@@ -23,12 +24,91 @@ log = structlog.get_logger()
 
 #: v4 (DRerio 8.0) adds ``analysis_window`` — the START/STOP conditions of the
 #: analysis (ADR-011), stored as ``WindowSpec.model_dump(mode="json")`` or None.
-TEMPLATE_SCHEMA_VERSION = 4
+#: v5 adds ``model_overrides`` — the class roles of the animal weight (ADR-009,
+#: #646), see :data:`TEMPLATE_OVERRIDES_KEY`.
+TEMPLATE_SCHEMA_VERSION = 5
 
 #: Tokens a migration leaves for the confirmation step. Never translated: the
 #: text is built at display time by :func:`template_migration_note_text`.
 NOTE_EXTERNAL_TRIGGER_CONVERTED = "external_trigger_converted"
 NOTE_ANALYSIS_WINDOW_DROPPED = "analysis_window_dropped"
+NOTE_CLASS_ROLES_DROPPED = "class_roles_dropped"
+
+#: Template block that mirrors ``project_data["model_overrides"]`` (persistence
+#: contract — the same keys a project stores, so a template can be written by
+#: copying a project's block)::
+#:
+#:     {"class_roles": {normalised class name: role token},
+#:      "class_roles_weight_sha256": "<sha256 of the weight they were set for>" | null}
+#:
+#: Roles are keyed by class NAME, never by id. The sha only records which file
+#: they were chosen for; a template applied with ANY weight (another file, or a
+#: shipped template with ``null``) re-validates the names against that weight
+#: (``class_roles.fit_class_roles``) and never trusts ids or positions.
+TEMPLATE_OVERRIDES_KEY = "model_overrides"
+TEMPLATE_ROLES_KEY = "class_roles"
+TEMPLATE_ROLES_SHA_KEY = "class_roles_weight_sha256"
+#: Where the wizard keeps the block of the template it loaded (``wizard_data``).
+WIZARD_TEMPLATE_ROLES_KEY = "template_class_roles"
+
+
+def _normalised_sha(raw: Any) -> str | None:
+    """A recorded sha256 as lowercase hex, or ``None`` when it is not one."""
+    if not isinstance(raw, str):
+        return None
+    sha = raw.strip().lower()
+    if len(sha) != 64 or any(c not in "0123456789abcdef" for c in sha):
+        return None
+    return sha
+
+
+def normalise_model_overrides(raw: Any) -> dict[str, Any] | None:
+    """Validate a template's ``model_overrides`` block.
+
+    Returns:
+        ``{"class_roles": {...}, "class_roles_weight_sha256": sha | None}`` with
+        normalised names, or ``None`` when the block holds no roles.
+
+    Raises:
+        ValueError: the block is present but its roles cannot be read.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise ValueError("model_overrides must be a mapping")
+    raw_roles = raw.get(TEMPLATE_ROLES_KEY)
+    if raw_roles is None:
+        return None
+    roles = parse_class_roles(raw_roles)
+    if roles is None:
+        raise ValueError("class_roles is not a {class name: role} mapping")
+    return {
+        TEMPLATE_ROLES_KEY: {name: role.value for name, role in roles.items()},
+        TEMPLATE_ROLES_SHA_KEY: _normalised_sha(raw.get(TEMPLATE_ROLES_SHA_KEY)),
+    }
+
+
+def template_model_overrides(wizard_data: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The ``model_overrides`` block a template saves from the wizard's data.
+
+    The roles edited (or fitted) in this wizard win, with the sha of the weight
+    they were made for; otherwise the block of the template that was loaded is
+    carried forward unchanged, so re-saving a template never loses its roles
+    just because they matched the weight's automatic ones on this machine.
+    """
+    edited = {
+        TEMPLATE_ROLES_KEY: wizard_data.get("class_roles"),
+        TEMPLATE_ROLES_SHA_KEY: wizard_data.get("class_roles_weight_sha256"),
+    }
+    for candidate in (edited, wizard_data.get(WIZARD_TEMPLATE_ROLES_KEY)):
+        try:
+            block = normalise_model_overrides(candidate)
+        except ValueError:
+            log.warning("template_manager.class_roles.unreadable", roles=candidate)
+            continue
+        if block is not None:
+            return block
+    return None
 
 
 def _template_schema_version(template: Mapping[str, Any]) -> int:
@@ -46,7 +126,7 @@ def migrate_template(template: Mapping[str, Any]) -> tuple[dict[str, Any], tuple
     """Bring a loaded template up to :data:`TEMPLATE_SCHEMA_VERSION` (pure).
 
     Returns ``(migrated_copy, notes)``; the input is never modified, and the file
-    on disk is left alone (the next save writes v4).
+    on disk is left alone (the next save writes the current schema).
 
     - **v3 and older** had no analysis window. ``external_trigger_mode=True``
       becomes the equivalent window — Arduino code 1 starts it, code 0 stops it
@@ -58,34 +138,59 @@ def migrate_template(template: Mapping[str, Any]) -> tuple[dict[str, Any], tuple
       dropped with a note rather than carried into a project that would refuse
       to read it.
 
+    - **v4 and older** saved no class roles: ``model_overrides`` becomes None
+      (the roles resolve automatically, as they did for those templates).
+    - **v5 and later** keep ``model_overrides`` normalised (names lowercased, the
+      sha checked). Roles that cannot be read are dropped with a note.
+
     ``schema_version`` is left as found, so the confirmation step still shows
     which version the file was.
     """
     migrated = deepcopy(dict(template))
-    notes: list[str] = []
-    if _template_schema_version(template) < 4:
+    version = _template_schema_version(template)
+    notes = _migrate_analysis_window(migrated, version)
+    notes.extend(_migrate_model_overrides(migrated, version))
+    return migrated, tuple(notes)
+
+
+def _migrate_analysis_window(migrated: dict[str, Any], version: int) -> list[str]:
+    if version < 4:
         if bool(migrated.get("external_trigger_mode")):
             migrated["analysis_window"] = external_trigger_preset().model_dump(
                 mode="json", by_alias=True
             )
             migrated["external_trigger_mode"] = False
-            notes.append(NOTE_EXTERNAL_TRIGGER_CONVERTED)
-        else:
-            migrated["analysis_window"] = None
-        return migrated, tuple(notes)
+            return [NOTE_EXTERNAL_TRIGGER_CONVERTED]
+        migrated["analysis_window"] = None
+        return []
 
     raw_window = migrated.get("analysis_window")
     if raw_window is None:
         migrated["analysis_window"] = None
-        return migrated, ()
+        return []
     try:
         spec = WindowSpec.model_validate(raw_window)
     except ValidationError as exc:
         log.warning("template_manager.analysis_window.invalid", errors=exc.error_count())
         migrated["analysis_window"] = None
-        return migrated, (NOTE_ANALYSIS_WINDOW_DROPPED,)
+        return [NOTE_ANALYSIS_WINDOW_DROPPED]
     migrated["analysis_window"] = spec.model_dump(mode="json", by_alias=True)
-    return migrated, ()
+    return []
+
+
+def _migrate_model_overrides(migrated: dict[str, Any], version: int) -> list[str]:
+    if version < 5:
+        migrated[TEMPLATE_OVERRIDES_KEY] = None
+        return []
+    try:
+        migrated[TEMPLATE_OVERRIDES_KEY] = normalise_model_overrides(
+            migrated.get(TEMPLATE_OVERRIDES_KEY)
+        )
+    except ValueError as exc:
+        log.warning("template_manager.class_roles.invalid", error=str(exc))
+        migrated[TEMPLATE_OVERRIDES_KEY] = None
+        return [NOTE_CLASS_ROLES_DROPPED]
+    return []
 
 
 def template_migration_note_text(note: str) -> str:
@@ -99,6 +204,10 @@ def template_migration_note_text(note: str) -> str:
         NOTE_ANALYSIS_WINDOW_DROPPED: _(
             "The template's analysis window could not be read and was dropped: the "
             "whole recording will be analysed."
+        ),
+        NOTE_CLASS_ROLES_DROPPED: _(
+            "The template's class roles could not be read and were dropped: the roles "
+            "of the weight's classes will be resolved automatically."
         ),
     }
     return texts.get(note, note)
@@ -121,7 +230,9 @@ class TemplateManager:
     - Live capture settings (camera, Arduino, timed recording, countdown)
     - Behavioral analysis configuration
 
-    Schema v4 added ``analysis_window`` (see :func:`migrate_template`). Schema v3
+    Schema v5 added ``model_overrides`` (class roles by name, see
+    :data:`TEMPLATE_OVERRIDES_KEY`). Schema v4 added ``analysis_window`` (see
+    :func:`migrate_template`). Schema v3
     added the live-capture block (camera/Arduino/recording/countdown)
     and ``behavioral_analysis``. The saved camera/Arduino selection is
     reconciled against the host hardware on load (see ``LiveConfigStep``); a
@@ -216,6 +327,8 @@ class TemplateManager:
                 "behavioral_analysis": deepcopy(wizard_data.get("behavioral_analysis")),
                 # Analysis window (v4): START/STOP conditions, or None.
                 "analysis_window": deepcopy(wizard_data.get("analysis_window")),
+                # Class roles of the animal weight (v5), by name + sha, or None.
+                TEMPLATE_OVERRIDES_KEY: template_model_overrides(wizard_data),
                 # Folder organization fields
                 "has_folder_structure": wizard_data.get("has_folder_structure"),
                 "folder_meaning": wizard_data.get("folder_meaning"),

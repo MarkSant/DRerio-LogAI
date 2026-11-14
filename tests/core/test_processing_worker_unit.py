@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import queue
+import threading
 import typing
 from types import SimpleNamespace
 from typing import Any, cast
@@ -911,3 +912,162 @@ def test_frame_loop_builds_bytetrack_with_the_run_interval(tmp_path, monkeypatch
 
     assert built_intervals
     assert set(built_intervals) == {3}
+
+
+# ---------------------------------------------------------------------------
+# #645 — the worker publishes the role map its detector REALLY resolved
+# ---------------------------------------------------------------------------
+
+
+class TestFrameInfoClassRoles:
+    def test_roles_travel_inside_info(self):
+        from zebtrack.core.video.processing_worker import frame_info_with_roles
+
+        info = frame_info_with_roles({"info": {"fps": 9.9}, "class_roles": {2: "subject"}})
+        assert info == {"fps": 9.9, "class_roles": {2: "subject"}}
+
+    def test_message_info_is_not_mutated(self):
+        from zebtrack.core.video.processing_worker import frame_info_with_roles
+
+        original = {"fps": 9.9}
+        frame_info_with_roles({"info": original, "class_roles": {}})
+        assert original == {"fps": 9.9}
+
+    def test_empty_map_is_carried_not_dropped(self):
+        from zebtrack.core.video.processing_worker import frame_info_with_roles
+
+        assert frame_info_with_roles({"info": None, "class_roles": {}}) == {"class_roles": {}}
+
+    def test_without_roles_info_passes_through(self):
+        from zebtrack.core.video.processing_worker import frame_info_with_roles
+
+        stats = {"fps": 1.0}
+        assert frame_info_with_roles({"info": stats}) is stats
+
+    def test_read_back(self):
+        from zebtrack.core.video.processing_worker import class_roles_from_frame_info
+
+        assert class_roles_from_frame_info({"class_roles": {0: "arena"}}) == {0: "arena"}
+        assert class_roles_from_frame_info({"class_roles": {}}) == {}
+        assert class_roles_from_frame_info({"fps": 1.0}) is None
+        assert class_roles_from_frame_info({"class_roles": "subject"}) is None
+        assert class_roles_from_frame_info(42) is None
+        assert class_roles_from_frame_info(None) is None
+
+    def test_monitor_hands_the_roles_to_on_frame_processed(self):
+        """The main-process monitor forwards the map the child sent."""
+        import numpy as np
+
+        from zebtrack.core.video.processing_worker import (
+            ProcessingCallbacks,
+            ProcessingContext,
+            ProcessingWorker,
+        )
+
+        received: list[Any] = []
+        callbacks = ProcessingCallbacks(
+            on_started=lambda: None,
+            on_progress=lambda *a: None,
+            on_frame_processed=lambda frame, dets, info: received.append(info),
+            on_video_completed=lambda *a: None,
+            on_error=lambda *a: None,
+            on_completed=lambda *a: None,
+            on_fatal_error=lambda *a: None,
+        )
+        context = ProcessingContext(
+            videos_to_process=[],
+            output_base_dir="out",
+            cancel_event=threading.Event(),
+            settings=MagicMock(),
+        )
+        worker = ProcessingWorker(context, callbacks)
+        results: queue.Queue[Any] = queue.Queue()
+        results.put(
+            {
+                "type": "frame",
+                "frame": np.zeros((2, 2, 3), dtype=np.uint8),
+                "detections": [],
+                "info": {"fps": 5.0},
+                "class_roles": {2: "subject"},
+            }
+        )
+        results.put({"type": "completed", "cancelled": False})
+        worker.result_queue = cast(Any, results)
+        worker._monitor_loop()
+        assert received == [{"fps": 5.0, "class_roles": {2: "subject"}}]
+
+
+def test_worker_frame_messages_carry_the_detectors_role_map(tmp_path):
+    """Every preview frame carries the map the worker's detector used (#645).
+
+    The detector here runs the Barnes WEIGHT map (``experimenter`` = context);
+    the UI resolving the same weight from aliases would call ``experimenter``
+    ignored — the published map is the detector's, not a re-derivation.
+    """
+    from tests.helpers.prerecorded_pipeline import (
+        BARNES_ARENA,
+        BARNES_ID,
+        BARNES_NAMES,
+        BARNES_ROLES,
+        BARNES_WEIGHT_SHA,
+        HEIGHT,
+        WIDTH,
+        BarnesDeterministicPlugin,
+        _as_vertex_lists,
+        _QueueStub,
+        load_pristine_settings,
+        write_barnes_video,
+    )
+
+    from zebtrack.core.detection import Detector
+    from zebtrack.core.detection.class_roles import resolve_class_role_map
+
+    video_path = tmp_path / f"{BARNES_ID}.mp4"
+    try:
+        write_barnes_video(video_path)
+    except RuntimeError as exc:
+        pytest.skip(str(exc))
+    settings = load_pristine_settings()
+    zone_dict = {
+        "polygon": _as_vertex_lists(BARNES_ARENA),
+        "roi_polygons": [],
+        "roi_names": [],
+        "metadata": {"source_width": WIDTH, "source_height": HEIGHT},
+    }
+    task = {"path": str(video_path), "experiment_id": BARNES_ID, "zone_data": zone_dict}
+    config = WorkerConfig(
+        settings=settings,
+        output_base_dir=str(tmp_path / "results"),
+        tasks=[task],
+        single_video_mode=True,
+        analysis_interval_frames=1,
+        display_interval_frames=10,
+        model_path="",
+        model_type="yolo",
+        zone_data=zone_dict,
+    )
+    results = _QueueStub()
+    worker = _WorkerProcess(config, cast(Any, results), cast(Any, _QueueStub()))
+    detector = Detector(
+        plugin=BarnesDeterministicPlugin(),
+        base_width=WIDTH,
+        base_height=HEIGHT,
+        settings_obj=settings,
+        class_role_map=resolve_class_role_map(
+            BARNES_NAMES,
+            weight_entry={"class_roles": BARNES_ROLES},
+            weight_sha256=BARNES_WEIGHT_SHA,
+        ),
+    )
+    assert worker._process_single_video(
+        index=0,
+        total_videos=1,
+        video_path=str(video_path),
+        experiment_id=BARNES_ID,
+        detector=detector,
+        video_metadata=task,
+    )
+    frames = [m for m in results.items if isinstance(m, dict) and m.get("type") == "frame"]
+    assert frames, "the worker sent no preview frame"
+    expected = {0: "arena", 1: "context", 2: "subject", 3: "context"}
+    assert all(m.get("class_roles") == expected for m in frames)
