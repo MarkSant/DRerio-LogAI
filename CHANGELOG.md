@@ -25,6 +25,16 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
 
 ### Added
 
+- **Padrões de roedor (#695)**: template embutido "Rodent, top view"
+  (`resources/wizard_templates/rodent_top_down.json`: vista superior, sem
+  geotaxia, tigmotaxia de 15 cm, teto de velocidade de 100 cm/s), instalado uma
+  vez na pasta de templates do usuário (apagado, não volta). Campo "Velocidade
+  máxima (cm/s)" no widget de análise comportamental e na aba Configurações
+  Avançadas: grava `behavioral_config["max_plausible_speed_cm_s"]` no projeto e,
+  sem valor no projeto, mostra o das settings; salvar no projeto não grava o
+  teto no `Settings` compartilhado. A aba passa a gravar o `behavioral_config`
+  com os nomes do projeto (`thigmotaxis_distance_cm`), mesclado sobre o que já
+  existia, em vez de despejar o modelo das settings (`default_*`).
 - **Resolução de classes independente de espécie**
   (`core/detection/class_aliases.py`): um único vocabulário de papéis
   (arena/animal) que reconhece os nomes de zebrafish de sempre e também
@@ -239,6 +249,7 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   | Projeto NOVO pelo assistente parte do ByteTrack configurado; o reset de fábrica é o `config.yaml` (#698) | o assistente pré-preenchia constantes próprias (distância máxima 200 px, IoU 0,1) e as gravava no projeto por cima do `config.yaml` (400 px / 0,05); o reset de fábrica voltava a match 0,80 / 200 px / 0,1 | Projetos novos passam a usar o que `config.yaml` / `config.local.yaml` dizem — com o arquivo distribuído, 400 px e IoU 0,05. "Restaurar padrões de fábrica" passa a dar track 0,25 / match 0,95 / 400 px / 0,05. **Projetos existentes não mudam**: o valor salvo no projeto continua valendo. |
   | O `dt` do Kalman na sessão ao vivo de projeto é o intervalo de análise do projeto (#667) | a sessão detectava a cada N quadros do projeto, mas o tracker previa com `video_processing.processing_interval` (padrão 10) | Um projeto ao vivo com intervalo diferente do das configurações passa a prever a posição do animal com o passo real; a associação entre quadros detectados pode mudar onde a predição antiga errava. O diálogo ao vivo avulso e o lote já sincronizavam e não mudam. Os goldens agora rastreiam com `dt = 1` (antes 10) e não mudam. |
   | Multi-aquário grava a detecção, não a bbox do Kalman, e o aquário vazio avança o tracker (#668) | o multi gravava `track.tlbr` (posição filtrada, atrasada num animal que acelera) e pegava a classe de uma detecção a até 10 px do canto; um aquário vazio congelava a predição | `x1..y2` e `confidence` do `3_CoordMovimento` de projetos multi-aquário passam a ser os da detecção, como no aquário único; distância, velocidade e pertença a ROI mudam pouco, onde a bbox filtrada se afastava da detecção. Depois de uma ausência, a trilha volta onde o animal está, com a velocidade certa. O aquário único e os goldens (aquário único) não mudam. |
+  | O relatório automático do pré-gravado (lote e vídeo único) lê o `behavioral_config` do projeto (#695) | o `AnalysisPipelineRunner` montava o `ReporterContext` com `{}`, enquanto "Gerar relatórios" já lia o projeto: o mesmo projeto saía com dois `.xlsx` diferentes | Projeto lateral: as colunas de geotaxia (`geotaxis_avg_bottom_distance_cm`, `geotaxis_time_near_bottom_pct`, limiar) passam a vir preenchidas e surgem `geotaxis_zone_*_pct` e `geotaxis_bottom_zones_pct`; o limiar de tigmotaxia é o do projeto. Projeto top-down: `aquarium_perspective` passa de `lateral` a `top_down`, a tigmotaxia usa o limiar do projeto (ex.: 15 cm em vez de 1,5) e o `.docx` perde os gráficos e as linhas de zona da geotaxia |
 
 - Relatórios individuais, sumários parquet e o reporter do pipeline tiravam a
   taxa de quadros de `settings.video_processing.fps`; agora usam

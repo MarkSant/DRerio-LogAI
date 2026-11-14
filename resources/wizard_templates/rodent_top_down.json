@@ -1,0 +1,20 @@
+{
+  "schema_version": 5,
+  "builtin_id": "rodent_top_down",
+  "name": "Rodent, top view",
+  "created_at": "2026-11-14T00:00:00",
+  "num_aquariums": 1,
+  "animals_per_aquarium": 1,
+  "behavioral_analysis": {
+    "aquarium_perspective": "top_down",
+    "thigmotaxis_distance_cm": 15.0,
+    "geotaxis_enabled": false,
+    "geotaxis_mode": "zones",
+    "geotaxis_distance_cm": 1.5,
+    "geotaxis_num_zones": 3,
+    "geotaxis_bottom_zones": 1,
+    "max_plausible_speed_cm_s": 100.0
+  },
+  "analysis_window": null,
+  "model_overrides": null
+}

@@ -10,7 +10,11 @@ from typing import Any
 import structlog
 
 from zebtrack.i18n import _
-from zebtrack.settings import THIGMOTAXIS_MAX_DISTANCE_CM
+from zebtrack.settings import (
+    DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S,
+    MAX_PLAUSIBLE_SPEED_LIMIT_CM_S,
+    THIGMOTAXIS_MAX_DISTANCE_CM,
+)
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
@@ -32,6 +36,8 @@ class BehavioralConfigWidget(BaseWidget):
       - Distance threshold (cm)
       - Number of zones
       - Bottom zones to consider (1 or 2)
+    - Plausible speed ceiling (cm/s), above which the trajectory validator flags
+      a frame (#695). 50 cm/s suits adult zebrafish; rodents sprint faster.
 
     Events emitted:
     - behavioral_config.perspective_changed: Perspective selection changed
@@ -75,6 +81,8 @@ class BehavioralConfigWidget(BaseWidget):
             default_bottom_zones: Default number of bottom zones (1 or 2)
             default_perspective: Default aquarium perspective (LATERAL or TOP_DOWN)
             default_geotaxis_mode: Default geotaxis calculation mode (DISTANCE or ZONES)
+            default_max_speed_cm_s: Default plausible speed ceiling (cm/s); callers pass
+                ``settings.behavioral_analysis.max_plausible_speed_cm_s``
             **kwargs: Additional arguments passed to BaseWidget
         """
         # Store defaults before super().__init__ calls _build_ui
@@ -86,6 +94,10 @@ class BehavioralConfigWidget(BaseWidget):
             "default_perspective", AquariumPerspective.LATERAL.value
         )
         self._default_geotaxis_mode = kwargs.pop("default_geotaxis_mode", GeotaxisMode.ZONES.value)
+        self._default_max_speed_cm_s = self._coerce_float(
+            kwargs.pop("default_max_speed_cm_s", DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S),
+            DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S,
+        )
 
         # State variables - initialized before _build_ui
         self.perspective_var = StringVar(value=self._default_perspective)
@@ -97,6 +109,7 @@ class BehavioralConfigWidget(BaseWidget):
         self.geotaxis_distance_var = DoubleVar(value=self._default_geotaxis_cm)
         self.geotaxis_num_zones_var = IntVar(value=self._default_num_zones)
         self.geotaxis_bottom_zones_var = IntVar(value=self._default_bottom_zones)
+        self.max_speed_var = DoubleVar(value=self._default_max_speed_cm_s)
 
         # Widget references
         self.perspective_combo: ttk.Combobox | None = None
@@ -110,6 +123,7 @@ class BehavioralConfigWidget(BaseWidget):
         self.geotaxis_distance_spinbox: ttk.Spinbox | None = None
         self.num_zones_spinbox: ttk.Spinbox | None = None
         self.bottom_zones_spinbox: ttk.Spinbox | None = None
+        self.max_speed_spinbox: ttk.Spinbox | None = None
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
@@ -134,6 +148,9 @@ class BehavioralConfigWidget(BaseWidget):
 
         # Geotaxis Section (conditional on lateral perspective)
         self._build_geotaxis_section()
+
+        # Plausible speed ceiling (trajectory validation)
+        self._build_speed_ceiling_section()
 
         # Initial state update
         self._on_perspective_changed()
@@ -327,6 +344,38 @@ class BehavioralConfigWidget(BaseWidget):
         # Initial visibility
         self._update_geotaxis_visibility()
 
+    def _build_speed_ceiling_section(self) -> None:
+        """Build the plausible speed ceiling section (#695)."""
+        speed_frame = ttk.LabelFrame(self, text=_("Plausible Speed"), padding=5)
+        speed_frame.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(
+            speed_frame,
+            text=_(
+                "Frames faster than this are flagged as implausible. 50 cm/s suits adult "
+                "zebrafish; rodents sprint faster."
+            ),
+            wraplength=500,
+        ).pack(fill="x", pady=(0, 5))
+
+        input_frame = ttk.Frame(speed_frame)
+        input_frame.pack(fill="x")
+
+        ttk.Label(input_frame, text=_("Maximum speed (cm/s):")).pack(side="left", padx=(0, 5))
+
+        self.max_speed_spinbox = ttk.Spinbox(
+            input_frame,
+            from_=1.0,
+            to=MAX_PLAUSIBLE_SPEED_LIMIT_CM_S,
+            increment=5.0,
+            textvariable=self.max_speed_var,
+            width=8,
+            format="%.1f",
+        )
+        self.max_speed_spinbox.pack(side="left")
+        self.max_speed_spinbox.bind("<FocusOut>", self._on_value_changed)
+        self.max_speed_spinbox.bind("<Return>", self._on_value_changed)
+
     # Event handlers
 
     def _on_perspective_combo_changed(self, event=None) -> None:
@@ -436,6 +485,7 @@ class BehavioralConfigWidget(BaseWidget):
             "geotaxis_distance_cm": self.geotaxis_distance_var.get(),
             "geotaxis_num_zones": self.geotaxis_num_zones_var.get(),
             "geotaxis_bottom_zones": self.geotaxis_bottom_zones_var.get(),
+            "max_plausible_speed_cm_s": self.max_speed_var.get(),
         }
 
     def set_values(self, config: dict) -> None:
@@ -451,6 +501,7 @@ class BehavioralConfigWidget(BaseWidget):
                 - geotaxis_distance_cm: float
                 - geotaxis_num_zones: int
                 - geotaxis_bottom_zones: int (1 or 2)
+                - max_plausible_speed_cm_s: float
         """
         if "aquarium_perspective" in config:
             perspective = config["aquarium_perspective"]
@@ -477,6 +528,9 @@ class BehavioralConfigWidget(BaseWidget):
         if "geotaxis_bottom_zones" in config:
             self.geotaxis_bottom_zones_var.set(config["geotaxis_bottom_zones"])
 
+        if config.get("max_plausible_speed_cm_s") is not None:
+            self.max_speed_var.set(config["max_plausible_speed_cm_s"])
+
         # Update UI state
         self._on_perspective_changed()
 
@@ -493,6 +547,7 @@ class BehavioralConfigWidget(BaseWidget):
                 "geotaxis_distance_cm": self._default_geotaxis_cm,
                 "geotaxis_num_zones": self._default_num_zones,
                 "geotaxis_bottom_zones": self._default_bottom_zones,
+                "max_plausible_speed_cm_s": self._default_max_speed_cm_s,
             }
         )
 
@@ -512,6 +567,14 @@ class BehavioralConfigWidget(BaseWidget):
                 _("Thigmotaxis distance must be between {minimum} and {maximum} cm").format(
                     minimum=0.1, maximum=THIGMOTAXIS_MAX_DISTANCE_CM
                 )
+            )
+
+        max_speed = self.max_speed_var.get()
+        if max_speed <= 0 or max_speed > MAX_PLAUSIBLE_SPEED_LIMIT_CM_S:
+            errors.append(
+                _(
+                    "The maximum plausible speed must be greater than 0 and at most {maximum} cm/s"
+                ).format(maximum=MAX_PLAUSIBLE_SPEED_LIMIT_CM_S)
             )
 
         # Validate geotaxis if enabled

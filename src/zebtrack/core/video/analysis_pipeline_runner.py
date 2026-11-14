@@ -36,6 +36,7 @@ from zebtrack.analysis.analysis_window_service import (
     WindowResolution,
     resolve_analysis_window,
 )
+from zebtrack.analysis.behavioral_policy import resolve_behavioral_config
 from zebtrack.analysis.reporters import (
     ExcelReporter,
     ParquetSummaryReporter,
@@ -178,6 +179,32 @@ class AnalysisPipelineRunnerMixin:
             return self._collect_params_from_single_video(single_video_config, experiment_id)
         else:
             return self._collect_params_from_project(metadata_context, experiment_id, video_path)
+
+    def _resolve_report_behavioral_config(self, single_video_config: dict | None) -> dict:
+        """Behavioural config the reporters get on this run (#695).
+
+        The same rule as "Generate reports"
+        (``AnalysisService.collect_analysis_parameters``). A project's defaults
+        come from the processing snapshot (baseline, never the shared settings an
+        ad-hoc run rewrote). A single video reads its dialog's
+        ``behavioral_analysis``, falling back to what the workflow stored in
+        ``project_data["behavioral_config"]``.
+        """
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        if single_video_config:
+            dialog_block = single_video_config.get("behavioral_analysis")
+            source = (
+                {"behavioral_config": dialog_block}
+                if isinstance(dialog_block, dict)
+                else project_data
+            )
+            return resolve_behavioral_config(source, self.settings)
+        snapshot = build_project_settings_snapshot(
+            self.settings,
+            project_data,
+            baseline=getattr(self, "settings_baseline", None),
+        )
+        return resolve_behavioral_config(project_data, snapshot)
 
     def _prepare_analysis_calibration_context(
         self,
@@ -372,6 +399,7 @@ class AnalysisPipelineRunnerMixin:
         smoothing_window: int,
         smoothing_polyorder: int,
         window: WindowResolution | None = None,
+        behavioral_config: dict | None = None,
     ) -> ReporterContext:
         """Create ReporterContext instance with all required parameters.
 
@@ -399,6 +427,7 @@ class AnalysisPipelineRunnerMixin:
             smoothing_window_length=smoothing_window,
             smoothing_polyorder=smoothing_polyorder,
             window=window,
+            behavioral_config=behavioral_config,
         )
 
     def _resolve_analysis_window(
@@ -833,6 +862,7 @@ class AnalysisPipelineRunnerMixin:
             smoothing_window=smoothing_window,
             smoothing_polyorder=smoothing_polyorder,
             window=window,
+            behavioral_config=self._resolve_report_behavioral_config(single_video_config),
         )
 
         if self.cancel_event.is_set():

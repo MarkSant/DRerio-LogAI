@@ -450,6 +450,25 @@ class TestRodentBehaviouralBounds:
         with pytest.raises(ValidationError):
             BehavioralAnalysisData(thigmotaxis_distance_cm=150.0)
 
+    def test_the_speed_ceiling_is_kept_not_dropped(self):
+        """#695: the widget's speed ceiling survives the wizard model (it ignored unknown keys)."""
+        data = BehavioralAnalysisData(max_plausible_speed_cm_s=100.0)
+
+        assert data.model_dump()["max_plausible_speed_cm_s"] == 100.0
+
+    def test_without_a_speed_ceiling_the_project_falls_back_to_settings(self):
+        assert BehavioralAnalysisData().max_plausible_speed_cm_s is None
+
+    @pytest.mark.parametrize("speed", [0.0, -5.0, 1000.5])
+    def test_a_speed_ceiling_out_of_range_is_refused(self, speed):
+        with pytest.raises(ValidationError):
+            BehavioralAnalysisData(max_plausible_speed_cm_s=speed)
+
+    def test_the_largest_accepted_ceiling_is_the_settings_bound(self):
+        assert BehavioralAnalysisData(max_plausible_speed_cm_s=1000.0).max_plausible_speed_cm_s == (
+            1000.0
+        )
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

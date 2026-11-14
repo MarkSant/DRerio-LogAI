@@ -10,7 +10,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from zebtrack.analysis.behavioral_policy import geotaxis_applies, resolve_max_plausible_speed
+from zebtrack.analysis.behavioral_policy import (
+    geotaxis_applies,
+    resolve_behavioral_config,
+    resolve_max_plausible_speed,
+)
 
 
 class TestGeotaxisApplies:
@@ -65,3 +69,80 @@ class TestResolveMaxPlausibleSpeed:
 
     def test_numeric_text_from_a_hand_edited_project_is_read(self):
         assert resolve_max_plausible_speed(None, {"max_plausible_speed_cm_s": "120"}, None) == 120.0
+
+
+def _settings_with(perspective: str = "lateral") -> SimpleNamespace:
+    return SimpleNamespace(
+        behavioral_analysis=SimpleNamespace(
+            default_thigmotaxis_distance_cm=1.5,
+            default_geotaxis_distance_cm=2.0,
+            default_geotaxis_num_zones=3,
+            default_geotaxis_bottom_zones=1,
+            aquarium_perspective=perspective,
+        )
+    )
+
+
+class TestResolveBehavioralConfig:
+    """#695: the ONE behavioural config every report path hands the reporters."""
+
+    def test_settings_defaults_use_the_project_key_names(self):
+        config = resolve_behavioral_config(None, _settings_with("lateral"))
+
+        assert config == {
+            "thigmotaxis_distance_cm": 1.5,
+            "geotaxis_distance_cm": 2.0,
+            "geotaxis_num_zones": 3,
+            "geotaxis_bottom_zones": 1,
+            "aquarium_perspective": "lateral",
+            "geotaxis_enabled": True,
+        }
+
+    def test_the_project_overrides_the_settings(self):
+        project = {"behavioral_config": {"thigmotaxis_distance_cm": 15.0, "geotaxis_num_zones": 4}}
+        config = resolve_behavioral_config(project, _settings_with())
+
+        assert config["thigmotaxis_distance_cm"] == 15.0
+        assert config["geotaxis_num_zones"] == 4
+        assert config["geotaxis_distance_cm"] == 2.0
+
+    def test_a_top_down_project_drops_the_inherited_geotaxis(self):
+        project = {"behavioral_config": {"aquarium_perspective": "Top-Down"}}
+        config = resolve_behavioral_config(project, _settings_with("lateral"))
+
+        assert config["aquarium_perspective"] == "top_down"
+        assert config["geotaxis_enabled"] is False
+
+    def test_the_legacy_behavioral_analysis_key_is_read(self):
+        project = {"behavioral_analysis": {"thigmotaxis_distance_cm": 9.0}}
+
+        assert (
+            resolve_behavioral_config(project, _settings_with())["thigmotaxis_distance_cm"] == 9.0
+        )
+
+    def test_behavioral_config_wins_over_the_legacy_key(self):
+        project = {
+            "behavioral_config": {"thigmotaxis_distance_cm": 4.0},
+            "behavioral_analysis": {"thigmotaxis_distance_cm": 9.0},
+        }
+
+        assert (
+            resolve_behavioral_config(project, _settings_with())["thigmotaxis_distance_cm"] == 4.0
+        )
+
+    def test_without_settings_or_project_it_is_empty(self):
+        assert resolve_behavioral_config(None, None) == {}
+
+    def test_settings_without_a_behavioural_block_still_read_the_project(self):
+        project = {"behavioral_config": {"aquarium_perspective": "lateral"}}
+
+        assert resolve_behavioral_config(project, SimpleNamespace()) == {
+            "aquarium_perspective": "lateral",
+            "geotaxis_enabled": True,
+        }
+
+    def test_the_project_block_is_not_mutated(self):
+        block = {"aquarium_perspective": "top"}
+        resolve_behavioral_config({"behavioral_config": block}, _settings_with())
+
+        assert block == {"aquarium_perspective": "top"}

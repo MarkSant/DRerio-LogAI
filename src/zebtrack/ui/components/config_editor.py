@@ -723,6 +723,8 @@ class ConfigEditorWidget(BaseWidget):
             "default_geotaxis_bottom_zones": widget_values["geotaxis_bottom_zones"],
             "aquarium_perspective": widget_values["aquarium_perspective"],
             "geotaxis_mode": widget_values["geotaxis_mode"],
+            # Same name in Settings and in the project's behavioral_config (#695).
+            "max_plausible_speed_cm_s": widget_values["max_plausible_speed_cm_s"],
         }
 
     def set_values(self, values: dict[str, Any]) -> None:
@@ -806,6 +808,8 @@ class ConfigEditorWidget(BaseWidget):
             widget_values["aquarium_perspective"] = ba["aquarium_perspective"]
         if "geotaxis_mode" in ba:
             widget_values["geotaxis_mode"] = ba["geotaxis_mode"]
+        if "max_plausible_speed_cm_s" in ba:
+            widget_values["max_plausible_speed_cm_s"] = ba["max_plausible_speed_cm_s"]
 
         # We enable geotaxis in the editor so user can edit the values,
         # even if it's not "enabled" by default in a specific analysis.

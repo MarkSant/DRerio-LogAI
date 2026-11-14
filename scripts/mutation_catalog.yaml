@@ -2177,12 +2177,14 @@ modules:
         find: |-
           smoothing_polyorder=smoothing_polyorder,
                       window=window,
+                      behavioral_config=behavioral_config,
                   )
 
               def _resolve_analysis_window(
         replace: |-
           smoothing_polyorder=smoothing_polyorder,
                       window=None,
+                      behavioral_config=behavioral_config,
                   )
 
               def _resolve_analysis_window(
@@ -3430,10 +3432,10 @@ _load_registry()"
         description: "geotaxia volta a ser calculada em video top-down (#631)"
         find: 'if geo_dist is not None and geotaxis_applies(behavioral_config):'
         replace: 'if geo_dist is not None:'
-      - id: inherited-enabled-flag-survives
-        description: "projeto top-down herda o geotaxis_enabled=True do padrao lateral (#631)"
-        find: 'params["behavioral_config"]["geotaxis_enabled"] = geotaxis_applies('
-        replace: 'params["behavioral_config"]["geotaxis_enabled_unused"] = geotaxis_applies('
+      - id: project-behavioural-block-ignored
+        description: "collect_analysis_parameters deixa de ler o behavioral_config do projeto (#631, #695)"
+        find: 'params["behavioral_config"] = resolve_behavioral_config(project_data, self.settings)'
+        replace: 'params["behavioral_config"] = resolve_behavioral_config(None, self.settings)'
       - id: speed-ceiling-hardcoded
         description: "o validador volta a usar 50 cm/s fixo, ignorando projeto e settings (#631)"
         find: 'max_plausible_speed_cm_s, behavioral_config, self.settings'
@@ -3606,3 +3608,123 @@ _load_registry()"
         description: "#634: o dialogo avulso deixa de saber do gatilho externo do projeto aberto"
         find: 'key: project_data[key] for key in TRIGGER_CONTEXT_KEYS if key in project_data'
         replace: 'key: project_data[key] for key in () if key in project_data'
+
+  wizard_templates_builtin:
+    source: src/zebtrack/ui/wizard/templates.py
+    tests:
+      - tests/ui/wizard/test_wizard_templates.py
+    mutations:
+      - id: deleted-builtin-comes-back
+        description: "#695: template embutido apagado pelo usuario volta a ser instalado"
+        find: 'if not isinstance(builtin_id, str) or not builtin_id or builtin_id in installed:'
+        replace: 'if not isinstance(builtin_id, str) or not builtin_id:'
+      - id: unflagged-baseline-installed
+        description: "#695: baseline legado sem builtin_id passa a ser instalado para todo usuario"
+        find: 'builtin_id = template.get(BUILTIN_ID_KEY) if isinstance(template, dict) else None'
+        replace: 'builtin_id = source.stem'
+      - id: user-file-overwritten
+        description: "#695: o template embutido sobrescreve o arquivo do usuario de mesmo nome"
+        find: |-
+          if target.exists():
+                          continue
+        replace: |-
+          if False:
+                          continue
+      - id: builtin-folder-moved
+        description: "#695: a pasta dos templates curados deixa de ser resources/wizard_templates"
+        find: 'return repo_root() / "resources" / "wizard_templates"'
+        replace: 'return repo_root() / "wizard_templates"'
+
+  advanced_tab_speed_ceiling:
+    source: src/zebtrack/ui/builders/analysis_widgets.py
+    tests:
+      - tests/ui/builders/test_analysis_widgets.py
+    mutations:
+      - id: project-ceiling-leaks-into-shared-settings
+        description: "#695: salvar no projeto grava o teto de velocidade do projeto no Settings compartilhado"
+        find: 'shared.behavioral_analysis.max_plausible_speed_cm_s'
+        replace: 'value.max_plausible_speed_cm_s'
+      - id: unedited-keys-dropped
+        description: "#695: salvar a aba apaga geotaxis_enabled do behavioral_config do projeto"
+        find: 'merged = dict(existing) if isinstance(existing, dict) else {}'
+        replace: 'merged = {}'
+      - id: settings-names-in-project
+        description: "#695: behavioral_config volta a guardar default_thigmotaxis_distance_cm"
+        find: '("default_thigmotaxis_distance_cm", "thigmotaxis_distance_cm"),'
+        replace: '("default_thigmotaxis_distance_cm", "default_thigmotaxis_distance_cm"),'
+      - id: settings-ceiling-not-shown
+        description: "#695: sem teto no projeto, o formulario nao mostra o das settings"
+        find: '"max_plausible_speed_cm_s": ba.max_plausible_speed_cm_s,'
+        replace: '"max_plausible_speed_cm_s": 50.0,'
+
+  wizard_speed_ceiling_bounds:
+    source: src/zebtrack/ui/wizard/models.py
+    tests:
+      - tests/ui/wizard/test_wizard_edge_cases.py
+    mutations:
+      - id: zero-ceiling-accepted
+        description: "#695: teto de velocidade zero (desliga a checagem) passa no wizard"
+        find: |-
+          default=None,
+                  gt=0.0,
+        replace: |-
+          default=None,
+                  ge=0.0,
+      - id: ceiling-above-the-limit-accepted
+        description: "#695: o wizard aceita teto acima do limite das settings"
+        find: 'le=MAX_PLAUSIBLE_SPEED_LIMIT_CM_S,'
+        replace: 'le=10 * MAX_PLAUSIBLE_SPEED_LIMIT_CM_S,'
+
+  speed_ceiling_limit:
+    source: src/zebtrack/settings.py
+    tests:
+      - tests/ui/wizard/test_wizard_edge_cases.py
+    mutations:
+      - id: ceiling-limit-moved
+        description: "#695: o limite do teto deixa de ser o das settings (1000 cm/s)"
+        find: 'MAX_PLAUSIBLE_SPEED_LIMIT_CM_S: Final[float] = 1000.0'
+        replace: 'MAX_PLAUSIBLE_SPEED_LIMIT_CM_S: Final[float] = 2000.0'
+
+  behavioral_config_resolver:
+    source: src/zebtrack/analysis/behavioral_policy.py
+    tests:
+      - tests/analysis/test_behavioral_policy.py
+    mutations:
+      - id: inherited-enabled-flag-survives
+        description: "projeto top-down herda o geotaxis_enabled=True do padrao lateral (#631, #695)"
+        find: 'config["geotaxis_enabled"] = geotaxis_applies(config)'
+        replace: 'config.setdefault("geotaxis_enabled", geotaxis_applies(config))'
+      - id: legacy-key-wins
+        description: "a chave legada behavioral_analysis passa a vencer o behavioral_config (#695)"
+        find: 'if "behavioral_config" in project_data:'
+        replace: 'if "behavioral_analysis" not in project_data:'
+      - id: perspective-not-normalised
+        description: "perspectiva 'Top-Down' do projeto chega crua aos relatorios (#695)"
+        find: 'config["aquarium_perspective"] = normalize_aquarium_perspective('
+        replace: 'config["_unused_perspective"] = normalize_aquarium_perspective('
+      - id: settings-thigmotaxis-dropped
+        description: "a tigmotaxia padrao das settings deixa de chegar ao relatorio (#695)"
+        find: '"thigmotaxis_distance_cm": behavioral.default_thigmotaxis_distance_cm,'
+        replace: '"thigmotaxis_distance_cm": 1.0,'
+
+  pipeline_report_behavioral_config:
+    source: src/zebtrack/core/video/analysis_pipeline_runner.py
+    tests:
+      - tests/core/video/test_analysis_pipeline_runner.py
+    mutations:
+      - id: reporter-gets-empty-config
+        description: "o pipeline pre-gravado volta a montar o ReporterContext com behavioral_config {} (#695)"
+        find: 'behavioral_config=self._resolve_report_behavioral_config(single_video_config),'
+        replace: 'behavioral_config=None,'
+      - id: context-drops-the-config
+        description: "_create_reporter_instance recebe o config e nao o repassa (#695)"
+        find: '            behavioral_config=behavioral_config,'
+        replace: '            behavioral_config=None,'
+      - id: project-defaults-from-polluted-settings
+        description: "padroes do projeto vem do Settings compartilhado, nao do snapshot (#695)"
+        find: 'return resolve_behavioral_config(project_data, snapshot)'
+        replace: 'return resolve_behavioral_config(project_data, self.settings)'
+      - id: single-video-dialog-ignored
+        description: "video unico ignora o behavioral_analysis do dialogo (#695)"
+        find: 'if isinstance(dialog_block, dict)'
+        replace: 'if False'

@@ -6,6 +6,28 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-14] Padrões de roedor: template top-down e campo do teto de velocidade (#695)
+
+__ID:__ TASK-085
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ In Progress 🔄
+__Branch:__ claude/695-rodent-defaults-1e6b0e (a partir de `release/8.0`, 9765f510)
+__Description:__
+Sobra do #631. (1) Template embutido "roedor, vista superior" em `resources/wizard_templates/`
+(top_down, tigmotaxia de roedor, `max_plausible_speed_cm_s` de roedor; sem `class_roles`, pois
+não há peso de roedor embutido), instalado na pasta de templates do usuário. (2) Campo do teto
+de velocidade no `BehavioralConfigWidget` e na aba Configurações Avançadas: grava
+`behavioral_config["max_plausible_speed_cm_s"]` no projeto, cai para as settings, e não escreve
+o valor do projeto no `Settings` compartilhado. (3) `AnalysisPipelineRunner` sem
+`behavioral_config`: o usuário decidiu corrigir para todos os projetos. O runner passa a
+usar `behavioral_policy.resolve_behavioral_config()`, a mesma regra de "Gerar relatórios".
+
+__Critério de pronto:__
+
+- O template de roedor aparece na pasta de templates e pré-preenche o widget.
+- GUI: o campo lê/grava o teto (projeto > settings) e não polui o `Settings` compartilhado.
+- PR contra `release/8.0` com CI verde.
+
 ### [2026-11-14] Editor da janela de análise no diálogo ao vivo avulso (#634)
 
 __ID:__ TASK-084

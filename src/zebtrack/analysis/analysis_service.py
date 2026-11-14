@@ -23,6 +23,7 @@ from zebtrack.analysis.analysis_window_service import WindowResolution
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.behavioral_policy import (
     geotaxis_applies,
+    resolve_behavioral_config,
     resolve_max_plausible_speed,
 )
 from zebtrack.analysis.metrics_cache import MetricsCache
@@ -1122,24 +1123,6 @@ class AnalysisService:
                 "sharp_turn_threshold": self.settings.video_processing.sharp_turn_threshold_deg_s,
             }
 
-        # Add behavioral defaults if available
-        settings = self.settings
-        if settings is not None and hasattr(settings, "behavioral_analysis"):
-            ba_cfg = settings.behavioral_analysis
-            # Get perspective - lateral enables geotaxis by default
-            perspective = self._normalize_aquarium_perspective(
-                getattr(ba_cfg, "aquarium_perspective", "lateral")
-            )
-            params["behavioral_config"] = {
-                "thigmotaxis_distance_cm": ba_cfg.default_thigmotaxis_distance_cm,
-                "geotaxis_distance_cm": ba_cfg.default_geotaxis_distance_cm,
-                "geotaxis_num_zones": ba_cfg.default_geotaxis_num_zones,
-                "geotaxis_bottom_zones": ba_cfg.default_geotaxis_bottom_zones,
-                "aquarium_perspective": perspective,
-                # Enable geotaxis by default for lateral view (vertical depth analysis)
-                "geotaxis_enabled": perspective == "lateral",
-            }
-
         # Override with project-specific values if available
         if project_data:
             analysis_params = project_data.get("analysis_parameters", {})
@@ -1162,23 +1145,9 @@ class AnalysisService:
                         "freezing_threshold" if key == "freezing_vel_threshold" else key
                     ] = analysis_params[key]
 
-            # Merge behavioral config from project (preserves defaults like geotaxis_enabled)
-            if "behavioral_config" in project_data:
-                params["behavioral_config"].update(project_data["behavioral_config"])
-            elif "behavioral_analysis" in project_data:  # Handle legacy/alternate key
-                params["behavioral_config"].update(project_data["behavioral_analysis"])
-
-        if params.get("behavioral_config"):
-            perspective = self._normalize_aquarium_perspective(
-                params["behavioral_config"].get("aquarium_perspective")
-            )
-            params["behavioral_config"]["aquarium_perspective"] = perspective
-            # Always re-derived (#631): the global ``lateral`` default wrote
-            # ``geotaxis_enabled=True`` above, and the project's ``top_down``
-            # merged on top must not inherit it.
-            params["behavioral_config"]["geotaxis_enabled"] = geotaxis_applies(
-                params["behavioral_config"]
-            )
+        # Settings defaults < project block, geotaxis re-derived (#631). The same
+        # rule the automatic pre-recorded pipeline uses (#695).
+        params["behavioral_config"] = resolve_behavioral_config(project_data, self.settings)
 
         self.log.debug(
             "analysis_service.collect_parameters",
