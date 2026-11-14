@@ -3864,3 +3864,96 @@ _load_registry()"
         description: "piso num pacote que nao existe no relatorio passa em silencio"
         find: 'if unknown:'
         replace: 'if False:'
+
+# core/viewmodels coverage (TASK-087)
+  viewmodels_runtime:
+    source: src/zebtrack/core/viewmodels/main_view_model_runtime.py
+    tests:
+      - tests/core/viewmodels/test_main_view_model_runtime.py
+    mutations:
+      - id: wizard-flat-fields-override-nested
+        description: "campos planos do PROJECT_CREATE passam a vencer o wizard_data aninhado"
+        find: 'merged_wizard_data.setdefault(key, value)'
+        replace: 'merged_wizard_data[key] = value'
+      - id: legacy-weight-name-wins
+        description: "weight_name legado passa a vencer o campo name atual"
+        find: 'selected_weight = payload_dict.get("name") or payload_dict.get("weight_name")'
+        replace: 'selected_weight = payload_dict.get("weight_name") or payload_dict.get("name")'
+      - id: empty-delete-payload-deletes
+        description: "payload vazio de exclusao deixa de ser descartado"
+        find: 'if not payload_dict and event_name in {'
+        replace: 'if False and event_name in {'
+      - id: delete-day-deletes-group
+        description: "excluir dia passa a excluir o grupo"
+        find: 'UIEvents.PROJECT_DELETE_DAY: "day",'
+        replace: 'UIEvents.PROJECT_DELETE_DAY: "group",'
+      - id: cancel-feedback-on-reset
+        description: "feedback de cancelamento aparece tambem quando cancel_requested volta a False"
+        find: 'elif key == "cancel_requested" and new:'
+        replace: 'elif key == "cancel_requested":'
+
+  viewmodels_hardware:
+    source: src/zebtrack/core/viewmodels/hardware_status_view_model.py
+    tests:
+      - tests/core/test_hardware_status_view_model.py
+    mutations:
+      - id: slot-fallback-merged-with-exact
+        description: "pesos de outro alvo passam a se misturar com os do alvo exato"
+        find: 'return exact_matches or fallback_matches'
+        replace: 'return exact_matches + fallback_matches'
+      - id: project-summary-needs-only-one-method
+        description: "resumo de projeto filtra os slots com apenas um metodo conhecido"
+        find: 'if aquarium_method and animal_method:'
+        replace: 'if aquarium_method or animal_method:'
+      - id: global-restore-inverted
+        description: "restaurar padroes globais passa a cair no ramo errado"
+        find: 'if scope == "global":'
+        replace: 'if scope != "global":'
+      - id: command-success-logged-as-failure
+        description: "comando enviado com sucesso e registrado como falha"
+        find: '_("Command {command} sent ({source})")'
+        replace: '_("Command {command} failed ({source})")'
+
+  viewmodels_analysis_control:
+    source: src/zebtrack/core/viewmodels/analysis_control_view_model.py
+    tests:
+      - tests/core/test_analysis_control_view_model.py
+    mutations:
+      - id: det-one-animal-rejected
+        description: "det com exatamente 1 animal passa a ser recusado"
+        find: 'if animal_method == "det" and animals_per_aquarium > 1:'
+        replace: 'if animal_method == "det" and animals_per_aquarium >= 1:'
+      - id: pixels-per-cm-inverted
+        description: "calibracao em pixels por cm multiplica em vez de dividir"
+        find: 'pixelcm_x = width_px / real_width_cm'
+        replace: 'pixelcm_x = width_px * real_width_cm'
+      - id: roi-color-not-converted
+        description: "cor do ROI deixa de ser convertida de BGR para RGB"
+        find: 'color_rgb = (color_bgr[2], color_bgr[1], color_bgr[0])'
+        replace: 'color_rgb = (color_bgr[0], color_bgr[1], color_bgr[2])'
+      - id: height-estimate-margin
+        description: "estimativa de altura do video usa margem de 20% em vez de 10%"
+        find: 'video_height_px = int(max(p[1] for p in arena_poly) * 1.1)'
+        replace: 'video_height_px = int(max(p[1] for p in arena_poly) * 1.2)'
+      - id: legacy-thread-always-running
+        description: "thread legado inativa passa a contar como processamento em curso"
+        find: 'legacy_thread_running = bool(self.processing_thread and self.processing_thread.is_alive())'
+        replace: 'legacy_thread_running = bool(self.processing_thread)'
+
+  viewmodels_project:
+    source: src/zebtrack/core/viewmodels/project_view_model.py
+    tests:
+      - tests/core/test_project_view_model.py
+    mutations:
+      - id: removal-allowed-without-coordinator
+        description: "remocao de asset e liberada quando nao ha coordenador"
+        find: 'return (False, "ProjectLifecycleCoordinator not available")'
+        replace: 'return (True, "ProjectLifecycleCoordinator not available")'
+      - id: delete-source-always-false
+        description: "pedido de apagar a fonte do asset e ignorado"
+        find: 'delete_source=delete_source'
+        replace: 'delete_source=False'
+      - id: hierarchy-delete-counts-fake
+        description: "sem coordenador a exclusao de hierarquia finge ter apagado algo"
+        find: 'return 0, 0'
+        replace: 'return 1, 1'
