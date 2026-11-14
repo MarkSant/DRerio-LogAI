@@ -1,74 +1,48 @@
 # Known Issues
 
-## Test Suite Issues
+Last verified: 2026-11-14 against the `main` sources of release 8.0.0.
 
-### UI Component Tests - ttkbootstrap Style Singleton
+## Test suite
 
-**Status:** Known limitation (external library)
-**Severity:** Low (tests pass in isolation, application works correctly)
-**Affected Tests:** 11 tests in `tests/ui/test_components.py`
+### Current shape
 
-**Description:**
+`pytest --collect-only` reports **10033** tests. The markers in `pytest.ini` split them as
+follows:
 
-When the full test suite is run (`pytest -q`), UI component tests may fail with:
+| Selection                    | Command                         | Tests |
+| ---------------------------- | ------------------------------- | ----- |
+| Fast (default)               | `pytest`                        | 8635  |
+| GUI (`gui` marker)           | `pytest -m gui -n0`             | 1374  |
+| Slow (`slow` marker)         | `pytest -m slow`                | 24    |
+| Everything                   | `pytest -m "" -n0`              | 10033 |
 
-```text
-_tkinter.TclError: can't invoke "tk" command: application has been destroyed
-```
+The GUI suite passes on its own: `pytest -m gui -n0` finished with 1374 passed in 73 s on
+2026-11-14. The fast suite excludes `gui`, `slow` and `ttkbootstrap_singleton` through the `-m`
+expression in `addopts`; a `-m` given on the command line replaces it.
 
-**Root Cause:**
+### GUI tests must run without xdist workers
 
-The ttkbootstrap library uses a singleton pattern for its Style class. This singleton maintains references to Tkinter widget instances for theme management. When pytest runs multiple test modules in sequence, the Style singleton retains references to Tk instances that were destroyed in previous test modules, causing TclErrors when new tests attempt to create styled widgets.
+ttkbootstrap keeps a process-wide `Style` singleton that holds references to Tk instances. Under
+`pytest-xdist` (`-n N` with `N > 0`) that state is shared in ways the GUI tests do not tolerate.
+`pytest.ini` therefore passes `-n0` in `addopts`, so a plain `pytest` already runs sequentially;
+pass `-n auto` explicitly to parallelise the fast suite and never combine it with `-m gui`. CI
+runs the GUI suite as `pytest -m gui -n0 --reruns 2` under `xvfb-run`.
 
-**Workaround:**
+The `ttkbootstrap_singleton` marker is still declared in `pytest.ini` but no test carries it
+today, so it deselects nothing.
 
-Run UI component tests in isolation:
+### Open: a test helper leaves a fake OpenVINO runtime installed
 
-```bash
-poetry run pytest tests/ui/test_components.py -v
-```
+`tests/test_openvino_batch_inference.py` (the `_make_plugin` helper) executes
+`sys.modules["openvino"] = MagicMock()` when OpenVINO is not importable and never removes it. On a
+machine without OpenVINO every test that runs afterwards in the same process sees a fake runtime
+instead of an `ImportError`. The behaviours that file covers are also covered without mocks by
+`TestDetectBatch` in `tests/plugins/test_openvino_detector.py`. Tracked as A7-08 in
+`docs/audits/2026-11_loose_ends.md`.
 
-Result: All 22 tests pass successfully (100% pass rate).
+## Reporting a new issue
 
-**Full Test Suite Results:**
-
-When running the complete test suite:
-
-- **Total tests:** 519
-- **Passing:** 508 (97.9%)
-- **Failing:** 11 (UI components affected by Style singleton)
-- **Ruff linting:** 0 errors ✅
-
-**Potential Solutions:**
-
-1. **Module-scoped fixture:** Already implemented (`@pytest.fixture(scope="module")`) but insufficient for cross-module isolation.
-2. **Process isolation:** Run `tests/ui/test_components.py` in a separate pytest process using `pytest-xdist`.
-3. **Upstream fix:** Contribute patch to ttkbootstrap to properly reset singleton state.
-4. **Skip in full suite:** Mark tests with `@pytest.mark.skipif` when detected as part of full suite run.
-
-**Related Files:**
-
-- `tests/ui/test_components.py` - Affected test module
-- `src/zebtrack/ui/components/` - Component implementations (working correctly)
-- `src/zebtrack/ui/gui.py` - Main GUI (working correctly)
-
-**Impact Assessment:**
-
-- ✅ Application functionality: **Not affected** (issue is test-only)
-- ✅ Component code quality: **High** (all components work correctly in production)
-- ✅ Test coverage: **97.9%** (excellent coverage maintained)
-- ⚠️ CI/CD: May show 11 failing tests when running full suite
-
-**Recommendation:**
-
-Accept current state and document clearly. The application is production-ready, all code is clean (Ruff 0 errors), and the issue is isolated to test infrastructure, not application logic.
-
----
-
-## Future Enhancements
-
-### Potential Test Infrastructure Improvements
-
-1. Investigate `pytest-xdist` for process-isolated test execution
-2. Research ttkbootstrap alternatives or contribute singleton reset mechanism
-3. Consider splitting test execution into "unit tests" and "integration tests" runs
+Open a GitHub issue with the failing command, the full output and the output of
+`python -c "import zebtrack; print(zebtrack.__file__)"`. In a git worktree, run
+`source scripts/wt-env.sh` first (see `CLAUDE.md`), otherwise the tests may exercise the main
+checkout's sources.
