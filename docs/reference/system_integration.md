@@ -273,15 +273,20 @@ failure.
 | `ANALYSIS_STARTED`             | -                              | (lifecycle)        | (consumers)     |
 | `ANALYSIS_COMPLETED`           | -                              | (lifecycle)        | (consumers)     |
 
-### 3.6. Detector & Tracking Events (Dec 2025)
+### 3.6. Detector & Tracking Parameters (no event)
 
-| Event (Domain)                | Payload Keys                                                                                                  | Publishers            | Subscribers                 |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------- | --------------------------- |
-| `TRACKING_PARAMETERS_UPDATED` | `track_threshold`, `match_threshold`, `track_buffer`, `use_bytetrack`, `max_center_distance`, `iou_threshold` | `DetectorCoordinator` | UI components, StateManager |
+`DetectorSetupCoordinator.update_tracking_parameters()` publishes **no** event. It
+writes the parameters it received to `StateManager` (`StateCategory.DETECTOR`), and
+that is the only signal. Until 2026-11 it also published the string
+`"TRACKING_PARAMETERS_UPDATED"`, which is not a `UIEvents` member, so nothing could
+receive it; the same held for `"ZONES_CONFIGURED"`, `"SINGLE_SUBJECT_MODE_CHANGED"`
+and `"DETECTOR_SETTINGS_RESTORED"`. All four were removed, and `_publish_event`
+now takes `UIEvents` only (audit A1-01, `docs/audits/2026-11_A1_events.md`).
 
-**Notes:**
+Parameters (`track_threshold`, `match_threshold`, `track_buffer`, `use_bytetrack`,
+`max_center_distance`, `iou_threshold`):
 
-- All payload values are optional (None if not updated)
+- All values are optional (None if not updated)
 - `use_bytetrack: bool` - Toggles between ByteTrack and SingleSubjectTracker
 - `track_buffer: int` - Frames to keep lost tracks (default: 300), expressed at
   the 30 fps reference: `BYTETracker` converts it with `frame_rate / 30`, and

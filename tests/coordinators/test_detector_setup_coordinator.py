@@ -343,18 +343,21 @@ class TestZoneConfiguration:
         assert call_args[1]["zones_configured"] is True
         assert call_args[1]["zones_count"] == 2
 
-    def test_configure_zones_publishes_event(
+    def test_configure_zones_puts_nothing_on_the_bus(
         self,
         detector_setup_coordinator,
         mock_event_bus,
     ):
-        """Test that configure_zones publishes event."""
+        """No subscriber exists for this outcome, so nothing is published.
+
+        It used to publish the string "ZONES_CONFIGURED", which is not a UIEvents
+        member: the bus keys subscribers by member and no one could receive it
+        (audit A1-01). The state update above is the signal that carries it.
+        """
         zones = [{"name": "Zone1"}]
         detector_setup_coordinator.configure_zones(zones_data=zones)
 
-        mock_event_bus.publish.assert_called()
-        event_obj = mock_event_bus.publish.call_args[0][0]
-        assert event_obj.type == "ZONES_CONFIGURED"
+        mock_event_bus.publish.assert_not_called()
 
     def test_configure_zones_invalid_width(self, detector_setup_coordinator):
         """Test configure_zones with invalid video_width."""
@@ -463,17 +466,20 @@ class TestTrackingParameters:
         assert call_args["track_threshold"] == 0.3
         assert call_args["match_threshold"] == 0.2
 
-    def test_update_tracking_parameters_publishes_event(
+    def test_update_tracking_parameters_puts_nothing_on_the_bus(
         self,
         detector_setup_coordinator,
         mock_event_bus,
     ):
-        """Test that update_tracking_parameters publishes event."""
+        """No subscriber exists for this outcome, so nothing is published.
+
+        It used to publish the string "TRACKING_PARAMETERS_UPDATED", which is not a UIEvents
+        member: the bus keys subscribers by member and no one could receive it
+        (audit A1-01). The state update above is the signal that carries it.
+        """
         detector_setup_coordinator.update_tracking_parameters(track_threshold=0.3)
 
-        mock_event_bus.publish.assert_called()
-        event_obj = mock_event_bus.publish.call_args[0][0]
-        assert event_obj.type == "TRACKING_PARAMETERS_UPDATED"
+        mock_event_bus.publish.assert_not_called()
 
     def test_update_tracking_parameters_invalid_track_threshold_range(
         self,
@@ -643,17 +649,20 @@ class TestSingleSubjectMode:
         call_args = mock_state_manager.update_state.call_args[1]
         assert call_args["single_subject_mode"] is True
 
-    def test_set_single_subject_mode_publishes_event(
+    def test_set_single_subject_mode_puts_nothing_on_the_bus(
         self,
         detector_setup_coordinator,
         mock_event_bus,
     ):
-        """Test that set_single_subject_mode publishes event."""
+        """No subscriber exists for this outcome, so nothing is published.
+
+        It used to publish the string "SINGLE_SUBJECT_MODE_CHANGED", which is not a UIEvents
+        member: the bus keys subscribers by member and no one could receive it
+        (audit A1-01). The state update above is the signal that carries it.
+        """
         detector_setup_coordinator.set_single_subject_mode(enabled=True)
 
-        mock_event_bus.publish.assert_called()
-        event_obj = mock_event_bus.publish.call_args[0][0]
-        assert event_obj.type == "SINGLE_SUBJECT_MODE_CHANGED"
+        mock_event_bus.publish.assert_not_called()
 
     def test_set_single_subject_mode_invalid_type(self, detector_setup_coordinator):
         """Test set_single_subject_mode with invalid type."""
@@ -707,18 +716,21 @@ class TestSettingsRestoration:
         call_args = mock_state_manager.update_state.call_args[1]
         assert call_args["settings_restored"] is True
 
-    def test_restore_detector_settings_publishes_event(
+    def test_restore_detector_settings_puts_nothing_on_the_bus(
         self,
         detector_setup_coordinator,
         mock_event_bus,
     ):
-        """Test that restore_detector_settings publishes event."""
+        """No subscriber exists for this outcome, so nothing is published.
+
+        It used to publish the string "DETECTOR_SETTINGS_RESTORED", which is not a UIEvents
+        member: the bus keys subscribers by member and no one could receive it
+        (audit A1-01). The state update above is the signal that carries it.
+        """
         config = {"track_threshold": 0.3}
         detector_setup_coordinator.restore_detector_settings(config)
 
-        mock_event_bus.publish.assert_called()
-        event_obj = mock_event_bus.publish.call_args[0][0]
-        assert event_obj.type == "DETECTOR_SETTINGS_RESTORED"
+        mock_event_bus.publish.assert_not_called()
 
     def test_restore_detector_settings_invalid_type(self, detector_setup_coordinator):
         """Test restore with invalid config type."""

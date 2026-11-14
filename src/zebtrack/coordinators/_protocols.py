@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.video.processing_worker import ProcessingWorker
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus_v2 import EventBusV2
+    from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 
 @runtime_checkable
@@ -34,7 +34,7 @@ class UnifiedReportHost(Protocol):
     settings: Settings
     event_bus: EventBusV2 | None
 
-    def _publish_event(self, event: Any, data: Any) -> None: ...
+    def _publish_event(self, event_type: UIEvents, data: Any) -> None: ...
     def _is_batch_processing(self) -> bool: ...
     def _enrich_unified_report_metadata(
         self, df: pd.DataFrame, meta: dict[str, Any], entry: dict[str, Any]
@@ -74,7 +74,7 @@ class VideoSelectionHost(Protocol):
     processing_thread: Any
     _multi_aquarium_coordinator: Any
 
-    def _publish_event(self, event: Any, data: Any) -> None: ...
+    def _publish_event(self, event_type: UIEvents, data: Any) -> None: ...
 
     # Mixin-provided helper (declared here for self-typed resolution)
     def _is_live_session_currently_active(self, processing_state: Any) -> bool: ...

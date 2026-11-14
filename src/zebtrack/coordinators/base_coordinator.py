@@ -32,7 +32,7 @@ from zebtrack.core.exceptions import ZebTrackError
 
 if TYPE_CHECKING:
     from zebtrack.core.state_manager import StateCategory, StateManager
-    from zebtrack.ui.event_bus_v2 import EventBusV2
+    from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -232,13 +232,14 @@ class BaseCoordinator:
 
     def _publish_event(
         self,
-        event_type: Any,
+        event_type: UIEvents,
         data: Any | None = None,
     ) -> None:
         """Publish an event via EventBusV2.
 
         Args:
-            event_type: UIEvents enum member.
+            event_type: UIEvents enum member. A string is a type error: the bus
+                keys subscribers by member, so a string name reaches nobody.
             data: Optional event payload.
 
         Note:

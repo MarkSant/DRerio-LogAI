@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from zebtrack.core.application_bootstrapper import BootstrapResult
     from zebtrack.core.dependency_container import MainViewModelDependencies
     from zebtrack.core.detection import Detector
+    from zebtrack.ui.event_bus_v2 import UIEvents
 
 log = structlog.get_logger()
 
@@ -119,7 +120,7 @@ class HardwareStatusViewModel:
         )
         return False
 
-    def _publish_arduino_ui(self, event_type: Any, payload: Any) -> None:
+    def _publish_arduino_ui(self, event_type: UIEvents, payload: Any) -> None:
         """Publish an Arduino UI event on the bus (best-effort, thread-safe).
 
         These callbacks fire from ``ArduinoManager`` (main thread on connect,
