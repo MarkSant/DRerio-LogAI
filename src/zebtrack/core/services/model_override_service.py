@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus_v2 import EventBusV2
+    from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -74,7 +74,7 @@ class ModelOverrideService:
     # Event helper (mirrors BaseCoordinator._publish_event)
     # ------------------------------------------------------------------
 
-    def _publish_event(self, event_type: Any, data: Any = None) -> None:
+    def _publish_event(self, event_type: UIEvents, data: Any = None) -> None:
         """Publish an event via EventBusV2.
 
         Args:
