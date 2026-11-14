@@ -10,7 +10,7 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 __ID:__ TASK-082
 __Agent:__ Claude Code (Opus 5.5)
-__Status:__ In progress 🚧
+__Status:__ Completed ✅ (PR #712 contra `release/8.0`; aguarda o mantenedor)
 __Branch:__ claude/645-646-class-roles-0e91fd (a partir de `release/8.0`, efacc9da)
 __Description:__
 Issue #645: os payloads que levam detecções à UI (`DetectionOverlayPayload`, `FrameDisplayPayload`,
@@ -26,6 +26,11 @@ __Critério de pronto:__
 - template v4 antigo continua carregando; v5 guarda papéis por nome + sha;
 - peso com nomes, 3+ classes e sem sujeito ⇒ `ClassRolesUnresolvedError` capturada pelo tipo;
 - PR contra `release/8.0` com CI verde, "Closes #645" e "Closes #646".
+
+__Resultado (2026-11-14):__ suíte rápida 8301 passed; GUI 1339 passed (+ o flaky conhecido
+`test_fps_calculation`, verde isolado); ruff e `mypy .` limpos; testes novos vermelhos sem a
+mudança (24 do #645, 16 do #646 + erros de import); mutation check escopado sem sobreviventes
+(blocos novos do overlay, do encaixe do template, da semente do painel e do gate do wizard).
 
 ### [2026-11-13] Multi-aquário: aquário vazio também avança o BYTETracker (#668)
 
