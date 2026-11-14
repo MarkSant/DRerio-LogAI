@@ -1,0 +1,5 @@
+{
+  "_comment": "#650: the analysis window editor warns about a ROI the project lacks. Appended by hand to the .pot/.po (see docs/guides/developer/i18n.md); kept here for the next full regeneration.",
+
+  "This project has no ROI named {names}, so that line will never fire. Draw it, or change the line.": "Este projeto não tem ROI chamada {names}, então essa linha nunca vai disparar. Desenhe a ROI ou altere a linha."
+}

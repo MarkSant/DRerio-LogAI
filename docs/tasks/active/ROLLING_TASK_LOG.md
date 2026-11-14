@@ -6,6 +6,36 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-14] Preset do Barnes: FIM pela entrada na toca (#650)
+
+__ID:__ TASK-083
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
+__Branch:__ claude/650-barnes-end-burrow-1a481c (a partir de `release/8.0`, efacc9da)
+__Description:__
+Nos vídeos reais do Barnes o rato fica visível até o último quadro, então "rato ausente
+por S s" nunca dispara e o FIM sai censurado no fim do vídeo. O preset passa a terminar no
+primeiro entre: entrada na ROI `toca` (`RoiEdge(toca, enter)`), rato ausente por S s,
+240 s e fim do vídeo. O editor da janela avisa quando a regra cita uma ROI que o projeto
+não tem, em vez de aceitá-la em silêncio. Sem avaliador novo: o `RoiEdge` já existe no
+avaliador único e as duas pontas (ao vivo e análise) já entregam `subject_rois`.
+A regra de INÍCIO não muda (depende das marcações manuais do laboratório).
+
+__Critério de pronto:__
+
+- Preset com a toca; `ConditionRuntime` e `evaluate_window()` dão o mesmo FIM.
+- E2E do Barnes: FIM na entrada da toca, latência até a toca não censurada.
+- Editor avisa ROI ausente ao carregar o preset e ao salvar.
+- PR contra `release/8.0` com CI verde e "Closes #650".
+
+__Resultado (2026-11-14):__ vídeos reais (peso `best_det_topdown_rat_v2`, toca = círculo de
+18 px no buraco de fuga em (537, 135)): `Exemp_1` FIM 55,13 s censurado → 41,15 s
+`roi_edge`, completo; `Exemp_2` 186,61 s censurado → 110,65 s `roi_edge`. No `Exemp_2` o rato
+só põe a cabeça no buraco e depois sai: com a regra de ROI do relatório (`bbox_intersects`)
+"entrar" é tocar a toca (latência primária), não a fuga com as quatro patas — pergunta em aberto
+para o laboratório, registrada no PR. Gates: `pytest -q` 8256 passed; `-m gui -n0` 1328 passed;
+mutation check escopado 43/43; ruff e `mypy .` limpos.
+
 ### [2026-11-13] Multi-aquário: aquário vazio também avança o BYTETracker (#668)
 
 __ID:__ TASK-081

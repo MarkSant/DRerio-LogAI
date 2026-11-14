@@ -16,8 +16,9 @@ Timeline (video at 10 fps, settings at 30 fps on purpose)::
     frames 70-89  rat gone (in the escape box)
 
 So START (start box and experimenter absent, rat present, held 3 frames) is
-frame 25 = 2.5 s; STOP (rat absent for 1 s, back-dated) is frame 70 = 7.0 s;
-the latency to ``toca`` counted from START is 4.0 - 2.5 = 1.5 s.
+frame 25 = 2.5 s; STOP is the rat entering ``toca`` at frame 40 = 4.0 s (#650);
+without the burrow line it is the rat absent for 1 s, back-dated to frame
+70 = 7.0 s. The latency to ``toca`` counted from START is 4.0 - 2.5 = 1.5 s.
 """
 
 from __future__ import annotations
@@ -116,10 +117,38 @@ def test_object_sidecar_has_heartbeats_and_context_rows(barnes):
     assert metadata.class_roles["rat"] == "subject"
 
 
-def test_start_is_the_first_frame_of_the_condition_and_stop_is_backdated(barnes):
+def test_stop_is_the_burrow_entry(barnes):
+    """#650: the preset's STOP is the first entry into ``toca``, not the absence."""
     run, trajectory = barnes
 
     window = _resolve(run, trajectory)
+
+    assert window.status == "complete"
+    assert window.start is not None and window.stop is not None
+    assert (window.start.frame, window.start.reason) == (25, "persist")
+    assert (window.stop.frame, window.stop.reason) == (40, "roi_edge")
+    assert window.stop.t_s == pytest.approx(4.0)
+    assert window.window_duration_s == pytest.approx(1.5)
+    assert window.censored is False
+
+
+def test_burrow_entry_keeps_the_latency_to_toca_measurable(barnes):
+    """The window ends ON the entry frame and the cut is inclusive: not censored."""
+    run, trajectory = barnes
+    window = _resolve(run, trajectory)
+
+    report = _analyse(trajectory, window)
+
+    assert report["analysis_window"]["stop"]["frame"] == 40
+    assert report["analise_roi"]["latencia_primeira_entrada"]["toca"] == pytest.approx(1.5)
+    assert report["latency_censored"]["toca"] is False
+    assert report["comportamento_geral"]["total_frames_analisados"] == 16
+
+
+def test_start_is_the_first_frame_of_the_condition_and_stop_is_backdated(barnes):
+    run, trajectory = barnes
+
+    window = _resolve(run, trajectory, burrow_roi=None)
 
     assert window.status == "complete"
     assert window.start is not None and window.stop is not None
@@ -151,7 +180,7 @@ def test_trajectory_keeps_the_rows_before_start(barnes):
 
 def test_metrics_are_cut_to_the_window(barnes):
     run, trajectory = barnes
-    window = _resolve(run, trajectory)
+    window = _resolve(run, trajectory, burrow_roi=None)
 
     report = _analyse(trajectory, window)
 
