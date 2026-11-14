@@ -204,6 +204,13 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
   tem a ROI, o editor da janela avisa ao carregar o preset e ao salvar, em vez de
   aceitar uma linha que nunca dispara. A procura olha as ROIs de cada vídeo, não
   só as globais (um projeto pré-gravado não as espelha mais).
+- **Janela de análise na análise ao vivo avulsa (#634).** O diálogo "Analisar
+  Câmera ao Vivo" (sem projeto) ganha o mesmo editor de INÍCIO/FIM da aba Zonas,
+  em modo compacto e com a predefinição do Barnes. A regra vai para a sessão por
+  argumento, nunca pelo `Settings` compartilhado; o aviso de ROI ausente olha as
+  zonas da própria sessão avulsa. Uma regra que espera o Arduino é recusada no
+  diálogo, com o motivo, quando o projeto aberto tem o Modo de Gatilho Externo
+  ligado ou quando não há Arduino habilitado e conectado.
 - **Templates do assistente na versão 4**: guardam a janela de análise. Um
   template v3 com "Modo de Gatilho Externo" ligado é convertido ao carregar em uma
   janela equivalente (código 1 do Arduino inicia, código 0 para e encerra a sessão

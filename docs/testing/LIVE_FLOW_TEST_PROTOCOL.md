@@ -125,6 +125,12 @@ Outros compartilhamentos que não parecem compartilhados:
   painel de zonas do pré-gravado.
 - `behavioral_config_widget.py` é embutido pelo `LiveAnalysisDialog` **e** pelo
   `SingleVideoConfigDialog`.
+- `analysis_window_panel.py` serve a aba Zonas de QUALQUER projeto (modo projeto,
+  salva em `project_data`) **e** o `LiveAnalysisDialog` (modo sessão,
+  `compact_for_session`, não salva nada). Mexer no `save()` ou no `_roi_names()`
+  atinge os dois; os testes de cada modo estão em
+  `tests/ui/components/test_analysis_window_panel.py` (`TestAnalysisWindowPanel`,
+  `TestSessionPanel`).
 - `Recorder` é singleton de DI do lado ao vivo, mas instância nova dentro do
   worker no pré-gravado.
 

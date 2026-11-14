@@ -8,6 +8,7 @@ This dialog allows users to:
 - Start immediate analysis from camera feed
 """
 
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from tkinter import (
     BooleanVar,
@@ -27,16 +28,58 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 if TYPE_CHECKING:
+    from zebtrack.core.conditions import WindowSpec
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
 from zebtrack.core.recording.live_output_paths import default_live_sessions_dir
+from zebtrack.core.services.external_trigger_gate import (
+    ExternalTriggerDecision,
+    conflicting_triggers_message,
+    decide_external_trigger,
+    normalize_arduino_port,
+)
 from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.i18n import _
+from zebtrack.ui.components.analysis_window_panel import AnalysisWindowPanel, SpecBuildError
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
 
 log = structlog.get_logger()
+
+#: The open project's keys the external-trigger gate reads. Only these travel
+#: into the dialog: it decides, it never writes back.
+TRIGGER_CONTEXT_KEYS = ("external_trigger_mode", "use_arduino", "arduino_port")
+
+
+def window_trigger_rejection(
+    decision: ExternalTriggerDecision, trigger_context: Mapping[str, Any]
+) -> str | None:
+    """Why the dialog refuses its window under ``decision``; ``None`` = allowed.
+
+    Only the refusals that concern a window that waits for the Arduino stop the
+    dialog. ``ARM_AND_WAIT`` (the project's legacy trigger, with a window that
+    does not wait for the Arduino) is the coordinator's to confirm, as before.
+    """
+    if decision is ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS:
+        return conflicting_triggers_message()
+    if decision is ExternalTriggerDecision.REJECT_NO_ARDUINO:
+        return _(
+            "This analysis window waits for an Arduino code, but no Arduino is "
+            "enabled for this session, so the code could never arrive.\n\n"
+            "Remove the Arduino condition from the analysis window, or open a "
+            "project with the Arduino enabled."
+        )
+    if decision is ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE:
+        port = normalize_arduino_port(trigger_context.get("arduino_port"))
+        port_suffix = _(" (port {port})").format(port=port) if port else ""
+        return _(
+            "This analysis window waits for an Arduino code, but the Arduino is "
+            "not connected{port}.\n\n"
+            "Check the cable and whether another program holds the port, or "
+            "remove the Arduino condition from the analysis window."
+        ).format(port=port_suffix)
+    return None
 
 
 class LiveAnalysisDialog(Dialog):
@@ -78,6 +121,7 @@ class LiveAnalysisDialog(Dialog):
             - use_openvino: bool
             - use_single_subject_tracker: bool
             - behavioral_analysis: dict
+            - analysis_window: dict | None  (``WindowSpec`` JSON; None = whole recording)
         or None if cancelled
     """
 
@@ -86,6 +130,10 @@ class LiveAnalysisDialog(Dialog):
         parent: Any,
         settings_obj: "Settings | None" = None,
         event_bus: "EventBusV2 | None" = None,
+        *,
+        trigger_context: Mapping[str, Any] | None = None,
+        arduino_manager: Any = None,
+        roi_names_provider: Callable[[], list[str]] | None = None,
     ) -> None:
         """
         Initialize live analysis dialog.
@@ -94,11 +142,27 @@ class LiveAnalysisDialog(Dialog):
             parent: Parent Tkinter widget
             settings_obj: Settings instance for defaults
             event_bus: Optional event bus instance
+            trigger_context: The open project's external-trigger flags
+                (``TRIGGER_CONTEXT_KEYS``), read-only; ``None`` = no project.
+            arduino_manager: Probed for connectivity when the window waits for
+                the Arduino (``decide_external_trigger``).
+            roi_names_provider: ROI names of the ad-hoc session's zones, for the
+                window editor's ROI lines and its missing-ROI warning.
         """
         self.settings = settings_obj
         self.event_bus = event_bus
         self.result: dict[str, Any] | None = None
         self.behavioral_config_widget: BehavioralConfigWidget | None = None
+        self.analysis_window_panel: AnalysisWindowPanel | None = None
+        self._trigger_context: dict[str, Any] = {
+            key: value
+            for key, value in (trigger_context or {}).items()
+            if key in TRIGGER_CONTEXT_KEYS
+        }
+        self._arduino_manager = arduino_manager
+        self._roi_names_provider = roi_names_provider
+        # Set by ``validate`` and read by ``apply`` (Tk calls them in that order).
+        self._analysis_window_spec: WindowSpec | None = None
 
         # UI state
         self.camera_selection_var = StringVar(value="")
@@ -317,6 +381,16 @@ class LiveAnalysisDialog(Dialog):
         # devolve ``analysis`` — nenhum chamador consegue montar um par
         # divergente. A criação de projeto e o diálogo de vídeo único já haviam
         # largado esse campo pelo mesmo motivo.
+
+        # Analysis window (#634): the zone tab's Start/Stop editor, compact and
+        # detached from any project. Its lines become ``result["analysis_window"]``,
+        # which ``start_session(analysis_window=...)`` hands to the ConditionRuntime
+        # — by argument, never through the shared Settings.
+        self.analysis_window_panel = AnalysisWindowPanel.compact_for_session(
+            left_col,
+            roi_names_provider=self._roi_names_provider,
+        )
+        self.analysis_window_panel.pack(fill="x", pady=(0, 10))
 
         # Right Column: Options & ID
         right_col = ttk.Frame(config_container)
@@ -890,6 +964,41 @@ class LiveAnalysisDialog(Dialog):
 
         if not self._validate_smoothing_parameters():
             return False
+        return self._validate_analysis_window()
+
+    def _validate_analysis_window(self) -> bool:
+        """Read the editor's window and run it through the external-trigger gate.
+
+        Same rule as the two project recording paths (``decide_external_trigger``):
+        a window that waits for the Arduino is refused HERE, with the reason, when
+        the open project's legacy trigger is on or no usable Arduino can deliver
+        the code. Without a window nothing is checked, exactly as before #634.
+        """
+        self._analysis_window_spec = None
+        panel = self.analysis_window_panel
+        if panel is None:
+            return True
+        try:
+            spec = panel.current_spec()
+        except SpecBuildError as exc:
+            messagebox.showerror(_("Invalid Analysis Window"), str(exc), parent=self)
+            return False
+        if spec is None:
+            return True
+
+        decision = decide_external_trigger(
+            {
+                **self._trigger_context,
+                "analysis_window": spec.model_dump(mode="json", by_alias=True),
+            },
+            self._arduino_manager,
+        )
+        reason = window_trigger_rejection(decision, self._trigger_context)
+        if reason is not None:
+            log.warning("live_analysis_dialog.analysis_window.rejected", reason=decision.value)
+            messagebox.showerror(_("Analysis Window Not Allowed"), reason, parent=self)
+            return False
+        self._analysis_window_spec = spec
         return True
 
     def _sync_preserve_real_shape_state(self) -> None:
@@ -980,6 +1089,7 @@ class LiveAnalysisDialog(Dialog):
             except Exception as e:
                 log.warning("live_analysis_dialog.apply.settings_update_failed", error=str(e))
 
+        window_spec = getattr(self, "_analysis_window_spec", None)
         self.result = {
             "camera_index": camera_index,
             "duration_s": float(self.duration_var.get()),
@@ -1016,6 +1126,11 @@ class LiveAnalysisDialog(Dialog):
             "behavioral_analysis": behavioral_config,
             # Pasta de saída escolhida pelo usuário (None = padrão).
             "output_folder": self.output_folder_var.get().strip() or None,
+            # Analysis window (#634), validated by ``validate``. Travels by
+            # argument to ``start_session``; None = whole recording (pre-#634).
+            "analysis_window": (
+                None if window_spec is None else window_spec.model_dump(mode="json", by_alias=True)
+            ),
         }
 
         if self.result is not None:

@@ -4132,6 +4132,37 @@ msgstr ""
 msgid "Preset loaded. Review the lines, then Save."
 msgstr ""
 
+#: src/zebtrack/ui/components/analysis_window_panel.py
+msgid "Preset loaded. Review the lines."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py
+msgid "Analysis window set for this session."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+msgid ""
+"This analysis window waits for an Arduino code, but no Arduino is enabled for this session, so the code could never arrive.\n"
+"\n"
+"Remove the Arduino condition from the analysis window, or open a project with the Arduino enabled."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+#, python-brace-format
+msgid ""
+"This analysis window waits for an Arduino code, but the Arduino is not connected{port}.\n"
+"\n"
+"Check the cable and whether another program holds the port, or remove the Arduino condition from the analysis window."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+msgid "Invalid Analysis Window"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+msgid "Analysis Window Not Allowed"
+msgstr ""
+
 #: src/zebtrack/ui/components/analysis_window_panel.py:1255
 msgid "Analysis window saved."
 msgstr ""

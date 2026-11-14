@@ -880,21 +880,43 @@ def _label_to_token(labels: Mapping[Any, str], label: str, default: Any) -> Any:
 
 
 class AnalysisWindowPanel(ttk.Frame):
-    """Start/Stop condition editor for the project's analysis window."""
+    """Start/Stop condition editor for the project's analysis window.
+
+    Two modes share every line of the editor:
+
+    - **project** (``controller`` given): the window lives in
+      ``project_data["analysis_window"]``; Save persists the project and announces
+      ``ANALYSIS_WINDOW_SPEC_CHANGED``.
+    - **session** (:meth:`compact_for_session`, no controller): the editor of the
+      ad-hoc live dialog (#634). There is no project to write into, so the lines
+      ARE the window — the dialog reads :meth:`current_spec` when it starts the
+      session — and nothing is persisted, published or written into ``Settings``.
+      ROI names come from ``roi_names_provider`` (the ad-hoc session's zones).
+    """
+
+    _WRAP_PROJECT = 380
+    _WRAP_SESSION = 320
 
     def __init__(
         self,
         parent: Any,
-        controller: Any,
+        controller: Any = None,
         *,
         event_bus: Any = None,
         class_names_provider: Callable[[], list[str]] | None = None,
+        roi_names_provider: Callable[[], list[str]] | None = None,
     ) -> None:
         super().__init__(parent)
         self.controller = controller
-        self.project_manager = controller.project_manager
+        self._session_only = controller is None
+        # ``Any``: every use below is guarded by ``_session_only`` (None only there).
+        self.project_manager: Any = None if controller is None else controller.project_manager
+        # Session mode keeps the window in its own dict: never a project's, never Settings.
+        self._session_store: dict[str, Any] = {}
         self.event_bus = event_bus
         self._class_names_provider = class_names_provider
+        self._roi_names_provider = roi_names_provider
+        self._wraplength = self._WRAP_SESSION if self._session_only else self._WRAP_PROJECT
 
         self.drafts: dict[SectionName, SectionDraft] = {
             "start": SectionDraft(),
@@ -937,6 +959,29 @@ class AnalysisWindowPanel(ttk.Frame):
         self._build()
         self.refresh()
 
+    @classmethod
+    def compact_for_session(
+        cls,
+        parent: Any,
+        *,
+        roi_names_provider: Callable[[], list[str]] | None = None,
+        class_names_provider: Callable[[], list[str]] | None = None,
+        event_bus: Any = None,
+    ) -> AnalysisWindowPanel:
+        """The compact, project-free editor of the ad-hoc live dialog (#634)."""
+        return cls(
+            parent,
+            None,
+            event_bus=event_bus,
+            class_names_provider=class_names_provider,
+            roi_names_provider=roi_names_provider,
+        )
+
+    @property
+    def is_session_only(self) -> bool:
+        """True for the ad-hoc dialog's editor: no project behind it."""
+        return self._session_only
+
     def on_project_manager_replaced(self, new_manager: Any) -> None:
         """Adopt the ``ProjectManager`` that replaced the one we were built with.
 
@@ -950,18 +995,22 @@ class AnalysisWindowPanel(ttk.Frame):
     # Build
     # ------------------------------------------------------------------
     def _build(self) -> None:
+        wrap = self._wraplength
         frame = ttk.LabelFrame(self, text=_("Analysis Window (Optional)"), padding=8)
         frame.pack(fill="both", expand=True)
 
-        ttk.Label(frame, text=intro_text(), foreground="gray", wraplength=380, justify="left").pack(
-            anchor="w", pady=(0, 4)
-        )
+        # Compact (session) mode drops the intro paragraph: the live dialog is
+        # already tall, and the preview line says what the window does.
+        if not self._session_only:
+            ttk.Label(
+                frame, text=intro_text(), foreground="gray", wraplength=wrap, justify="left"
+            ).pack(anchor="w", pady=(0, 4))
 
-        self._preview = ttk.Label(frame, text="", wraplength=380, justify="left")
+        self._preview = ttk.Label(frame, text="", wraplength=wrap, justify="left")
         self._preview.pack(anchor="w", fill="x", pady=(0, 4))
 
         self._notice = ttk.Label(
-            frame, text="", foreground="darkorange", wraplength=380, justify="left"
+            frame, text="", foreground="darkorange", wraplength=wrap, justify="left"
         )
 
         top = ttk.Frame(frame)
@@ -971,7 +1020,7 @@ class AnalysisWindowPanel(ttk.Frame):
             side="left", padx=4
         )
 
-        self._status = ttk.Label(frame, text="", foreground="gray", wraplength=380)
+        self._status = ttk.Label(frame, text="", foreground="gray", wraplength=wrap)
         self._status.pack(anchor="w", pady=(4, 0))
 
     def open_editor(self) -> None:
@@ -997,8 +1046,11 @@ class AnalysisWindowPanel(ttk.Frame):
 
         actions = ttk.Frame(body)
         actions.pack(fill="x", pady=(8, 0))
-        ttk.Button(actions, text=_("Save"), command=self.save).pack(side="left")
-        ttk.Button(actions, text=_("Revert"), command=self.refresh).pack(side="left", padx=4)
+        # Session mode has nothing to save into: the lines are the window the
+        # dialog starts the session with, so Save/Revert would be a decoy.
+        if not self._session_only:
+            ttk.Button(actions, text=_("Save"), command=self.save).pack(side="left")
+            ttk.Button(actions, text=_("Revert"), command=self.refresh).pack(side="left", padx=4)
         ttk.Button(actions, text=_("Clear all"), command=self.clear_all).pack(side="left")
         ttk.Button(actions, text=_("Close"), command=self.close_editor).pack(side="right")
         self._editor_status = ttk.Label(body, text="", foreground="gray", wraplength=420)
@@ -1279,6 +1331,8 @@ class AnalysisWindowPanel(ttk.Frame):
             problems.append(missing_roi_warning(missing_rois))
         if problems:
             self._set_status(" ".join(problems), error=True)
+        elif self._session_only:
+            self._set_status(_("Preset loaded. Review the lines."))
         else:
             self._set_status(_("Preset loaded. Review the lines, then Save."))
 
@@ -1311,7 +1365,9 @@ class AnalysisWindowPanel(ttk.Frame):
         previous = project_data.get(PROJECT_KEY)
         store_window_spec(project_data, spec)
         try:
-            if getattr(self.project_manager, "project_path", None):
+            if self._session_only:
+                done = _("Analysis window set for this session.")
+            elif getattr(self.project_manager, "project_path", None):
                 self.project_manager.save_project()
                 done = _("Analysis window saved.")
             else:
@@ -1344,7 +1400,9 @@ class AnalysisWindowPanel(ttk.Frame):
         return True
 
     def _publish_changed(self, spec: WindowSpec | None) -> None:
-        if self.event_bus is None:
+        # The event is the PROJECT's window changing; a session editor announcing
+        # it would make project listeners act on a rule no project holds.
+        if self.event_bus is None or self._session_only:
             return
         self.event_bus.publish(
             Event(
@@ -1399,7 +1457,7 @@ class AnalysisWindowPanel(ttk.Frame):
         except SpecBuildError as exc:
             return str(exc), True
         text = describe_window_spec(spec)
-        if self._dirty:
+        if self._dirty and not self._session_only:
             text = _("{rule}\n(not saved yet)").format(rule=text)
         return text, False
 
@@ -1484,6 +1542,8 @@ class AnalysisWindowPanel(ttk.Frame):
     # Helpers
     # ------------------------------------------------------------------
     def _project_data(self) -> dict[str, Any]:
+        if self._session_only:
+            return self._session_store
         # ``or {}`` would be wrong here: an EMPTY dict is falsy, and the save
         # would then land in a throwaway dict instead of the project's own.
         data = getattr(self.project_manager, "project_data", None)
@@ -1506,8 +1566,14 @@ class AnalysisWindowPanel(ttk.Frame):
 
         A pre-recorded project keeps its ROIs per video, so the current zones alone
         may hold none while every video has a ``toca``.
+
+        A session editor reads ONLY its ``roi_names_provider`` (the ad-hoc
+        session's zones): an open project's per-video ROIs are not the session's.
         """
         from zebtrack.core.project.zone_manager import ZoneManager
+
+        if self._session_only:
+            return self._session_roi_names()
 
         try:
             zone_data = self.project_manager.get_zone_data()
@@ -1518,6 +1584,23 @@ class AnalysisWindowPanel(ttk.Frame):
         for name in ZoneManager.roi_names_in_project(self._project_data()):
             if name not in names:
                 names.append(name)
+        return names
+
+    def _session_roi_names(self) -> list[str]:
+        if self._roi_names_provider is None:
+            return []
+        try:
+            raw = self._roi_names_provider()
+        # except Exception justified: the session's zones may not exist yet (they
+        # are drawn after the dialog); no ROI list is the honest answer then.
+        except Exception:
+            log.debug("analysis_window_panel.session_rois.unavailable", exc_info=True)
+            return []
+        names: list[str] = []
+        for name in raw or []:
+            text = str(name).strip()
+            if text and text not in names:
+                names.append(text)
         return names
 
     def _set_status(self, message: str, *, error: bool = False) -> None:
