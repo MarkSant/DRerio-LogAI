@@ -236,6 +236,12 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
   ANÁLISE (nunca do `3_CoordMovimento`) as trilhas abaixo de `min_track_duration_s` (0,5 s), com
   aviso, se houver uma mais longa. Roda uma vez no topo de `run_full_analysis`, antes de qualquer
   contagem de `track_id`.
+- **Linha sem `track_id` não é animal (#671).** O detector não grava o que o ByteTrack não
+  confirmou (o `passthrough_untracked` acabou). Parquets antigos: `drop_untracked_rows()` tira da
+  ANÁLISE as linhas NaN quando há trilha identificada; trajetória toda sem id é UM sujeito.
+  `count_subjects()` é a única leitura de "quantos animais" e `screen_subjects()` aplica as duas
+  regras — é o que o relatório E a janela de análise (`screen_window_subjects`) rodam. Nunca conte
+  animais com `nunique()`/`factorize` num call site.
 
 ### 🔑 Identidade do vídeo: o caminho, nunca o basename
 

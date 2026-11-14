@@ -1070,9 +1070,19 @@ each analysed on its own. Two animals in the *same* tank still collapsed.
   `analysis/track_significance.screen_short_tracks()`. Tracks shorter than
   `min_track_duration_s` (0.5 s; duration = span + median interval) leave the
   ANALYSIS with a warning, provided a longer track exists. `3_CoordMovimento`
-  keeps them. Rows without a `track_id` are one group, as in
-  `_assign_track_labels`. The validator, `is_multi_track`, `n_animais` and
-  `por_animal` all see the screened trajectory.
+  keeps them. The validator, `is_multi_track`, `n_animais` and `por_animal`
+  all see the screened trajectory.
+- **A row without a `track_id` is not an animal (#671).** In multi-subject mode
+  the single detector no longer writes what ByteTrack did not confirm (until 8.0
+  `passthrough_untracked` wrote it with `track_id=None`). For older parquets,
+  `screen_subjects()` (what `run_full_analysis` calls) first drops the NaN rows
+  when at least one row has an id, then screens short tracks; a trajectory with
+  no id at all is one subject. `count_subjects()` is the one count the validator
+  reads, the behaviour analyser applies the same `drop_untracked_rows()`, and the
+  analysis window builds its observations through `screen_window_subjects()`, so
+  START/STOP see the subjects the report measures. The `7_` artifact records the
+  screening in `offline.inputs["subject_screening"]`: older artifacts are
+  recomputed once.
 - **One-animal projects run ByteTrack's single-animal mode.**
   `core/services/single_subject_policy.resolve_project_single_subject()` is the
   only reading of that choice. The animal count (top level, `calibration`, the

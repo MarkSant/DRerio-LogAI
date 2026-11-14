@@ -518,6 +518,53 @@ class TestUnemittedDetectionsKeepTheTrackedIds:
         assert ids == {1}
 
 
+class TestUnconfirmedDetectionsAreNotWrittenWithoutId:
+    """#671: multi-subject mode, ByteTrack emits nothing, the detector writes nothing.
+
+    A rat that appears after the tracker's first frame is held back for one
+    frame until its track is confirmed. The detector used to write it anyway
+    with ``track_id=None`` (``passthrough_untracked``), and the NaN rows counted
+    as one more animal in the analysis.
+    """
+
+    RAT = (100, 100, 140, 140, 0.95, None, 1)
+
+    @pytest.fixture(autouse=True)
+    def _fresh_ids(self):
+        from zebtrack.tracker.basetrack import BaseTrack
+
+        BaseTrack.reset_id_counter()
+
+    def _detector(self) -> SingleDetector:
+        detector = _fps_detector(_fps_settings())
+        detector.set_source_fps(30.0)
+        assert detector._apply_byte_tracking([], (480, 640, 3)) == []  # tracker past frame 1
+        return detector
+
+    def test_the_unconfirmed_first_sighting_is_not_written(self):
+        detector = self._detector()
+
+        assert detector._apply_byte_tracking([self.RAT], (480, 640, 3)) == []
+
+    def test_a_whole_run_never_writes_a_row_without_id(self):
+        detector = self._detector()
+        ids: list = []
+        for _ in range(10):
+            ids.extend(d[5] for d in detector._apply_byte_tracking([self.RAT], (480, 640, 3)))
+
+        assert ids
+        assert None not in ids
+        assert set(ids) == {1}
+
+    def test_single_subject_mode_still_writes_the_best_detection_as_id_1(self):
+        detector = self._detector()
+        detector.set_single_subject_mode(True)
+
+        out = detector._apply_byte_tracking([self.RAT], (480, 640, 3))
+
+        assert [d[5] for d in out] == [1]
+
+
 # ---------------------------------------------------------------------------
 # Issue #666: the CONFIGURED track_buffer reaches ByteTrack, whatever the plugin.
 # ---------------------------------------------------------------------------

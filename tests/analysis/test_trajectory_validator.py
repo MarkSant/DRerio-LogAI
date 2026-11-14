@@ -377,3 +377,21 @@ class TestFramesAndCoverageCountFrames:
 
         assert stats["total_frames"] == 7
         assert stats["temporal_coverage"] == 1.0
+
+
+class TestUniqueTracksIsTheSubjectCount:
+    """#671: ``unique_tracks`` reads the one rule of how many animals there are."""
+
+    def _stats(self, df: pd.DataFrame) -> dict:
+        validator = TrajectoryQualityValidator(fps=10.0, min_trajectory_frames=3)
+        return validator.validate(df)["stats"]
+
+    def test_rows_without_id_are_not_an_animal(self):
+        df = _frames_df(range(30), [1.0] * 10 + [np.nan] * 10 + [2.0] * 10)
+
+        assert self._stats(df)["unique_tracks"] == 2
+
+    def test_a_trajectory_without_any_id_is_one_animal(self):
+        df = _frames_df(range(30), [np.nan] * 30)
+
+        assert self._stats(df)["unique_tracks"] == 1

@@ -594,6 +594,50 @@ def test_two_real_animals_stay_two(settings_obj: Settings):
     assert any("animals (track_ids)" in w for w in report["validacao"]["avisos"])
 
 
+# ---------------------------------------------------------------------------
+# #671: rows without a track_id never become one more animal.
+# ---------------------------------------------------------------------------
+
+
+def _two_animals_with_untracked_rows() -> pd.DataFrame:
+    """Two animals on 45 frames plus 3 s of rows without an id (a pre-fix parquet)."""
+    untracked = _moving_track(range(5, 35), [f / 10 for f in range(5, 35)], 0, 200.0)
+    untracked["track_id"] = float("nan")
+    return (pd.concat([_two_animals(), untracked]).sort_values("frame", kind="stable")).reset_index(
+        drop=True
+    )
+
+
+def test_untracked_rows_do_not_add_an_animal_and_all_readers_agree(settings_obj: Settings):
+    from shapely.geometry import Polygon
+
+    from zebtrack.analysis.roi import ROI
+
+    roi = ROI(
+        name="left",
+        geometry=Polygon([(0, 0), (200, 0), (200, 400), (0, 400)]),
+        coordinate_space="px",
+    )
+    service = AnalysisService(settings_obj=settings_obj)
+    report, b_analyzer, r_analyzer, warnings, stats = service.run_full_analysis(
+        trajectory_df=_two_animals_with_untracked_rows(),
+        pixelcm_x=10.0,
+        pixelcm_y=10.0,
+        video_height_px=400,
+        arena_polygon_px=_ARENA,
+        rois=[roi],
+        fps=10.0,
+        freezing_vel_threshold=1.0,
+        freezing_min_duration=1.0,
+    )
+
+    assert stats["unique_tracks"] == 2
+    assert report["analise_roi"]["n_animais"] == 2
+    assert sorted(b_analyzer.track_keys) == [1, 2]
+    assert len(report["analise_roi"]["por_animal"]) == 2
+    assert any("30 row(s)" in w for w in warnings)
+
+
 class TestMaskSidecarInLocalSpace:
     """The 3b masks follow a trajectory shifted into the arena's local space (#640)."""
 

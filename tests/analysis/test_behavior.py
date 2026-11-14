@@ -1256,6 +1256,31 @@ class TestRestrictToWindow:
         assert [p.size for p in analyzer.track_positions] == [11, 11]
 
 
+class TestRowsWithoutTrackId:
+    """#671: rows without a ``track_id`` are not one more subject."""
+
+    def test_they_leave_the_analyser_when_identified_tracks_exist(self):
+        df = _window_trajectory()
+        untracked = df.iloc[10:40].assign(track_id=np.nan, x_center_px=600.0)
+        mixed = pd.concat([df.assign(track_id=1), df.assign(track_id=2, x_center_px=100.0)])
+        mixed = pd.concat([mixed, untracked]).sort_values("timestamp", kind="stable")
+
+        analyzer = _window_analyzer(mixed)
+
+        assert analyzer.is_multi_track
+        assert sorted(analyzer.track_keys) == [1, 2]
+        assert len(analyzer.trajectory_data) == 2 * len(df)
+        assert analyzer.trajectory_data["track_id"].notna().all()
+
+    def test_a_trajectory_without_any_id_stays_one_subject(self):
+        df = _window_trajectory().assign(track_id=np.nan)
+
+        analyzer = _window_analyzer(df)
+
+        assert analyzer.is_multi_track is False
+        assert len(analyzer.trajectory_data) == len(df)
+
+
 @settings(max_examples=40, deadline=None)
 @given(
     start=st.integers(min_value=0, max_value=58),

@@ -1,4 +1,4 @@
-"""``screen_short_tracks``: tracks too short to be an animal (#649)."""
+"""What counts as an animal: short tracks (#649) and rows without an id (#671)."""
 
 from __future__ import annotations
 
@@ -11,8 +11,11 @@ import pytest
 
 from zebtrack.analysis.track_significance import (
     DEFAULT_MIN_TRACK_DURATION_S,
+    count_subjects,
+    drop_untracked_rows,
     min_track_duration_from,
     screen_short_tracks,
+    screen_subjects,
 )
 
 
@@ -114,3 +117,103 @@ def test_threshold_comes_from_settings_or_the_default():
         DEFAULT_MIN_TRACK_DURATION_S
     )
     assert min_track_duration_from(None) == DEFAULT_MIN_TRACK_DURATION_S
+
+
+# ---------------------------------------------------------------------------
+# #671: a row without a track_id is not an animal.
+# ---------------------------------------------------------------------------
+
+
+def _two_animals_and_an_untracked_run():
+    """Two 6 s animals plus 3 s of rows ByteTrack never confirmed (a pre-fix parquet)."""
+    return _traj(
+        _rows(1, np.arange(0, 6, 0.1)),
+        _rows(2, np.arange(0, 6, 0.1)),
+        _rows(np.nan, np.arange(1, 4, 0.1)),
+    )
+
+
+def test_rows_without_id_next_to_identified_tracks_leave_the_analysis():
+    df = _two_animals_and_an_untracked_run()
+    rows_before = len(df)
+
+    out = drop_untracked_rows(df)
+
+    assert out.trajectory["track_id"].notna().all()
+    assert sorted(out.trajectory["track_id"].unique()) == [1, 2]
+    assert out.dropped_rows == 30
+    assert len(out.warnings) == 1
+    assert "30 row(s)" in out.warnings[0]
+    assert len(df) == rows_before  # the caller's frame is untouched
+
+
+def test_a_trajectory_without_any_id_is_one_subject_and_is_kept():
+    df = _rows(np.nan, np.arange(0, 3, 0.1))
+
+    out = drop_untracked_rows(df)
+
+    assert out.trajectory is df
+    assert out.warnings == ()
+    assert count_subjects(df) == 1
+
+
+@pytest.mark.parametrize(
+    "df",
+    [
+        _rows(1, [0.0, 0.1]),
+        pd.DataFrame({"timestamp": [0.0, 0.1]}),  # no track_id
+        pd.DataFrame({"timestamp": [], "track_id": []}),
+    ],
+)
+def test_nothing_to_drop(df):
+    out = drop_untracked_rows(df)
+
+    assert out.trajectory is df
+    assert out.dropped_rows == 0
+
+
+@pytest.mark.parametrize(
+    ("df", "expected"),
+    [
+        (_two_animals_and_an_untracked_run(), 2),  # NaN rows are not a third animal
+        (_rows(np.nan, [0.0, 0.1]), 1),  # all unidentified: one subject
+        (pd.DataFrame({"timestamp": [0.0, 0.1]}), 1),  # no track_id column
+        (pd.DataFrame({"timestamp": [], "track_id": []}), 0),  # nothing recorded
+        (_traj(_rows(7, [0.0]), _rows(3, [0.1]), _rows(7, [0.2])), 2),
+    ],
+)
+def test_count_subjects(df, expected):
+    assert count_subjects(df) == expected
+
+
+def test_a_long_untracked_run_is_not_an_animal_after_the_screening():
+    """The short-track screening alone kept it: 3 s of NaN rows outlast 0.5 s."""
+    df = _two_animals_and_an_untracked_run()
+    kept = screen_short_tracks(df, min_duration_s=0.5, median_dt=0.1).trajectory
+    assert kept["track_id"].isna().any()
+
+    out = screen_subjects(df, min_duration_s=0.5, median_dt=0.1)
+
+    assert out.trajectory["track_id"].notna().all()
+    assert count_subjects(out.trajectory) == 2
+    assert out.dropped_rows == 30
+
+
+def test_screen_subjects_applies_both_rules_and_keeps_both_warnings():
+    df = _traj(_two_animals_and_an_untracked_run(), _rows(3, [2.0]))
+
+    out = screen_subjects(df, min_duration_s=0.5, median_dt=0.1)
+
+    assert sorted(out.trajectory["track_id"].unique()) == [1, 2]
+    assert out.dropped_track_ids == (3,)
+    assert out.dropped_rows == 31
+    assert len(out.warnings) == 2
+
+
+def test_screen_subjects_with_the_screening_disabled_still_drops_untracked_rows():
+    df = _traj(_two_animals_and_an_untracked_run(), _rows(3, [2.0]))
+
+    out = screen_subjects(df, min_duration_s=0.0, median_dt=0.1)
+
+    assert sorted(out.trajectory["track_id"].unique()) == [1, 2, 3]
+    assert out.dropped_rows == 30

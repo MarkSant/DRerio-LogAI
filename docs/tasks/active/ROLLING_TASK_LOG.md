@@ -33,6 +33,30 @@ regra da bbox); mutation check escopado 30/30 (bloco novo de 10 + o `find` do #6
 passou a casar duas linhas); goldens, multi-aquário e ao vivo multi (#635) verdes; ruff e
 `mypy .` limpos.
 
+### [2026-11-14] Linhas sem track_id não são um animal (#671)
+
+__ID:__ TASK-080
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
+__Branch:__ claude/671-untracked-rows-efce34 (a partir de `release/8.0`, cb1068ec)
+__Description:__
+Decisão do mantenedor (2026-11-14): opção (a), descartar. O `SingleDetector` deixa de
+gravar com `track_id=None` o que o ByteTrack não emitiu (fim do `passthrough_untracked`).
+Parquets antigos: uma regra única em `analysis/track_significance` tira da ANÁLISE as
+linhas sem id quando existe trilha identificada (todo-NaN continua sendo um sujeito).
+Validador, `behavior` e `window_observations` leem a mesma regra; a janela passa a usar a
+triagem de trilhas curtas do #649.
+
+__Critério de pronto:__
+
+- projeto multi-animal com linhas NaN longas não ganha um animal a mais;
+- `n_animais`/`unique_tracks`/rótulos do `behavior` iguais;
+- a janela vê as mesmas observações que o relatório;
+- e2e do Barnes em modo multi sem NaN e com 1 animal; PR contra `release/8.0`, CI verde.
+
+__Resultado (2026-11-14):__ suíte rápida 8216 passed; ruff/mypy limpos; goldens
+inalterados (14 passed); mutation check escopado 115/115 (14 mutantes novos).
+
 ### [2026-11-13] ByteTrack: limiares e intervalo configurados chegam ao tracker (#698, #667)
 
 __ID:__ TASK-079
@@ -2728,7 +2752,7 @@ based on exported git logs.
 
 __ID:__ TASK-012
 __Agent:__ GitHub Copilot (GPT-5.2-Codex)
-__Status:__ In Progress
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Resolve Bandit security warnings (hashing, pickle usage, shell calls) and
 stabilize Codecov upload in Linux CI.
@@ -2745,7 +2769,7 @@ stabilize Codecov upload in Linux CI.
 
 __ID:__ TASK-011
 __Agent:__ GitHub Copilot (GPT-5.2-Codex)
-__Status:__ In Progress
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Resolve Ubuntu GUI test failures in open-path utilities, processing report open
 behavior, and wizard project name validation handling.
@@ -2762,7 +2786,7 @@ behavior, and wizard project name validation handling.
 
 __ID:__ TASK-010
 __Agent:__ GitHub Copilot (GPT-5.2-Codex)
-__Status:__ In Progress
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Fix Windows CI failures for ROI template manager Tk variable initialization and
 AnalysisCoordinator summary video state.
@@ -2835,7 +2859,7 @@ event-driven behaviors while preserving UI thread-safety and event contracts.
 
 __ID:__ TASK-007
 __Agent:__ GitHub Copilot (GPT-5.2-Codex)
-__Status:__ In Progress
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Finalize coverage expansion by reviewing changes, validating readiness, and
 preparing the final summary for handoff.
@@ -2868,7 +2892,7 @@ while preserving thread-safety and existing event contracts.
 
 __ID:__ TASK-004
 __Agent:__ GitHub Copilot (GPT-5.2-Codex)
-__Status:__ In Progress
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Expand coverage for core utilities and composition root; stabilize property-based tests; add public
 exception tests; target low-coverage modules to raise overall baseline.

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-13 18:31-0300\n"
+"POT-Creation-Date: 2026-11-14 08:44-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pt_BR\n"
@@ -19,7 +19,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: src/zebtrack/analysis/analysis_service.py:424
+#: src/zebtrack/analysis/analysis_service.py:425
 #, python-brace-format
 msgid ""
 "Trajectory with {count} animals (track_ids). The ROI metrics at the top "
@@ -39,35 +39,35 @@ msgstr ""
 "cautela."
 
 # | msgid "Batch processing started: {count} video(s)."
-#: src/zebtrack/analysis/analysis_service.py:1442
+#: src/zebtrack/analysis/analysis_service.py:1443
 #: src/zebtrack/coordinators/ui_state_coordinator.py:710
 #, python-brace-format
 msgid "Starting processing for {count} videos..."
 msgstr "Iniciando processamento para {count} vídeos..."
 
 # | msgid "Analysis in Progress"
-#: src/zebtrack/analysis/analysis_service.py:1536
+#: src/zebtrack/analysis/analysis_service.py:1537
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:2054
 msgid "Analysis Error"
 msgstr "Erro na Análise"
 
-#: src/zebtrack/analysis/analysis_service.py:1537
+#: src/zebtrack/analysis/analysis_service.py:1538
 #, python-brace-format
 msgid "An unexpected error occurred: {error}"
 msgstr "Ocorreu um erro inesperado: {error}"
 
 # | msgid "Cancel"
-#: src/zebtrack/analysis/analysis_service.py:1581
+#: src/zebtrack/analysis/analysis_service.py:1582
 #: src/zebtrack/coordinators/ui_state_coordinator.py:731
 msgid "Cancelled"
 msgstr "Cancelado"
 
 # | msgid "The video analysis was cancelled."
-#: src/zebtrack/analysis/analysis_service.py:1581
+#: src/zebtrack/analysis/analysis_service.py:1582
 msgid "Video analysis was cancelled."
 msgstr "A análise de vídeo foi cancelada."
 
-#: src/zebtrack/analysis/analysis_service.py:1585
+#: src/zebtrack/analysis/analysis_service.py:1586
 #, python-brace-format
 msgid ""
 "Analysis finished. Results saved to:\n"
@@ -76,7 +76,7 @@ msgstr ""
 "Análise concluída. Resultados salvos em:\n"
 "{path}"
 
-#: src/zebtrack/analysis/analysis_service.py:1586
+#: src/zebtrack/analysis/analysis_service.py:1587
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:760
 #: src/zebtrack/coordinators/video_processing_coordinator.py:548
 #: src/zebtrack/ui/components/canvas/event_handler.py:792
@@ -90,7 +90,7 @@ msgid "Success"
 msgstr "Sucesso"
 
 # | msgid "Ready!"
-#: src/zebtrack/analysis/analysis_service.py:1588
+#: src/zebtrack/analysis/analysis_service.py:1589
 #: src/zebtrack/coordinators/_unified_report_mixin.py:237
 #: src/zebtrack/coordinators/progress_tracking_coordinator.py:526
 #: src/zebtrack/coordinators/recording_session_coordinator.py:657
@@ -98,7 +98,7 @@ msgstr "Sucesso"
 msgid "Ready."
 msgstr "Pronto."
 
-#: src/zebtrack/analysis/analysis_window_service.py:258
+#: src/zebtrack/analysis/analysis_window_service.py:262
 #, python-brace-format
 msgid ""
 "The project's analysis window is invalid ({count} error(s)); open the "
@@ -107,7 +107,7 @@ msgstr ""
 "A janela de análise do projeto é inválida ({count} erro(s)); abra o "
 "editor da janela de análise e salve-a novamente."
 
-#: src/zebtrack/analysis/analysis_window_service.py:568
+#: src/zebtrack/analysis/analysis_window_service.py:586
 msgid ""
 "The analysis window never started (its START condition was not met). The "
 "metrics cover the whole recording."
@@ -115,7 +115,7 @@ msgstr ""
 "A janela de análise nunca começou (a condição de INÍCIO não ocorreu). As "
 "métricas cobrem a gravação inteira."
 
-#: src/zebtrack/analysis/analysis_window_service.py:573
+#: src/zebtrack/analysis/analysis_window_service.py:591
 msgid ""
 "The analysis window never started (its START condition was not met). The "
 "window metrics are empty, as the window rule asks."
@@ -123,7 +123,7 @@ msgstr ""
 "A janela de análise nunca começou (a condição de INÍCIO não ocorreu). As "
 "métricas da janela estão vazias, como a regra da janela pede."
 
-#: src/zebtrack/analysis/analysis_window_service.py:580
+#: src/zebtrack/analysis/analysis_window_service.py:598
 #, python-brace-format
 msgid ""
 "The analysis window could not be evaluated: the recording lacks "
@@ -132,7 +132,7 @@ msgstr ""
 "Não foi possível avaliar a janela de análise: a gravação não tem "
 "{missing}. As métricas cobrem a gravação inteira."
 
-#: src/zebtrack/analysis/analysis_window_service.py:585
+#: src/zebtrack/analysis/analysis_window_service.py:603
 #, python-brace-format
 msgid ""
 "The analysis window could not be evaluated: the recording lacks "
@@ -142,7 +142,7 @@ msgstr ""
 "{missing}. As métricas da janela estão vazias, como a regra da janela "
 "pede."
 
-#: src/zebtrack/analysis/analysis_window_service.py:592
+#: src/zebtrack/analysis/analysis_window_service.py:610
 msgid ""
 "The recording ended before the analysis window's STOP condition; the "
 "window was closed at the end of the recording (censored)."
@@ -150,7 +150,7 @@ msgstr ""
 "A gravação terminou antes da condição de FIM da janela de análise; a "
 "janela foi fechada no fim da gravação (censurada)."
 
-#: src/zebtrack/analysis/analysis_window_service.py:603
+#: src/zebtrack/analysis/analysis_window_service.py:621
 #, python-brace-format
 msgid ""
 "The live session started the analysis window at frame {online}, the re-"
@@ -159,7 +159,7 @@ msgstr ""
 "A sessão ao vivo iniciou a janela de análise no frame {online}, e a "
 "reanálise, no frame {offline}; o relatório usa a reanálise."
 
-#: src/zebtrack/analysis/analysis_window_service.py:611
+#: src/zebtrack/analysis/analysis_window_service.py:629
 #, python-brace-format
 msgid ""
 "The live session ended the analysis window at frame {online}, the re-"
@@ -293,11 +293,11 @@ msgstr ""
 "{count} linhas da trajetória não têm instante de captura no registro de "
 "frames; a sessão não foi redatada e mantém o relógio de processamento."
 
-#: src/zebtrack/analysis/track_significance.py:72
+#: src/zebtrack/analysis/track_significance.py:87
 msgid "no id"
 msgstr "sem id"
 
-#: src/zebtrack/analysis/track_significance.py:131
+#: src/zebtrack/analysis/track_significance.py:146
 #, python-brace-format
 msgid ""
 "Every track in this trajectory lasts less than {min_s:g} s, so short "
@@ -308,7 +308,7 @@ msgstr ""
 "falhas curtas do rastreador não podem ser distinguidas de animais; as "
 "{count} trilhas foram mantidas."
 
-#: src/zebtrack/analysis/track_significance.py:152
+#: src/zebtrack/analysis/track_significance.py:167
 #, python-brace-format
 msgid ""
 "{count} track(s) shorter than {min_s:g} s were left out of the analysis "
@@ -319,7 +319,18 @@ msgstr ""
 "falhas do rastreador, não animais (track_id {ids}; {rows} linha(s)). O "
 "arquivo de trajetória as mantém."
 
-#: src/zebtrack/analysis/window_observations.py:100
+#: src/zebtrack/analysis/track_significance.py:204
+#, python-brace-format
+msgid ""
+"{rows} row(s) without a track_id were left out of the analysis: the "
+"tracker never confirmed them, so they belong to no animal. The trajectory"
+" file keeps them."
+msgstr ""
+"{rows} linha(s) sem track_id ficaram fora da análise: o rastreador nunca "
+"as confirmou, então não pertencem a nenhum animal. O arquivo de "
+"trajetória as mantém."
+
+#: src/zebtrack/analysis/window_observations.py:107
 msgid ""
 "No object sidecar (3c_Objetos_) was found for this recording: the "
 "analysis window was evaluated from the trajectory alone (subject presence"
@@ -2092,7 +2103,7 @@ msgstr "Nenhum vídeo elegível foi encontrado com dados para análise."
 
 # | msgid "Drawing: Aquarium {number} of 2"
 #: src/zebtrack/coordinators/video_processing_coordinator.py:1048
-#: src/zebtrack/core/detection/multi_aquarium_detector.py:1125
+#: src/zebtrack/core/detection/multi_aquarium_detector.py:1156
 #: src/zebtrack/ui/components/canvas/renderer.py:397
 #: src/zebtrack/ui/components/project_views/report_tree_builder.py:634
 #: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:184
@@ -2752,25 +2763,25 @@ msgstr "A condição de início nunca ocorreu: as métricas da janela ficarão v
 msgid "The start condition was never met: the whole recording will be analysed."
 msgstr "A condição de início nunca ocorreu: a gravação inteira será analisada."
 
-#: src/zebtrack/core/recording/frame_processing_pipeline.py:839
+#: src/zebtrack/core/recording/frame_processing_pipeline.py:834
 #, python-brace-format
 msgid "⏳ Stabilizing image... ({current}/{total})"
 msgstr "⏳ Estabilizando imagem... ({current}/{total})"
 
 # | msgid "Analysing frame {current}/{total}..."
 # | msgid "Processing aquarium {current}/{total}..."
-#: src/zebtrack/core/recording/frame_processing_pipeline.py:852
+#: src/zebtrack/core/recording/frame_processing_pipeline.py:847
 #, python-brace-format
 msgid "🔍 Detecting aquarium... ({current}/{total})"
 msgstr "🔍 Detectando aquário... ({current}/{total})"
 
-#: src/zebtrack/core/recording/frame_processing_pipeline.py:1005
-#: src/zebtrack/core/recording/live_session_manager.py:1273
+#: src/zebtrack/core/recording/frame_processing_pipeline.py:1000
+#: src/zebtrack/core/recording/live_session_manager.py:1279
 #: src/zebtrack/ui/dialogs/live_preview_window.py:127
 msgid "● Recording"
 msgstr "● Gravando"
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:236
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:237
 #, python-brace-format
 msgid ""
 "Scale differs by {percent:.0f}% between the axes ({px_x:.1f} px/cm "
@@ -2789,8 +2800,8 @@ msgstr ""
 " que nenhum fator único de correção desfaz — meça a arena de novo e gere "
 "o relatório outra vez."
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:451
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:776
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:452
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:777
 msgid ""
 "The session's analysis window could not be read; the metrics cover the "
 "whole recording."
@@ -2798,11 +2809,11 @@ msgstr ""
 "Não foi possível ler a janela de análise da sessão; as métricas cobrem a "
 "gravação inteira."
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:598
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:599
 msgid "Generating the reports for the live session..."
 msgstr "Gerando os relatórios da sessão ao vivo..."
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:789
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:790
 msgid ""
 "Session WITHOUT calibration: the aquarium dimensions were not available, "
 "so 1 pixel was treated as 1 cm. Every metric in centimetres (total "
@@ -2814,7 +2825,7 @@ msgstr ""
 "(distância total, velocidade, limiar de congelamento) está expressa em "
 "PIXELS e NÃO é comparável com gravações calibradas."
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:933
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:934
 #, python-brace-format
 msgid ""
 "\n"
@@ -2825,7 +2836,7 @@ msgstr ""
 "💡 Arquivos gerados:\n"
 "{lines}\n"
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:1083
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1088
 #, python-brace-format
 msgid ""
 "✅ Camera analysis completed successfully!\n"
@@ -2851,11 +2862,11 @@ msgstr ""
 "{files}"
 
 # | msgid "Zones Completed"
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:1097
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1102
 msgid "Analysis Completed"
 msgstr "Análise Concluída"
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:1100
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1105
 #, python-brace-format
 msgid ""
 "⚠️ Recording completed, but no detection was found.\n"
@@ -2880,11 +2891,11 @@ msgstr ""
 "{output_dir}\n"
 "{files}"
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:1108
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1113
 msgid "Analysis Completed - No Detections"
 msgstr "Análise Concluída - Sem Detecções"
 
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:1111
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1116
 #, python-brace-format
 msgid ""
 "⚠️ Recording completed, but the automatic analysis failed.\n"
@@ -2902,7 +2913,7 @@ msgstr ""
 "Você pode analisá-los manualmente pela interface."
 
 # | msgid "Recording Pending"
-#: src/zebtrack/core/recording/live_analysis_post_processor.py:1116
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1121
 msgid "Recording Completed"
 msgstr "Gravação Concluída"
 
@@ -3075,37 +3086,37 @@ msgstr "Erro na Câmera"
 msgid "⏳ Loading detector..."
 msgstr "⏳ Carregando detector..."
 
-#: src/zebtrack/core/recording/live_session_manager.py:730
+#: src/zebtrack/core/recording/live_session_manager.py:736
 #, python-brace-format
 msgid "⏳ Starting in {seconds}s..."
 msgstr "⏳ Iniciando em {seconds}s..."
 
-#: src/zebtrack/core/recording/live_session_manager.py:760
+#: src/zebtrack/core/recording/live_session_manager.py:766
 msgid "⏳ Starting capture..."
 msgstr "⏳ Iniciando captura..."
 
 # | msgid "Select an active aquarium first."
 # | msgid "🐟 Active Aquarium"
 # | msgid "Draw the Aquarium"
-#: src/zebtrack/core/recording/live_session_manager.py:835
+#: src/zebtrack/core/recording/live_session_manager.py:841
 msgid "🔍 Looking for the aquarium..."
 msgstr "🔍 Procurando aquário..."
 
-#: src/zebtrack/core/recording/live_session_manager.py:838
+#: src/zebtrack/core/recording/live_session_manager.py:844
 msgid "⏳ Waiting for video..."
 msgstr "⏳ Aguardando vídeo..."
 
-#: src/zebtrack/core/recording/live_session_manager.py:1317
+#: src/zebtrack/core/recording/live_session_manager.py:1323
 #, python-brace-format
 msgid "● Recording: {elapsed}s / {total}s (Remaining: {remaining}s)"
 msgstr "● Gravando: {elapsed}s / {total}s (Restante: {remaining}s)"
 
-#: src/zebtrack/core/recording/live_session_manager.py:1338
+#: src/zebtrack/core/recording/live_session_manager.py:1344
 #, python-brace-format
 msgid "Recording: {elapsed}s / {total}s"
 msgstr "Gravando: {elapsed}s / {total}s"
 
-#: src/zebtrack/core/recording/live_session_manager.py:1407
+#: src/zebtrack/core/recording/live_session_manager.py:1413
 msgid ""
 "⚠️ Video: 1 frame dropped — check the disk / OneDrive (the recording may "
 "have gaps)"
@@ -3113,7 +3124,7 @@ msgstr ""
 "⚠️ Vídeo: 1 frame descartado — verifique o disco / OneDrive (gravação "
 "pode ter falhas)"
 
-#: src/zebtrack/core/recording/live_session_manager.py:1410
+#: src/zebtrack/core/recording/live_session_manager.py:1416
 #, python-brace-format
 msgid ""
 "⚠️ Video: {count} frames dropped — check the disk / OneDrive (the "
@@ -3122,17 +3133,17 @@ msgstr ""
 "⚠️ Vídeo: {count} frames descartados — verifique o disco / OneDrive "
 "(gravação pode ter falhas)"
 
-#: src/zebtrack/core/recording/live_session_manager.py:1435
+#: src/zebtrack/core/recording/live_session_manager.py:1441
 #, python-brace-format
 msgid "⏳ Analysing... ({seconds:.1f}s behind) - Recording OK"
 msgstr "⏳ Analisando... ({seconds:.1f}s atrás) - Gravação OK"
 
-#: src/zebtrack/core/recording/live_session_manager.py:1440
+#: src/zebtrack/core/recording/live_session_manager.py:1446
 #, python-brace-format
 msgid "⏳ Analysis is behind ({seconds:.1f}s) - Recording continues normally"
 msgstr "⏳ Análise atrasada ({seconds:.1f}s) - Gravação continua normalmente"
 
-#: src/zebtrack/core/recording/live_session_manager.py:1444
+#: src/zebtrack/core/recording/live_session_manager.py:1450
 #, python-brace-format
 msgid "⚠️ Analysis is far behind ({seconds:.1f}s) - Recording OK, analysis queued"
 msgstr "⚠️ Análise muito atrasada ({seconds:.1f}s) - Gravação OK, análise em fila"
@@ -3170,31 +3181,31 @@ msgstr ""
 msgid "token {token}: enter for {enter_rois} and exit for {exit_rois}"
 msgstr "token {token}: entrada de {enter_rois} e saída de {exit_rois}"
 
-#: src/zebtrack/core/services/detector_service.py:137
+#: src/zebtrack/core/services/detector_service.py:144
 #, python-brace-format
 msgid "No {method} model is available for animal detection."
 msgstr "Nenhum modelo {method} está disponível para detecção de animais."
 
 # | msgid "Could not connect to the Arduino on port {port}."
 # | msgid "Could not open the video: {path}"
-#: src/zebtrack/core/services/detector_service.py:146
+#: src/zebtrack/core/services/detector_service.py:153
 #, python-brace-format
 msgid "Could not find the weight matching the path: {path}"
 msgstr "Não foi possível encontrar o peso correspondente ao caminho: {path}"
 
 # | msgid "" "The OpenVINO model directory does not contain the required .xml
 # | files. " "Please reconvert the model."
-#: src/zebtrack/core/services/detector_service.py:162
+#: src/zebtrack/core/services/detector_service.py:169
 msgid "OpenVINO model path not found or invalid. Please convert the model first."
 msgstr ""
 "Caminho do modelo OpenVINO não encontrado ou inválido. Por favor, "
 "converta o modelo primeiro."
 
-#: src/zebtrack/core/services/detector_service.py:170
+#: src/zebtrack/core/services/detector_service.py:177
 msgid "YOLO .pt model path not found or invalid."
 msgstr "Caminho do modelo YOLO .pt não encontrado ou inválido."
 
-#: src/zebtrack/core/services/detector_service.py:286
+#: src/zebtrack/core/services/detector_service.py:293
 #, python-brace-format
 msgid "Failed to initialize the detector: {error}"
 msgstr "Falha ao inicializar o detector: {error}"
@@ -3614,7 +3625,7 @@ msgstr "Multi-indivíduos"
 msgid "Starting: {name}"
 msgstr "Iniciando: {name}"
 
-#: src/zebtrack/core/video/processing_worker.py:1514
+#: src/zebtrack/core/video/processing_worker.py:1521
 #: src/zebtrack/ui/dialogs/diagnostic_progress_dialog.py:107
 msgid "Processing..."
 msgstr "Processando..."
@@ -3892,6 +3903,7 @@ msgstr ""
 "• Peso: {weights}\n"
 "• OpenVINO: {openvino}"
 
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:81
 #: src/zebtrack/ui/sentinels.py:33
 msgid "All"
 msgstr "Todos"
@@ -4983,7 +4995,7 @@ msgstr "Janela de análise aplicada (o projeto não tem caminho em disco)."
 # | msgid "Apply Settings"
 # | msgid "Error applying settings: {error}"
 #: src/zebtrack/ui/components/analysis_window_panel.py:1263
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:356
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:472
 #, python-brace-format
 msgid "Error while saving: {error}"
 msgstr "Erro ao salvar: {error}"
@@ -5025,7 +5037,7 @@ msgstr "Dispara quando o operador dá o sinal manual."
 msgid "Fires when the recording ends."
 msgstr "Dispara quando a gravação termina."
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:37
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:44
 msgid ""
 "DRerio only SENDS the number you choose when the animal enters or leaves "
 "the ROI. What that number triggers (LED, shock, flash, pump, any module) "
@@ -5042,7 +5054,7 @@ msgstr ""
 "7/8=canal 4. Use 'Dispositivo' para registrar o que está de fato ligado "
 "em cada canal."
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:48
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:55
 msgid ""
 "Arduino is not enabled in this project. Turn on 'Use Arduino' when "
 "creating the project (wizard, live configuration step) to set up per-zone"
@@ -5052,7 +5064,7 @@ msgstr ""
 "o projeto (assistente, etapa de configuração ao vivo) para configurar "
 "comandos por zona."
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:55
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:62
 msgid ""
 "⚠ Ambiguous token: the same number is configured as one ROI's ENTER and "
 "another ROI's EXIT. The sketch cannot switch on and off with the same "
@@ -5064,149 +5076,166 @@ msgstr ""
 "comando — a saída da ROI vai acender o dispositivo da outra zona, e o "
 "desligamento no fim da sessão não vai funcionar. Confira a numeração —"
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:109
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:141
 msgid "Per-Zone Arduino Commands (Optional)"
 msgstr "Comandos Arduino por Zona (Opcional)"
 
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:155
+msgid "Aquarium"
+msgstr "Aquário"
+
 # | msgid "ROIs"
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:118
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:156
 msgid "ROI"
 msgstr "ROI"
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:119
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:157
 msgid "Device"
 msgstr "Dispositivo"
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:120
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:158
 msgid "On Enter"
 msgstr "Ao Entrar"
 
 # | msgid "Exit"
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:121
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:159
 msgid "On Exit"
 msgstr "Ao Sair"
 
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:172
+msgid "Aquarium:"
+msgstr "Aquário:"
+
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:180
+msgid "All = this ROI in any aquarium"
+msgstr "Todos = esta ROI em qualquer aquário"
+
 # | msgid "ROIs"
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:132
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:187
 msgid "ROI:"
 msgstr "ROI:"
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:137
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:192
 msgid "Enter:"
 msgstr "Entrar:"
 
 # | msgid "Exit"
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:141
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:196
 msgid "Exit:"
 msgstr "Sair:"
 
 # | msgid "OpenVINO device:"
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:148
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:203
 #: src/zebtrack/ui/dialogs/live_analysis_dialog.py:218
 msgid "Device:"
 msgstr "Dispositivo:"
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:154
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:209
 msgid "optional — what is wired to this channel"
 msgstr "opcional — o que está ligado neste canal"
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:160
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:215
 msgid "Add / Update"
 msgstr "Adicionar / Atualizar"
 
 # | msgid "🗑️ Remove"
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:161
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:216
 msgid "Remove"
 msgstr "Remover"
 
 # | msgid "Close"
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:162
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:217
 msgid "Clear"
 msgstr "Limpar"
 
 # | msgid "ROIs"
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:163
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:218
 msgid "🔄 ROIs"
 msgstr "🔄 ROIs"
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:168
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:223
 msgid "🔌 Test commands"
 msgstr "🔌 Testar comandos"
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:173
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:228
 msgid "Sends each token and shows what the firmware answered."
 msgstr "Envia cada token e mostra o que o firmware respondeu."
 
 # | msgid "Action unavailable"
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:256
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:314
 #, python-brace-format
 msgid "{count} ROI(s) available."
 msgstr "{count} ROI(s) disponível(is)."
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:258
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:316
 msgid "Define ROIs first."
 msgstr "Defina ROIs primeiro."
 
 # | msgid "Delete ROIs"
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:303
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:417
 msgid "Select an ROI."
 msgstr "Selecione uma ROI."
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:318
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:433
 msgid "Provide at least one token (Enter or Exit)."
 msgstr "Informe ao menos um token (Entrar ou Sair)."
 
 # | msgid "Global Model Configuration..."
 # | msgid "Model Configuration"
 # | msgid "Configuration Required"
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:350
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:466
 msgid "Configuration saved."
 msgstr "Configuração salva."
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:352
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:468
 msgid "Configuration applied (project has no path on disk)."
 msgstr "Configuração aplicada (projeto sem caminho em disco)."
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:376
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:492
 msgid "Arduino not connected. Connect it before testing."
 msgstr "Arduino não conectado. Conecte antes de testar."
 
 # | msgid "Configuring detector..."
 # | msgid "Failed to configure the detector."
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:382
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:498
 msgid "No token configured to test."
 msgstr "Nenhum token configurado para testar."
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:387
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:503
 msgid "Testing… waiting for the firmware to answer."
 msgstr "Testando… aguarde as respostas do firmware."
 
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:539
+#, python-brace-format
+msgid "{roi} (aquarium {number})"
+msgstr "{roi} (aquário {number})"
+
 # | msgid "Failure: {error}"
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:457
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:580
 #, python-brace-format
 msgid "Test failed: {error}"
 msgstr "Falha ao testar: {error}"
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:463
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:586
 msgid "enter"
 msgstr "entrar"
 
 # | msgid "Exit"
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:463
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:586
 msgid "exit"
 msgstr "sair"
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:466
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:589
 #, python-brace-format
 msgid "{name} {edge} → {token} → (no reply)"
 msgstr "{name} {edge} → {token} → (sem resposta)"
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:482
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:605
 #, python-brace-format
 msgid "{status} {name} {edge} → {token} → firmware replied: \"{ack}\""
 msgstr "{status} {name} {edge} → {token} → firmware respondeu: \"{ack}\""
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:495
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:618
 #, python-brace-format
 msgid ""
 "{count} problem(s): an ENTER must switch on and an EXIT must switch off. "
@@ -5215,7 +5244,7 @@ msgstr ""
 "{count} problema(s): uma ENTRADA deve ligar e uma SAÍDA desligar. O "
 "sketch de referência pareia 1/2, 3/4, 5/6, 7/8."
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:502
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:625
 msgid ""
 "Note: the quoted text comes from the Arduino sketch, not from the Device "
 "field — it keeps the sketch's own channel names even when the pin drives "
@@ -5225,12 +5254,12 @@ msgstr ""
 "Dispositivo — ele mantém os nomes de canal do próprio sketch mesmo quando"
 " o pino aciona outra coisa."
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:588
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:789
 #, python-brace-format
 msgid "Invalid token: '{value}'. Use a whole number."
 msgstr "Token inválido: '{value}'. Use um número inteiro."
 
-#: src/zebtrack/ui/components/arduino_bindings_panel.py:592
+#: src/zebtrack/ui/components/arduino_bindings_panel.py:793
 #, python-brace-format
 msgid "Token out of range [{minimum}, {maximum}]: {value}."
 msgstr "Token fora do intervalo [{minimum}, {maximum}]: {value}."
@@ -7053,7 +7082,7 @@ msgid "Optimise with OpenVINO (for Intel hardware)"
 msgstr "Otimizar com OpenVINO (para hardware Intel)"
 
 #: src/zebtrack/ui/components/global_model_configuration_panel.py:328
-#: src/zebtrack/ui/wizard/model_selection_step.py:482
+#: src/zebtrack/ui/wizard/model_selection_step.py:521
 msgid "OpenVINO device:"
 msgstr "Dispositivo OpenVINO:"
 
@@ -14261,13 +14290,13 @@ msgstr "🧩 Regex Personalizada:"
 
 #: src/zebtrack/ui/wizard/confirmation_step.py:520
 #: src/zebtrack/ui/wizard/detection_step.py:42
-#: src/zebtrack/ui/wizard/model_selection_step.py:50
+#: src/zebtrack/ui/wizard/model_selection_step.py:54
 msgid "Segmentation (seg)"
 msgstr "Segmentação (seg)"
 
 #: src/zebtrack/ui/wizard/confirmation_step.py:521
 #: src/zebtrack/ui/wizard/detection_step.py:43
-#: src/zebtrack/ui/wizard/model_selection_step.py:51
+#: src/zebtrack/ui/wizard/model_selection_step.py:55
 msgid "Detection (det)"
 msgstr "Detecção (det)"
 
@@ -16017,15 +16046,15 @@ msgstr ""
 "⚠ Porta do template ({port}) indisponível — selecione outra ou desative o"
 " Arduino."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:64
+#: src/zebtrack/ui/wizard/model_selection_step.py:68
 msgid "  ⭐ Recommended"
 msgstr "  ⭐ Recomendado"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:371
+#: src/zebtrack/ui/wizard/model_selection_step.py:410
 msgid "Models and Weights"
 msgstr "Modelos e Pesos"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:377
+#: src/zebtrack/ui/wizard/model_selection_step.py:416
 msgid ""
 "Adjust how DRerio LogAI will use each detection model.\n"
 "If you prefer, keep the recommended defaults and move on."
@@ -16033,27 +16062,27 @@ msgstr ""
 "Ajuste como o DRerio LogAI utilizará cada modelo de detecção.\n"
 "Se preferir, mantenha os padrões recomendados e avance."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:421
+#: src/zebtrack/ui/wizard/model_selection_step.py:460
 msgid "Methods and Weights per Role"
 msgstr "Métodos e Pesos por Função"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:431
+#: src/zebtrack/ui/wizard/model_selection_step.py:470
 msgid "Arena (apparatus detection)"
 msgstr "Arena (detecção do aparato)"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:440
+#: src/zebtrack/ui/wizard/model_selection_step.py:479
 msgid "Animals (tracking)"
 msgstr "Animais (rastreamento)"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:460
+#: src/zebtrack/ui/wizard/model_selection_step.py:499
 msgid "Acceleration / OpenVINO"
 msgstr "Aceleração / OpenVINO"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:468
+#: src/zebtrack/ui/wizard/model_selection_step.py:507
 msgid "Use OpenVINO (requires converting the weight)"
 msgstr "Usar OpenVINO (requer conversão do peso)"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:475
+#: src/zebtrack/ui/wizard/model_selection_step.py:514
 msgid ""
 "Enable this once the matching OpenVINO model has been converted. It "
 "allows faster inference on compatible CPUs."
@@ -16061,7 +16090,7 @@ msgstr ""
 "Ative quando o modelo OpenVINO correspondente já foi convertido. Permite "
 "inferência mais rápida em CPUs compatíveis."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:495
+#: src/zebtrack/ui/wizard/model_selection_step.py:534
 msgid ""
 "AUTO lets OpenVINO choose the target automatically.\n"
 "Pick CPU/GPU/NPU to force the target, when available."
@@ -16069,15 +16098,15 @@ msgstr ""
 "AUTO usa seleção automática do OpenVINO.\n"
 "Escolha CPU/GPU/NPU para forçar o alvo, quando disponível."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:502
+#: src/zebtrack/ui/wizard/model_selection_step.py:541
 msgid "Detection Parameters (YOLO)"
 msgstr "Parâmetros de Detecção (YOLO)"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:510
+#: src/zebtrack/ui/wizard/model_selection_step.py:549
 msgid "Minimum confidence (0-1):"
 msgstr "Confiança mínima (0-1):"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:514
+#: src/zebtrack/ui/wizard/model_selection_step.py:553
 msgid ""
 "🎯 Minimum Confidence (Confidence Threshold)\n"
 "\n"
@@ -16107,11 +16136,11 @@ msgstr ""
 "\n"
 "💡 Padrão recomendado: 0.25"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:528
+#: src/zebtrack/ui/wizard/model_selection_step.py:567
 msgid "NMS (overlap, 0-1):"
 msgstr "NMS (sobreposição, 0-1):"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:532
+#: src/zebtrack/ui/wizard/model_selection_step.py:571
 msgid ""
 "🔲 NMS - Non-Maximum Suppression\n"
 "\n"
@@ -16141,15 +16170,15 @@ msgstr ""
 "\n"
 "💡 Padrão recomendado: 0.45"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:548
+#: src/zebtrack/ui/wizard/model_selection_step.py:587
 msgid "Tracking Parameters (ByteTrack)"
 msgstr "Parâmetros de Rastreamento (ByteTrack)"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:561
+#: src/zebtrack/ui/wizard/model_selection_step.py:600
 msgid "Use ByteTrack (Recommended)"
 msgstr "Usar ByteTrack (Recomendado)"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:569
+#: src/zebtrack/ui/wizard/model_selection_step.py:608
 msgid ""
 "Enables the ByteTrack algorithm for robust tracking with a Kalman filter."
 "\n"
@@ -16159,11 +16188,11 @@ msgstr ""
 "Kalman.\n"
 "Recomendado para a maioria dos experimentos."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:587
+#: src/zebtrack/ui/wizard/model_selection_step.py:626
 msgid "Track Threshold (0-1):"
 msgstr "Track Threshold (0-1):"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:592
+#: src/zebtrack/ui/wizard/model_selection_step.py:631
 msgid ""
 "🛤️ Track Threshold\n"
 "\n"
@@ -16179,11 +16208,11 @@ msgstr ""
 "\n"
 "💡 Padrão: 0.25"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:601
+#: src/zebtrack/ui/wizard/model_selection_step.py:640
 msgid "Match Threshold (0-1):"
 msgstr "Match Threshold (0-1):"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:606
+#: src/zebtrack/ui/wizard/model_selection_step.py:645
 msgid ""
 "🔗 Match Threshold\n"
 "\n"
@@ -16199,11 +16228,11 @@ msgstr ""
 "\n"
 "💡 Padrão: 0.95 (para animais rápidos, como o zebrafish)"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:616
+#: src/zebtrack/ui/wizard/model_selection_step.py:655
 msgid "Track Buffer (frames):"
 msgstr "Track Buffer (frames):"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:621
+#: src/zebtrack/ui/wizard/model_selection_step.py:660
 #, python-brace-format
 msgid ""
 "🧠 Track Buffer\n"
@@ -16222,12 +16251,12 @@ msgstr ""
 "💡 Padrão: {frames} frames ({seconds:g} s; contados a 30 fps, qualquer que"
 " seja a taxa do vídeo)"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:631
-#: src/zebtrack/ui/wizard/model_selection_step.py:849
+#: src/zebtrack/ui/wizard/model_selection_step.py:670
+#: src/zebtrack/ui/wizard/model_selection_step.py:888
 msgid "Max distance (px):"
 msgstr "Distância Máx (px):"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:636
+#: src/zebtrack/ui/wizard/model_selection_step.py:675
 #, python-brace-format
 msgid ""
 "📏 Maximum Centre Distance\n"
@@ -16244,12 +16273,12 @@ msgstr ""
 "\n"
 "💡 Padrão: {pixels:g} px"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:646
-#: src/zebtrack/ui/wizard/model_selection_step.py:850
+#: src/zebtrack/ui/wizard/model_selection_step.py:685
+#: src/zebtrack/ui/wizard/model_selection_step.py:889
 msgid "IoU Threshold (0-1):"
 msgstr "IoU Threshold (0-1):"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:651
+#: src/zebtrack/ui/wizard/model_selection_step.py:690
 #, python-brace-format
 msgid ""
 "🔳 IoU Threshold\n"
@@ -16266,7 +16295,7 @@ msgstr ""
 "\n"
 "💡 Padrão: {value:g}"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:664
+#: src/zebtrack/ui/wizard/model_selection_step.py:703
 msgid ""
 "📊 Quick Guide:\n"
 "• Track Thresh: ↓ to keep a weak trail\n"
@@ -16280,20 +16309,20 @@ msgstr ""
 "• Buffer: ↑ para 'lembrar' do animal por mais tempo\n"
 "• Distância: ↑ para animais muito rápidos"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:684
+#: src/zebtrack/ui/wizard/model_selection_step.py:723
 msgid "💡 Tip: adjust ONE parameter at a time (±0.05) and test!"
 msgstr "💡 Dica: Ajuste UM parâmetro por vez (±0.05) e teste!"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:699
+#: src/zebtrack/ui/wizard/model_selection_step.py:738
 #, python-brace-format
 msgid "Current YOLO defaults: confidence {confidence}, NMS {nms}."
 msgstr "Padrões atuais YOLO: confiança {confidence}, NMS {nms}."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:715
+#: src/zebtrack/ui/wizard/model_selection_step.py:754
 msgid "🔄 Restore Recommended Defaults"
 msgstr "🔄 Restaurar Padrões Recomendados"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:727
+#: src/zebtrack/ui/wizard/model_selection_step.py:766
 msgid ""
 "Restores every threshold to its recommended default value.\n"
 "\n"
@@ -16303,7 +16332,7 @@ msgstr ""
 "\n"
 "Útil se você fez ajustes e quer voltar ao ponto de partida."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:735
+#: src/zebtrack/ui/wizard/model_selection_step.py:774
 msgid ""
 "Tip: keep the defaults if you are still setting up the videos. You can "
 "review these values later in the project settings."
@@ -16311,11 +16340,11 @@ msgstr ""
 "Dica: mantenha os padrões se ainda estiver configurando os vídeos. Você "
 "pode revisar esses valores depois nas configurações do projeto."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:782
+#: src/zebtrack/ui/wizard/model_selection_step.py:821
 msgid "Class roles (optional)"
 msgstr "Papéis das classes (opcional)"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:789
+#: src/zebtrack/ui/wizard/model_selection_step.py:828
 msgid ""
 "What each class of the animal weight is. Leave it untouched to resolve "
 "the roles automatically; a change is saved in the project."
@@ -16323,7 +16352,7 @@ msgstr ""
 "O que é cada classe do peso do animal. Deixe como está para resolver os "
 "papéis automaticamente; uma alteração é salva no projeto."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:845
+#: src/zebtrack/ui/wizard/model_selection_step.py:884
 #, python-brace-format
 msgid ""
 "ℹ️ ByteTrack disabled. The system will use a simplified hybrid tracker "
@@ -16334,7 +16363,7 @@ msgstr ""
 "simplificado que utiliza apenas '{distance}' e '{iou}' para manter o ID "
 "estável. Ideal para 1 animal por arena."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:861
+#: src/zebtrack/ui/wizard/model_selection_step.py:900
 msgid ""
 "💡 ByteTrack uses a Kalman filter to predict positions even when the "
 "animal briefly disappears. Adjust the fields below for more stability."
@@ -16342,7 +16371,7 @@ msgstr ""
 "💡 O ByteTrack usa Filtro de Kalman para prever posições mesmo quando o "
 "animal some brevemente. Ajuste os campos abaixo para maior estabilidade."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:888
+#: src/zebtrack/ui/wizard/model_selection_step.py:927
 msgid ""
 "Segmentation supports several animals per arena.\n"
 "Detection is optimized for one animal per arena and uses ByteTrack."
@@ -16350,31 +16379,31 @@ msgstr ""
 "Segmentação suporta múltiplos animais por arena.\n"
 "Detecção é otimizada para um animal por arena e usa ByteTrack."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:903
+#: src/zebtrack/ui/wizard/model_selection_step.py:942
 msgid "Select the weight file loaded for this role."
 msgstr "Selecione o arquivo de peso carregado para esta função."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:974
+#: src/zebtrack/ui/wizard/model_selection_step.py:1013
 msgid "❌ Confidence must be between 0 and 1"
 msgstr "❌ Confiança deve estar entre 0 e 1"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:975
+#: src/zebtrack/ui/wizard/model_selection_step.py:1014
 msgid "❌ NMS must be between 0 and 1"
 msgstr "❌ NMS deve estar entre 0 e 1"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:976
+#: src/zebtrack/ui/wizard/model_selection_step.py:1015
 msgid "❌ Track must be between 0 and 1"
 msgstr "❌ Track deve estar entre 0 e 1"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:977
+#: src/zebtrack/ui/wizard/model_selection_step.py:1016
 msgid "❌ Match must be between 0 and 1"
 msgstr "❌ Associação deve estar entre 0 e 1"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1007
+#: src/zebtrack/ui/wizard/model_selection_step.py:1046
 msgid "❌ Value must be a decimal (e.g. 0.25)"
 msgstr "❌ Valor deve ser decimal (ex: 0.25)"
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1120
+#: src/zebtrack/ui/wizard/model_selection_step.py:1159
 msgid ""
 "⚠️ Detection (det) is recommended for only 1 animal per arena. Consider "
 "segmentation (seg) for several animals."
@@ -16382,51 +16411,51 @@ msgstr ""
 "⚠️ Detecção (det) é recomendada para apenas 1 animal por arena. Considere"
 " segmentação (seg) para múltiplos animais."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1281
+#: src/zebtrack/ui/wizard/model_selection_step.py:1321
 msgid "Enter decimal values between 0 and 1 for the parameters."
 msgstr "Informe valores decimais entre 0 e 1 para os parâmetros."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1284
+#: src/zebtrack/ui/wizard/model_selection_step.py:1324
 msgid "The confidence parameter must be between 0 and 1."
 msgstr "O parâmetro de confiança deve estar entre 0 e 1."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1285
+#: src/zebtrack/ui/wizard/model_selection_step.py:1325
 msgid "The NMS parameter must be between 0 and 1."
 msgstr "O parâmetro de NMS deve estar entre 0 e 1."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1286
+#: src/zebtrack/ui/wizard/model_selection_step.py:1326
 msgid "The track parameter must be between 0 and 1."
 msgstr "O parâmetro de track deve estar entre 0 e 1."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1287
+#: src/zebtrack/ui/wizard/model_selection_step.py:1327
 msgid "The match parameter must be between 0 and 1."
 msgstr "O parâmetro de associação deve estar entre 0 e 1."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1304
+#: src/zebtrack/ui/wizard/model_selection_step.py:1344
 msgid "The track buffer must be a whole number of frames."
 msgstr "O track buffer deve ser um número inteiro de frames."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1306
+#: src/zebtrack/ui/wizard/model_selection_step.py:1346
 msgid "The track buffer must be at least 1 frame."
 msgstr "O track buffer deve ser de no mínimo 1 frame."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1311
+#: src/zebtrack/ui/wizard/model_selection_step.py:1351
 msgid "The maximum distance must be a number of pixels."
 msgstr "A distância máxima deve ser um número de pixels."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1313
+#: src/zebtrack/ui/wizard/model_selection_step.py:1353
 msgid "The maximum distance must be greater than 0 pixels."
 msgstr "A distância máxima deve ser maior que 0 pixels."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1318
+#: src/zebtrack/ui/wizard/model_selection_step.py:1358
 msgid "The IoU threshold must be a decimal number."
 msgstr "O limiar de IoU deve ser um número decimal."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1320
+#: src/zebtrack/ui/wizard/model_selection_step.py:1360
 msgid "The IoU threshold must be between 0 and 1."
 msgstr "O limiar de IoU deve estar entre 0 e 1."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1324
+#: src/zebtrack/ui/wizard/model_selection_step.py:1364
 msgid ""
 "Select a valid weight for the arena. The file must match the chosen "
 "method."
@@ -16434,7 +16463,7 @@ msgstr ""
 "Selecione um peso válido para a arena. O arquivo precisa corresponder ao "
 "método escolhido."
 
-#: src/zebtrack/ui/wizard/model_selection_step.py:1329
+#: src/zebtrack/ui/wizard/model_selection_step.py:1369
 msgid ""
 "Select a valid weight for the animals. The file must match the chosen "
 "method."
@@ -17833,19 +17862,3 @@ msgstr "vídeo gravado"
 # | msgid "The {label} must be between 0 and 1."
 #~ msgid "Thigmotaxis distance must be between 0.1 and 10.0 cm"
 #~ msgstr "Distância de thigmotaxis deve estar entre 0.1 e 10.0 cm"
-
-#: src/zebtrack/ui/components/arduino_bindings_panel.py
-msgid "Aquarium"
-msgstr "Aquário"
-
-#: src/zebtrack/ui/components/arduino_bindings_panel.py
-msgid "Aquarium:"
-msgstr "Aquário:"
-
-#: src/zebtrack/ui/components/arduino_bindings_panel.py
-msgid "All = this ROI in any aquarium"
-msgstr "Todos = esta ROI em qualquer aquário"
-
-#: src/zebtrack/ui/components/arduino_bindings_panel.py
-msgid "{roi} (aquarium {number})"
-msgstr "{roi} (aquário {number})"

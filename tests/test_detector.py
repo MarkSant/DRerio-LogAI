@@ -557,15 +557,11 @@ class TestDetectorZoneLogic(unittest.TestCase):
             with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
                 detections2, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
-            # Detection should be preserved even if ByteTracker can't confirm track yet
-            # ByteTracker may return 0 tracks if the track is in "unconfirmed" state
-            # Our passthrough mechanism ensures we still get the detection
+            # The track confirmed on frame 1 keeps its id; a row without id is
+            # never written (#671).
             self.assertGreaterEqual(len(detections2), 1)
             if len(detections2) > 0:
-                track_id2 = detections2[0][5]
-                # Track ID may be None if passthrough was used, or same as before if tracked
-                if track_id2 is not None:
-                    self.assertEqual(track_id1, track_id2)
+                self.assertEqual(detections2[0][5], track_id1)
 
     def test_bytetrack_handles_empty_detections(self):
         """Test that BYTETracker handles frames with no detections gracefully."""

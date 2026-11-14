@@ -473,8 +473,11 @@ class SingleVideoMixin:
         preference to ``None`` and the WORKER ran in multi-animal mode while the
         main-process detector had been configured for one animal. On a real run
         (2026-09-05) ByteTrack then returned no tracks on 608 of 899 frames, the
-        detector fell through to ``passthrough_untracked``, and the trajectory
-        came out with 517 distinct track ids for a single fish.
+        detector fell through to what was then ``passthrough_untracked``, and the
+        trajectory came out with 517 distinct track ids for a single fish. That
+        branch is gone (#671): in multi-subject mode the detector no longer
+        writes what ByteTrack did not confirm, so the same mismatch now loses
+        those frames instead of inventing ids -- the config must still arrive.
         """
         output_dir_str = str(output_base_dir)
 

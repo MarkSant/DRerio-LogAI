@@ -1798,6 +1798,18 @@ modules:
         description: "condicao sobre papel de contexto sem 3c passa a ser avaliada como ausencia"
         find: 'if target.role == "context":'
         replace: 'if False:'
+      - id: roi-presence-reads-unscreened-trajectory
+        description: "presenca em ROI da janela volta a contar linha sem id e trilha curta (#671)"
+        find: 'return _rois_by_frame(screening.trajectory, rois, roi_rule, pixelcm, mask_source)'
+        replace: 'return _rois_by_frame(trajectory_df, rois, roi_rule, pixelcm, mask_source)'
+      - id: observations-built-from-unscreened-trajectory
+        description: "observacoes da janela montadas sobre a trajetoria sem triagem (#671)"
+        find: '        trajectory_df = screening.trajectory'
+        replace: '        pass'
+      - id: screening-warnings-dropped
+        description: "janela descarta linhas/trilhas sem avisar (#671)"
+        find: '        warnings.extend(screening.warnings)'
+        replace: '        pass'
 
   analysis_window_service:
     source: src/zebtrack/analysis/analysis_window_service.py
@@ -1844,6 +1856,14 @@ modules:
         description: "aviso do FIM compara o fim ao vivo com o INICIO recalculado (#642)"
         find: 'if _diverges(online.stop, resolution.stop):'
         replace: 'if _diverges(online.stop, resolution.start):'
+      - id: screening-not-in-the-inputs
+        description: "artefato calculado sem a triagem de sujeitos e reaproveitado (#671)"
+        find: '        inputs["subject_screening"] = f"untracked+short:{self._min_track_duration_s:g}"'
+        replace: '        pass'
+      - id: screening-threshold-not-in-the-inputs
+        description: "artefato de outro min_track_duration_s reaproveitado (#671)"
+        find: 'f"untracked+short:{self._min_track_duration_s:g}"'
+        replace: '"untracked+short"'
 
   analysis_window_cut_service:
     source: src/zebtrack/analysis/analysis_service.py
@@ -2836,6 +2856,15 @@ modules:
                       results = [(*d[:5], BaseTrack.next_id(), d[6]) for d in detections]
                       log.debug(
                           "single_detector.bytetrack.unemitted_detections",
+      - id: passthrough-untracked-restored
+        description: "deteccao nao confirmada volta a ser gravada com track_id=None (#671)"
+        find: |-
+          reason="bytetracker_returned_no_tracks",
+                          )
+        replace: |-
+          reason="bytetracker_returned_no_tracks",
+                          )
+                          results = [(*d[:5], None, d[6]) for d in detections]
 
   single_subject_policy:
     source: src/zebtrack/core/services/single_subject_policy.py
@@ -2902,6 +2931,62 @@ modules:
         description: "linhas sem track_id escapam da triagem e contam como animal"
         find: 'dropped |= trajectory_df["track_id"].isna()'
         replace: 'dropped |= False'
+      - id: untracked-rows-kept-next-to-identified
+        description: "linhas sem track_id ao lado de trilhas identificadas ficam na analise (#671)"
+        find: '    if not untracked.any() or untracked.all():'
+        replace: '    if True:'
+      - id: all-untracked-trajectory-dropped
+        description: "trajetoria inteira sem id some da analise em vez de ser um sujeito (#671)"
+        find: '    if not untracked.any() or untracked.all():'
+        replace: '    if not untracked.any():'
+      - id: count-nan-as-an-animal
+        description: "contagem de animais volta a contar as linhas sem id como mais um (#671)"
+        find: 'return max(int(trajectory_df["track_id"].nunique(dropna=True)), 1)'
+        replace: 'return max(int(trajectory_df["track_id"].nunique(dropna=False)), 1)'
+      - id: all-untracked-counts-zero
+        description: "trajetoria sem nenhum id conta zero animais (#671)"
+        find: 'return max(int(trajectory_df["track_id"].nunique(dropna=True)), 1)'
+        replace: 'return int(trajectory_df["track_id"].nunique(dropna=True))'
+      - id: no-column-counts-zero
+        description: "trajetoria sem coluna track_id conta zero animais (#671)"
+        find: |-
+          if "track_id" not in trajectory_df.columns:
+                  return 1
+        replace: |-
+          if "track_id" not in trajectory_df.columns:
+                  return 0
+      - id: short-screening-before-untracked
+        description: "triagem curta roda sobre a trajetoria com as linhas sem id (#671)"
+        find: '        untracked.trajectory, min_duration_s=min_duration_s, median_dt=median_dt'
+        replace: '        trajectory_df, min_duration_s=min_duration_s, median_dt=median_dt'
+      - id: untracked-warning-dropped
+        description: "linhas sem id saem da analise sem aviso (#671)"
+        find: '        untracked.warnings + short.warnings,'
+        replace: '        short.warnings,'
+      - id: untracked-rows-not-counted
+        description: "contagem de linhas removidas ignora as linhas sem id (#671)"
+        find: '        untracked.dropped_rows + short.dropped_rows,'
+        replace: '        short.dropped_rows,'
+
+  trajectory_validator_subject_count:
+    source: src/zebtrack/analysis/trajectory_validator.py
+    tests:
+      - tests/analysis/test_trajectory_validator.py
+    mutations:
+      - id: unique-tracks-ignores-the-rule
+        description: "unique_tracks volta ao nunique cru: trajetoria sem id conta 0 animais (#671)"
+        find: '"unique_tracks": count_subjects(df),'
+        replace: '"unique_tracks": int(df["track_id"].nunique()),'
+
+  behavior_untracked_rows:
+    source: src/zebtrack/analysis/behavior.py
+    tests:
+      - tests/analysis/test_behavior.py
+    mutations:
+      - id: untracked-rows-become-a-subject
+        description: "analisador comportamental trata as linhas sem id como mais um sujeito (#671)"
+        find: '        df = drop_untracked_rows(df).trajectory'
+        replace: '        df = df'
 
   analysis_service_track_screening:
     source: src/zebtrack/analysis/analysis_service.py

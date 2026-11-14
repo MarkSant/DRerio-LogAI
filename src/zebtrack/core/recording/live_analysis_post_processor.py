@@ -975,6 +975,7 @@ class LiveAnalysisPostProcessorMixin:
             whole recording is analysed and the report says why).
         """
         from zebtrack.analysis.analysis_window_service import AnalysisWindowService
+        from zebtrack.analysis.track_significance import min_track_duration_from
         from zebtrack.core.recording.condition_runtime import parse_window_spec
         from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig
 
@@ -984,7 +985,10 @@ class LiveAnalysisPostProcessorMixin:
             return None, bool(raw)
         rule = analysis_service.resolve_roi_rule()
         window = AnalysisWindowService(
-            roi_rule=rule if isinstance(rule, RoiRuleConfig) else None
+            roi_rule=rule if isinstance(rule, RoiRuleConfig) else None,
+            min_track_duration_s=min_track_duration_from(
+                getattr(analysis_service, "settings", None)
+            ),
         ).resolve(
             trajectory_file,
             spec,

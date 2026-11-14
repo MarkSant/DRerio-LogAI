@@ -148,7 +148,8 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `utils/report_files.py` (`3c_`/`7_` labels) | `tests/utils/test_session_output_listing.py` + `--module session_output_labels` |
 | `core/conditions/*.py` | `tests/core/conditions/` (unit + Barnes VFR + hypothesis properties: batch ≡ online, back-dating, STOP ≥ START, duplicates) + `--module conditions_model`, `conditions_evaluator`, `conditions_artifact` |
 | `core/conditions/presets.py` | `tests/core/conditions/test_presets.py` (Barnes preset ≡ acceptance fixture by hash; legacy-trigger preset) + `--module conditions_presets` |
-| `analysis/window_observations.py` | `tests/analysis/test_window_observations.py` (3c heartbeat → observations, report ROI rule, external events, trajectory-only fallback, `missing_inputs`) + `--module window_observations` |
+| `analysis/window_observations.py` | `tests/analysis/test_window_observations.py` (3c heartbeat → observations, report ROI rule, external events, trajectory-only fallback, `missing_inputs`, report subject screening #671) + `--module window_observations` |
+| `analysis/track_significance.py` (short tracks #649, rows without `track_id` #671, `count_subjects`) | `tests/analysis/test_track_significance.py` + `tests/integration/test_barnes_window_e2e.py` (multi-subject mode) + `--module track_significance` |
 | `analysis/analysis_window_service.py` | `tests/analysis/test_analysis_window_service.py` (reuse by spec/input hashes, offline vs online, external events kept, not-met policies, spec lookup) + `--module analysis_window_service` |
 | `analysis/behavior.py` (`restrict_to_window`) | `tests/analysis/test_behavior.py::TestRestrictToWindow` + hypothesis properties + `--module analysis_window_cut` |
 | `analysis/behavior.py` + `analysis/gap_policy.py` (tracking gaps, episodes per subject) | `tests/analysis/test_behavior.py::TestTrackingGaps` + `--module behavior_tracking_gaps` |

@@ -36,6 +36,10 @@ from typing import TYPE_CHECKING, Any, Literal
 import structlog
 from pydantic import ValidationError
 
+from zebtrack.analysis.track_significance import (
+    DEFAULT_MIN_TRACK_DURATION_S,
+    min_track_duration_from,
+)
 from zebtrack.analysis.window_observations import (
     build_window_observations,
     missing_inputs,
@@ -335,10 +339,19 @@ class AnalysisWindowService:
     Args:
         roi_rule: The report's resolved ROI rule, so ``RoiInside`` conditions
             use the same presence as the ROI metrics (default rule if ``None``).
+        min_track_duration_s: The report's ``min_track_duration_s``
+            (``min_track_duration_from(settings)``), so the window drops the
+            same short tracks the report does (#671).
     """
 
-    def __init__(self, *, roi_rule: RoiRuleConfig | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        roi_rule: RoiRuleConfig | None = None,
+        min_track_duration_s: float = DEFAULT_MIN_TRACK_DURATION_S,
+    ) -> None:
         self._roi_rule = roi_rule
+        self._min_track_duration_s = float(min_track_duration_s)
 
     def resolve(
         self,
@@ -382,6 +395,10 @@ class AnalysisWindowService:
         }
         if _uses_rois(spec):
             inputs["rois_sha"] = _rois_sha(rois, self._roi_rule)
+        # The subjects the observations are built from (#671): an artifact
+        # computed before rows without an id and short tracks were screened, or
+        # with another threshold, is recomputed rather than reused.
+        inputs["subject_screening"] = f"untracked+short:{self._min_track_duration_s:g}"
 
         existing = (
             read_artifact(artifact_file)
@@ -433,6 +450,7 @@ class AnalysisWindowService:
             clock=clock,
             pixelcm=pixelcm,
             mask_source=mask_source,
+            min_track_duration_s=self._min_track_duration_s,
         )
         missing = missing_inputs(
             spec,
@@ -655,7 +673,9 @@ def resolve_analysis_window(
         roi_rule = resolve_roi_rule(
             dict(project_data) if isinstance(project_data, Mapping) else None, settings_obj
         )
-    resolution = AnalysisWindowService(roi_rule=roi_rule).resolve(
+    resolution = AnalysisWindowService(
+        roi_rule=roi_rule, min_track_duration_s=min_track_duration_from(settings_obj)
+    ).resolve(
         trajectory_path,
         spec,
         aquarium_id=aquarium_id,

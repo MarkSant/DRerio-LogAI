@@ -945,23 +945,20 @@ class SingleDetector:
                     )
                 ]
             else:
+                # Multi-subject: nothing is written. ByteTrack holds back what it
+                # has not confirmed (an animal's first frame after the tracker's
+                # first) and emits it once it persists -- the rule the branch
+                # below applies when SOME tracks came out. Until 8.0 this branch
+                # wrote every detection of the frame with ``track_id=None``
+                # (``passthrough_untracked``): NaN rows that could belong to
+                # different animals and counted as one more in the analysis
+                # (#671). Parquets written before are screened at read time by
+                # ``analysis.track_significance.drop_untracked_rows``.
                 log.debug(
-                    "single_detector.bytetrack.passthrough_untracked",
+                    "single_detector.bytetrack.unconfirmed_not_written",
                     num_detections=len(detections),
-                    reason=("bytetracker_returned_no_tracks_but_detections_exist"),
+                    reason="bytetracker_returned_no_tracks",
                 )
-                results = [
-                    (
-                        int(det[0]),
-                        int(det[1]),
-                        int(det[2]),
-                        int(det[3]),
-                        float(det[4]),
-                        None,
-                        int(det[6]),
-                    )
-                    for det in detections
-                ]
 
         if 0 < len(results) < len(detections):
             # ByteTrack holds back what it is not sure of (a box below

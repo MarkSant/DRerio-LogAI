@@ -13,6 +13,7 @@ import pandas as pd
 import structlog
 
 from zebtrack.analysis.time_base import resolve_time_base
+from zebtrack.analysis.track_significance import count_subjects
 from zebtrack.core.detection.multi_aquarium_detector import (
     AQUARIUM_TRACK_ID_MULTIPLIER,
     MAX_LOCAL_TRACK_ID,
@@ -358,7 +359,9 @@ class TrajectoryQualityValidator:
         time_base = resolve_time_base(df, fallback_fps=self.fps)
         base_stats: dict[str, Any] = {
             "total_frames": count_unique_frames(df),
-            "unique_tracks": int(df["track_id"].nunique()) if "track_id" in df.columns else 1,
+            # The one reading of "how many animals" (#671): rows without an id
+            # are not one, a trajectory with no id at all is one.
+            "unique_tracks": count_subjects(df),
             "duration_s": time_base.duration_s,
         }
 
