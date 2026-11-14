@@ -7,6 +7,7 @@ tests (tests/core/test_processing_worker_unit.py and the pre-recorded golden).
 """
 
 import threading
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -410,3 +411,209 @@ class TestVideoContextHelpers:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# ---------------------------------------------------------------------------
+# run_tracking_if_needed with a scripted worker (TASK-087)
+# ---------------------------------------------------------------------------
+
+
+class _ScriptedWorker:
+    """``ProcessingWorker`` stand-in: replays a script through the callbacks."""
+
+    script = ()  # callables taking the callbacks
+    instances: list = []  # noqa: RUF012 - test double, reset by the fixture
+
+    def __init__(self, context, callbacks):
+        self.context = context
+        self.callbacks = callbacks
+        type(self).instances.append(self)
+
+    def start_in_thread(self):
+        def play():
+            for step in type(self).script:
+                step(self.callbacks)
+
+        thread = threading.Thread(target=play, daemon=True)
+        thread.start()
+        return thread
+
+
+@pytest.fixture
+def scripted(monkeypatch):
+    from zebtrack.core.video import processing_worker
+
+    _ScriptedWorker.script = ()
+    _ScriptedWorker.instances = []
+    monkeypatch.setattr(processing_worker, "ProcessingWorker", _ScriptedWorker)
+    return _ScriptedWorker
+
+
+def _track(service, tmp_path, **kw):
+    service.project_manager.get_zone_data = Mock(
+        return_value=ZoneData(polygon=[(0, 0), (640, 0), (640, 480)])
+    )
+    return service.run_tracking_if_needed(
+        kw.pop("video_path", "/fake/video.mp4"),
+        tmp_path,
+        kw.pop("experiment_id", "E1"),
+        **kw,
+    )
+
+
+def _published(service):
+    return [call.args[0] for call in service.ui_event_bus.publish.call_args_list]
+
+
+class TestRunTrackingWithScriptedWorker:
+    def test_an_existing_trajectory_short_circuits_before_any_worker(
+        self, video_processing_service, tmp_path, scripted
+    ):
+        (tmp_path / "3_CoordMovimento_E1.parquet").write_bytes(b"")
+
+        ok, polygon = _track(video_processing_service, tmp_path)
+
+        assert ok is True
+        # The polygon comes back as plain lists, whatever the zone stored.
+        assert polygon == [[0, 0], [640, 0], [640, 480]]
+        assert scripted.instances == []
+        assert _published(video_processing_service) == []
+
+    def test_the_worker_gets_the_run_configuration_and_a_status_is_published(
+        self, video_processing_service, tmp_path, scripted
+    ):
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        ok, polygon = _track(
+            video_processing_service,
+            tmp_path,
+            analysis_interval_frames=4,
+            display_interval_frames=2,
+        )
+
+        assert ok is False  # the script never reports a completed video
+        assert polygon == [[0, 0], [640, 0], [640, 480]]
+        (worker,) = scripted.instances
+        context = worker.context
+        assert context.videos_to_process == [
+            {"path": str(Path("/fake/video.mp4")), "experiment_id": "E1"}
+        ]
+        assert context.output_base_dir == str(tmp_path)
+        assert (context.analysis_interval_frames, context.display_interval_frames) == (4, 2)
+        assert context.cancel_event is video_processing_service.cancel_event
+        assert context.single_video_config is None
+        (event,) = _published(video_processing_service)
+        assert event.type == UIEvents.SET_STATUS
+        assert event.data.message == "Starting process for E1..."
+
+    @pytest.mark.parametrize(
+        ("source", "expected"),
+        [
+            (SimpleNamespace(video_path="/clips/a.mp4"), "/clips/a.mp4"),
+            (SimpleNamespace(camera_index=2), "2"),
+            (
+                SimpleNamespace(get_properties=lambda: {"is_live_stream": True, "camera_index": 3}),
+                "3",
+            ),
+            (SimpleNamespace(get_properties=lambda: {"is_live_stream": True}), "0"),
+            (SimpleNamespace(get_properties=lambda: {"path": "/clips/b.mp4"}), "/clips/b.mp4"),
+        ],
+    )
+    def test_the_worker_task_path_is_resolved_from_a_frame_source(
+        self, video_processing_service, tmp_path, scripted, source, expected
+    ):
+        _track(video_processing_service, tmp_path, video_path=source)
+        assert scripted.instances[0].context.videos_to_process[0]["path"] == expected
+
+    def test_a_frame_source_whose_properties_fail_keeps_its_string_form(
+        self, video_processing_service, tmp_path, scripted
+    ):
+        def broken():
+            raise AttributeError("no properties")
+
+        source = SimpleNamespace(get_properties=broken)
+        _track(video_processing_service, tmp_path, video_path=source)
+        assert scripted.instances[0].context.videos_to_process[0]["path"] == str(source)
+
+    def test_a_properties_dict_without_path_keeps_the_string_form(
+        self, video_processing_service, tmp_path, scripted
+    ):
+        source = SimpleNamespace(get_properties=lambda: {"fps": 30})
+        _track(video_processing_service, tmp_path, video_path=source)
+        assert scripted.instances[0].context.videos_to_process[0]["path"] == str(source)
+
+    def test_progress_is_forwarded_with_the_three_field_shape(
+        self, video_processing_service, tmp_path, scripted
+    ):
+        seen = []
+
+        def progress(fraction, message, stats=None):
+            seen.append((fraction, message, stats))
+
+        scripted.script = (
+            lambda cb: cb.on_progress(0.25, "tracking", {"fps": 9}),
+            # The worker's own six-field shape: index, total, id, fraction, message, stats.
+            lambda cb: cb.on_progress(1, 4, "E1", 0.5, "halfway", None),
+            # Neither shape: dropped with a warning instead of crashing the monitor.
+            lambda cb: cb.on_progress(0.9, "bad"),
+        )
+
+        _track(video_processing_service, tmp_path, progress_callback=progress)
+
+        assert seen == [(0.25, "tracking", {"fps": 9}), (0.5, "halfway", None)]
+
+    def test_progress_without_a_callback_is_ignored(
+        self, video_processing_service, tmp_path, scripted
+    ):
+        scripted.script = (lambda cb: cb.on_progress(0.25, "tracking", None),)
+        ok, _ = _track(video_processing_service, tmp_path)
+        assert ok is False
+
+    def test_frames_become_display_events_and_empty_frames_do_not(
+        self, video_processing_service, tmp_path, scripted
+    ):
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        frame = np.zeros((2, 2, 3), dtype=np.uint8)
+        scripted.script = (
+            lambda cb: cb.on_frame_processed(frame, [(1, 2, 3, 4, 0.9, 5, 1)], {}),
+            lambda cb: cb.on_frame_processed(frame, None, {"class_roles": {1: "subject"}}),
+            lambda cb: cb.on_frame_processed(None, [(1, 2, 3, 4, 0.9, 5, 1)], {}),
+        )
+
+        _track(video_processing_service, tmp_path)
+
+        shown = [
+            e for e in _published(video_processing_service) if e.type == UIEvents.UI_DISPLAY_FRAME
+        ]
+        assert len(shown) == 2
+        assert shown[0].data.detections == [(1, 2, 3, 4, 0.9, 5, 1)]
+        assert shown[0].data.class_roles is None
+        assert shown[1].data.detections == []
+        assert shown[1].data.class_roles == {1: "subject"}
+
+    @pytest.mark.parametrize("success", [True, False])
+    def test_the_result_is_what_the_worker_reported_for_the_video(
+        self, video_processing_service, tmp_path, scripted, success
+    ):
+        scripted.script = (lambda cb: cb.on_video_completed(0, 1, "E1", success),)
+        ok, _ = _track(video_processing_service, tmp_path)
+        assert ok is success
+
+    def test_the_last_completion_wins(self, video_processing_service, tmp_path, scripted):
+        scripted.script = (
+            lambda cb: cb.on_video_completed(0, 1, "E1", True),
+            lambda cb: cb.on_video_completed(0, 1, "E1", False),
+        )
+        ok, _ = _track(video_processing_service, tmp_path)
+        assert ok is False
+
+    def test_the_remaining_callbacks_only_log(self, video_processing_service, tmp_path, scripted):
+        scripted.script = (
+            lambda cb: cb.on_started(),
+            lambda cb: cb.on_error(RuntimeError("x"), "E1"),
+            lambda cb: cb.on_completed(False, "out", None),
+            lambda cb: cb.on_fatal_error(RuntimeError("y"), "ctx", {}),
+        )
+        ok, _ = _track(video_processing_service, tmp_path)
+        assert ok is False

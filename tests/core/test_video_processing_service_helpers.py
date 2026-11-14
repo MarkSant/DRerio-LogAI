@@ -372,3 +372,223 @@ def test_compose_analysis_view_metadata_merges_sources():
     assert result["group_display_name"] == "Custom"
     assert result["analysis_profile"] == "Profile"
     assert result["analysis_profile_tracks"] == [1, 2]
+
+
+# ---------------------------------------------------------------------------
+# ProgressNotifierMixin: what each callback and message carries (TASK-087)
+# ---------------------------------------------------------------------------
+
+
+class _RecordingBus:
+    def __init__(self):
+        self.events = []
+
+    def publish(self, event):
+        self.events.append(event)
+
+    def of(self, event_type):
+        return [e.data for e in self.events if e.type == event_type]
+
+
+def _notifier(*, bus=True, scheduler=None, entry=None):
+    import threading
+    from types import SimpleNamespace
+
+    project = SimpleNamespace(
+        find_video_entry=lambda **kw: entry,
+        derive_processing_metadata=lambda *a: {},
+    )
+    service = _make_service()
+    service.ui_event_bus = _RecordingBus() if bus else None
+    service.ui_coordinator = scheduler
+    service.cancel_event = threading.Event()
+    service.project_manager = project
+    return service
+
+
+class TestMakeProgressCallback:
+    def _callback(self, service, report=None):
+        return service._make_progress_callback(
+            index=2, total_videos=5, experiment_id="CECT_4", processing_report_callback=report
+        )
+
+    def test_a_cancelled_run_publishes_nothing(self):
+        service = _notifier()
+        service.cancel_event.set()
+
+        self._callback(service)(0.5, "step", "frame", {"fps": 1}, [(1, 2, 3, 4, 0.9, 1)])
+
+        assert service.ui_event_bus.events == []
+
+    def test_the_status_event_names_the_video_and_the_step(self):
+        service = _notifier()
+
+        self._callback(service)(0.5, "Detecting")
+
+        (status,) = service.ui_event_bus.of(UIEvents.UI_UPDATE_ANALYSIS_TASK_STATUS)
+        assert (status.index, status.total, status.experiment_id, status.step) == (
+            2,
+            5,
+            "CECT_4",
+            "Detecting",
+        )
+        # Nothing else without stats, detections or a frame.
+        assert len(service.ui_event_bus.events) == 1
+
+    def test_stats_are_published_only_when_there_are_some(self):
+        service = _notifier()
+        callback = self._callback(service)
+
+        callback(0.1, "a", stats={})
+        callback(0.2, "b", stats={"fps": 12.5})
+
+        stats = service.ui_event_bus.of(UIEvents.UI_UPDATE_PROCESSING_STATS)
+        assert [s.stats for s in stats] == [{"fps": 12.5}]
+
+    def test_detections_carry_the_report_and_the_roles(self):
+        service = _notifier()
+        detections = [(1, 2, 3, 4, 0.9, 7)]
+
+        self._callback(service, report=lambda: {"frames": 9})(
+            0.3, "x", detections=detections, class_roles={1: "subject"}
+        )
+
+        (overlay,) = service.ui_event_bus.of(UIEvents.UI_UPDATE_DETECTION_OVERLAY)
+        assert overlay.detections == detections
+        assert overlay.report == {"frames": 9}
+        assert overlay.class_roles == {1: "subject"}
+
+    def test_a_report_callback_that_raises_does_not_lose_the_overlay(self):
+        service = _notifier()
+
+        def broken():
+            raise RuntimeError("report not ready")
+
+        self._callback(service, report=broken)(0.3, "x", detections=[])
+
+        (overlay,) = service.ui_event_bus.of(UIEvents.UI_UPDATE_DETECTION_OVERLAY)
+        assert overlay.detections == []
+        assert overlay.report is None
+
+    def test_a_frame_is_displayed_with_its_detections_or_an_empty_list(self):
+        service = _notifier()
+        callback = self._callback(service)
+        frame = object()
+
+        callback(0.1, "a", frame=frame, detections=[(1, 2, 3, 4, 0.9, 7)])
+        callback(0.2, "b", frame=frame)
+        callback(0.3, "c", frame=None)
+
+        shown = service.ui_event_bus.of(UIEvents.UI_DISPLAY_FRAME)
+        assert [s.detections for s in shown] == [[(1, 2, 3, 4, 0.9, 7)], []]
+        assert all(s.frame is frame for s in shown)
+
+
+class TestNotifierHelpers:
+    def test_the_analysis_metadata_goes_through_the_scheduler_at_delay_zero(self):
+        class Scheduler:
+            def __init__(self):
+                self.delays = []
+                self.pending = []
+
+            def schedule_after(self, delay, fn):
+                self.delays.append(delay)
+                self.pending.append(fn)
+
+        scheduler = Scheduler()
+        service = _notifier(scheduler=scheduler)
+
+        service._schedule_analysis_metadata_update({"group": "G"})
+
+        # Deferred: nothing is published until the main thread runs it.
+        assert service.ui_event_bus.events == []
+        assert scheduler.delays == [0]
+        scheduler.pending[0]()
+        (payload,) = service.ui_event_bus.of(UIEvents.UI_UPDATE_ANALYSIS_METADATA)
+        assert payload.metadata == {"group": "G"}
+
+    def test_without_a_scheduler_the_metadata_is_published_directly(self):
+        service = _notifier(scheduler=None)
+        service._schedule_analysis_metadata_update({"group": "G"})
+        assert len(service.ui_event_bus.of(UIEvents.UI_UPDATE_ANALYSIS_METADATA)) == 1
+
+    def test_without_a_bus_metadata_and_task_status_are_dropped(self):
+        service = _notifier(bus=False)
+        service._schedule_analysis_metadata_update({"group": "G"})
+        service._notify_task_status_start(index=0, total=1, experiment_id="E")
+
+
+class TestComposeAnalysisViewMetadata:
+    def _compose(self, service, **kw):
+        defaults = {
+            "experiment_id": "E1",
+            "video_path": "/v.mp4",
+            "metadata_context": None,
+            "single_video_config": None,
+            "analysis_profile": None,
+        }
+        defaults.update(kw)
+        return service._compose_analysis_view_metadata(**defaults)
+
+    def test_without_any_source_only_the_experiment_id_is_known(self):
+        assert self._compose(_notifier()) == {"experiment_id": "E1"}
+
+    def test_the_entry_metadata_wins_over_its_top_level_keys(self):
+        entry = {
+            "metadata": {"group": "FromMeta", "extra": 1},
+            "group": "TopLevel",
+            "group_display_name": "Display",
+            "day": "",
+            "subject": None,
+        }
+        combined = self._compose(_notifier(entry=entry))
+        assert combined == {
+            "group": "FromMeta",
+            "extra": 1,
+            "group_display_name": "Display",
+            "experiment_id": "E1",
+        }
+
+    def test_the_context_overrides_but_skips_empty_values(self):
+        entry = {"metadata": {"group": "A", "day": 1}}
+        combined = self._compose(
+            _notifier(entry=entry),
+            metadata_context={"group": "B", "day": "", "subject": None, "age": 3},
+        )
+        assert combined == {"group": "B", "day": 1, "age": 3, "experiment_id": "E1"}
+
+    def test_a_single_video_config_only_fills_the_gaps(self):
+        combined = self._compose(
+            _notifier(entry={"metadata": {"group": "Kept"}}),
+            single_video_config={
+                "group_id": "Ignored",
+                "group_label": "Label",
+                "day_id": 4,
+                "animal": "A7",
+                "subject": "",
+            },
+        )
+        assert combined["group"] == "Kept"
+        assert combined["group_display_name"] == "Label"
+        assert combined["day"] == 4
+        assert combined["subject"] == "A7"
+
+    def test_the_experiment_id_never_overrides_one_already_known(self):
+        combined = self._compose(_notifier(), metadata_context={"experiment_id": "Given"})
+        assert combined["experiment_id"] == "Given"
+
+    def test_the_analysis_profile_adds_its_name_and_tracks(self):
+        combined = self._compose(
+            _notifier(), analysis_profile={"name": "Focal", "track_ids": (1, 2)}
+        )
+        assert combined["analysis_profile"] == "Focal"
+        assert combined["analysis_profile_tracks"] == [1, 2]
+
+    def test_an_empty_or_malformed_profile_adds_nothing(self):
+        service = _notifier()
+        assert self._compose(service, analysis_profile={"name": "", "track_ids": []}) == {
+            "experiment_id": "E1"
+        }
+        assert self._compose(service, analysis_profile=["not", "a", "dict"]) == {
+            "experiment_id": "E1"
+        }
