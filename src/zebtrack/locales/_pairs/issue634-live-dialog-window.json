@@ -1,0 +1,10 @@
+{
+  "_comment": "#634: compact analysis-window editor in the ad-hoc live dialog. Appended by hand to the .pot/.po (see docs/guides/developer/i18n.md); kept here for the next full regeneration.",
+
+  "Preset loaded. Review the lines.": "Predefinição carregada. Revise as linhas.",
+  "Analysis window set for this session.": "Janela de análise definida para esta sessão.",
+  "This analysis window waits for an Arduino code, but no Arduino is enabled for this session, so the code could never arrive.\n\nRemove the Arduino condition from the analysis window, or open a project with the Arduino enabled.": "Esta janela de análise espera um código do Arduino, mas nenhum Arduino está habilitado para esta sessão, então o código nunca chegaria.\n\nRemova a condição do Arduino da janela de análise ou abra um projeto com o Arduino habilitado.",
+  "This analysis window waits for an Arduino code, but the Arduino is not connected{port}.\n\nCheck the cable and whether another program holds the port, or remove the Arduino condition from the analysis window.": "Esta janela de análise espera um código do Arduino, mas o Arduino não está conectado{port}.\n\nVerifique o cabo e se outro programa está usando a porta, ou remova a condição do Arduino da janela de análise.",
+  "Invalid Analysis Window": "Janela de Análise Inválida",
+  "Analysis Window Not Allowed": "Janela de Análise Não Permitida"
+}

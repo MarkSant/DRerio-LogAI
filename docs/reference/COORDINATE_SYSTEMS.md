@@ -59,6 +59,24 @@ _(Note: The Y-axis is inverted to match standard Cartesian coordinates for scien
 
 ---
 
+### 3.2. Which Space Each Artifact and Report Path Uses
+
+Everything **recorded** is in Original Video Space; the report paths move it, and
+whatever an analysis compares must be moved **together**.
+
+| Artifact / path | Space | Notes |
+| --- | --- | --- |
+| `3_CoordMovimento` (`x1..y2`, centres) | Original video pixels | Never warped at record time (see `CLAUDE.md`, Parquet schema). |
+| `3b_Mascaras` (`mask_wkb`) | Original video pixels | Same space as `x1..y2`; joined to it by `(frame, track_id)`. |
+| `1_ProcessingArea`, `2_AreasOfInterest` | Original video pixels | |
+| Individual report (`_generate_standard_report`, per-aquarium report) | Arena-local pixels | df, ROIs **and masks** shifted by the arena bbox offset; masks via `mask_sidecar_in_local_space()`. |
+| Summaries (`_process_standard_summary_video`, multi-aquarium summary) | Warped space | Arena and ROIs warped by `_prepare_summary_geometry`; the `ReporterContext` receives the same `calibration` and warps the trajectory. |
+| Analysis window (`_resolve_window`) | Whatever pair it is handed | Its `local_offset` must be the offset of that pair, so the `3b` masks follow. |
+
+Mixing two of these spaces fails **silently**: before #640 the masks stayed raw
+next to a shifted ROI (0 s in a ROI the animal never left, no warning), and the
+single-aquarium summary measured a raw trajectory against a warped arena.
+
 ## 4. Multi-Aquarium Handling
 
 In multi-aquarium projects, each detected zone (Aquarium 0, Aquarium 1) maintains its own independent transformation matrix.

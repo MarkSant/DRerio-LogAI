@@ -14,9 +14,9 @@ to reduce the God Object pattern and improve maintainability.
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import structlog
 
@@ -448,6 +448,41 @@ class ZoneManager:
 
         zone_data = self.zone_data_from_dict(stored)
         return bool(zone_data.polygon or zone_data.roi_polygons)
+
+    @staticmethod
+    def roi_names_in_project(project_data: Mapping[str, Any]) -> list[str]:
+        """Every ROI name the project defines, in order of first appearance.
+
+        Reads the global zones (``detection_zones``), every video's own zones
+        (``zones_by_video``) and every aquarium of every multi-aquarium video
+        (``multi_aquarium_zones``). The global entry alone is not enough: a
+        pre-recorded project keeps its ROIs per video and no longer mirrors them
+        into ``detection_zones`` (:meth:`should_mirror_to_global`), so it would
+        report none. Read-only — unlike :meth:`ensure_zone_structures`, it never
+        adds keys — and malformed entries are skipped rather than raised.
+        """
+        entries: list[Any] = [project_data.get("detection_zones")]
+        for key in ("zones_by_video", "multi_aquarium_zones"):
+            stored = project_data.get(key)
+            if isinstance(stored, Mapping):
+                entries.extend(stored.values())
+
+        names: list[str] = []
+
+        def collect(entry: Any) -> None:
+            if not isinstance(entry, Mapping):
+                return
+            for raw in entry.get("roi_names") or ():
+                name = str(raw)
+                if name.strip() and name not in names:
+                    names.append(name)
+
+        for entry in entries:
+            collect(entry)
+            if isinstance(entry, Mapping):
+                for aquarium in entry.get("aquariums") or ():
+                    collect(aquarium)
+        return names
 
     @staticmethod
     def should_mirror_to_global(project_data: dict, target_video: Path | str | None) -> bool:

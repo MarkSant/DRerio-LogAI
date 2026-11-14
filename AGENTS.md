@@ -13,7 +13,8 @@
 
 ## What this project is
 
-Python 3.12 Tkinter app for zebrafish behavioral tracking and analysis using
+Python 3.12 Tkinter app for behavioral tracking and analysis (zebrafish, and since
+v8 any YOLO weight through class roles) using
 YOLO/OpenVINO. MVVM-S architecture with dependency injection. See
 [`CLAUDE.md`](CLAUDE.md) for the full guide.
 
@@ -34,6 +35,13 @@ YOLO/OpenVINO. MVVM-S architecture with dependency injection. See
    fixed.
 7. **Auto-approval**: `poetry`, `mypy`, `ruff`, `pytest`, `pre-commit`, and
    `powershell -Command` calls run with `SafeToAutoRun: true` without prompting.
+8. **Class roles and analysis time have single sources** (v8): what a class is
+   comes from `resolve_class_role_map()`, the analysis window from
+   `resolve_analysis_window()`, fps and duration from
+   `time_base.resolve_time_base()`. Never re-derive them at a call site, and
+   never use `settings.video_processing.fps` as the truth in a report. Details:
+   the "Papéis de classe" and "Janela de análise" sections of
+   [`CLAUDE.md`](CLAUDE.md).
 
 ## Where to look next
 

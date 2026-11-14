@@ -105,3 +105,92 @@ class TestLiveFinishRequested:
         gui.controller.live_camera_session_coordinator = None
 
         assert builder.handle_live_finish_requested(None) is None
+
+
+class TestSpeedCeilingInTheAdvancedTab:
+    """#695: the project's speed ceiling is edited in the Advanced Settings tab.
+
+    The project value lives in ``behavioral_config["max_plausible_speed_cm_s"]``;
+    without one the form shows ``settings.behavioral_analysis``. Saving into a
+    project never writes the project's ceiling into the SHARED ``Settings``,
+    which every other run (single video, live ad hoc) falls back to.
+    """
+
+    @staticmethod
+    def _settings(speed: float = 50.0):
+        from zebtrack.settings import load_settings
+
+        settings = load_settings()
+        settings.behavioral_analysis.max_plausible_speed_cm_s = speed
+        return settings
+
+    @staticmethod
+    def _project_gui(behavioral_config: dict | None) -> MagicMock:
+        gui = MagicMock()
+        gui._extract_setting.side_effect = lambda _obj, _path, default: default
+        project_manager = gui.controller.project_manager
+        project_manager.project_path = "C:/proj"
+        project_manager.project_data = (
+            {} if behavioral_config is None else {"behavioral_config": behavioral_config}
+        )
+        return gui
+
+    @staticmethod
+    def _form_behavioural(gui: MagicMock) -> dict:
+        values = gui.config_editor_widget.set_values.call_args.args[0]
+        return values["behavioral_analysis"]
+
+    def test_the_form_shows_the_project_ceiling(self):
+        gui = self._project_gui({"max_plausible_speed_cm_s": 120.0})
+        builder = AnalysisWidgetsBuilder(gui, MagicMock(), settings_obj=self._settings(50.0))
+
+        builder.reload_config_editor_values_widget()
+
+        assert self._form_behavioural(gui)["max_plausible_speed_cm_s"] == 120.0
+
+    def test_without_a_project_ceiling_the_form_shows_the_settings_one(self):
+        gui = self._project_gui({"thigmotaxis_distance_cm": 3.0})
+        builder = AnalysisWidgetsBuilder(gui, MagicMock(), settings_obj=self._settings(70.0))
+
+        builder.reload_config_editor_values_widget()
+
+        assert self._form_behavioural(gui)["max_plausible_speed_cm_s"] == 70.0
+
+    def _save(self, behavioral_config: dict, form_speed: float, shared_speed: float = 50.0):
+        shared = self._settings(shared_speed)
+        gui = self._project_gui(behavioral_config)
+        builder = AnalysisWidgetsBuilder(gui, MagicMock(), settings_obj=shared)
+        validated = shared.model_copy(deep=True)
+        validated.behavioral_analysis.max_plausible_speed_cm_s = form_speed
+        validated.behavioral_analysis.default_thigmotaxis_distance_cm = 15.0
+
+        builder._update_current_project_settings(validated)
+
+        return shared, gui.controller.project_manager
+
+    def test_saving_writes_the_ceiling_into_the_project(self):
+        _shared, project_manager = self._save({}, form_speed=110.0)
+
+        behavioural = project_manager.project_data["behavioral_config"]
+        assert behavioural["max_plausible_speed_cm_s"] == 110.0
+        project_manager.save_project.assert_called_once()
+
+    def test_saving_never_writes_the_project_ceiling_into_shared_settings(self):
+        shared, _pm = self._save({}, form_speed=110.0, shared_speed=50.0)
+
+        assert shared.behavioral_analysis.max_plausible_speed_cm_s == 50.0
+
+    def test_project_keys_use_the_project_names(self):
+        """``behavioral_config`` is read by ``thigmotaxis_distance_cm``, not the settings name."""
+        _shared, project_manager = self._save({}, form_speed=110.0)
+
+        behavioural = project_manager.project_data["behavioral_config"]
+        assert behavioural["thigmotaxis_distance_cm"] == 15.0
+        assert "default_thigmotaxis_distance_cm" not in behavioural
+
+    def test_keys_the_form_does_not_edit_are_kept(self):
+        _shared, project_manager = self._save(
+            {"geotaxis_enabled": True, "aquarium_perspective": "lateral"}, form_speed=60.0
+        )
+
+        assert project_manager.project_data["behavioral_config"]["geotaxis_enabled"] is True

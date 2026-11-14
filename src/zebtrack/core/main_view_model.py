@@ -421,10 +421,16 @@ class MainViewModel:
     def _arduino_event_target(self):
         """Escolhe qual coordinator recebe o evento do Arduino.
 
-        Precedência: quem tem sessão armada aguardando o gatilho vence. Isso é
-        avaliado na thread leitora (barato: só lê um campo), antes do
-        ``root.after`` — trocar o destino depois exigiria replicar a decisão
-        dentro do callback.
+        Precedência: o coordinator da grade vence enquanto for DONO dos códigos
+        (``owns_arduino_events``): sessão armada aguardando o 1, OU a sessão que
+        o 1 iniciou ainda rodando — é dela o 0 de fim de protocolo. Antes, só a
+        pendência contava; limpa pelo 1, o 0 ia para o legado e a sessão da
+        grade nunca parava. Isso é avaliado na thread leitora (barato: só lê
+        campos), antes do ``root.after`` — trocar o destino depois exigiria
+        replicar a decisão dentro do callback.
+
+        Códigos que a janela de análise espera (``External(arduino)``) nem
+        chegam aqui: o ``ArduinoManager`` os entrega ao motor de condições.
         """
         live_coordinator = getattr(self, "live_camera_session_coordinator", None)
         if live_coordinator is None:
@@ -432,7 +438,7 @@ class MainViewModel:
 
         if live_coordinator is not None and hasattr(live_coordinator, "on_arduino_event"):
             try:
-                if live_coordinator.has_pending_external_trigger():
+                if live_coordinator.owns_arduino_events():
                     return live_coordinator
             # except Exception justified: roda na thread leitora do Arduino; uma
             # falha na sondagem não pode derrubar a serial nem perder o evento —

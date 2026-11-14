@@ -28,6 +28,7 @@ from tkinter import (
 import structlog
 
 from zebtrack.i18n import _
+from zebtrack.ui.components.analysis_window_panel import describe_window_spec, load_window_spec
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ImportAction, ProjectType, WizardStepID
@@ -35,6 +36,7 @@ from zebtrack.ui.wizard.templates import (
     TemplateManager,
     format_template_banner,
     format_template_banner_details,
+    template_migration_note_text,
 )
 
 log = structlog.get_logger()
@@ -288,6 +290,9 @@ class ConfirmationStep(WizardStep):
         # Calibration
         self._append_calibration(lines)
 
+        # Analysis window (START/STOP conditions), e.g. from a converted v3 template
+        self._append_analysis_window(lines)
+
         # Processing plan and parquet/import summaries (pre-recorded only)
         if not is_live:
             self._append_processing_plan(lines)
@@ -325,7 +330,24 @@ class ConfirmationStep(WizardStep):
             lines.append(
                 _("  • Template version: {value}").format(value=metadata["schema_version"])
             )
+        for note in metadata.get("migration_notes") or ():
+            lines.append(f"  ⚠ {template_migration_note_text(note)}")
         lines.append("")
+
+    def _append_analysis_window(self, lines: list[str]) -> None:
+        """Describe the analysis window the project will be created with, if any."""
+        spec, corrupt = load_window_spec(self.wizard_data)
+        if spec is None and not corrupt:
+            return
+        lines.append("")
+        lines.append(_("🪟 Analysis Window:"))
+        if corrupt:
+            lines.append(
+                _("  ⚠ The analysis window could not be read; the whole recording will be used.")
+            )
+            return
+        for text in describe_window_spec(spec).splitlines():
+            lines.append(f"  • {text}")
 
     def _append_project_type(self, lines: list[str], project_type: str) -> None:
         lines.append(_("📋 Project Type:"))

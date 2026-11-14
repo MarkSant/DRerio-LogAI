@@ -33,6 +33,7 @@ import json
 import os
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -48,6 +49,45 @@ from tests.helpers.prerecorded_pipeline import (
 GOLDEN_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "golden"
 TRAJECTORY_GOLDEN = GOLDEN_DIR / "prerecorded_single_trajectory.csv"
 REPORT_GOLDEN = GOLDEN_DIR / "prerecorded_single_report.json"
+#: The 7.2 report, frozen before any v8 fix (ADR-013). Never re-recorded.
+REPORT_GOLDEN_V72 = GOLDEN_DIR / "prerecorded_single_report_v72.json"
+
+#: Marks a key that the 7.2 report did not have.
+ABSENT = "<absent>"
+
+#: Every value the v8 report is ALLOWED to differ from 7.2 on, as
+#: ``path -> (value in 7.2, value in v8)``. Anything not listed must be equal.
+#:
+#: Why ``Esquerda`` latency moves from ``None`` to ``0.0``: the fixture subject
+#: is born inside ``Esquerda`` (0.0-2.1 s), leaves for ``Direita`` and comes
+#: back at 11.4 s. The 7.2 latency used ``bool.diff()``, an XOR, so the first
+#: "change" it found was the EXIT at 2.1 s; the subject was outside there, and
+#: the result was ``None`` sitting next to an entry count of 1. ADR-011 rule:
+#: a subject already inside at t0 has latency 0 with ``present_at_start``,
+#: and only real outside->inside transitions after t0 are entries — so the
+#: count stays 1 (the return at 11.4 s), and the time in ROI is unchanged
+#: because t0 is still the first row. ``Direita`` (entered at 2.1 s) does not
+#: move. ``duracao_video_s`` stays 12.0: one track, every frame analysed — the
+#: only case where rows / fps happened to be right.
+EXPECTED_V8_CHANGES: dict[str, tuple[object, object]] = {
+    "analise_roi/latencia_primeira_entrada/Esquerda": (None, 0.0),
+    "analise_roi/por_animal/1/latencia_primeira_entrada/Esquerda": (None, 0.0),
+    # New English keys (the Portuguese ones are a persistence contract).
+    "analise_roi/por_animal/1/latency_censored/Direita": (ABSENT, False),
+    "analise_roi/por_animal/1/latency_censored/Esquerda": (ABSENT, False),
+    "analise_roi/por_animal/1/latency_present_at_start/Direita": (ABSENT, False),
+    "analise_roi/por_animal/1/latency_present_at_start/Esquerda": (ABSENT, True),
+    "latency_censored/Direita": (ABSENT, False),
+    "latency_censored/Esquerda": (ABSENT, False),
+    "latency_present_at_start/Direita": (ABSENT, False),
+    "latency_present_at_start/Esquerda": (ABSENT, True),
+    "analysis_window/status": (ABSENT, "none"),
+    # Recording length from the time base, next to the row count.
+    "validacao/estatisticas/duration_s": (ABSENT, 12.0),
+    # #632: the first row has no velocity. It used to enter the 90th-percentile
+    # burst threshold as a 0 cm/s sample; unknown is not zero. Bursts: still 0.
+    "comportamento_geral/rajadas_velocidade/threshold_cm_s": (28.71767409, 28.988636252),
+}
 
 #: Coordinates are integers in pixels and metrics are derived from them, so the
 #: only spread expected across machines is float formatting. Kept tight on
@@ -112,6 +152,47 @@ def test_analysis_report_matches_golden(outcome: PipelineOutcome) -> None:
 
     expected = json.loads(REPORT_GOLDEN.read_text(encoding="utf-8"))
     assert produced == expected
+
+
+def _flatten(value: object, prefix: str = "") -> dict[str, object]:
+    """Leaf values of a normalised report keyed by ``a/b/0/c`` paths.
+
+    Empty containers are leaves too, so a key that turns from ``{}`` into a
+    filled dict (or vice versa) still shows up as a difference.
+    """
+    if isinstance(value, dict) and value:
+        out: dict[str, object] = {}
+        for key, item in value.items():
+            out.update(_flatten(item, f"{prefix}{key}/"))
+        return out
+    if isinstance(value, list) and value:
+        out = {}
+        for position, item in enumerate(value):
+            out.update(_flatten(item, f"{prefix}{position}/"))
+        return out
+    return {prefix.rstrip("/"): value}
+
+
+@pytest.mark.integration
+def test_v8_report_differs_from_v72_only_where_declared(outcome: PipelineOutcome) -> None:
+    """The v8 report equals the frozen 7.2 report on EVERY key but the allowlist.
+
+    A deliberate fix that moves a number has to be listed in
+    ``EXPECTED_V8_CHANGES`` with both values, so the reviewer sees what moved
+    and the justification next to it. Anything else that moves is a regression.
+    """
+    v72 = _flatten(json.loads(REPORT_GOLDEN_V72.read_text(encoding="utf-8")))
+    v8 = _flatten(normalize_report(outcome.report))
+
+    unexpected = {
+        path: (v72.get(path, ABSENT), v8.get(path, ABSENT))
+        for path in sorted(set(v72) | set(v8))
+        if path not in EXPECTED_V8_CHANGES and v72.get(path, ABSENT) != v8.get(path, ABSENT)
+    }
+    assert unexpected == {}, "undeclared v7.2 -> v8 changes"
+
+    declared = {path: (v72.get(path, ABSENT), v8.get(path, ABSENT)) for path in EXPECTED_V8_CHANGES}
+    assert declared == EXPECTED_V8_CHANGES
 
 
 @pytest.mark.integration
@@ -214,3 +295,67 @@ def test_experiment_id_reaches_the_recorded_filenames(outcome: PipelineOutcome) 
     assert f"3_CoordMovimento_{EXPERIMENT_ID}.parquet" in produced
     assert f"1_ProcessingArea_{EXPERIMENT_ID}.parquet" in produced
     assert f"2_AreasOfInterest_{EXPERIMENT_ID}.parquet" in produced
+
+
+@pytest.mark.integration
+def test_bytetrack_is_built_with_the_video_fps_not_the_settings_one(tmp_path, monkeypatch) -> None:
+    """Issue #630: the worker hands ByteTrack the VIDEO's rate.
+
+    The fixture video runs at 10 fps while ``settings.video_processing.fps`` stays
+    at 30. The lost-track buffer is counted in frames, so building the tracker
+    with 30 kept a lost track alive 3x longer in real time than configured.
+    """
+    from tests.helpers.prerecorded_pipeline import FPS
+    from zebtrack.core.detection import single_detector as module
+
+    real_tracker = module.BYTETracker
+    frame_rates: list[float] = []
+
+    def spy(*args, **kwargs):
+        frame_rates.append(kwargs["frame_rate"])
+        return real_tracker(*args, **kwargs)
+
+    monkeypatch.setattr(module, "BYTETracker", spy)
+    settings = load_pristine_settings()
+    settings.video_processing.fps = 30
+    try:
+        run_prerecorded_pipeline(tmp_path, settings)
+    except RuntimeError as exc:
+        pytest.skip(f"Cannot build the golden fixture video: {exc}")
+
+    assert frame_rates, "the pipeline never built a ByteTrack"
+    assert frame_rates == pytest.approx([float(FPS)] * len(frame_rates))
+
+
+@pytest.mark.integration
+def test_bytetrack_ages_lost_tracks_on_the_video_pts(tmp_path, monkeypatch) -> None:
+    """Issue #654: every tracker update carries the frame's PTS.
+
+    With the PTS the lost-track lifetime is ``track_buffer / 30`` seconds of
+    VIDEO time, whatever ``analysis_interval_frames`` is; counting updates
+    multiplied the interval in twice. The fixture runs at 10 fps.
+    """
+    from tests.helpers.prerecorded_pipeline import FPS
+    from zebtrack.tracker.byte_tracker import BYTETracker
+
+    instants: list[float | None] = []
+    real_update = BYTETracker.update
+
+    def spy(self, *args, **kwargs):
+        instants.append(kwargs.get("frame_time_s"))
+        return real_update(self, *args, **kwargs)
+
+    monkeypatch.setattr(BYTETracker, "update", spy)
+    try:
+        outcome = run_prerecorded_pipeline(tmp_path, load_pristine_settings())
+    except RuntimeError as exc:
+        pytest.skip(f"Cannot build the golden fixture video: {exc}")
+
+    assert instants, "the pipeline never updated a ByteTrack"
+    assert None not in instants
+    clock = np.asarray(instants, dtype=float)
+    steps = np.diff(clock)
+    assert steps == pytest.approx(np.full(len(steps), 1.0 / FPS), abs=1e-3)
+    # The same clock the trajectory is written with.
+    recorded = outcome.trajectory["timestamp"].to_numpy(dtype=float)
+    assert set(np.round(recorded, 6)) <= set(np.round(clock, 6))

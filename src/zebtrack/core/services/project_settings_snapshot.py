@@ -219,7 +219,7 @@ def _apply_smoothing(snapshot: Any, params: dict[str, Any]) -> None:
 
 
 def _collect_behavioral_overrides(project_data: dict[str, Any]) -> dict[str, Any]:
-    """Thigmotaxis / geotaxis / perspective."""
+    """Thigmotaxis / geotaxis / perspective / plausible speed."""
     behavioral_config = project_data.get("behavioral_config")
     if not isinstance(behavioral_config, dict) or not behavioral_config:
         return {}
@@ -235,6 +235,7 @@ def _collect_behavioral_overrides(project_data: dict[str, Any]) -> dict[str, Any
         ("geotaxis_num_zones", "default_geotaxis_num_zones"),
         ("geotaxis_bottom_zones", "default_geotaxis_bottom_zones"),
         ("geotaxis_mode", "geotaxis_mode"),
+        ("max_plausible_speed_cm_s", "max_plausible_speed_cm_s"),
     ):
         if key in behavioral_config:
             changes[field] = behavioral_config[key]

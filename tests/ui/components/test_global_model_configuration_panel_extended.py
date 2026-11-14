@@ -10,7 +10,6 @@ from zebtrack.ui.components.global_model_configuration_panel import (
     _method_labels,
     _openvino_status_labels,
     _perspective_labels,
-    _strip_accents,
     _target_labels,
 )
 
@@ -39,12 +38,6 @@ class TestGlobalModelConfigurationPanelExtended:
         assert "failed" in statuses
         assert "not_converted" in statuses
 
-    def test_strip_accents(self):
-        assert _strip_accents("aquário") == "aquario"
-        assert _strip_accents("coração") == "coracao"
-        assert _strip_accents("TESTE") == "TESTE"
-        assert _strip_accents("") == ""
-
     def test_set_weight_refresh_callback(self):
         panel = object.__new__(GlobalModelConfigurationPanel)
         panel._refresh_weight_choices = None
@@ -52,20 +45,6 @@ class TestGlobalModelConfigurationPanelExtended:
         mock_cb = MagicMock()
         panel.set_weight_refresh_callback(mock_cb)
         assert panel._refresh_weight_choices is mock_cb
-
-
-class TestGlobalModelConfigurationPanelExtended6:
-    def test_strip_accents_folds_accents(self):
-        assert _strip_accents("aquário") == "aquario"
-        assert _strip_accents("configuração") == "configuracao"
-        assert _strip_accents("teste") == "teste"
-
-    def test_strip_accents_empty_string(self):
-        assert _strip_accents("") == ""
-        assert _strip_accents("   ") == "   "
-
-    def test_strip_accents_no_accents(self):
-        assert _strip_accents("zebrafish") == "zebrafish"
 
 
 class TestGlobalModelConfigurationPanelExtended7:

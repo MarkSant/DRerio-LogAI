@@ -49,10 +49,13 @@ trajectory_smoothing:
                 self.assertEqual(settings.yolo_model.path, "test.pt")
                 self.assertEqual(settings.recorder.flush_interval_seconds, 3.5)
                 self.assertEqual(settings.recorder.flush_row_threshold, 250)
-                # ByteTrack defaults: track_threshold=0.1 (very low to catch all),
-                # match_threshold=0.95 (strict)
-                self.assertAlmostEqual(settings.bytetrack.track_threshold, 0.1)
+                # No bytetrack section: the model's defaults, which are the shared
+                # constants config.yaml ships (#698). track_threshold used to be 0.1
+                # here against config.yaml's 0.25.
+                self.assertAlmostEqual(settings.bytetrack.track_threshold, 0.25)
                 self.assertAlmostEqual(settings.bytetrack.match_threshold, 0.95)
+                self.assertAlmostEqual(settings.bytetrack.max_center_distance, 400.0)
+                self.assertAlmostEqual(settings.bytetrack.iou_threshold, 0.05)
                 self.assertFalse(settings.tracking.use_single_subject_tracker)
                 # Check that default empty values are created
                 self.assertEqual(settings.detection_zones.polygon, [])
@@ -695,3 +698,115 @@ class TestConfigPathIsIndependentOfWorkingDirectory(unittest.TestCase):
         # A real parse of the tracked config.yaml, not a default-constructed model.
         self.assertIsInstance(settings, Settings)
         self.assertGreater(settings.camera.desired_width, 0)
+
+
+class TestV8ContextAndSidecarSettings(unittest.TestCase):
+    """Settings added by v8 (ADR-009/010/012) must be inert by default.
+
+    A 7.2 config.local.yaml has none of them; ``extra="forbid"`` must keep
+    accepting it, and the defaults must reproduce the legacy behaviour: the
+    context fields only act when a class-role map declares context classes.
+    """
+
+    def test_defaults_shipped_in_config_yaml(self):
+        settings = load_settings()
+
+        self.assertTrue(settings.recorder.persist_object_sidecar)
+        self.assertEqual(settings.model_selection.context_inference_scope, "arena_crop_margin")
+        self.assertEqual(settings.model_selection.context_crop_margin_frac, 0.15)
+        self.assertIsNone(settings.model_selection.context_min_confidence)
+
+    def test_model_defaults_match_config_yaml(self):
+        from zebtrack.settings import ModelSelectionSettings, RecorderSettings
+
+        self.assertTrue(RecorderSettings().persist_object_sidecar)
+        selection = ModelSelectionSettings()
+        self.assertEqual(selection.context_inference_scope, "arena_crop_margin")
+        self.assertEqual(selection.context_crop_margin_frac, 0.15)
+        self.assertIsNone(selection.context_min_confidence)
+
+    def test_invalid_values_are_rejected(self):
+        from pydantic import ValidationError
+
+        from zebtrack.settings import ModelSelectionSettings
+
+        for bad in (
+            {"context_inference_scope": "whole_image"},
+            {"context_crop_margin_frac": -0.1},
+            {"context_crop_margin_frac": 1.5},
+            {"context_min_confidence": 0.0},
+            {"context_min_confidence": 1.0},
+        ):
+            with self.assertRaises(ValidationError, msg=repr(bad)):
+                ModelSelectionSettings(**bad)
+
+    def test_a_72_section_without_the_new_keys_still_loads(self):
+        from zebtrack.settings import ModelSelectionSettings, RecorderSettings
+
+        legacy_selection = ModelSelectionSettings(
+            aquarium_method="seg", animal_method="det", use_openvino=False
+        )
+        legacy_recorder = RecorderSettings(flush_interval_seconds=5.0, persist_masks=False)
+
+        self.assertEqual(legacy_selection.context_inference_scope, "arena_crop_margin")
+        self.assertTrue(legacy_recorder.persist_object_sidecar)
+
+
+class TestTrackBufferHasOneDefault(unittest.TestCase):
+    """Issue #666: the model, ``config.yaml`` and the resolver share one default.
+
+    They used to disagree (300 in the model, 150 in ``config.yaml``, 60 in the
+    plugins, 90 in the diagnostics panel), so "the default" depended on which
+    code path asked.
+    """
+
+    def test_model_default_is_the_shared_constant(self):
+        from zebtrack.settings import DEFAULT_TRACK_BUFFER, ByteTrackSettings
+
+        self.assertEqual(ByteTrackSettings().track_buffer, DEFAULT_TRACK_BUFFER)
+
+    def test_config_yaml_ships_the_shared_constant(self):
+        import yaml
+
+        from zebtrack.settings import DEFAULT_TRACK_BUFFER
+
+        # The tracked file itself: config.local.yaml is a per-machine override.
+        config_path = Path(__file__).resolve().parents[1] / "config.yaml"
+        shipped = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        self.assertEqual(shipped["bytetrack"]["track_buffer"], DEFAULT_TRACK_BUFFER)
+
+
+class TestByteTrackThresholdsHaveOneDefault(unittest.TestCase):
+    """Issue #698: the model, ``config.yaml`` and the resolver share one default each.
+
+    ``match_threshold`` said 0.95 in ``config.yaml`` and 0.80 in the OpenVINO plugin,
+    DetectorService and the factory reset; ``max_center_distance`` / ``iou_threshold``
+    said 400 / 0.05 in ``config.yaml`` and 200 / 0.1 in the model, the wizard and the
+    factory reset.
+    """
+
+    FIELDS = (
+        ("track_threshold", "DEFAULT_TRACK_THRESHOLD"),
+        ("match_threshold", "DEFAULT_MATCH_THRESHOLD"),
+        ("max_center_distance", "DEFAULT_MAX_CENTER_DISTANCE"),
+        ("iou_threshold", "DEFAULT_IOU_THRESHOLD"),
+    )
+
+    def test_model_defaults_are_the_shared_constants(self):
+        import zebtrack.settings as settings_module
+
+        model = settings_module.ByteTrackSettings()
+        for field, constant in self.FIELDS:
+            with self.subTest(field=field):
+                self.assertEqual(getattr(model, field), getattr(settings_module, constant))
+
+    def test_config_yaml_ships_the_shared_constants(self):
+        import yaml
+
+        import zebtrack.settings as settings_module
+
+        config_path = Path(__file__).resolve().parents[1] / "config.yaml"
+        shipped = yaml.safe_load(config_path.read_text(encoding="utf-8"))["bytetrack"]
+        for field, constant in self.FIELDS:
+            with self.subTest(field=field):
+                self.assertEqual(shipped[field], getattr(settings_module, constant))

@@ -160,6 +160,35 @@ def test_start_single_aquarium_for_sequential(mock_worker_class, coordinator):
     coordinator.detector_service.configure_zones.assert_called_once()
 
 
+@patch("zebtrack.core.video.processing_worker.ProcessingWorker")
+def test_sequential_aquarium_ships_the_project_weight(mock_worker_class, coordinator, tmp_path):
+    """Each sequential pass runs a worker too: it must load the PROJECT's weight."""
+    rat = tmp_path / "best_det_topdown_rat_v1.pt"
+    rat.write_bytes(b"rat")
+    weight_manager = coordinator.detector_service.weight_manager
+    weight_manager.weights = {rat.name: {"path": str(rat), "type": "det"}}
+    weight_manager.get_weight_sha256.return_value = "b" * 64
+    coordinator.project_manager.project_data = {
+        "model_selection": {"animal_method": "det"},
+        "model_overrides": {"slot_weights": {"det:zebrafish": rat.name}},
+        "use_openvino": False,
+    }
+    coordinator.project_manager.resolve_results_directory.return_value = "res_dir"
+    zone_data = MagicMock(video_width=100, video_height=100)
+    zone_data.to_zone_data.return_value = MagicMock(
+        polygon=[], roi_polygons=[], roi_names=[], roi_colors=[], metadata={}
+    )
+    aquarium = MagicMock(id=0, polygon=[])
+    ctx = {"video_path": "test.mp4", "multi_zone_data": zone_data, "current_index": 0}
+
+    with patch("cv2.VideoCapture"):
+        coordinator._start_single_aquarium_for_sequential(aquarium, ctx)
+
+    context = mock_worker_class.call_args.kwargs["context"]
+    assert context.model_spec.model_path == str(rat)
+    assert context.model_spec.weight_sha256 == "b" * 64
+
+
 def test_register_sequential_aquarium_output_success(coordinator):
     mock_entry: dict[str, Any] = {"existing": "data"}
     coordinator.project_manager.find_video_entry.return_value = mock_entry

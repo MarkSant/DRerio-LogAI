@@ -570,6 +570,7 @@ class ProjectInitializer:
             gui.root,
             settings_obj=gui.controller.settings,
             event_bus=gui.event_bus,
+            model_service=getattr(gui.controller, "model_service", None),
         )
         if not wizard.result:
             return  # User cancelled

@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "start": {
+    "kind": "persist",
+    "level": {
+      "kind": "all_of_level",
+      "children": [
+        {"kind": "class_presence", "target": {"class": "start_box"}, "present": false},
+        {"kind": "class_presence", "target": {"class": "experimenter"}, "present": false},
+        {"kind": "class_presence", "target": {"class": "rat"}, "present": true}
+      ]
+    },
+    "hold": {"frames": 3}
+  },
+  "stop": {
+    "kind": "first_of",
+    "children": [
+      {"kind": "end_of_stream"},
+      {
+        "kind": "persist",
+        "level": {"kind": "class_presence", "target": {"class": "rat"}, "present": false},
+        "hold": {"seconds": 2.0}
+      },
+      {"kind": "delay", "after": "start", "seconds": 240.0}
+    ]
+  },
+  "on_start_not_met": "whole_recording",
+  "on_stop": "mark"
+}

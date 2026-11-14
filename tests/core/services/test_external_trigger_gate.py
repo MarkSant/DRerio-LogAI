@@ -142,3 +142,90 @@ class TestPortNormalization:
         """O gate deve ARMAR normalmente, não explodir, com porta numérica."""
         data = {"external_trigger_mode": True, "use_arduino": True, "arduino_port": 3}
         assert decide_external_trigger(data) is ExternalTriggerDecision.ARM_AND_WAIT
+
+
+# ---------------------------------------------------------------------------
+# v8 (ADR-011): an analysis window that waits for the Arduino
+# ---------------------------------------------------------------------------
+
+
+def _window(spec) -> dict:
+    return spec.model_dump(mode="json", by_alias=True)
+
+
+def _arduino_window() -> dict:
+    from zebtrack.core.conditions.presets import external_trigger_preset
+
+    return _window(external_trigger_preset())
+
+
+class TestAnalysisWindowWaitingForArduino:
+    """The ADR-011 table: the window records everything and the code becomes an
+    engine event — the gate must never ARM (that would wait to RECORD)."""
+
+    def test_window_with_ready_arduino_records_now(self):
+        data = {"use_arduino": True, "analysis_window": _arduino_window()}
+        manager = SimpleNamespace(is_connected=lambda: True)
+        assert decide_external_trigger(data, manager) is ExternalTriggerDecision.PROCEED
+
+    def test_window_without_use_arduino_is_rejected(self):
+        data = {"use_arduino": False, "analysis_window": _arduino_window()}
+        assert decide_external_trigger(data) is ExternalTriggerDecision.REJECT_NO_ARDUINO
+
+    def test_window_with_offline_port_is_rejected(self):
+        data = {"use_arduino": True, "analysis_window": _arduino_window()}
+        manager = SimpleNamespace(is_connected=lambda: False)
+        assert (
+            decide_external_trigger(data, manager) is ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE
+        )
+
+    def test_legacy_trigger_and_arduino_window_together_are_invalid(self):
+        """A converted v3 template turns the legacy flag off; re-ticking it is this."""
+        data = {
+            "external_trigger_mode": True,
+            "use_arduino": True,
+            "analysis_window": _arduino_window(),
+        }
+        manager = SimpleNamespace(is_connected=lambda: True)
+        assert (
+            decide_external_trigger(data, manager)
+            is ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS
+        )
+
+    def test_conflict_is_reported_before_the_missing_arduino(self):
+        data = {"external_trigger_mode": True, "analysis_window": _arduino_window()}
+        assert decide_external_trigger(data) is ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS
+
+    def test_legacy_trigger_with_a_window_that_ignores_the_arduino_still_arms(self):
+        from zebtrack.core.conditions.presets import barnes_maze_preset
+
+        data = {
+            "external_trigger_mode": True,
+            "use_arduino": True,
+            "analysis_window": _window(barnes_maze_preset()),
+        }
+        assert decide_external_trigger(data) is ExternalTriggerDecision.ARM_AND_WAIT
+
+    def test_window_without_arduino_nodes_needs_no_arduino(self):
+        from zebtrack.core.conditions.presets import barnes_maze_preset
+
+        data = {"use_arduino": False, "analysis_window": _window(barnes_maze_preset())}
+        assert decide_external_trigger(data) is ExternalTriggerDecision.PROCEED
+
+    def test_manual_window_needs_no_arduino(self):
+        from zebtrack.core.conditions import External, WindowSpec
+
+        data = {"analysis_window": _window(WindowSpec(start=External(source="manual")))}
+        assert decide_external_trigger(data) is ExternalTriggerDecision.PROCEED
+
+    def test_arduino_node_nested_in_stop_counts(self):
+        from zebtrack.core.conditions import EndOfStream, External, FirstOf, WindowSpec
+
+        spec = WindowSpec(stop=FirstOf(children=(EndOfStream(), External(source="arduino"))))
+        data = {"use_arduino": False, "analysis_window": _window(spec)}
+        assert decide_external_trigger(data) is ExternalTriggerDecision.REJECT_NO_ARDUINO
+
+    @pytest.mark.parametrize("raw", [None, {}, "text", {"start": {"kind": "bogus"}}])
+    def test_absent_or_invalid_window_is_ignored(self, raw):
+        data = {"use_arduino": False, "analysis_window": raw}
+        assert decide_external_trigger(data) is ExternalTriggerDecision.PROCEED

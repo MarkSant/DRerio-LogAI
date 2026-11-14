@@ -136,3 +136,23 @@ def test_metrics_cache_clears_legacy_pkl_files(tmp_path):
     cleared = cache.clear_cache()
     assert cleared == 2
     assert len(list(cache.cache_dir.iterdir())) == 0
+
+
+def test_metrics_cache_key_includes_the_analysis_window(tmp_path):
+    """Metrics of a window are cached apart from the recording's (ADR-011)."""
+    parquet_path = _dummy_parquet(tmp_path, "traj.parquet")
+    cache = MetricsCache(tmp_path / "cache")
+    calibration = {"pixelcm_x": 10.0}
+
+    legacy = cache._cache_key(parquet_path, calibration, 5, 2)
+    windowed = cache._cache_key(parquet_path, calibration, 5, 2, "sha256:a|window|1-4")
+    other = cache._cache_key(parquet_path, calibration, 5, 2, "sha256:a|window|1-5")
+
+    assert legacy == cache._cache_key(parquet_path, calibration, 5, 2, None)
+    assert "_w" not in legacy
+    assert len({legacy, windowed, other}) == 3
+
+    cache.save_base_metrics(parquet_path, calibration, 5, 2, {"d": 1.0}, window_key="k1")
+    assert cache.get_base_metrics(parquet_path, calibration, 5, 2) is None
+    assert cache.get_base_metrics(parquet_path, calibration, 5, 2, window_key="k2") is None
+    assert cache.get_base_metrics(parquet_path, calibration, 5, 2, window_key="k1") == {"d": 1.0}

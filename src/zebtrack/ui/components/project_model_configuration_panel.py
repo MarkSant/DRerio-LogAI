@@ -8,6 +8,12 @@ import structlog
 
 from zebtrack.core.exceptions import ZebTrackError
 from zebtrack.i18n import _
+from zebtrack.ui.components.class_roles_panel import (
+    ClassRolesEditor,
+    ClassRolesPanel,
+    ClassRolesScope,
+    model_service_names_loader,
+)
 from zebtrack.ui.wizard.tooltip import ToolTip
 
 log = structlog.get_logger()
@@ -47,6 +53,9 @@ class ProjectModelConfigurationPanel(ttk.Frame):
         self.slot_weight_dropdowns: dict[str, ttk.Combobox] = {}
         self.project_slots: list[dict[str, str | None]] = []
         self.slot_controls_frame: ttk.LabelFrame | None = None
+        #: Class-role editor of the project's effective weight (ADR-009);
+        #: ``None`` without a project or without a model service.
+        self.class_roles_panel: ClassRolesPanel | None = None
         #: Which of the two mutually exclusive layouts is currently on screen.
         #: The panel is built once, with the notebook — which the single-video
         #: flow creates BEFORE any project exists — so this is almost always
@@ -85,12 +94,22 @@ class ProjectModelConfigurationPanel(ttk.Frame):
         self.project_slots = self._get_project_slots()
         self._refresh_slot_dropdown_values()
         self._restore_project_preferences()
+        self._refresh_class_roles()
+
+    def _refresh_class_roles(self) -> None:
+        """Re-read the effective weight: a slot override may have changed it."""
+        panel = self.class_roles_panel
+        if panel is None or not panel.is_alive():
+            return
+        panel.editor.project_manager = self.project_manager
+        panel.refresh()
 
     def _rebuild(self) -> None:
         """Tear the current layout down and build the one matching the scope."""
         for child in self.winfo_children():
             child.destroy()
         self.slot_controls_frame = None
+        self.class_roles_panel = None
         self.slot_weight_dropdowns = {}
         self.project_slots = []
         self._built_with_project = bool(self.scope_info.get("project_loaded"))
@@ -239,6 +258,8 @@ class ProjectModelConfigurationPanel(ttk.Frame):
             ),
         ).pack(anchor="w", pady=(4, 0))
 
+        self._build_class_roles_section()
+
         actions = ttk.Frame(self)
         actions.grid(row=6, column=0, columnspan=2, sticky="e", padx=12, pady=(10, 12))
         ttk.Button(
@@ -258,6 +279,46 @@ class ProjectModelConfigurationPanel(ttk.Frame):
         ).pack(side="left")
 
         self._restore_project_preferences()
+
+    def _build_class_roles_section(self) -> None:
+        """Class roles of the project's EFFECTIVE weight, beside the slot controls.
+
+        Saved in ``model_overrides.class_roles`` with the sha256 of that weight,
+        so the map is ignored — and flagged here — as soon as the weight file
+        changes. Lives in its own column: the left one is already as tall as
+        the tab.
+        """
+        model_service = getattr(self.controller, "model_service", None)
+        weight_manager = getattr(self.controller, "weight_manager", None)
+        if model_service is None or weight_manager is None:
+            return
+        frame = ttk.LabelFrame(self, text=_("Class roles of the project's weight"), padding=8)
+        frame.grid(row=2, column=2, rowspan=4, padx=(0, 12), pady=(0, 4), sticky="nsew")
+        ttk.Label(
+            frame,
+            text=_(
+                "What each class of the weight in use is. Only the subject is tracked; "
+                "context classes are observed (e.g. to start or stop the analysis)."
+            ),
+            wraplength=380,
+            justify="left",
+            foreground="#555555",
+        ).pack(anchor="w", pady=(0, 6))
+        editor = ClassRolesEditor(
+            scope=ClassRolesScope.PROJECT,
+            weight_manager=weight_manager,
+            project_manager=self.project_manager,
+            settings_obj=getattr(self.controller, "settings", None),
+            event_bus=getattr(self.controller, "ui_event_bus", None),
+        )
+        self.class_roles_panel = ClassRolesPanel(
+            frame,
+            editor=editor,
+            names_loader=model_service_names_loader(model_service),
+            tree_height=8,
+            wraplength=380,
+        )
+        self.class_roles_panel.pack(fill="both", expand=True)
 
     @classmethod
     def _slot_key(cls, method: str, target: str) -> str:
@@ -450,6 +511,7 @@ class ProjectModelConfigurationPanel(ttk.Frame):
         )
         self._restore_project_preferences()
         self._refresh_related_project_panels()
+        self._refresh_class_roles()
 
     def _copy_globals_to_project(self) -> None:
         if not self.scope_info.get("project_loaded"):
@@ -458,6 +520,7 @@ class ProjectModelConfigurationPanel(ttk.Frame):
         self.controller.project_vm.handle_calibration_copy_to_project()
         self._restore_project_preferences()
         self._refresh_related_project_panels()
+        self._refresh_class_roles()
         messagebox.showinfo(
             _("Project updated"),
             _("The current global settings have been copied into this project."),

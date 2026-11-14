@@ -240,3 +240,54 @@ def test_clear_placeholder_logo_drops_tag_and_reference():
 
     canvas.delete.assert_called_once_with(CanvasRenderer.PLACEHOLDER_TAG)
     assert renderer.manager._canvas_placeholder_image is None
+
+
+def _overlay_renderer():
+    canvas = Mock()
+    canvas.winfo_exists.return_value = True
+    renderer = _make_renderer(
+        gui_overrides={
+            "video_display": SimpleNamespace(canvas=canvas),
+            "analysis_active": False,
+            "notebook": None,
+        },
+        manager_overrides={"_video_to_canvas": lambda x, y: (x, y)},
+    )
+    return renderer, canvas
+
+
+def _drawn(canvas):
+    rects = [c.kwargs["outline"] for c in canvas.create_rectangle.call_args_list]
+    texts = [(c.kwargs["text"], c.kwargs["fill"]) for c in canvas.create_text.call_args_list]
+    return rects, texts
+
+
+def test_update_overlay_legacy_colours_without_a_role_map():
+    renderer, canvas = _overlay_renderer()
+
+    renderer.update_overlay([(0, 0, 9, 9, 0.9, 1, 0), (1, 1, 5, 5, 0.8, 2, 1)])
+
+    assert _drawn(canvas) == (["yellow", "cyan"], [("ID: 1", "yellow"), ("ID: 2", "cyan")])
+
+
+def test_update_overlay_single_subject_label_is_translatable_target():
+    renderer, canvas = _overlay_renderer()
+
+    renderer.update_overlay([(1, 1, 5, 5, 0.8, 2, 1)], is_single_subject=True)
+
+    assert _drawn(canvas) == (["magenta"], [("Target", "magenta")])
+
+
+def test_update_overlay_colours_by_role_with_an_explicit_map():
+    renderer, canvas = _overlay_renderer()
+
+    renderer.update_overlay(
+        [(0, 0, 9, 9, 0.9, 7, 0), (1, 1, 5, 5, 0.8, None, 1), (2, 2, 4, 4, 0.7, None, 2)],
+        class_roles={0: "subject", 1: "context", 2: "arena"},
+        class_names={1: "experimenter"},
+    )
+
+    assert _drawn(canvas) == (
+        ["cyan", "orange", "yellow"],
+        [("ID: 7", "cyan"), ("experimenter", "orange"), ("Arena", "yellow")],
+    )

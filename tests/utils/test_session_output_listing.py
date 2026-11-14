@@ -104,3 +104,46 @@ class TestDescriptions:
     def test_unknown_file_degrades_to_its_bare_name(self):
         """Listing something unlabelled beats hiding it from the researcher."""
         assert describe_session_output(Path("something_new.bin")) == "something_new.bin"
+
+
+class TestV8Outputs:
+    """``3c_Objetos_`` (ADR-010) and ``7_AnalysisWindow_`` (ADR-011)."""
+
+    def test_object_sidecar_is_labelled(self):
+        assert describe_session_output(Path("3c_Objetos_cam.parquet")) == (
+            "3c_Objetos_cam.parquet (detected objects per frame)"
+        )
+
+    def test_analysis_window_artifact_is_labelled(self):
+        assert describe_session_output(Path("7_AnalysisWindow_cam.json")) == (
+            "7_AnalysisWindow_cam.json (analysis window)"
+        )
+
+    def test_object_sidecar_is_not_taken_for_the_trajectory(self):
+        assert "trajectory" not in describe_session_output(Path("3c_Objetos_cam.parquet"))
+
+    def test_new_outputs_sit_in_pipeline_order(self, tmp_path):
+        folder = _make_session(
+            tmp_path,
+            [*_FULL_SESSION, "3c_Objetos_cam.parquet", "7_AnalysisWindow_cam.json"],
+        )
+
+        names = [p.name for p in list_session_outputs(folder)]
+
+        assert names.index("3b_Mascaras_cam.parquet") < names.index("3c_Objetos_cam.parquet")
+        assert names.index("3c_Objetos_cam.parquet") < names.index("4_Relatorio_exp.docx")
+        assert names.index("6_FrameLedger_cam_anchor.json") < names.index(
+            "7_AnalysisWindow_cam.json"
+        )
+        assert names.index("7_AnalysisWindow_cam.json") < names.index("cam.mp4")
+
+    def test_labels_follow_the_interface_language(self, monkeypatch):
+        """Labels are UI text, resolved at call time through ``_()``."""
+        from zebtrack.utils import report_files
+
+        monkeypatch.setattr(report_files, "_", lambda text: f"<{text}>")
+
+        assert describe_session_output(Path("3c_Objetos_cam.parquet")) == (
+            "3c_Objetos_cam.parquet (<detected objects per frame>)"
+        )
+        assert describe_session_output(Path("cam.mp4")) == "cam.mp4 (<recorded video>)"

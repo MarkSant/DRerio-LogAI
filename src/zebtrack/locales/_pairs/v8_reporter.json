@@ -1,0 +1,14 @@
+{
+  "_domain": "reporter",
+  "_comment": "v8.0.0 (F7): the 'Analysis Window' section of the Word report (F4b). Genuine translations, not relocated literals. START/STOP are rendered as INÍCIO/FIM, the same words the analysis window editor uses.",
+  "Analysis Window": "Janela de Análise",
+  "The metrics in this report cover only the analysis window, from START ({start_s:.2f} s, frame {start_frame}) to STOP ({stop_s:.2f} s, frame {stop_frame}): {duration:.2f} s. Rates and percentages use this duration; ROI latencies are measured from START. Times in the event log and in the plots are relative to START.": "As métricas deste relatório cobrem apenas a janela de análise, do INÍCIO ({start_s:.2f} s, frame {start_frame}) ao FIM ({stop_s:.2f} s, frame {stop_frame}): {duration:.2f} s. Taxas e percentuais usam essa duração; as latências de ROI são medidas a partir do INÍCIO. Os tempos do log de eventos e dos gráficos são relativos ao INÍCIO.",
+  "The analysis window never started and its rule asks for empty metrics in that case: the window metrics of this report are empty.": "A janela de análise nunca começou e a regra dela pede métricas vazias nesse caso: as métricas da janela neste relatório estão vazias.",
+  "The analysis window could not be applied (status: {status}); the metrics cover the whole recording.": "Não foi possível aplicar a janela de análise (status: {status}); as métricas cobrem a gravação inteira.",
+  "Window status: {status}": "Status da janela: {status}",
+  "Window end reason: {reason}": "Motivo do fim da janela: {reason}",
+  "The STOP condition was not met before the recording ended; the window was closed at the end of the recording (censored).": "A condição de FIM não ocorreu antes de a gravação terminar; a janela foi fechada no fim da gravação (censurada).",
+  "Rule ({spec_hash}): START = {start}; STOP = {stop}": "Regra ({spec_hash}): INÍCIO = {start}; FIM = {stop}",
+  "Clock: {clock}": "Relógio: {clock}",
+  "Time from START (s)": "Tempo desde o INÍCIO (s)"
+}

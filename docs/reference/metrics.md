@@ -1,7 +1,7 @@
-# Zebrafish Behavioral Metrics & Definitions
+# Behavioral Metrics & Definitions
 
 **Status:** Canonical Reference
-**Last Updated:** June 2026
+**Last Updated:** November 2026 (v8.0.0)
 **Category:** Reference (Diátaxis)
 
 ## 1. Locomotor Metrics
@@ -146,10 +146,12 @@ For each user-defined ROI (named polygon), the following per-ROI columns are gen
 | Column Pattern | Description |
 | --- | --- |
 | `time_in_{roi}_s` | Cumulative time inside ROI (seconds) |
-| `time_percentage_in_{roi}` | Percentage of total recording time |
+| `time_percentage_in_{roi}` | Percentage of observed time (inside the analysis window when there is one, §7) |
 | `entries_in_{roi}` | Number of entries into ROI |
 | `exits_from_{roi}` | Number of exits from ROI |
-| `latency_to_{roi}_s` | Time to first entry (seconds) |
+| `latency_to_{roi}_s` | Time to the first outside→inside transition, from the first row or from START (§7.3) |
+| `latency_censored_{roi}` | `True` when the latency is the window-duration ceiling (never entered) |
+| `latency_present_at_start_{roi}` | `True` when the subject was already inside at START (latency `0.0`) |
 | `distance_in_{roi}_cm` | Distance traveled inside ROI |
 | `mean_speed_in_{roi}_cm_s` | Mean speed inside ROI |
 | `freezing_count_in_{roi}` | Number of freezing episodes inside ROI |
@@ -172,7 +174,7 @@ When processing multiple subjects in the same video:
 
 ## 3. Geotaxis (Dive Response)
 
-For lateral-view aquariums (`aquarium_perspective: lateral`), geotaxis analysis measures vertical position preference.
+For lateral-view aquariums (`aquarium_perspective: lateral`), geotaxis analysis measures vertical position preference. It is a zebrafish measure (dive response); on a top-down recording of rodents set the perspective to top-down, since the default is still lateral.
 
 - **Zones:** 1-indexed in reports: "Zona 1 - Fundo" (Bottom), "Zona 2" (Middle), etc.
 - **Avg Bottom Distance (`geotaxis_avg_bottom_distance_cm`):** Mean distance from tank bottom.
@@ -217,8 +219,83 @@ For lateral-view aquariums (`aquarium_perspective: lateral`), geotaxis analysis 
 | `day` | Experimental day |
 | `subject` | Subject identifier |
 | `aquarium_id` | Aquarium number (multi-aquarium mode) |
-| `video_duration_s` | Total video duration in seconds (added v4.0) |
-| `total_frames_analyzed` | Number of frames processed (added v4.0) |
+| `video_duration_s` | Recording duration from timestamps, `(t_last − t_first) + median_dt` (v8; was rows / fps) |
+| `total_frames_analyzed` | Number of rows analysed (inside the window when there is one) |
+| `window_status`, `window_start_s`, `window_stop_s`, `window_duration_s`, `window_reason` | Analysis window (v8, §7); empty without one |
+
+## 7. Time Base and Analysis Window (v8)
+
+### 7.1. Time base
+
+Every time-based metric uses the recording's own clock, resolved by
+`analysis/time_base.resolve_time_base()`: the `3c_Objetos_` heartbeat, then the
+live frame ledger, then the trajectory's unique timestamps (PTS). The configured
+`video_processing.fps` is only the last resort, and when it is used the report
+carries a warning. Live sessions are re-dated by the capture instant
+(`retime_from_ledger`) before any metric is computed.
+
+- `video_duration_s` (`duracao_video_s`) = `(t_last − t_first) + median_dt` over
+  the unique timestamps. Before v8 it was `rows / fps`, which doubled with two
+  tracks and divided by N when processing every N-th frame.
+- `validacao.estatisticas.duration_s` sits next to `total_frames` (which stays a
+  row count).
+
+### 7.2. Analysis window
+
+With `project_data["analysis_window"]` set, the metrics read only
+**[START, STOP]**. The cut is hybrid: validation, smoothing, velocity and ROI
+presence (with its debounce) run on the WHOLE recording, so the first sample
+inside the window keeps its real neighbour; only then do the metrics read the
+window, with the absolute time index preserved.
+
+| Quantity | With a window |
+| --- | --- |
+| Denominator of rates and percentages (sharp turns per minute, inactivity %, `percentage_of_recording`) | `STOP − START` (`window_duration_s`) |
+| ROI time percentage | observed time inside the window (sum of capped `dt`), clipped to [START, STOP]; the row that straddles START is credited only with its part after START |
+| `latency_to_{roi}_s` | measured from START |
+| Entries / exits | only real transitions after START |
+| Freezing episode cut by START or STOP | truncated at the edge; `freezing_min_duration_s` applies to what remains |
+| `total_frames_analyzed` | rows inside the window |
+| Time axes of plots and the `.docx` event log | start at START; the event log keeps the absolute time and adds a column relative to START |
+
+**START never met.** `on_start_not_met = "whole_recording"` (default) analyses the
+whole recording and adds a warning to the report and the `.xlsx`; `"empty"` leaves
+the window metrics empty.
+
+**STOP never met.** The window closes at the end of the recording with
+`censored = True` (reason `end_of_stream`).
+
+### 7.3. Latency flags
+
+Each ROI latency carries two booleans, in the report (`latency_censored`,
+`latency_present_at_start`, `{roi: bool}`, also per animal under
+`analise_roi.por_animal`) and in the `.xlsx` (`latency_censored_<roi>`,
+`latency_present_at_start_<roi>`):
+
+- **Present at start** — the subject is already inside the ROI at START (or at the
+  first row without a window): latency `0.0`, flag `True`. The entry count does
+  not count this as an entry. Before v8, `bool.diff()` (an XOR) took the first
+  EXIT for the first entry and the latency came out `None` next to 1 entry.
+- **Censored** — the subject never enters the ROI inside the window: latency =
+  the window duration (e.g. 240 s on Barnes), flag `True`. This is a ceiling, not a
+  measurement; analyse it as right-censored (e.g. survival methods), never as an
+  observed latency. Without a window a never-entered ROI keeps latency `None`.
+
+### 7.4. Summary columns
+
+The `.xlsx` always has `window_status`, `window_start_s`, `window_stop_s`,
+`window_duration_s` and `window_reason` (empty without a window), and the per-ROI
+latency flags, all appended at the END so no existing column moves. The report
+dict always has `analysis_window` (`{"status": "none"}` without a window), so the
+unified report never sees a schema mismatch between projects with and without a
+window.
+
+### 7.5. Known limitations
+
+- Freezing uses `fillna(0)` on the first velocity sample (row 0 can look frozen)
+  and its blocks span tracking gaps.
+- Total distance sums the jump across a tracking gap.
+- Multi-aquarium live sessions have no analysis window in v8.
 
 ---
 

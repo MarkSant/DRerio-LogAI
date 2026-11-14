@@ -212,6 +212,7 @@ def test_get_values_includes_behavioral_analysis(config_widget):
         "geotaxis_bottom_zones": 1,
         "aquarium_perspective": "top",
         "geotaxis_mode": "zones",
+        "max_plausible_speed_cm_s": 120.0,
     }
 
     values = config_widget.get_values()
@@ -222,6 +223,7 @@ def test_get_values_includes_behavioral_analysis(config_widget):
     assert values["behavioral_analysis"]["default_geotaxis_bottom_zones"] == 1
     assert values["behavioral_analysis"]["aquarium_perspective"] == "top"
     assert values["behavioral_analysis"]["geotaxis_mode"] == "zones"
+    assert values["behavioral_analysis"]["max_plausible_speed_cm_s"] == 120.0
 
 
 def test_set_values_behavioral_analysis_mapping(config_widget):
@@ -237,6 +239,7 @@ def test_set_values_behavioral_analysis_mapping(config_widget):
                 "default_geotaxis_bottom_zones": 2,
                 "aquarium_perspective": "lateral",
                 "geotaxis_mode": "lines",
+                "max_plausible_speed_cm_s": 90.0,
             }
         }
     )
@@ -249,6 +252,7 @@ def test_set_values_behavioral_analysis_mapping(config_widget):
             "geotaxis_bottom_zones": 2,
             "aquarium_perspective": "lateral",
             "geotaxis_mode": "lines",
+            "max_plausible_speed_cm_s": 90.0,
             "geotaxis_enabled": True,
         }
     )
@@ -391,7 +395,35 @@ class TestSaveClickSurfacesFailures:
 
         assert len(errors) == 1
         assert not saves
-        assert "0.1" in errors[0].error and "10.0" in errors[0].error
+        assert "0.1" in errors[0].error and "50.0" in errors[0].error
+
+    def test_open_field_thigmotaxis_band_is_saved(self, config_widget, event_bus):
+        """#631: a rat's open-field periphery (15 cm) is no longer refused as out of range."""
+        errors = self._captured(event_bus, UIEvents.CONFIG_VALIDATION_ERROR)
+
+        config_widget.behavioral_config_widget.thigmotaxis_distance_var.set(15.0)
+        config_widget._on_save_clicked()
+
+        assert not errors
+
+    def test_speed_ceiling_reaches_the_save_payload(self, config_widget, event_bus):
+        """#695: the Advanced Settings tab edits the speed ceiling too."""
+        saves = self._captured(event_bus, UIEvents.CONFIG_SAVE_REQUESTED)
+
+        config_widget.behavioral_config_widget.max_speed_var.set(110.0)
+        config_widget._on_save_clicked()
+
+        assert saves[0].values["behavioral_analysis"]["max_plausible_speed_cm_s"] == 110.0
+
+    def test_out_of_range_speed_ceiling_is_rejected(self, config_widget, event_bus):
+        errors = self._captured(event_bus, UIEvents.CONFIG_VALIDATION_ERROR)
+        saves = self._captured(event_bus, UIEvents.CONFIG_SAVE_REQUESTED)
+
+        config_widget.behavioral_config_widget.max_speed_var.set(0.0)
+        config_widget._on_save_clicked()
+
+        assert len(errors) == 1
+        assert not saves
 
     def test_valid_form_still_saves(self, config_widget, event_bus):
         """A guarda nova não pode bloquear o caminho feliz."""

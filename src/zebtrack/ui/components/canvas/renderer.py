@@ -7,6 +7,7 @@ zones (arena/ROIs), detection overlays, and interactive polygons.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -17,6 +18,7 @@ import structlog
 from PIL import Image, ImageTk
 
 from zebtrack.i18n import _
+from zebtrack.ui.components.canvas.overlay_roles import zone_canvas_style
 
 if TYPE_CHECKING:
     from zebtrack.core.services.zone_context_service import ZoneContextService
@@ -477,7 +479,13 @@ class CanvasRenderer:
             tags=("roi_label", f"roi_label_{index}"),
         )
 
-    def update_overlay(self, detections, is_single_subject=False):
+    def update_overlay(
+        self,
+        detections,
+        is_single_subject=False,
+        class_roles: Mapping[int, str] | None = None,
+        class_names: Mapping[int, str] | None = None,
+    ):
         """Draw detection overlays on the canvas.
 
         NOTE: This method draws on video_display.canvas which is the ZONE tab canvas.
@@ -490,6 +498,9 @@ class CanvasRenderer:
         Args:
             detections: List of detections (x1, y1, x2, y2, conf, track_id, class_id)
             is_single_subject: Boolean flag for single subject mode style
+            class_roles: ``{class id: role token}`` of an explicit role map; colours
+                and labels follow the role (``None`` keeps the 7.2 colours).
+            class_names: ``{class id: name}`` used to label context boxes.
         """
         # Skip drawing overlays on zone canvas during active analysis
         # The analysis tab has its own display with overlays already rendered on the frame
@@ -531,20 +542,20 @@ class CanvasRenderer:
                 cx1, cy1 = self.manager._video_to_canvas(x1, y1)
                 cx2, cy2 = self.manager._video_to_canvas(x2, y2)
 
-                # Style configuration
-                color = "magenta" if is_single_subject else "cyan"
-                if class_id == 0:  # Aquarium
-                    color = "yellow"
+                # Colour and label by class ROLE when the weight has an explicit
+                # map; otherwise the 7.2 rule (class 0 = aquarium) unchanged.
+                color, label_text = zone_canvas_style(
+                    class_id,
+                    track_id,
+                    is_single_subject=is_single_subject,
+                    class_roles=class_roles,
+                    class_names=class_names,
+                )
 
                 # Draw bounding box
                 canvas.create_rectangle(
                     cx1, cy1, cx2, cy2, outline=color, width=2, tags="detection_overlay"
                 )
-
-                # Draw label
-                label_text = f"ID: {track_id}" if track_id is not None else "Det"
-                if is_single_subject:
-                    label_text = "Alvo"
 
                 # Text background
                 canvas.create_text(

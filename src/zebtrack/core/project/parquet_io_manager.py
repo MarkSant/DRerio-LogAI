@@ -747,6 +747,9 @@ class ParquetIOManager:
                 dest_path = results_dir / f"3_CoordMovimento_{video_name}.parquet"
 
                 shutil.copy2(trajectory_path, dest_path)
+                sidecars = self._copy_trajectory_sidecars(
+                    Path(trajectory_path), dest_path, video_name
+                )
 
                 counts["trajectory"] += 1
                 log.info(
@@ -754,6 +757,56 @@ class ParquetIOManager:
                     video=video_name,
                     source=trajectory_path,
                     dest=str(dest_path),
+                    sidecars=[path.name for path in sidecars],
                 )
 
         return counts
+
+    @staticmethod
+    def _copy_trajectory_sidecars(
+        source_trajectory: Path, dest_trajectory: Path, dest_base: str
+    ) -> list[Path]:
+        """Bring the ``3b_``/``3c_``/``6_``/``7_`` files of a trajectory along.
+
+        The masks, the object sidecar, the frame ledger and the analysis-window
+        artifact are only meaningful next to THEIR trajectory: imported without
+        them, a seg_overlap rule degrades and an analysis window cannot be
+        evaluated. Sidecars already next to the destination describe the
+        trajectory that was just overwritten, so the ones the source does not
+        replace are removed. Renamed to the destination base, like the
+        trajectory itself.
+
+        Returns:
+            The destination paths written.
+        """
+        from zebtrack.io.object_sidecar import rebase_sidecar_name, trajectory_sidecars
+
+        sources = trajectory_sidecars(source_trajectory)
+        targets = {
+            src.resolve(): dest_trajectory.parent
+            / rebase_sidecar_name(src, source_trajectory, dest_base)
+            for src in sources
+        }
+        target_paths = {dest.resolve() for dest in targets.values()}
+
+        for stale in trajectory_sidecars(dest_trajectory):
+            resolved = stale.resolve()
+            if resolved in targets or resolved in target_paths:
+                continue
+            try:
+                stale.unlink()
+                log.info("project_manager.import_parquets.stale_sidecar_removed", path=str(stale))
+            except OSError as exc:
+                log.warning(
+                    "project_manager.import_parquets.stale_sidecar_remove_failed",
+                    path=str(stale),
+                    error=str(exc),
+                )
+
+        written: list[Path] = []
+        for src, dest in targets.items():
+            if src == dest.resolve():
+                continue
+            shutil.copy2(src, dest)
+            written.append(dest)
+        return written

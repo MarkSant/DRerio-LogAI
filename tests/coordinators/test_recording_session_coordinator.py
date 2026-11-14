@@ -207,6 +207,29 @@ def test_handle_external_trigger_reject(mock_decide, coordinator):
     assert coordinator._pending_external_trigger is None
 
 
+def test_handle_external_trigger_refuses_conflicting_triggers(coordinator):
+    """Legacy flag + an analysis window waiting for the Arduino: refuse, never arm."""
+    from zebtrack.core.conditions.presets import external_trigger_preset
+    from zebtrack.core.services.external_trigger_gate import conflicting_triggers_message
+
+    coordinator.project_manager.project_data = {
+        "external_trigger_mode": True,
+        "use_arduino": True,
+        "analysis_window": external_trigger_preset().model_dump(mode="json", by_alias=True),
+    }
+
+    result = coordinator._handle_external_trigger({"folder_name": "f"}, True)
+
+    assert result is True
+    assert coordinator._pending_external_trigger is None
+    messages = [
+        c.args[0].data.message
+        for c in coordinator.event_bus.publish.call_args_list
+        if getattr(c.args[0].data, "message", None)
+    ]
+    assert messages == [conflicting_triggers_message()]
+
+
 @patch("zebtrack.core.services.external_trigger_gate.decide_external_trigger")
 def test_handle_external_trigger_arm(mock_decide, coordinator):
     from zebtrack.core.services.external_trigger_gate import ExternalTriggerDecision

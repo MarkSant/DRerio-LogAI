@@ -788,3 +788,74 @@ def test_trigger_off_records_immediately(test_settings):
     assert success is True
     coord.live_camera_service.start_session.assert_called_once()
     assert coord.has_pending_external_trigger() is False
+
+
+def test_session_started_by_code_one_owns_code_zero(test_settings):
+    """AUDIT §2: once code 1 cleared the pending arm, code 0 went to the legacy
+    coordinator and the grid session never stopped."""
+    coord = _make_trigger_coordinator(
+        test_settings,
+        {"recording_duration_s": 30.0, "external_trigger_mode": True, "use_arduino": True},
+    )
+    coord.start_live_project_session(day=1, group="Controle", subject="1", zones_validated=True)
+    assert coord.owns_arduino_events() is True  # armed
+
+    coord.on_arduino_event(1)
+
+    assert coord.has_pending_external_trigger() is False
+    assert coord.owns_arduino_events() is True  # the triggered session runs
+
+
+def test_main_view_model_routes_code_zero_to_the_triggered_grid_session(test_settings):
+    from types import SimpleNamespace
+    from typing import Any, cast
+
+    from zebtrack.core.main_view_model import MainViewModel
+
+    coord = _make_trigger_coordinator(
+        test_settings,
+        {"recording_duration_s": 30.0, "external_trigger_mode": True, "use_arduino": True},
+    )
+    coord.live_camera_service.finish_session_early.return_value = True
+    legacy = MagicMock()
+    controller = MainViewModel.__new__(MainViewModel)
+    controller.root = None
+    controller.live_camera_session_coordinator = coord
+    controller.hardware_vm = cast(Any, SimpleNamespace(recording_session_coordinator=legacy))
+    coord.start_live_project_session(day=1, group="Controle", subject="1", zones_validated=True)
+
+    controller.on_arduino_event(1)
+    controller.on_arduino_event(0)
+
+    legacy.on_arduino_event.assert_not_called()
+    # code 0 = end of protocol: finish KEEPING the data, never discard
+    coord.live_camera_service.finish_session_early.assert_called_once()
+    coord.live_camera_service.stop_session.assert_not_called()
+
+
+def test_untriggered_grid_session_does_not_claim_arduino_codes(test_settings):
+    """A numeric line from a sensor must not stop a recording nobody armed."""
+    coord = _make_trigger_coordinator(
+        test_settings,
+        {"recording_duration_s": 30.0, "external_trigger_mode": False, "use_arduino": True},
+    )
+    assert coord.start_live_project_session(
+        day=1, group="Controle", subject="1", zones_validated=True
+    )
+
+    assert coord.is_live_session_active() is True
+    assert coord.owns_arduino_events() is False
+
+
+def test_stopping_the_triggered_session_releases_the_codes(test_settings):
+    coord = _make_trigger_coordinator(
+        test_settings,
+        {"recording_duration_s": 30.0, "external_trigger_mode": True, "use_arduino": True},
+    )
+    coord.start_live_project_session(day=1, group="Controle", subject="1", zones_validated=True)
+    coord.on_arduino_event(1)
+    coord.live_camera_service.stop_session.return_value = True
+
+    coord.stop_live_session(discard=True)
+
+    assert coord.owns_arduino_events() is False

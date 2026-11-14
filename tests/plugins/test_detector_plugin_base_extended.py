@@ -69,3 +69,29 @@ class TestDetectorPluginBase:
         assert len(plugin._detect_calls) == 2
         assert results[0] == [(10, 10, 50, 50, 0.8, 1, 0)]
         assert results[1] == [(10, 10, 50, 50, 0.8, 1, 0)]
+
+
+class TestByteTrackThresholdHints:
+    """#698: both plugins expose the same hints, from the settings or the shared defaults."""
+
+    def test_settings_values_are_copied(self):
+        from types import SimpleNamespace
+
+        from zebtrack.plugins.base import bytetrack_threshold_hints
+
+        settings_obj = SimpleNamespace(
+            bytetrack=SimpleNamespace(track_threshold=0.3, match_threshold=0.85)
+        )
+        assert bytetrack_threshold_hints(settings_obj) == (0.3, 0.85)
+
+    def test_without_settings_the_shared_defaults(self):
+        from types import SimpleNamespace
+
+        from zebtrack.plugins.base import bytetrack_threshold_hints
+        from zebtrack.settings import DEFAULT_MATCH_THRESHOLD, DEFAULT_TRACK_THRESHOLD
+
+        expected = (DEFAULT_TRACK_THRESHOLD, DEFAULT_MATCH_THRESHOLD)
+        assert bytetrack_threshold_hints(None) == expected
+        assert bytetrack_threshold_hints(SimpleNamespace()) == expected
+        # The OpenVINO plugin used to fall back to 0.80 here.
+        assert bytetrack_threshold_hints(None)[1] == 0.95

@@ -450,3 +450,49 @@ class TestZoneManagerMultiAquariumProjectFile:
 
         assert restored.metadata["source_video_width"] == 864
         assert restored.metadata["source_video_height"] == 480
+
+
+class TestRoiNamesInProject:
+    """``ZoneManager.roi_names_in_project`` — every ROI the project defines (#650)."""
+
+    def test_reads_global_per_video_and_per_aquarium_rois_in_order(self):
+        project_data = {
+            "detection_zones": {"roi_names": ["center"]},
+            "zones_by_video": {
+                "C:/v/a.mp4": {"roi_names": ["toca", "center"]},
+                "C:/v/b.mp4": {"roi_names": ["edge"]},
+            },
+            "multi_aquarium_zones": {
+                "C:/v/c.mp4": {
+                    "aquariums": [
+                        {"id": 0, "roi_names": ["top"]},
+                        {"id": 1, "roi_names": ["toca"]},
+                    ]
+                }
+            },
+        }
+
+        assert ZoneManager.roi_names_in_project(project_data) == ["center", "toca", "edge", "top"]
+
+    def test_empty_project_has_no_roi(self):
+        assert ZoneManager.roi_names_in_project({}) == []
+
+    def test_malformed_entries_are_skipped_not_raised(self):
+        project_data = {
+            "detection_zones": None,
+            "zones_by_video": {
+                "a": "not a dict",
+                "b": {"roi_names": None},
+                "c": {"roi_names": [3]},
+            },
+            "multi_aquarium_zones": {"d": {"aquariums": [None, {"roi_names": ["  ", "ok"]}]}},
+        }
+
+        assert ZoneManager.roi_names_in_project(project_data) == ["3", "ok"]
+
+    def test_does_not_create_missing_structures(self):
+        project_data: dict = {}
+
+        ZoneManager.roi_names_in_project(project_data)
+
+        assert project_data == {}

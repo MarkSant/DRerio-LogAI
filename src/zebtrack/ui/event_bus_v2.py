@@ -270,6 +270,11 @@ class UIEvents(Enum):
     SET_STATUS = auto()
     EXTERNAL_TRIGGER_NOTICE = auto()
     EXTERNAL_TRIGGER_NOTICE_CLEARED = auto()
+    ANALYSIS_WINDOW_SPEC_CHANGED = auto()
+    CLASS_ROLES_CHANGED = auto()
+    # -- v8 F5: live analysis window (ADR-011) --
+    ANALYSIS_WINDOW_STATE_CHANGED = auto()
+    # -- end v8 F5 --
     ERROR_OCCURRED = auto()
     PROGRESS_UPDATE = auto()
     TRACKING_COMPLETE = auto()
@@ -502,6 +507,11 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.SET_STATUS: payloads.StatusPayload,
     UIEvents.EXTERNAL_TRIGGER_NOTICE: payloads.ExternalTriggerNoticePayload,
     UIEvents.EXTERNAL_TRIGGER_NOTICE_CLEARED: payloads.EmptyPayload,
+    UIEvents.ANALYSIS_WINDOW_SPEC_CHANGED: payloads.AnalysisWindowSpecChangedPayload,
+    UIEvents.CLASS_ROLES_CHANGED: payloads.ClassRolesChangedPayload,
+    # -- v8 F5: live analysis window (ADR-011) --
+    UIEvents.ANALYSIS_WINDOW_STATE_CHANGED: payloads.AnalysisWindowStatePayload,
+    # -- end v8 F5 --
     UIEvents.ERROR_OCCURRED: payloads.ErrorOccurredPayload,
     UIEvents.PROGRESS_UPDATE: payloads.ProcessingProgressPayload,
     UIEvents.TRACKING_COMPLETE: payloads.TrackingCompletePayload,

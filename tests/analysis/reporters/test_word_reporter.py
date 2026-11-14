@@ -17,6 +17,7 @@ existing reporter tests which already embed rendered plots into ``.docx``.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -262,3 +263,111 @@ class TestRoiCoverageSection:
         table = _find_table_by_header(multi, _("Animal (track_id)"))
         assert table is not None, "per-animal table not found"
         assert len(table.rows) == 1 + len(reporter_ctx.report["analise_roi"]["por_animal"])
+
+
+class TestAnalysisWindowSection:
+    """ADR-011: the ``.docx`` says which window the numbers cover."""
+
+    @staticmethod
+    def _windowed_ctx(build, settings, trajectory, **window_fields):
+        from shapely.geometry import Polygon
+
+        from zebtrack.analysis.analysis_window_service import WindowBound, WindowResolution
+        from zebtrack.analysis.roi import ROI
+
+        fields: dict[str, Any] = {
+            "status": "complete",
+            "spec_hash": "sha256:" + "b" * 64,
+            "start": WindowBound(5, 0.5, "persist"),
+            "stop": WindowBound(29, 2.9, "end_of_stream"),
+            "spec": {"start": {"kind": "frame_reached", "frame": 5}, "stop": None},
+        }
+        fields.update(window_fields)
+        big = ROI("Big", Polygon([(0, 0), (35, 0), (35, 45), (0, 45)]), coordinate_space="px")
+        return build(settings, trajectory, [big], window=WindowResolution(**fields))
+
+    def test_no_window_adds_no_section_and_no_window_rows(
+        self, reporter_ctx, tmp_path: Path
+    ) -> None:
+        out = tmp_path / "plain.docx"
+
+        WordReporter(reporter_ctx).export_individual_report(out)
+
+        text = _doc_text(out)
+        assert _("Analysis Window") not in text
+        assert "Analysis Window Status" not in text
+        assert _("Time from START (s)") not in text
+
+    def test_window_section_describes_the_cut(
+        self, build_reporter_context, reporter_mock_settings, reporter_trajectory_df, tmp_path
+    ) -> None:
+        ctx = self._windowed_ctx(
+            build_reporter_context, reporter_mock_settings, reporter_trajectory_df
+        )
+        out = tmp_path / "window.docx"
+
+        WordReporter(ctx).export_individual_report(out)
+
+        text = _doc_text(out)
+        assert _("Analysis Window") in text
+        assert "0.50 s, frame 5" in text
+        assert "2.90 s, frame 29" in text
+        assert "2.40 s" in text
+        assert '"frame_reached"' in text
+        assert "sha256:" + "b" * 64 in text
+
+    def test_event_log_has_absolute_and_relative_times(
+        self, build_reporter_context, reporter_mock_settings, reporter_trajectory_df, tmp_path
+    ) -> None:
+        ctx = self._windowed_ctx(
+            build_reporter_context, reporter_mock_settings, reporter_trajectory_df
+        )
+        out = tmp_path / "events.docx"
+
+        WordReporter(ctx).export_individual_report(out)
+
+        table = _find_table_by_header(out, _("Time (mm:ss)"))
+        assert table is not None
+        headers = [cell.text for cell in table.rows[0].cells]
+        assert headers[-1] == _("Time from START (s)")
+        rows = [[cell.text for cell in row.cells] for row in table.rows[1:]]
+        # Inside "Big" at START (0.5 s) and leaving it at 1.5 s.
+        assert rows[0][0] == "00:00.500"
+        assert rows[0][-1] == "0.000"
+        assert rows[-1][0] == "00:01.500"
+        assert rows[-1][-1] == "1.000"
+
+    def test_whole_recording_fallback_is_explained(
+        self, build_reporter_context, reporter_mock_settings, reporter_trajectory_df, tmp_path
+    ) -> None:
+        ctx = self._windowed_ctx(
+            build_reporter_context,
+            reporter_mock_settings,
+            reporter_trajectory_df,
+            status="start_not_met",
+            start=None,
+            stop=None,
+        )
+        out = tmp_path / "fallback.docx"
+
+        WordReporter(ctx).export_individual_report(out)
+
+        text = _doc_text(out)
+        assert "start_not_met" in text
+        assert _("Time from START (s)") not in text
+
+    def test_censored_window_says_so(
+        self, build_reporter_context, reporter_mock_settings, reporter_trajectory_df, tmp_path
+    ) -> None:
+        ctx = self._windowed_ctx(
+            build_reporter_context,
+            reporter_mock_settings,
+            reporter_trajectory_df,
+            status="censored",
+            censored=True,
+        )
+        out = tmp_path / "censored.docx"
+
+        WordReporter(ctx).export_individual_report(out)
+
+        assert "(censored)" in _doc_text(out)

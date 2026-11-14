@@ -1,5 +1,5 @@
 import threading
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -578,3 +578,129 @@ class TestOpenVINODiagnosticsAndFormatting:
         assert "Class 0 ('fish')" in text
         assert "[MASK WITHOUT BOX]" in text
         assert "YOLO (PYTORCH) RESULTS" in text
+
+
+BARNES_NAMES = {0: "arena", 1: "experimenter", 2: "rat", 3: "start_box"}
+BARNES_ROLES = {
+    "arena": "arena",
+    "experimenter": "context",
+    "rat": "subject",
+    "start_box": "context",
+}
+
+
+class TestReportClassRoles:
+    """The diagnostic report names the role of every class of the tested weight."""
+
+    @staticmethod
+    def _coordinator(details: dict, sha: str = "abc") -> ModelDiagnosticsCoordinator:
+        wm = MagicMock()
+        wm.get_weight_details.return_value = details
+        wm.get_weight_sha256.return_value = sha
+        return ModelDiagnosticsCoordinator(state_manager=MagicMock(), weight_manager=wm)
+
+    @staticmethod
+    def _config(**extra: Any) -> dict:
+        return {
+            "video_path": "barnes.mp4",
+            "frames_to_analyze": 1,
+            "confidence_threshold": 0.5,
+            "active_weight_name": "rat.pt",
+            **extra,
+        }
+
+    @staticmethod
+    def _no_boxes(names: dict) -> dict:
+        return {"YOLO (PyTorch)": [MagicMock(boxes=None, masks=None, names=names)]}
+
+    def test_weight_roles_are_listed_per_class(self):
+        coordinator = self._coordinator({"path": "rat.pt", "class_roles": BARNES_ROLES})
+
+        report = coordinator._format_diagnostic_report(self._config(), self._no_boxes(BARNES_NAMES))
+
+        assert "- Class roles (saved with the weight):" in report
+        assert "    1: 'experimenter' -> Context (observed, not tracked)" in report
+        assert "    2: 'rat' -> Subject (tracked animal)" in report
+        assert "    0: 'arena' -> Arena" in report
+        cast(MagicMock, coordinator.weight_manager).get_weight_details.assert_called_with("rat.pt")
+
+    def test_project_map_counts_while_its_sha_matches(self):
+        coordinator = self._coordinator({"class_roles": BARNES_ROLES}, sha="abc")
+        project_roles = {**BARNES_ROLES, "experimenter": "ignored"}
+
+        report = coordinator._format_diagnostic_report(
+            self._config(class_roles=project_roles, class_roles_weight_sha256="abc"),
+            self._no_boxes(BARNES_NAMES),
+        )
+
+        assert "- Class roles (set in this project):" in report
+        assert "    1: 'experimenter' -> Ignored" in report
+
+    def test_project_map_for_another_weight_is_ignored(self):
+        coordinator = self._coordinator({"class_roles": BARNES_ROLES}, sha="new")
+
+        report = coordinator._format_diagnostic_report(
+            self._config(
+                class_roles={**BARNES_ROLES, "experimenter": "ignored"},
+                class_roles_weight_sha256="old",
+            ),
+            self._no_boxes(BARNES_NAMES),
+        )
+
+        assert "- Class roles (saved with the weight):" in report
+        assert "    1: 'experimenter' -> Context (observed, not tracked)" in report
+
+    def test_unresolved_weight_is_flagged(self):
+        coordinator = self._coordinator({})
+
+        report = coordinator._format_diagnostic_report(
+            self._config(), self._no_boxes({0: "car", 1: "bus", 2: "person"})
+        )
+
+        assert "No class is recognised as the animal" in report
+
+    def test_detection_lines_carry_the_role(self):
+        coordinator = self._coordinator({"class_roles": BARNES_ROLES})
+        results = {
+            "OpenVINO": [
+                [
+                    {
+                        "class_id": 2,
+                        "class_name": "rat",
+                        "confidence": 0.9,
+                        "box": [1, 2, 3, 4],
+                        "has_mask": False,
+                    }
+                ]
+            ]
+        }
+
+        report = coordinator._format_diagnostic_report(self._config(), results)
+
+        assert (
+            "  - Class 2 ('rat'), Conf: 0.90, BBox: [1, 2, 3, 4], Role: Subject (tracked animal)"
+            in report
+        )
+
+    def test_without_class_names_there_is_no_roles_section(self):
+        coordinator = self._coordinator({"class_roles": BARNES_ROLES})
+
+        report = coordinator._format_diagnostic_report(self._config(), {})
+
+        assert "Class roles" not in report
+        cast(MagicMock, coordinator.weight_manager).get_weight_details.assert_not_called()
+
+    def test_run_records_the_tested_weight_in_the_config(self, coordinator):
+        config = {
+            "video_path": "test.mp4",
+            "frames_to_analyze": 1,
+            "confidence_threshold": 0.5,
+            "model_to_test": "YOLO (PyTorch)",
+        }
+        with (
+            patch("zebtrack.ui.dialogs.DiagnosticProgressDialog", autospec=True),
+            patch("zebtrack.coordinators.model_diagnostics_coordinator.threading.Thread"),
+        ):
+            coordinator.run_model_diagnostic(config)
+
+        assert config["active_weight_name"] == "test_weight"

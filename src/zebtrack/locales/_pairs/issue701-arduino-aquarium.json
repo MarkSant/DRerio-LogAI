@@ -1,0 +1,8 @@
+{
+  "_comment": "#701: aquarium column of the Arduino bindings panel. Appended by hand to the .pot/.po (see docs/guides/developer/i18n.md); kept here for the next full regeneration.",
+
+  "Aquarium": "Aquário",
+  "Aquarium:": "Aquário:",
+  "All = this ROI in any aquarium": "Todos = esta ROI em qualquer aquário",
+  "{roi} (aquarium {number})": "{roi} (aquário {number})"
+}

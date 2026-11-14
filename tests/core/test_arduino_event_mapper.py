@@ -81,3 +81,50 @@ def test_update_and_update_detailed_agree_on_tokens():
     m1 = ArduinoEventMapper(BINDINGS)
     m2 = ArduinoEventMapper(BINDINGS)
     assert m1.update({"B", "A"}) == [e.token for e in m2.update_detailed({"B", "A"})]
+
+
+# -- #656: per-aquarium occupancy ---------------------------------------------
+
+SCOPED = [
+    ArduinoBinding(roi="A", on_enter=1, on_exit=2, aquarium_id=0),
+    ArduinoBinding(roi="A", on_enter=11, on_exit=12, aquarium_id=1),
+]
+
+
+def test_scoped_bindings_on_the_same_roi_name_do_not_collide():
+    """Keyed by ``(aquarium, roi)``: the second "A" no longer replaces the first."""
+    m = ArduinoEventMapper(SCOPED)
+    assert m.update_scoped({1: {"A"}}) == [
+        RoiTokenEvent(roi="A", edge="enter", token=11, aquarium_id=1)
+    ]
+    assert m.update_scoped({0: {"A"}, 1: {"A"}}) == [
+        RoiTokenEvent(roi="A", edge="enter", token=1, aquarium_id=0)
+    ]
+    assert [e.token for e in m.update_scoped({0: set(), 1: {"A"}})] == [2]
+
+
+def test_unscoped_binding_is_occupied_while_any_aquarium_occupies_it():
+    m = ArduinoEventMapper([ArduinoBinding(roi="A", on_enter=1, on_exit=2)])
+    assert [e.token for e in m.update_scoped({0: {"A"}})] == [1]
+    assert m.update_scoped({0: {"A"}, 1: {"A"}}) == []
+    assert m.update_scoped({0: set(), 1: {"A"}}) == []  # aquarium 1 still inside
+    assert [e.token for e in m.update_scoped({0: set(), 1: set()})] == [2]
+
+
+def test_scoped_binding_ignores_the_other_aquarium():
+    m = ArduinoEventMapper([ArduinoBinding(roi="A", on_enter=1, on_exit=2, aquarium_id=1)])
+    assert m.update_scoped({0: {"A"}}) == []
+
+
+def test_single_aquarium_occupancy_is_aquarium_zero():
+    m = ArduinoEventMapper(SCOPED)
+    assert m.update({"A"}) == [1]
+
+
+def test_forget_aquarium_drops_its_state_without_tokens():
+    m = ArduinoEventMapper([*SCOPED, ArduinoBinding(roi="B", on_enter=5, on_exit=6)])
+    m.update_scoped({0: {"A", "B"}, 1: {"A"}})
+    m.forget_aquarium(0)
+    # Aquarium 0's "A" was forgotten (swept by the caller): no exit for it.
+    # The unscoped "B" is not aquarium 0's alone, so it is kept.
+    assert [e.token for e in m.update_scoped({1: {"A"}})] == [6]

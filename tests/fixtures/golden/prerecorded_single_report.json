@@ -44,7 +44,7 @@
     },
     "latencia_primeira_entrada": {
       "Direita": 2.1,
-      "Esquerda": null
+      "Esquerda": 0.0
     },
     "n_animais": 1,
     "por_animal": {
@@ -63,7 +63,15 @@
         },
         "latencia_primeira_entrada": {
           "Direita": 2.1,
-          "Esquerda": null
+          "Esquerda": 0.0
+        },
+        "latency_censored": {
+          "Direita": false,
+          "Esquerda": false
+        },
+        "latency_present_at_start": {
+          "Direita": false,
+          "Esquerda": true
         },
         "tempo_gasto_por_roi": {
           "Direita": {
@@ -102,6 +110,9 @@
         "nan": 1
       }
     }
+  },
+  "analysis_window": {
+    "status": "none"
   },
   "comportamento_geral": {
     "curvas_acentuadas": {
@@ -162,13 +173,21 @@
     "rajadas_velocidade": {
       "count": 0,
       "episodes": [],
-      "threshold_cm_s": 28.71767409,
+      "threshold_cm_s": 28.988636252,
       "total_duration_s": 0.0
     },
     "thigmotaxis_avg_dist": 11.735099206,
     "thigmotaxis_indice": 0.0,
     "tortuosidade": 8.673184338,
     "total_frames_analisados": 120
+  },
+  "latency_censored": {
+    "Direita": false,
+    "Esquerda": false
+  },
+  "latency_present_at_start": {
+    "Direita": false,
+    "Esquerda": true
   },
   "log_eventos": [
     {
@@ -200,6 +219,7 @@
   "validacao": {
     "avisos": [],
     "estatisticas": {
+      "duration_s": 12.0,
       "frame_range": {
         "max": 119,
         "min": 0,

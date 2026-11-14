@@ -18,7 +18,14 @@ def test_create_source_camera():
         mock_cap.return_value.isOpened.return_value = True
         mock_cap.return_value.read.return_value = (True, MagicMock())
         source = create_source("camera", settings_obj=settings)
-        assert isinstance(source, Camera)
+        try:
+            assert isinstance(source, Camera)
+        finally:
+            source.release()
+    # Camera.__init__ starts its reader thread. Left running, it spun over the
+    # mocked capture for the rest of the session -- under pytest --memray it ran
+    # garbage collection off the main thread and aborted Tcl (nightly #576).
+    assert not source._thread.is_alive()
 
 
 def test_create_source_camera_missing_settings():
@@ -109,7 +116,10 @@ def test_create_source_camera_ignores_extra_kwargs():
         mock_cap.return_value.read.return_value = (True, MagicMock())
         # Extra kwargs should be ignored
         source = create_source("camera", settings_obj=settings, extra_param="ignored")
-        assert isinstance(source, Camera)
+        try:
+            assert isinstance(source, Camera)
+        finally:
+            source.release()
 
 
 def test_create_source_file_with_special_characters(tmp_path):
@@ -151,9 +161,12 @@ def test_create_source_returns_frame_source_interface():
         mock_cap.return_value.read.return_value = (True, MagicMock())
         # Test camera
         camera = create_source("camera", settings_obj=settings)
-        assert hasattr(camera, "get_frame")
-        assert hasattr(camera, "release")
-        assert hasattr(camera, "get_properties")
+        try:
+            assert hasattr(camera, "get_frame")
+            assert hasattr(camera, "release")
+            assert hasattr(camera, "get_properties")
+        finally:
+            camera.release()
 
     # Test file (note: VideoFileSource validates file existence in __init__)
     # So we just verify the interface would exist

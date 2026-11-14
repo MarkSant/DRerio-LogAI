@@ -17,6 +17,8 @@ translations of the same labels).
 - [Choosing what kind of project to create](#choosing-what-kind-of-project-to-create)
 - [Creating a pre-recorded project](#creating-a-pre-recorded-project-7-steps)
 - [Drawing the arena and the ROIs](#drawing-the-arena-and-the-rois)
+- [Using a weight with other classes](#using-a-weight-with-other-classes-class-roles)
+- [Defining the start and end of the analysis](#defining-the-start-and-end-of-the-analysis)
 - [Processing the videos](#processing-the-videos)
 - [Reports and results](#reports-and-results)
 - [Live camera projects](#live-camera-projects)
@@ -258,6 +260,90 @@ you are drawing.
 
 Zones belong to the video you drew them on. A video with none of its own uses the project default.
 
+## Using a weight with other classes (class roles)
+
+Since v8 any YOLOv8/v11 detection weight works, not only the zebrafish ones. What the program
+needs to know is what each class of the weight **is**:
+
+| Role | Meaning |
+| --- | --- |
+| **Subject** | The animal that is tracked and measured. Several classes may be subjects. |
+| **Arena** | The apparatus — tank, box, maze. At most one class. |
+| **Context** | Seen and recorded on every frame, never tracked: the experimenter, a start box, a lid. Used to start or stop the analysis. |
+| **Ignored** | Dropped. |
+
+Most of the time you do nothing: classes named like `fish`, `zebrafish`, `rat`, `mouse`,
+`animal` or `subject` become the subject, and `arena`, `tank`, `aquarium` or `maze` become the
+arena. Everything else is ignored until you say otherwise. A weight that has three or more named
+classes and **none** recognisable as the animal is refused with a message — it would otherwise
+track whatever class happened to come first.
+
+Where to set the roles:
+
+- **For the weight** — *Global Model Configuration…* → the weight catalogue → select the weight →
+  **Class roles…**. Every project that uses this weight gets these roles.
+- **For one project** — the **AI Model Config.** tab, *Class roles of the project's weight*. The
+  roles are tied to that exact weight file: if you replace or retrain the weight, the panel tells
+  you they are being ignored.
+- **When creating the project** — the optional **Class roles** section of step 5 (Models and
+  Weights).
+
+In each place, pick a role per class in the table and **Save**; **Restore automatic** goes back
+to the name-based roles. The panel refuses a map with no subject or with two arenas.
+
+**Example — the Barnes maze weight.** It has four classes: `arena`, `experimenter`, `rat` and
+`start_box`. The automatic roles already make `rat` the subject and `arena` the arena; set
+`experimenter` and `start_box` to **Context** so the analysis window can see them. With an
+explicit map the zone canvas and the analysis frame draw each role in its own colour, context
+boxes in orange with the class name.
+
+Context detections, and one "heartbeat" row per processed frame, are written next to the
+trajectory in `3c_Objetos_<video>.parquet`.
+
+## Defining the start and end of the analysis
+
+By default the analysis covers the whole recording, from the first frame where the animal is
+seen. When the protocol says the measurement starts later — after the experimenter leaves, when
+a door opens, when an Arduino sends a code — define an **analysis window**.
+
+In the **Zone Configuration** tab, the **Analysis Window (Optional)** panel shows the current
+rule in plain words. **Edit conditions…** opens the editor, with a **Start** and a **Stop**
+block. Each block is a list of lines:
+
+| Line | Fires when |
+| --- | --- |
+| Class is present / absent | a class (or any class of a role) is or is not visible |
+| …held for (seconds or frames) | the class lines above stayed true for that long |
+| Subject enters / leaves ROI | the animal crosses into or out of one of the project's ROIs |
+| Video time reaches / Frame number reaches | a fixed instant of the video |
+| Time after the start | that many seconds after Start (Stop only) |
+| Arduino signal | the Arduino sends a code (blank = any code) |
+| Manual signal | you press **Mark start/stop** in a live session |
+| End of the video | the recording ends (Stop only) |
+
+**Combine the lines** with *all of*, *any of (the first one wins)* or *in sequence*. Two more
+choices complete the rule: **If Start never happens** (use the whole recording, with a warning, or
+leave the metrics empty) and, for live sessions, **When Stop happens** (only mark the stop, or end
+the live session). **Save** stores the rule in the project; it applies the next time you run the
+analysis — nothing needs to be detected again.
+
+**Example — the Barnes maze.** **Barnes maze preset** fills in the protocol: Start when the start
+box and the experimenter are absent and the rat is present, held for 5 frames; Stop at the first
+of the end of the video, the rat absent for 3 s, or 240 s after Start. If the weight has no class
+with one of those names the editor warns you; review the lines, then **Save**.
+
+What the window changes in the results:
+
+- The video is always recorded in full; only the metrics are restricted to [Start, Stop].
+- Conditions are measured on the recording's own clock (the video's timestamps, or the capture
+  instant in a live session), and an event held for some time is dated at its **first** frame.
+- Rates and percentages divide by the window's duration. ROI latency counts from Start; an animal
+  already inside at Start gets latency 0, flagged *present at start*; one that never enters gets
+  the window's duration, flagged *censored* — a ceiling, not a measurement.
+- The Word report gains an **Analysis Window** section, the `.xlsx` gains `window_*` columns and
+  the per-ROI latency flags, and `7_AnalysisWindow_<video>.json` records the start and stop next
+  to the trajectory.
+
 ## Processing the videos
 
 In **Main Control**:
@@ -294,14 +380,20 @@ Double-click any entry to open the file.
 ### The files produced, per video
 
 ```text
-<video>_results/
-├── 1_ArenaROI_<video>.parquet       # Arena and ROI definitions
-├── 2_Zones_<video>.parquet          # Zone metadata
+<results folder>/
+├── 1_ProcessingArea_<video>.parquet # Arena (processing area)
+├── 2_AreasOfInterest_<video>.parquet # ROIs
 ├── 3_CoordMovimento_<video>.parquet # Frame-by-frame trajectory
 ├── 3b_Mascaras_<video>.parquet      # Segmentation masks (only when recorded)
-├── <video>_summary.xlsx             # Metrics per ROI, plus a per-animal sheet
-└── <video>_report.docx              # Illustrated report
+├── 3c_Objetos_<video>.parquet       # Detected objects per frame (v8)
+├── 7_AnalysisWindow_<video>.json    # Analysis window start and stop (v8, only with a window)
+├── 4_Relatorio_<video>.xlsx         # Metrics per ROI, plus a per-animal sheet
+└── 4_Relatorio_<video>.docx         # Illustrated report
 ```
+
+With several aquariums in one video, each gets an `aquarium_1/`, `aquarium_2/`, … subfolder with the
+same files. A single video analysed without a project writes `<video>_summary.xlsx` and
+`<video>_report.docx` instead of the `4_Relatorio_` pair.
 
 The trajectory schema is fixed and will not change between versions:
 

@@ -1,6 +1,6 @@
 # DRerio LogAI Impact Map
 # Quick-lookup map for AI agents to understand component dependencies.
-# Last Updated: 2026-05-09 (v2.1 — expanded events section, fixed doc refs)
+# Last Updated: 2026-11-04 (v8.0.0 — class_roles and analysis_window domains)
 #
 # Usage: agents should consult this file BEFORE making changes.
 # Companion files:
@@ -497,6 +497,104 @@ domains:
       - "tests/ui/components/test_zone_controls_widget.py"
       - "tests/ui/components/test_config_editor.py"
       - "tests/test_settings.py"
+
+  # ---------------------------------------------------------------------------
+  # CLASS ROLES DOMAIN (v8, ADR-009/010)
+  # ---------------------------------------------------------------------------
+  class_roles:
+    description: "What each class of a detection weight is: subject | arena | context | ignored"
+
+    contract:
+      resolver: "resolve_class_role_map(names, *, project_override, weight_entry, aliases) -> ClassRoleMap (frozen, by normalised class NAME)"
+      precedence: "project model_overrides.class_roles (only while class_roles_weight_sha256 matches the effective weight) > weights_config.json class_roles > aliases > positional (no names only)"
+      refusal: "names + >= 3 classes + no subject -> ClassRolesUnresolvedError (live DetectorService and batch worker). Catch by TYPE"
+      tokens: "subject/arena/context/ignored and the weight targets aquarium/zebrafish are persisted; never translated"
+      worker: "resolve_worker_model() runs in the MAIN process and ships path + sha256 + OpenVINO export + class_roles in WorkerConfig"
+
+    gotchas:
+      aliases_never_context: "aliases map animal->subject, arena->arena, rest->ignored. That is what keeps a zebrafish weight byte-identical to 7.2 (same crop, same NMS, same apply_class_mismatch_fallback)"
+      by_name_not_id: "a retrain that inserts a class must not move the subject; ids are resolved against model.names at load time"
+      context_never_in_trajectory: "context detections go to 3c_Objetos_ only; 3_CoordMovimento stays subjects-only and its schema is immutable"
+      heartbeat: "3c writes one role='frame' row per PROCESSED frame even with no detection: absence vs not-processed"
+      openvino_cache: "cache dir <stem>_<sha8>_openvino_model; a 7.2 folder without a recorded sha is re-exported once"
+
+    key_files:
+      - "src/zebtrack/core/detection/class_roles.py"
+      - "src/zebtrack/core/detection/class_aliases.py"
+      - "src/zebtrack/core/services/worker_model_resolution.py"
+      - "src/zebtrack/core/services/weight_manager.py"
+      - "src/zebtrack/core/services/detector_service.py"
+      - "src/zebtrack/core/detection/single_detector.py"
+      - "src/zebtrack/core/detection/multi_aquarium_detector.py"
+      - "src/zebtrack/core/detection/detection_post_processor.py"
+      - "src/zebtrack/plugins/openvino_detector.py"
+      - "src/zebtrack/core/services/object_capture.py"     # should_capture_objects(): the 3c rule
+      - "src/zebtrack/io/object_sidecar.py"                # 3c schema, read/validate, routing
+      - "src/zebtrack/io/recorder.py"                      # 3c writer, stale 3b/3c/7_ cleanup
+      - "src/zebtrack/ui/components/class_roles_panel.py"
+      - "src/zebtrack/ui/components/canvas/overlay_roles.py"
+
+    related_tests:
+      - "tests/core/detection/test_class_roles.py"
+      - "tests/core/services/test_worker_model_resolution.py"
+      - "tests/core/services/test_object_capture.py"
+      - "tests/io/test_object_sidecar.py"
+      - "tests/test_class_names_validation.py"
+      - "tests/integration/test_legacy_project_7_2_0.py"
+      - "tests/ui/components/test_class_roles_panel.py"
+
+  # ---------------------------------------------------------------------------
+  # ANALYSIS WINDOW DOMAIN (v8, ADR-011)
+  # ---------------------------------------------------------------------------
+  analysis_window:
+    description: "START/STOP of the analysis by conditions, evaluated on the recording's own clock"
+
+    contract:
+      entry: "analysis_window_service.resolve_analysis_window(project_data, trajectory_path, ...) for any project-driven analysis; resolve_window_spec() is the only spec lookup (raises InvalidWindowSpecError)"
+      service: "AnalysisWindowService.resolve() reuses 7_AnalysisWindow_<base>.json while spec_hash and input hashes match, else recomputes and rewrites atomically, keeping online + external_events"
+      engine: "core/conditions: one evaluator; evaluate_window() is a fold over the same step() the live ConditionRuntime uses"
+      clock: "PTS pre-recorded, t_capture_perf - t0_perf (6_FrameLedger) live; time_base.resolve_time_base() for fps/duration; retime_from_ledger() in memory"
+      gate: "external_trigger_gate.decide_external_trigger(): legacy trigger + window waiting for the Arduino is invalid"
+
+    gotchas:
+      hybrid_cut: "smoothing, velocity and ROI debounce on the WHOLE recording; restrict_to_window() afterwards, absolute index kept"
+      offline_governs: "offline section drives metrics; online only display/session end; >1 frame divergence = report warning"
+      always_present_keys: "report['analysis_window'] == {'status': 'none'} and empty window_* columns without a window — unified report schema never diverges"
+      censored_latency: "never entered inside a window -> latency = window duration + latency_censored=True (a ceiling, not a value)"
+      no_settings_fps: "settings.video_processing.fps is the LAST fallback (with warning); Barnes VFR ~9.9 fps drifts up to 125 s with frame/30"
+      live_multi_aquarium: "multi-aquarium live has no window in v8 (and writes no rows: xfail in test_live_analysis_post_processor)"
+
+    key_files:
+      - "src/zebtrack/core/conditions/model.py"
+      - "src/zebtrack/core/conditions/evaluator.py"
+      - "src/zebtrack/core/conditions/artifact.py"
+      - "src/zebtrack/core/conditions/presets.py"
+      - "src/zebtrack/analysis/analysis_window_service.py"
+      - "src/zebtrack/analysis/window_observations.py"
+      - "src/zebtrack/analysis/time_base.py"
+      - "src/zebtrack/analysis/analysis_service.py"
+      - "src/zebtrack/analysis/behavior.py"
+      - "src/zebtrack/analysis/roi.py"
+      - "src/zebtrack/analysis/data_transformer.py"
+      - "src/zebtrack/analysis/reporters/word_reporter.py"
+      - "src/zebtrack/coordinators/report_generation_coordinator.py"
+      - "src/zebtrack/core/video/analysis_pipeline_runner.py"
+      - "src/zebtrack/core/recording/condition_runtime.py"
+      - "src/zebtrack/core/recording/frame_processing_pipeline.py"
+      - "src/zebtrack/core/recording/live_analysis_post_processor.py"
+      - "src/zebtrack/core/services/external_trigger_gate.py"
+      - "src/zebtrack/ui/components/analysis_window_panel.py"
+      - "src/zebtrack/ui/wizard/templates.py"             # template schema v4
+
+    related_tests:
+      - "tests/core/conditions/"
+      - "tests/analysis/test_analysis_window_service.py"
+      - "tests/analysis/test_window_observations.py"
+      - "tests/analysis/test_time_base.py"
+      - "tests/core/recording/test_condition_runtime.py"
+      - "tests/core/services/test_external_trigger_gate.py"
+      - "tests/integration/test_barnes_window_e2e.py"
+      - "tests/integration/test_prerecorded_golden.py"
 
 # =============================================================================
 # COORDINATOR HIERARCHY

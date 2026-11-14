@@ -544,3 +544,112 @@ def test_writer_loop_spaces_consecutive_sends_by_min_interval(
     assert len(sent_at) == 2
     gap = sent_at[1] - sent_at[0]
     assert gap >= manager._min_send_interval_s - 0.02  # scheduling tolerance
+
+
+# ---------------------------------------------------------------------------
+# Inbound events stamped at read time + event sink (ADR-011, v8 F5)
+# ---------------------------------------------------------------------------
+
+
+def _run_reader_once(manager: ArduinoManager, lines: list[bytes]) -> None:
+    """Drive ``_reader_loop`` synchronously over ``lines``, then stop it."""
+    remaining = list(lines)
+
+    def _readline():
+        if remaining:
+            return remaining.pop(0)
+        manager._stop_event.set()
+        return b""
+
+    serial = MagicMock()
+    serial.is_open = True
+    serial.readline = MagicMock(side_effect=_readline)
+    manager.arduino = MagicMock(ser=serial)
+    manager._reader_loop()
+
+
+def test_event_is_stamped_at_read_time_not_at_dispatch(mock_controller, monkeypatch):
+    """The stamp is the perf_counter taken right after ``readline()``."""
+    ticks = iter([10.0, 99.0, 99.5, 100.0])
+    monkeypatch.setattr("zebtrack.io.arduino_manager.time.perf_counter", lambda: next(ticks))
+    received: list[tuple[int, float]] = []
+
+    def _sink(code: int, t: float) -> bool:
+        received.append((code, t))
+        return False
+
+    manager = ArduinoManager(mock_controller)
+    manager.set_event_sink(_sink)
+
+    _run_reader_once(manager, [b"1\n"])
+
+    assert received == [(1, 10.0)]
+
+
+def test_claimed_event_never_reaches_the_controller(mock_controller):
+    manager = ArduinoManager(mock_controller)
+    manager.set_event_sink(lambda code, t: True)
+
+    _run_reader_once(manager, [b"0\n"])
+
+    mock_controller.on_arduino_event.assert_not_called()
+
+
+def test_unclaimed_event_still_reaches_the_controller(mock_controller):
+    seen: list[int] = []
+
+    def _sink(code: int, t: float) -> bool:
+        seen.append(code)
+        return False
+
+    manager = ArduinoManager(mock_controller)
+    manager.set_event_sink(_sink)
+
+    _run_reader_once(manager, [b"0\n"])
+
+    assert seen == [0]
+    mock_controller.on_arduino_event.assert_called_once_with(0)
+
+
+def test_failing_sink_degrades_to_the_controller(mock_controller):
+    def _boom(code, t):
+        raise RuntimeError("sink bug")
+
+    manager = ArduinoManager(mock_controller)
+    manager.set_event_sink(_boom)
+
+    _run_reader_once(manager, [b"1\n"])
+
+    mock_controller.on_arduino_event.assert_called_once_with(1)
+
+
+def test_cleared_sink_stops_receiving(mock_controller):
+    seen: list[int] = []
+
+    def _sink(code: int, t: float) -> bool:
+        seen.append(code)
+        return True
+
+    manager = ArduinoManager(mock_controller)
+    manager.set_event_sink(_sink)
+    manager.set_event_sink(None)
+
+    _run_reader_once(manager, [b"1\n"])
+
+    assert seen == []
+    mock_controller.on_arduino_event.assert_called_once_with(1)
+
+
+def test_ack_lines_are_not_events(mock_controller):
+    seen: list[int] = []
+
+    def _sink(code: int, t: float) -> bool:
+        seen.append(code)
+        return True
+
+    manager = ArduinoManager(mock_controller)
+    manager.set_event_sink(_sink)
+
+    _run_reader_once(manager, [b"Red LED 1 ON\n"])
+
+    assert seen == []

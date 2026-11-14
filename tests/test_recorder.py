@@ -1,6 +1,7 @@
 import os
 import shutil
 import time
+import typing
 
 import numpy as np
 import pandas as pd
@@ -780,3 +781,519 @@ def test_persist_masks_defaults_to_off(recorder_setup):
     recorder, _output_folder, _w, _h = recorder_setup
     assert recorder.persist_masks is False
     assert recorder.mask_parquet_filename == ""
+
+
+# =============================================================================
+# Object sidecar ``3c_Objetos_`` (ADR-010)
+# =============================================================================
+
+_OBJECT_COLUMNS_AND_TYPES = [
+    ("frame", "int64"),
+    ("timestamp", "double"),
+    ("t_event_s", "double"),
+    ("class_id", "int16"),
+    ("class_name", "dictionary<values=string, indices=int32, ordered=0>"),
+    ("role", "dictionary<values=string, indices=int32, ordered=0>"),
+    ("x1", "float"),
+    ("y1", "float"),
+    ("x2", "float"),
+    ("y2", "float"),
+    ("confidence", "float"),
+    ("track_id", "int64"),
+    ("aquarium_id", "int16"),
+]
+
+
+def _objects_settings(enabled: bool = True):
+    from tests.helpers.prerecorded_pipeline import load_pristine_settings
+
+    settings = load_pristine_settings()
+    settings.recorder.persist_object_sidecar = enabled
+    return settings
+
+
+def _context(bbox, class_id=2, name="experimenter", confidence=0.7, aquarium_id=None):
+    return {
+        "class_id": class_id,
+        "class_name": name,
+        "role": "context",
+        "bbox": bbox,
+        "confidence": confidence,
+        "aquarium_id": aquarium_id,
+    }
+
+
+def _subject(bbox, aquarium_id=None, track_id=None):
+    item = {
+        "class_id": 1,
+        "class_name": "rat",
+        "role": "subject",
+        "bbox": bbox,
+        "confidence": 0.9,
+        "aquarium_id": aquarium_id,
+    }
+    if track_id is not None:
+        item["track_id"] = track_id
+    return item
+
+
+def _read_3c(path):
+    """Read a ``3c_Objetos_`` sidecar the test expects to be valid."""
+    from zebtrack.io.object_sidecar import read_object_sidecar
+
+    df = read_object_sidecar(path)
+    assert df is not None, f"unreadable object sidecar: {path}"
+    return df
+
+
+class _DoublingCalibration:
+    """Calibration double: warps every coordinate by x2 (the trajectory's path)."""
+
+    pixel_per_cm_ratio = (10.0, 10.0)
+
+    def transform_bbox(self, x1, y1, x2, y2):
+        return x1 * 2, y1 * 2, x2 * 2, y2 * 2
+
+    def transform_points(self, points):
+        return [[x * 2, y * 2] for x, y in points]
+
+
+@pytest.fixture
+def objects_recorder(tmp_path):
+    from zebtrack.core.detection import ZoneData
+
+    folder = tmp_path / "objects"
+    recorder = Recorder(settings_obj=_objects_settings())
+    yield recorder, folder, ZoneData()
+    if recorder.is_recording:
+        recorder.stop_recording(force_stop=True)
+
+
+def _objects_path(folder, base="base"):
+    return folder / f"3c_Objetos_{base}.parquet"
+
+
+class TestObjectSidecar:
+    def test_columns_order_and_types_follow_adr_010(self, objects_recorder):
+        import pyarrow.parquet as pq
+
+        recorder, folder, zones = objects_recorder
+        recorder.start_recording(folder, 100, 100, zones, is_video_file=True, base_name="base")
+        recorder.write_object_data(0.0, 0, 0.0, [_context((1, 2, 3, 4))])
+        recorder.stop_recording()
+
+        schema = pq.read_schema(_objects_path(folder))
+        assert [(f.name, str(f.type)) for f in schema] == _OBJECT_COLUMNS_AND_TYPES
+
+    def test_one_heartbeat_per_processed_frame_even_without_detections(self, objects_recorder):
+        recorder, folder, zones = objects_recorder
+        recorder.start_recording(folder, 100, 100, zones, is_video_file=True, base_name="base")
+        recorder.write_object_data(0.0, 0, 0.0, [])
+        recorder.write_object_data(0.5, 5, 0.5, [_context((1, 2, 3, 4))])
+        recorder.write_object_data(1.0, 10, 1.0, [])
+        recorder.stop_recording()
+
+        df = _read_3c(_objects_path(folder))
+        heartbeat = df[df["class_id"] == -1]
+        assert heartbeat["frame"].tolist() == [0, 5, 10]
+        assert heartbeat["role"].tolist() == ["frame"] * 3
+        assert heartbeat[["x1", "y1", "x2", "y2", "confidence"]].isna().all().all()
+        objects = df[df["class_id"] != -1]
+        assert objects["frame"].tolist() == [5]
+        assert objects["role"].tolist() == ["context"]
+        assert objects["class_name"].tolist() == ["experimenter"]
+        assert objects["t_event_s"].tolist() == [0.5]
+        # Heartbeat first, then the frame's objects.
+        assert df["class_id"].tolist() == [-1, -1, 2, -1]
+
+    def test_coordinates_stay_raw_even_with_a_calibration(self, objects_recorder):
+        recorder, folder, zones = objects_recorder
+        recorder.start_recording(
+            folder,
+            100,
+            100,
+            zones,
+            is_video_file=True,
+            base_name="base",
+            calibration=_DoublingCalibration(),
+        )
+        recorder.write_detection_data(0.0, 0, [(10, 20, 30, 40, 0.9, 1, 1)])
+        recorder.write_object_data(0.0, 0, 0.0, [_subject((10.0, 20.0, 30.0, 40.0))])
+        recorder.stop_recording()
+
+        objects = _read_3c(_objects_path(folder))
+        row = objects[objects["class_id"] == 1].iloc[0]
+        assert [row["x1"], row["y1"], row["x2"], row["y2"]] == [10.0, 20.0, 30.0, 40.0]
+        # The trajectory DID go through the calibration: the double is live.
+        trajectory = pd.read_parquet(folder / "3_CoordMovimento_base.parquet")
+        assert trajectory["x1"].tolist() == [20]
+
+    def test_kill_switch_writes_nothing(self, tmp_path):
+        from zebtrack.core.detection import ZoneData
+
+        recorder = Recorder(settings_obj=_objects_settings(enabled=False))
+        folder = tmp_path / "off"
+        recorder.start_recording(folder, 100, 100, ZoneData(), is_video_file=True, base_name="b")
+        recorder.write_object_data(0.0, 0, 0.0, [_context((1, 2, 3, 4))])
+        recorder.stop_recording()
+
+        assert recorder.persist_object_sidecar is False
+        assert recorder.object_parquet_filename == ""
+        assert not _objects_path(folder, "b").exists()
+
+    def test_recorder_without_settings_writes_nothing(self, recorder_setup):
+        recorder, output_folder, w, h = recorder_setup
+        from zebtrack.core.detection import ZoneData
+
+        recorder.start_recording(output_folder, w, h, ZoneData(), is_video_file=True)
+        recorder.write_object_data(0.0, 0, 0.0, [])
+        recorder.stop_recording()
+
+        assert recorder.persist_object_sidecar is False
+        assert not any(name.startswith("3c_") for name in os.listdir(output_folder))
+
+    def test_not_recording_or_paused_writes_nothing(self, objects_recorder):
+        recorder, folder, zones = objects_recorder
+        recorder.write_object_data(0.0, 0, 0.0, [])  # before start: no-op, no crash
+        recorder.start_recording(folder, 100, 100, zones, is_video_file=True, base_name="base")
+        recorder.pause_recording()
+        recorder.write_object_data(0.0, 0, 0.0, [])
+        recorder.resume_recording()
+        recorder.write_object_data(0.1, 1, 0.1, [])
+        recorder.stop_recording()
+
+        assert _read_3c(_objects_path(folder))["frame"].tolist() == [1]
+
+    def test_invalid_observations_are_skipped_not_fatal(self, objects_recorder):
+        recorder, folder, zones = objects_recorder
+        recorder.start_recording(folder, 100, 100, zones, is_video_file=True, base_name="base")
+        bad = [
+            _context(None),
+            _context((1, 2, 3)),
+            _context((1, 2, float("nan"), 4)),
+            {"bbox": (1, 2, 3, 4), "role": "context"},  # no class_id
+        ]
+        recorder.write_object_data(0.0, 0, 0.0, [*bad, _context((1, 2, 3, 4))])
+        recorder.stop_recording()
+
+        df = _read_3c(_objects_path(folder))
+        assert df["class_id"].tolist() == [-1, 2]
+
+    def test_track_id_is_kept_when_the_observation_has_one(self, objects_recorder):
+        recorder, folder, zones = objects_recorder
+        recorder.start_recording(folder, 100, 100, zones, is_video_file=True, base_name="base")
+        recorder.write_object_data(0.0, 0, 0.0, [_subject((1, 2, 3, 4), track_id=7)])
+        recorder.stop_recording()
+
+        df = _read_3c(_objects_path(folder))
+        assert df["track_id"].tolist()[1] == 7
+
+    def test_trajectory_schema_is_unchanged_by_the_object_sidecar(self, objects_recorder):
+        recorder, folder, zones = objects_recorder
+        recorder.start_recording(folder, 100, 100, zones, is_video_file=True, base_name="base")
+        recorder.write_detection_data(0.0, 0, [(1, 1, 5, 5, 0.9, 1, 1)])
+        recorder.write_object_data(0.0, 0, 0.0, [_context((1, 2, 3, 4))])
+        recorder.stop_recording()
+
+        trajectory = pd.read_parquet(folder / "3_CoordMovimento_base.parquet")
+        assert list(trajectory.columns) == [
+            "timestamp",
+            "frame",
+            "track_id",
+            "x1",
+            "y1",
+            "x2",
+            "y2",
+            "confidence",
+            "uncertainty",
+            "bbox_iou",
+            "x_center_px",
+            "y_center_px",
+        ]
+        assert _objects_path(folder).exists()
+
+    def test_metadata_given_at_start_lands_in_the_parquet(self, objects_recorder):
+        from zebtrack.io.object_sidecar import (
+            CLOCK_PTS,
+            ObjectSidecarMetadata,
+            read_object_sidecar_metadata,
+        )
+
+        recorder, folder, zones = objects_recorder
+        metadata = ObjectSidecarMetadata(
+            class_names={0: "arena", 1: "rat", 2: "experimenter"},
+            class_roles={"arena": "arena", "rat": "subject", "experimenter": "context"},
+            weight_sha256="ab" * 32,
+            clock=CLOCK_PTS,
+            analysis_interval_frames=3,
+            class_roles_source="weight",
+        )
+        recorder.start_recording(
+            folder,
+            100,
+            100,
+            zones,
+            is_video_file=True,
+            base_name="base",
+            object_metadata=metadata,
+        )
+        recorder.write_object_data(0.0, 0, 0.0, [])
+        recorder.stop_recording()
+
+        assert read_object_sidecar_metadata(_objects_path(folder)) == metadata
+
+    @pytest.mark.parametrize(("is_video_file", "clock"), [(True, "pts"), (False, "capture_perf")])
+    def test_default_metadata_names_the_clock_of_the_pipeline(
+        self, objects_recorder, is_video_file, clock
+    ):
+        from zebtrack.io.object_sidecar import read_object_sidecar_metadata
+
+        recorder, folder, zones = objects_recorder
+        recorder.start_recording(
+            folder, 64, 64, zones, is_video_file=is_video_file, base_name="base"
+        )
+        recorder.write_object_data(0.0, 0, 0.0, [])
+        recorder.stop_recording()
+
+        metadata = read_object_sidecar_metadata(_objects_path(folder))
+        assert metadata is not None
+        assert metadata.clock == clock
+        assert metadata.class_names == {}
+        assert metadata.analysis_interval_frames is None
+
+    def test_write_failure_degrades_and_removes_the_partial_file(self, objects_recorder):
+        from unittest.mock import patch
+
+        from structlog.testing import capture_logs
+
+        from zebtrack.io import recorder as recorder_module
+
+        recorder, folder, zones = objects_recorder
+        recorder.start_recording(folder, 100, 100, zones, is_video_file=True, base_name="base")
+        recorder.write_object_data(0.0, 0, 0.0, [])
+        recorder._flush_object_data(force=True)
+        assert _objects_path(folder).exists()
+
+        with (
+            capture_logs() as logs,
+            patch.object(recorder_module, "build_object_table", side_effect=OSError("disk full")),
+        ):
+            recorder.write_object_data(0.1, 1, 0.1, [])
+            recorder._flush_object_data(force=True)
+
+        warnings = [e for e in logs if e["event"] == "recorder.object_sidecar.write_failed"]
+        assert len(warnings) == 1
+        assert warnings[0]["log_level"] == "warning"
+        # A truncated sidecar would read as "frames not processed": it is gone.
+        assert not _objects_path(folder).exists()
+
+        # The session goes on, the sidecar stays off, the trajectory is intact.
+        recorder.write_object_data(0.2, 2, 0.2, [])
+        recorder.write_detection_data(0.2, 2, [(1, 1, 5, 5, 0.9, 1, 1)])
+        recorder.stop_recording()
+        assert not _objects_path(folder).exists()
+        assert pd.read_parquet(folder / "3_CoordMovimento_base.parquet")["frame"].tolist() == [2]
+
+    def test_force_stop_discards_the_buffer(self, objects_recorder):
+        recorder, folder, zones = objects_recorder
+        recorder.start_recording(folder, 100, 100, zones, is_video_file=True, base_name="base")
+        recorder.write_object_data(0.0, 0, 0.0, [])
+        recorder.stop_recording(force_stop=True, reason="cancel")
+
+        assert not _objects_path(folder).exists()
+
+    def test_buffer_crossing_the_threshold_is_flushed_before_stop(self, tmp_path):
+        from zebtrack.core.detection import ZoneData
+
+        settings = _objects_settings()
+        settings.recorder.flush_row_threshold = 3
+        recorder = Recorder(settings_obj=settings)
+        folder = tmp_path / "flush"
+        recorder.start_recording(folder, 100, 100, ZoneData(), is_video_file=True, base_name="b")
+        try:
+            for frame in range(4):
+                recorder.write_object_data(frame / 10, frame, frame / 10, [])
+            wait_for_condition(lambda: _objects_path(folder, "b").exists(), timeout=5.0)
+        finally:
+            recorder.stop_recording()
+
+        assert _read_3c(_objects_path(folder, "b"))["frame"].tolist() == [0, 1, 2, 3]
+
+    def test_without_flush_thread_the_threshold_flushes_synchronously(self, tmp_path):
+        from zebtrack.core.detection import ZoneData
+
+        settings = _objects_settings()
+        settings.recorder.flush_row_threshold = 2
+        recorder = Recorder(settings_obj=settings)
+        folder = tmp_path / "sync"
+        recorder.start_recording(folder, 100, 100, ZoneData(), is_video_file=True, base_name="b")
+        recorder._stop_flush_thread(drain=False)
+        try:
+            recorder.write_object_data(0.0, 0, 0.0, [])
+            recorder.write_object_data(0.1, 1, 0.1, [])
+
+            assert _objects_path(folder, "b").exists()
+        finally:
+            recorder.stop_recording()
+
+
+class TestStaleSidecarCleanup:
+    def _plant(self, folder, names):
+        folder.mkdir(parents=True, exist_ok=True)
+        for name in names:
+            (folder / name).write_bytes(b"stale")
+
+    @pytest.mark.parametrize("enabled", [True, False])
+    def test_start_recording_removes_stale_sidecars_of_the_same_base(self, tmp_path, enabled):
+        from zebtrack.core.detection import ZoneData
+
+        folder = tmp_path / "session"
+        stale = [
+            "3b_Mascaras_base.parquet",
+            "3c_Objetos_base.parquet",
+            "7_AnalysisWindow_base.json",
+        ]
+        kept = [
+            "3b_Mascaras_other.parquet",
+            "3c_Objetos_base_2.parquet",
+            "7_AnalysisWindow_other.json",
+            "6_FrameLedger_base.csv",
+            "notes.txt",
+        ]
+        self._plant(folder, stale + kept)
+        recorder = Recorder(settings_obj=_objects_settings(enabled=enabled))
+
+        recorder.start_recording(folder, 100, 100, ZoneData(), is_video_file=True, base_name="base")
+        try:
+            for name in stale:
+                assert not (folder / name).exists(), name
+            for name in kept:
+                assert (folder / name).exists(), name
+        finally:
+            recorder.stop_recording()
+
+    def test_cleanup_runs_without_settings_too(self, tmp_path):
+        """The stale-mask bug (AUDIT) hit sessions without any object sidecar."""
+        from zebtrack.core.detection import ZoneData
+
+        folder = tmp_path / "session"
+        self._plant(folder, ["3b_Mascaras_base.parquet"])
+        recorder = Recorder()
+
+        recorder.start_recording(folder, 100, 100, ZoneData(), is_video_file=True, base_name="base")
+        recorder.stop_recording()
+
+        assert not (folder / "3b_Mascaras_base.parquet").exists()
+
+    def test_an_unremovable_stale_file_only_warns(self, tmp_path, monkeypatch):
+        from pathlib import Path
+
+        from structlog.testing import capture_logs
+
+        from zebtrack.core.detection import ZoneData
+
+        folder = tmp_path / "session"
+        self._plant(folder, ["3c_Objetos_base.parquet"])
+        original_unlink = Path.unlink
+
+        def locked(self, *args, **kwargs):
+            if self.name == "3c_Objetos_base.parquet":
+                raise PermissionError("locked by another process")
+            return original_unlink(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "unlink", locked)
+        recorder = Recorder(settings_obj=_objects_settings(enabled=False))
+
+        with capture_logs() as logs:
+            started = recorder.start_recording(
+                folder, 100, 100, ZoneData(), is_video_file=True, base_name="base"
+            )
+        recorder.stop_recording()
+
+        assert started is True
+        assert any(e["event"] == "recorder.start.stale_sidecar_remove_failed" for e in logs)
+
+
+class TestObjectSidecarMultiAquarium:
+    _POLYGONS: typing.ClassVar[dict[int, list[list[int]]]] = {
+        0: [[0, 0], [100, 0], [100, 100], [0, 100]],
+        1: [[200, 0], [300, 0], [300, 100], [200, 100]],
+    }
+
+    def _start(self, tmp_path, **kwargs):
+        from zebtrack.core.detection import ZoneData
+
+        recorder = Recorder(settings_obj=_objects_settings())
+        zones = {
+            aq: ZoneData(polygon=[tuple(p) for p in poly]) for aq, poly in self._POLYGONS.items()
+        }
+        assert recorder.start_recording_multi_aquarium(
+            output_folder=str(tmp_path / "results"),
+            width=320,
+            height=120,
+            zones_by_aquarium=zones,
+            base_name="exp",
+            write_video=False,
+            **kwargs,
+        )
+        return recorder
+
+    def _read(self, tmp_path, aquarium_number):
+        folder = tmp_path / "results" / f"aquarium_{aquarium_number}"
+        return _read_3c(folder / f"3c_Objetos_exp_aquarium_{aquarium_number}.parquet")
+
+    def test_each_aquarium_gets_its_own_sidecar_with_its_heartbeat(self, tmp_path):
+        recorder = self._start(tmp_path)
+        recorder.write_partitioned_object_data(0.0, 0, 0.0, [], self._POLYGONS)
+        recorder.stop_recording_multi_aquarium()
+
+        for number, aq_id in ((1, 0), (2, 1)):
+            df = self._read(tmp_path, number)
+            assert df["class_id"].tolist() == [-1]
+            assert df["aquarium_id"].tolist() == [aq_id]
+
+    def test_rows_are_routed_by_role_and_position(self, tmp_path):
+        recorder = self._start(tmp_path)
+        observations = [
+            _subject((10, 10, 20, 20), aquarium_id=0),
+            _subject((210, 10, 220, 20), aquarium_id=1),
+            _context((140, 50, 160, 70), class_id=3, name="hand", aquarium_id=0),
+            _context((240, 40, 260, 60), class_id=4, name="box", aquarium_id=1),
+        ]
+        recorder.write_partitioned_object_data(0.5, 5, 0.5, observations, self._POLYGONS)
+        recorder.stop_recording_multi_aquarium()
+
+        first = self._read(tmp_path, 1)
+        second = self._read(tmp_path, 2)
+        # aquarium 0: its subject + the hand in no aquarium (null aquarium_id).
+        assert first["class_id"].tolist() == [-1, 1, 3]
+        assert first["aquarium_id"].tolist()[:2] == [0, 0]
+        assert pd.isna(first["aquarium_id"].iloc[2])
+        # aquarium 1: its subject, the shared hand and the box inside it.
+        assert second["class_id"].tolist() == [-1, 1, 3, 4]
+        assert second["aquarium_id"].tolist()[:2] == [1, 1]
+        assert pd.isna(second["aquarium_id"].iloc[2])
+        assert second["aquarium_id"].tolist()[3] == 1
+
+    def test_metadata_reaches_every_sub_recorder(self, tmp_path):
+        from zebtrack.io.object_sidecar import (
+            CLOCK_PTS,
+            ObjectSidecarMetadata,
+            read_object_sidecar_metadata,
+        )
+
+        metadata = ObjectSidecarMetadata(
+            class_names={1: "zebrafish"}, clock=CLOCK_PTS, analysis_interval_frames=10
+        )
+        recorder = self._start(tmp_path, object_metadata=metadata)
+        recorder.write_partitioned_object_data(0.0, 0, 0.0, [], self._POLYGONS)
+        recorder.stop_recording_multi_aquarium()
+
+        for number in (1, 2):
+            folder = tmp_path / "results" / f"aquarium_{number}"
+            path = folder / f"3c_Objetos_exp_aquarium_{number}.parquet"
+            assert read_object_sidecar_metadata(path) == metadata
+
+    def test_partitioned_write_requires_multi_aquarium_mode(self):
+        with pytest.raises(RuntimeError):
+            Recorder().write_partitioned_object_data(0.0, 0, 0.0, [], self._POLYGONS)

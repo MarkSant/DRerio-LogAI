@@ -610,3 +610,29 @@ class TestOpenProjectSignals:
         coordinator.open_project("C:/projects/Experiment")
 
         assert override_service._using_project_overrides is False
+
+
+class TestReopenUsesTheProjectMethod:
+    """Reopening a project used the GLOBAL det/seg method (AUDIT §1, ADR-012)."""
+
+    def test_default_detector_setup_on_open_uses_the_project_method(self, coordinator):
+        coordinator.settings.model_selection.animal_method = "det"
+        coordinator.project_manager.project_data = {"model_selection": {"animal_method": "seg"}}
+        coordinator.state_manager.get_detector_state.return_value.use_openvino = False
+        coordinator.detector_service.initialize_detector.return_value = (True, None)
+        coordinator.project_workflow_adapter.open_project_workflow.return_value = True
+
+        coordinator.open_project("C:/projects/Experiment")
+        setup = coordinator.project_workflow_adapter.open_project_workflow.call_args.kwargs[
+            "setup_detector_callback"
+        ]
+        setup()
+
+        init_kwargs = coordinator.detector_service.initialize_detector.call_args.kwargs
+        assert init_kwargs["animal_method"] == "seg"
+
+    def test_project_without_its_own_method_keeps_the_global_one(self, coordinator):
+        coordinator.settings = SimpleNamespace(model_selection=SimpleNamespace(animal_method="det"))
+        coordinator.project_manager.project_data = {}
+
+        assert coordinator._project_animal_method() == "det"

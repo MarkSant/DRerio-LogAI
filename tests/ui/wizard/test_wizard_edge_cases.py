@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.wizard.models import (
+    BehavioralAnalysisData,
     CalibrationData,
     ExperimentalDesignData,
     LiveConfigData,
@@ -435,6 +436,38 @@ class TestWizardStepTransitions:
         """Test canceling wizard discards all changes."""
         # UI test - would require actual wizard instance
         pass
+
+
+class TestRodentBehaviouralBounds:
+    """#631: the open-field periphery of a rat (10-20 cm) is a valid thigmotaxis band."""
+
+    def test_open_field_band_is_accepted(self):
+        data = BehavioralAnalysisData(thigmotaxis_distance_cm=15.0)
+
+        assert data.thigmotaxis_distance_cm == 15.0
+
+    def test_a_typo_of_another_order_of_magnitude_is_still_refused(self):
+        with pytest.raises(ValidationError):
+            BehavioralAnalysisData(thigmotaxis_distance_cm=150.0)
+
+    def test_the_speed_ceiling_is_kept_not_dropped(self):
+        """#695: the widget's speed ceiling survives the wizard model (it ignored unknown keys)."""
+        data = BehavioralAnalysisData(max_plausible_speed_cm_s=100.0)
+
+        assert data.model_dump()["max_plausible_speed_cm_s"] == 100.0
+
+    def test_without_a_speed_ceiling_the_project_falls_back_to_settings(self):
+        assert BehavioralAnalysisData().max_plausible_speed_cm_s is None
+
+    @pytest.mark.parametrize("speed", [0.0, -5.0, 1000.5])
+    def test_a_speed_ceiling_out_of_range_is_refused(self, speed):
+        with pytest.raises(ValidationError):
+            BehavioralAnalysisData(max_plausible_speed_cm_s=speed)
+
+    def test_the_largest_accepted_ceiling_is_the_settings_bound(self):
+        assert BehavioralAnalysisData(max_plausible_speed_cm_s=1000.0).max_plausible_speed_cm_s == (
+            1000.0
+        )
 
 
 if __name__ == "__main__":

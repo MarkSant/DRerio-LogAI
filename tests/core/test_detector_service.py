@@ -130,6 +130,96 @@ class TestDetectorService(unittest.TestCase):
         self.assertIsNotNone(self.service.detector)
         self.state_manager.update_detector_state.assert_called_once()
 
+    def _initialize_with_names(self, class_names, mock_detector_class):
+        class _NamedPlugin(MockDetectorPlugin):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.class_names = dict(class_names)
+
+        self.settings.model_selection.animal_method = "det"
+        self.settings.camera.desired_width = 1280
+        self.settings.camera.desired_height = 720
+        self.weight_manager.get_weight_path_by_method.return_value = "/path/to/model.pt"
+        self.weight_manager.get_weight_sha256.return_value = "d" * 64
+        self.model_service.find_weight_by_path.return_value = (
+            "rat_weight",
+            {
+                "path": "/path/to/model.pt",
+                "class_roles": {"rat": "subject", "experimenter": "context"},
+            },
+        )
+        plugins = {"YOLO (Ultralytics)": _NamedPlugin}
+        with patch("os.path.exists", return_value=True):
+            return self.service.initialize_detector(
+                animal_method="det", use_openvino=False, detector_plugins=plugins
+            )
+
+    @patch("zebtrack.core.services.detector_service.Detector")
+    def test_initialize_detector_hands_the_weight_roles_to_the_detector(self, mock_detector_class):
+        success, error = self._initialize_with_names(
+            {0: "arena", 1: "experimenter", 2: "rat"}, mock_detector_class
+        )
+
+        self.assertTrue(success, error)
+        role_map = mock_detector_class.call_args.kwargs["class_role_map"]
+        self.assertEqual(role_map.subject_ids, frozenset({2}))
+        self.assertEqual(role_map.context_ids, frozenset({1}))
+        self.assertEqual(role_map.source.value, "weight")
+
+    @patch("zebtrack.core.services.detector_service.Detector")
+    def test_initialize_detector_refuses_a_weight_without_a_subject(self, mock_detector_class):
+        self.model_service.find_weight_by_path.return_value = ("coco", {"path": "/p.pt"})
+
+        class _CocoPlugin(MockDetectorPlugin):
+            class_names = {0: "person", 1: "bicycle", 2: "car"}  # noqa: RUF012
+
+        self.settings.model_selection.animal_method = "det"
+        self.weight_manager.get_weight_path_by_method.return_value = "/p.pt"
+        with patch("os.path.exists", return_value=True):
+            success, error = self.service.initialize_detector(
+                animal_method="det",
+                use_openvino=False,
+                detector_plugins={"YOLO (Ultralytics)": _CocoPlugin},
+            )
+
+        self.assertFalse(success)
+        self.assertIn("bicycle", error or "")
+        mock_detector_class.assert_not_called()
+
+    def test_project_roles_for_this_exact_weight_win(self):
+        plugin = MagicMock()
+        plugin.class_names = {0: "arena", 1: "experimenter", 2: "rat"}
+        self.project_manager.project_data = {
+            "model_overrides": {
+                "class_roles": {"experimenter": "subject"},
+                "class_roles_weight_sha256": "d" * 64,
+            }
+        }
+        self.weight_manager.get_weight_sha256.return_value = "d" * 64
+
+        role_map = self.service.resolve_class_role_map(
+            plugin, weight_name="w", weight_details={"class_roles": {"rat": "subject"}}
+        )
+
+        self.assertEqual(role_map.source.value, "project")
+        self.assertEqual(role_map.subject_ids, frozenset({1}))
+
+    def test_project_roles_for_another_weight_are_ignored(self):
+        plugin = MagicMock()
+        plugin.class_names = {0: "arena", 1: "experimenter", 2: "rat"}
+        self.project_manager.project_data = {
+            "model_overrides": {
+                "class_roles": {"experimenter": "subject"},
+                "class_roles_weight_sha256": "0" * 64,
+            }
+        }
+        self.weight_manager.get_weight_sha256.return_value = "d" * 64
+
+        role_map = self.service.resolve_class_role_map(plugin, weight_name="w")
+
+        self.assertEqual(role_map.source.value, "aliases")
+        self.assertEqual(role_map.subject_ids, frozenset({2}))
+
     def test_initialize_detector_no_model_path(self):
         """Test detector initialization fails when no model path found."""
         self.settings.model_selection.animal_method = "det"
@@ -413,7 +503,54 @@ class TestDetectorService(unittest.TestCase):
         self.assertEqual(params["conf_threshold"], 0.25)
         self.assertEqual(params["nms_threshold"], 0.45)
         self.assertEqual(params["track_threshold"], 0.25)
-        self.assertEqual(params["match_threshold"], 0.80)  # Updated to match current default
+        self.assertEqual(params["match_threshold"], 0.95)
+
+    def test_factory_reset_is_the_shipped_config(self):
+        """#698: the factory reset restores what config.yaml ships, one constant each.
+
+        It used to reset match / max distance / IoU to 0.80 / 200 / 0.1 while
+        config.yaml shipped 0.95 / 400 / 0.05.
+        """
+        from zebtrack.settings import (
+            DEFAULT_IOU_THRESHOLD,
+            DEFAULT_MATCH_THRESHOLD,
+            DEFAULT_MAX_CENTER_DISTANCE,
+            DEFAULT_TRACK_BUFFER,
+            DEFAULT_TRACK_THRESHOLD,
+        )
+
+        params = self.service.get_factory_detector_parameters()
+
+        self.assertEqual(params["track_threshold"], DEFAULT_TRACK_THRESHOLD)
+        self.assertEqual(params["match_threshold"], DEFAULT_MATCH_THRESHOLD)
+        self.assertEqual(params["track_buffer"], DEFAULT_TRACK_BUFFER)
+        self.assertEqual(params["max_center_distance"], DEFAULT_MAX_CENTER_DISTANCE)
+        self.assertEqual(params["iou_threshold"], DEFAULT_IOU_THRESHOLD)
+        self.assertEqual(
+            (params["match_threshold"], params["max_center_distance"], params["iou_threshold"]),
+            (0.95, 400.0, 0.05),
+        )
+
+    def test_current_parameters_without_bytetrack_settings_are_the_shared_defaults(self):
+        from zebtrack.settings import (
+            DEFAULT_IOU_THRESHOLD,
+            DEFAULT_MATCH_THRESHOLD,
+            DEFAULT_MAX_CENTER_DISTANCE,
+            DEFAULT_TRACK_THRESHOLD,
+        )
+
+        self.settings.yolo_model.confidence_threshold = 0.25
+        self.settings.yolo_model.nms_threshold = 0.45
+        del self.settings.bytetrack
+        self.service.detector = None
+        self.project_manager.project_data = {}
+
+        params = self.service.get_detector_parameters()
+
+        self.assertEqual(params["track_threshold"], DEFAULT_TRACK_THRESHOLD)
+        self.assertEqual(params["match_threshold"], DEFAULT_MATCH_THRESHOLD)
+        self.assertEqual(params["max_center_distance"], DEFAULT_MAX_CENTER_DISTANCE)
+        self.assertEqual(params["iou_threshold"], DEFAULT_IOU_THRESHOLD)
 
     def test_restore_detector_settings_no_detector(self):
         """Test restore settings with no detector."""

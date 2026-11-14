@@ -311,5 +311,81 @@ class TestParquetImport(unittest.TestCase):
         self.assertFalse(result["has_complete_data"])
 
 
+class TestTrajectoryImportCopiesTheSidecarSet:
+    """Importing a trajectory brings its 3b/3c/6/7 sidecars along (ADR-010)."""
+
+    _SET = (
+        "3b_Mascaras_{b}.parquet",
+        "3c_Objetos_{b}.parquet",
+        "6_FrameLedger_{b}.csv",
+        "6_FrameLedger_{b}.parquet",
+        "6_FrameLedger_{b}_anchor.json",
+        "7_AnalysisWindow_{b}.json",
+    )
+
+    def _import(self, tmp_path: Path, source_names: list[str], dest_names: list[str]):
+        from zebtrack.core.project.parquet_io_manager import ParquetIOManager
+
+        source = tmp_path / "old_results"
+        source.mkdir()
+        trajectory = source / "3_CoordMovimento_old.parquet"
+        trajectory.write_bytes(b"trajectory")
+        for name in source_names:
+            (source / name).write_text(name, encoding="utf-8")
+        video = tmp_path / "CECT_4.mp4"
+        video.touch()
+        dest = tmp_path / "project" / "Sujeito_CECT_4"
+        dest.mkdir(parents=True)
+        for name in dest_names:
+            (dest / name).write_text("stale", encoding="utf-8")
+
+        counts = ParquetIOManager()._process_single_parquet_import(
+            {"video": str(video), "import_trajectory": True},
+            {str(video): {"trajectory": str(trajectory)}},
+            "replace",
+            project_path=str(tmp_path / "project"),
+            get_zone_data_fn=lambda **_kwargs: ZoneData(),
+            save_zone_data_fn=lambda *_args, **_kwargs: None,
+            resolve_results_directory_fn=lambda *_args, **_kwargs: dest,
+        )
+        return counts, dest
+
+    def test_the_whole_set_is_copied_under_the_new_base(self, tmp_path):
+        names = [pattern.format(b="old") for pattern in self._SET]
+
+        counts, dest = self._import(tmp_path, [*names, "3c_Objetos_old_2.parquet"], [])
+
+        assert counts["trajectory"] == 1
+        assert (dest / "3_CoordMovimento_CECT_4.parquet").read_bytes() == b"trajectory"
+        for pattern in self._SET:
+            copied = dest / pattern.format(b="CECT_4")
+            assert copied.read_text(encoding="utf-8") == pattern.format(b="old")
+        # Another base that merely starts the same way is not part of the set.
+        assert not (dest / "3c_Objetos_CECT_4_2.parquet").exists()
+        assert sorted(p.name for p in dest.iterdir()) == sorted(
+            ["3_CoordMovimento_CECT_4.parquet", *(p.format(b="CECT_4") for p in self._SET)]
+        )
+
+    def test_stale_sidecars_of_the_overwritten_trajectory_are_removed(self, tmp_path):
+        """Old 3c/7_ next to the replaced trajectory would describe ANOTHER run."""
+        counts, dest = self._import(
+            tmp_path,
+            ["3b_Mascaras_old.parquet"],
+            ["3c_Objetos_CECT_4.parquet", "7_AnalysisWindow_CECT_4.json", "notes.txt"],
+        )
+
+        assert counts["trajectory"] == 1
+        assert (dest / "3b_Mascaras_CECT_4.parquet").exists()
+        assert not (dest / "3c_Objetos_CECT_4.parquet").exists()
+        assert not (dest / "7_AnalysisWindow_CECT_4.json").exists()
+        assert (dest / "notes.txt").exists()
+
+    def test_trajectory_without_sidecars_still_imports(self, tmp_path):
+        counts, dest = self._import(tmp_path, [], [])
+
+        assert counts["trajectory"] == 1
+        assert [p.name for p in dest.iterdir()] == ["3_CoordMovimento_CECT_4.parquet"]
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -374,6 +374,7 @@ class ProjectLifecycleManager:
         num_groups: int | None = None,
         group_names: list[str] | None = None,
         _wizard_metadata: dict | None = None,
+        analysis_window: dict | None = None,
     ) -> dict[str, Any]:
         """Initialize a new project, creating its directory and config file.
 
@@ -458,6 +459,10 @@ class ProjectLifecycleManager:
                 "use_openvino": None,
                 "device": (openvino_device or "AUTO").upper(),
                 "slot_weights": {},
+                # ADR-009: explicit class roles, valid only for the weight whose
+                # sha256 is recorded next to them. None = resolve by aliases.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
             "use_timed_recording": use_timed_recording,
             "recording_duration_s": recording_duration_s,
@@ -482,6 +487,8 @@ class ProjectLifecycleManager:
             "arduino_port": safe_arduino_port,
             "external_trigger_mode": safe_external_trigger,
             "preserve_real_aquarium_shape": bool(preserve_real_aquarium_shape),
+            # ADR-011/012: START/STOP conditions (validated by the wizard); None = whole recording.
+            "analysis_window": analysis_window,
             "tracking": {
                 "use_single_subject_tracker": tracker_pref,
             },
@@ -605,6 +612,27 @@ class ProjectLifecycleManager:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _migrated_single_subject_flag(loaded_data: dict, settings_obj: Any) -> bool:
+        """``tracking.use_single_subject_tracker`` for a project that lacks it.
+
+        The project's own animal count first (#649): the global setting (False
+        by default) turned a one-rat project into a multi-subject one the
+        moment it was opened without a ``tracking`` stanza.
+        """
+        from zebtrack.core.services.single_subject_policy import (
+            resolve_project_single_subject,
+        )
+
+        decision = resolve_project_single_subject(
+            {k: v for k, v in loaded_data.items() if k != "tracking"}
+        )
+        if decision is not None:
+            return decision.single
+        if settings_obj and hasattr(settings_obj, "tracking"):
+            return bool(settings_obj.tracking.use_single_subject_tracker)
+        return False
+
+    @staticmethod
     def apply_project_migrations(
         loaded_data: dict,
         log_context: Any,
@@ -686,10 +714,9 @@ class ProjectLifecycleManager:
             migration_applied = True
             migrated_fields.append("analysis_profiles")
 
-        # Use settings if available, otherwise default to False
-        tracker_flag = False
-        if settings_obj and hasattr(settings_obj, "tracking"):
-            tracker_flag = settings_obj.tracking.use_single_subject_tracker
+        tracker_flag = ProjectLifecycleManager._migrated_single_subject_flag(
+            loaded_data, settings_obj
+        )
         tracking_defaults = {"use_single_subject_tracker": tracker_flag}
         if "tracking" not in loaded_data or not isinstance(loaded_data.get("tracking"), dict):
             loaded_data["tracking"] = dict(tracking_defaults)
@@ -752,9 +779,10 @@ class ProjectLifecycleManager:
             migration_applied = True
             migrated_fields.append("external_trigger_mode")
 
-        if _ensure_model_overrides_defaults(loaded_data):
+        v8_fields = _apply_v8_defaults(loaded_data)
+        if v8_fields:
             migration_applied = True
-            migrated_fields.append("model_overrides")
+            migrated_fields.extend(v8_fields)
 
         # Add file_hash for legacy projects that don't have it
         if "file_hash" not in loaded_data:
@@ -780,9 +808,15 @@ def _ensure_model_overrides_defaults(loaded_data: dict[str, Any]) -> bool:
             "use_openvino": None,
             "device": "AUTO",
             "slot_weights": {},
+            "class_roles": None,
+            "class_roles_weight_sha256": None,
         }
         overrides_updated = True
     else:
+        for v8_key in ("class_roles", "class_roles_weight_sha256"):
+            if v8_key not in overrides:
+                overrides[v8_key] = None
+                overrides_updated = True
         if "active_weight" not in overrides:
             overrides["active_weight"] = None
             overrides_updated = True
@@ -799,6 +833,49 @@ def _ensure_model_overrides_defaults(loaded_data: dict[str, Any]) -> bool:
     if overrides_updated:
         loaded_data["model_overrides"] = overrides
     return overrides_updated
+
+
+def _apply_v8_defaults(loaded_data: dict[str, Any]) -> list[str]:
+    """``model_overrides`` normalisation plus the v8 additive defaults (ADR-012).
+
+    Returns the migrated field names, in the order they were applied.
+    """
+    added: list[str] = []
+    if _ensure_model_overrides_defaults(loaded_data):
+        added.append("model_overrides")
+    if "analysis_window" not in loaded_data:
+        loaded_data["analysis_window"] = None  # None = the whole recording
+        added.append("analysis_window")
+    if _backfill_model_selection(loaded_data):
+        added.append("model_selection")
+    return added
+
+
+_MODEL_SELECTION_KEYS = ("aquarium_method", "animal_method")
+_VALID_METHODS = ("seg", "det")
+
+
+def _backfill_model_selection(loaded_data: dict[str, Any]) -> bool:
+    """Recover the det/seg methods a pre-8.0 project chose in the wizard.
+
+    Until 8.0 the wizard's choice lived only in
+    ``_wizard_metadata["model_selection"]`` and reopening the project used the
+    GLOBAL method. A project that already has ``model_selection`` is never
+    touched; one whose wizard recorded nothing usable keeps the global fallback.
+    """
+    if isinstance(loaded_data.get("model_selection"), dict):
+        return False
+    wizard = loaded_data.get("_wizard_metadata")
+    selection = wizard.get("model_selection") if isinstance(wizard, dict) else None
+    if not isinstance(selection, dict):
+        return False
+    recovered = {
+        key: selection[key] for key in _MODEL_SELECTION_KEYS if selection.get(key) in _VALID_METHODS
+    }
+    if not recovered:
+        return False
+    loaded_data["model_selection"] = recovered
+    return True
 
 
 def _apply_wizard_multi_aquarium(

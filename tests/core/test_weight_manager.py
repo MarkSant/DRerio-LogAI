@@ -180,7 +180,10 @@ def test_wm_convert_to_openvino(mock_move, mock_yolo, wm_setup):
     mock_model_instance.export.assert_called_once_with(format="openvino", half=True)
 
     # 3. Assert that the final model path is correct and exists
-    expected_final_dir = config_dir / OPENVINO_CACHE_DIR / "default_weight_openvino_model"
+    # The cache folder carries the weight's sha256 prefix (ADR-012), so a
+    # retrained weight saved under the same name never reuses an old export.
+    sha8 = manager.get_weight_sha256(weight_name)[:8]
+    expected_final_dir = config_dir / OPENVINO_CACHE_DIR / f"default_weight_{sha8}_openvino_model"
     assert openvino_path == str(expected_final_dir)
 
     # 4. Assert that shutil.move was called to move the temp dir

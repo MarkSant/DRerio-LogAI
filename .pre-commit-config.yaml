@@ -92,6 +92,24 @@ repos:
         always_run: true
         stages: [pre-push]
 
+      # Security gates that used to exist only in CI (#648). Same commands and
+      # the same exception list (scripts/pip_audit_ignores.txt) as ci.yml.
+      - id: bandit
+        name: bandit (security lint, matches CI)
+        entry: bandit -r src/zebtrack -ll -q
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: pip-audit
+        name: pip-audit (known vulnerabilities, cached per day)
+        entry: python scripts/run_pip_audit.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
       - id: gui-tests-changed
         name: Run GUI tests on changed test files
         entry: powershell -ExecutionPolicy Bypass -File scripts/test_gui_changed.ps1

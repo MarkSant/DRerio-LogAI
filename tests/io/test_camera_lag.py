@@ -9,6 +9,7 @@ ensuring that:
 """
 
 import itertools
+import threading
 import time
 from typing import cast
 from unittest.mock import MagicMock, patch
@@ -267,3 +268,110 @@ def test_frame_timestamps_match_buffer_length(mock_cv2_capture):
             assert len(camera._frame_timestamps) <= 2
 
         camera.release()
+
+
+# --------------------------------------------------------------------------- #
+# read_next_frame / measured_fps (#637)
+# --------------------------------------------------------------------------- #
+
+
+def _sensor(fps: float, gate=None, free: int = 1):
+    """``cap.read`` side effect: a sensor delivering ``fps`` frames, each marked.
+
+    Frame ``k`` carries ``k`` in pixel ``[0, 0, 0]``. With ``gate`` (an
+    ``Event``), reads block after the first ``free`` frames until it is set.
+    """
+    counter = itertools.count(1)
+
+    def _read():
+        k = next(counter)
+        if gate is not None and k > free:
+            gate.wait()
+        time.sleep(1.0 / fps)
+        frame = np.zeros((4, 4, 3), dtype=np.uint8)
+        frame[0, 0, 0] = k % 256
+        return True, frame
+
+    return _read
+
+
+@pytest.mark.unit
+def test_read_next_frame_hands_each_sensor_frame_out_once(mock_cv2_capture):
+    """``get_frame`` polled faster than the sensor repeats frames; this never does."""
+    mock_cap, mock_settings = mock_cv2_capture
+    mock_cap.read.side_effect = _sensor(fps=40.0)
+
+    with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cap):
+        camera = Camera(settings_obj=mock_settings)
+        seqs, marks, stamps = [], [], []
+        last = 0
+        deadline = time.monotonic() + 0.5
+        while time.monotonic() < deadline:  # a consumer far faster than 40 fps
+            captured = camera.read_next_frame(last, timeout=0.5)
+            assert captured is not None
+            seqs.append(captured.seq)
+            marks.append(int(captured.frame[0, 0, 0]))
+            stamps.append(captured.t_perf)
+            last = captured.seq
+        camera.release()
+
+    assert len(seqs) >= 5
+    assert seqs == sorted(set(seqs)), "a sensor frame was handed out twice"
+    assert marks == [seq % 256 for seq in seqs]
+    assert all(b > a for a, b in itertools.pairwise(stamps))
+
+
+@pytest.mark.unit
+def test_capture_instant_is_the_read_not_the_call(mock_cv2_capture):
+    """``t_perf`` dates the frame when ``cap.read`` returned it."""
+    mock_cap, mock_settings = mock_cv2_capture
+    gate = threading.Event()
+    mock_cap.read.side_effect = _sensor(fps=100.0, gate=gate)
+
+    with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cap):
+        camera = Camera(settings_obj=mock_settings)
+        wait_for_condition(lambda: camera._frame_available, timeout=1.0)
+        time.sleep(0.2)  # the frame waits in the buffer
+        called_at = time.perf_counter()
+        captured = camera.read_next_frame(0, timeout=0.5)
+        again = camera.read_next_frame(captured.seq if captured else 0, timeout=0.1)
+        gate.set()
+        camera.release()
+
+    assert captured is not None
+    assert captured.seq == 1
+    assert called_at - captured.t_perf >= 0.15
+    assert again is None, "no new sensor frame: nothing to hand out"
+
+
+@pytest.mark.unit
+def test_measured_fps_is_the_sensor_rate_not_the_reported_one(mock_cv2_capture):
+    mock_cap, mock_settings = mock_cv2_capture  # driver reports 30 fps
+    mock_cap.read.side_effect = _sensor(fps=50.0)
+
+    with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cap):
+        camera = Camera(settings_obj=mock_settings)
+        wait_for_condition(lambda: len(camera._read_perfs) >= 20, timeout=3.0)
+        measured = camera.measured_fps()
+        camera.release()
+
+    assert camera.actual_fps == 30.0
+    assert measured is not None
+    # The mock sleeps 1/50 s per read; scheduler overhead only slows it down.
+    assert 30.0 < measured <= 52.0
+
+
+@pytest.mark.unit
+def test_measured_fps_needs_enough_reads(mock_cv2_capture):
+    mock_cap, mock_settings = mock_cv2_capture
+    gate = threading.Event()
+    mock_cap.read.side_effect = _sensor(fps=100.0, gate=gate, free=5)
+
+    with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cap):
+        camera = Camera(settings_obj=mock_settings)
+        wait_for_condition(lambda: len(camera._read_perfs) >= 5, timeout=1.0)
+        measured = camera.measured_fps()  # 5 reads < the default 10
+        gate.set()
+        camera.release()
+
+    assert measured is None

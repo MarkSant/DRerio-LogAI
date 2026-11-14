@@ -51,7 +51,10 @@ DRerio LogAI offers two tracking strategies:
 ### Track Buffer (`track_buffer`)
 
 - **Range**: 10 - 1000 frames (Typical: 90)
-- **Impact**: How many frames the tracker "remembers" a lost animal.
+- **Impact**: How long the tracker "remembers" a lost animal, as frames at the
+  30 fps reference: `track_buffer / 30` seconds of video time, whatever the
+  source fps or `analysis_interval_frames` (#654). Single-animal mode keeps the
+  lost track 6 times longer.
 - **Tuning**: Increase for videos with intermittent lighting or temporary occlusions.
 
 ## 4. Hybrid Matching (Advanced)

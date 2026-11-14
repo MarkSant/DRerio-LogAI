@@ -48,7 +48,11 @@ def test_ultralytics_detector_init_with_settings(mock_ultralytics_import, settin
     # Values come from settings_obj.bytetrack (track_threshold=0.25, match_threshold=0.95)
     assert detector.track_threshold == settings_obj.bytetrack.track_threshold
     assert detector.match_threshold == settings_obj.bytetrack.match_threshold
-    assert detector.track_buffer == 60
+    # #666: the plugin no longer pins a buffer, so ByteTrack gets the settings' value.
+    from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
+
+    settings_obj.bytetrack.track_buffer = 240
+    assert DetectionPostProcessor.get_track_buffer(settings_obj, detector) == 240
     # Verify class names were extracted
     assert detector.class_names == {0: "aqua", 1: "zebrafish"}
 

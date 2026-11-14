@@ -136,3 +136,31 @@ def test_update_analysis_metadata_keeps_non_live_empty_payload_as_defaults():
         call("Controle", "Dia 2", "02"),
         call("Sem Grupo", "Sem Dia", "Não informado"),
     ]
+
+
+def test_detection_overlay_prefers_the_payload_roles():
+    gui = _make_gui(is_live_session_active=False)
+    gui.overlay_class_roles = {1: "arena"}
+    gui.overlay_class_names = {0: "rat"}
+    controller = AnalysisViewController(gui)
+
+    controller.update_detection_overlay([(0, 0, 1, 1, 0.9, 1, 0)], class_roles={0: "subject"})
+
+    gui.canvas_manager.renderer.update_overlay.assert_called_once_with(
+        [(0, 0, 1, 1, 0.9, 1, 0)],
+        False,
+        class_roles={0: "subject"},
+        class_names={0: "rat"},
+    )
+
+
+def test_detection_overlay_falls_back_to_the_project_roles():
+    gui = _make_gui(is_live_session_active=False)
+    gui.overlay_class_roles = {0: "arena"}
+    controller = AnalysisViewController(gui)
+
+    controller.update_detection_overlay([], report={"mode": ProcessingMode.SINGLE_SUBJECT})
+
+    gui.canvas_manager.renderer.update_overlay.assert_called_once_with(
+        [], True, class_roles={0: "arena"}, class_names=None
+    )

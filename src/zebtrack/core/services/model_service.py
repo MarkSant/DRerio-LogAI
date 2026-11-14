@@ -256,6 +256,17 @@ class ModelService:
                     weight=weight_name,
                     path=openvino_path,
                 )
+            elif self._openvino_export_is_stale(weight_name):
+                # The folder exists but is not provably the export of THIS .pt
+                # (a 7.2 folder without a recorded sha, or a weight retrained
+                # under the same name). Loading it would serve the old model.
+                ready = False
+                status = "not_converted"
+                log.warning(
+                    "model_service.openvino_status.stale_export",
+                    weight=weight_name,
+                    path=openvino_path,
+                )
 
         return {
             "status": status,
@@ -263,6 +274,18 @@ class ModelService:
             "path": openvino_path if ready else None,
             "error": last_error,
         }
+
+    def _openvino_export_is_stale(self, weight_name: str) -> bool:
+        """``True`` only when the weight manager PROVES the export is stale.
+
+        Checked with ``is False`` so a stub manager without the check (or a
+        ``MagicMock`` answering with a mock) never blocks a conversion that
+        the old status logic considered ready.
+        """
+        checker = getattr(self.weight_manager, "openvino_cache_is_current", None)
+        if not callable(checker):
+            return False
+        return checker(weight_name) is False
 
     def validate_model_configuration(
         self, weight_name: str | None, use_openvino: bool

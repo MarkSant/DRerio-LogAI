@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -139,3 +140,37 @@ def test_on_project_manager_replaced_adopts_the_new_manager(
     assert panel.project_manager is new_manager
     assert panel.project_manager is not original
     assert panel.slot_weight_choices["det:aquarium"].get() == "alt_det.pt"
+
+
+def test_class_roles_section_edits_the_project_weight(tkinter_root, project_config_controller):
+    from zebtrack.ui.components import class_roles_panel as roles_module
+
+    project_config_controller.weight_manager = Mock()
+    project_config_controller.model_service = Mock()
+    project_config_controller.model_service.inspect_model.return_value = {
+        "class_names": {0: "arena", 1: "rat"}
+    }
+    target = roles_module.TargetWeight(name="rat.pt", sha256="abc", details={})
+    with patch.object(roles_module, "project_target_weight", return_value=target):
+        panel = ProjectModelConfigurationPanel(tkinter_root, project_config_controller)
+        roles = panel.class_roles_panel
+        assert roles is not None
+        roles._background = False
+        roles.refresh()
+
+        assert roles.editor.scope is roles_module.ClassRolesScope.PROJECT
+        assert roles.editor.project_manager is project_config_controller.project_manager
+        assert [row.name for row in roles.rows()] == ["arena", "rat"]
+        assert roles.grid_info() == {} and cast(Any, roles.master).grid_info()["column"] == 2
+
+        new_manager = SimpleNamespace(project_data={"model_overrides": {}})
+        panel.project_manager = new_manager
+        panel._refresh_class_roles()
+        assert roles.editor.project_manager is new_manager
+
+
+def test_class_roles_section_needs_a_model_service(tkinter_root, project_config_controller):
+    panel = ProjectModelConfigurationPanel(tkinter_root, project_config_controller)
+
+    assert panel.class_roles_panel is None
+    panel._refresh_class_roles()  # no-op, never raises

@@ -76,6 +76,10 @@ class StubService(LiveSessionManagerMixin):
     def _start_threads(self) -> bool:
         return False
 
+    # LiveAnalysisPostProcessorMixin's resolver (#635): one aquarium.
+    def _resolve_session_multi_zone_data(self) -> Any:
+        return None
+
     def set_last_detections(self, detections: list) -> None:
         pass
 

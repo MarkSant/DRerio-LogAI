@@ -16,7 +16,7 @@ round-trips through the existing project JSON without schema migrations.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any, NamedTuple
 
 import structlog
@@ -86,6 +86,17 @@ class ArduinoBinding(BaseModel):
             "wired. Empty/blank is normalized to None."
         ),
     )
+    aquarium_id: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Aquarium whose ROI this binding watches in a multi-aquarium live "
+            "session (0-based, the AquariumData id). None = the ROI of that name "
+            "in ANY aquarium: occupied while an animal of any aquarium is inside, "
+            "which is exactly the single-aquarium behaviour. A single-aquarium "
+            "session is aquarium 0."
+        ),
+    )
 
     @field_validator("label", mode="before")
     @classmethod
@@ -144,8 +155,18 @@ class ArduinoBindingConfig(BaseModel):
         return cls(bindings=bindings)
 
     def to_storage(self) -> list[dict[str, Any]]:
-        """Serialize to the plain list-of-dicts form stored in ``project_data``."""
-        return [b.model_dump() for b in self.bindings]
+        """Serialize to the plain list-of-dicts form stored in ``project_data``.
+
+        ``aquarium_id`` is written only when set: an unscoped binding is stored
+        exactly as before #656, so saving a legacy project does not rewrite it.
+        """
+        stored: list[dict[str, Any]] = []
+        for binding in self.bindings:
+            entry = binding.model_dump()
+            if entry.get("aquarium_id") is None:
+                entry.pop("aquarium_id", None)
+            stored.append(entry)
+        return stored
 
     def roi_names(self) -> list[str]:
         """ROI names referenced by the bindings (order preserved, deduplicated)."""
@@ -201,6 +222,41 @@ class ArduinoBindingConfig(BaseModel):
             )
             for token in sorted(set(enter_by_token) & set(exit_by_token))
         ]
+
+    def exit_tokens_of_aquarium(self, aquarium_id: int) -> list[int]:
+        """Distinct ``on_exit`` tokens of the bindings scoped to ``aquarium_id``.
+
+        What a multi-aquarium session sweeps when THAT aquarium's analysis
+        window stops while another aquarium's is still open. Unscoped bindings
+        are left out: their device also answers the other aquarium.
+        """
+        seen: set[int] = set()
+        tokens: list[int] = []
+        for b in self.bindings:
+            if b.aquarium_id != aquarium_id or b.on_exit is None or b.on_exit in seen:
+                continue
+            seen.add(b.on_exit)
+            tokens.append(b.on_exit)
+        return tokens
+
+    def unscoped_rois_shared_by_aquariums(
+        self, roi_names_by_aquarium: Mapping[int, Iterable[str]]
+    ) -> list[str]:
+        """Unscoped bindings whose ROI name exists in two or more aquariums.
+
+        Such a binding drives ONE device from both aquariums (occupied while
+        any of them is inside). Legitimate, but rarely intended in a
+        multi-aquarium session: the caller warns so the operator can scope it.
+        """
+        counts: dict[str, int] = {}
+        for names in roi_names_by_aquarium.values():
+            for name in set(names):
+                counts[name] = counts.get(name, 0) + 1
+        shared: list[str] = []
+        for b in self.bindings:
+            if b.aquarium_id is None and counts.get(b.roi, 0) >= 2 and b.roi not in shared:
+                shared.append(b.roi)
+        return shared
 
     def is_empty(self) -> bool:
         """True when there are no bindings (the live hook can skip all work)."""

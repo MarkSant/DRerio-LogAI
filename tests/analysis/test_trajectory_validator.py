@@ -274,3 +274,124 @@ class TestErrorRecoveryIntegration:
         # Should not crash
         result = validator.validate(df)
         assert "is_valid" in result
+
+
+class TestDurationStat:
+    """``duration_s`` is time; ``total_frames`` counts FRAMES, not rows (#641)."""
+
+    def test_two_tracks_last_ten_seconds_not_twenty(self):
+        validator = TrajectoryQualityValidator(fps=30.0, min_trajectory_frames=3)
+        t = np.arange(100) / 10.0
+        df = pd.DataFrame(
+            {
+                "timestamp": np.concatenate([t, t]),
+                "frame": np.concatenate([np.arange(100), np.arange(100)]),
+                "track_id": [1] * 100 + [2] * 100,
+            }
+        )
+
+        stats = validator.validate(df)["stats"]
+
+        assert stats["total_frames"] == 100
+        assert stats["duration_s"] == pytest.approx(10.0)
+
+    def test_without_timestamps_the_validator_fps_is_the_fallback(self):
+        validator = TrajectoryQualityValidator(fps=20.0, min_trajectory_frames=3)
+        df = pd.DataFrame({"frame": np.arange(40), "track_id": [1] * 40})
+
+        stats = validator.validate(df)["stats"]
+
+        assert stats["duration_s"] == pytest.approx(2.0)
+
+
+def _frames_df(frames, track_ids=None) -> pd.DataFrame:
+    frames = np.asarray(list(frames))
+    tracks = np.ones(frames.size, dtype=int) if track_ids is None else np.asarray(track_ids)
+    return pd.DataFrame({"timestamp": frames / 10.0, "frame": frames, "track_id": tracks})
+
+
+class TestFramesAndCoverageCountFrames:
+    """#641: rows are detections; frames and coverage must not move with them."""
+
+    def _stats(self, df: pd.DataFrame) -> dict:
+        validator = TrajectoryQualityValidator(fps=10.0, min_trajectory_frames=3)
+        return validator.validate(df)["stats"]
+
+    def test_two_animals_do_not_double_frames_or_coverage(self):
+        frames = np.arange(100)
+        df = _frames_df(np.repeat(frames, 2), np.tile([1, 2], 100))
+
+        stats = self._stats(df)
+
+        assert stats["total_frames"] == 100
+        assert stats["temporal_coverage"] == pytest.approx(1.0)
+
+    def test_analysis_interval_ten_with_every_sample_is_full_coverage(self):
+        # analysis_interval_frames=10: frames 0, 10, ..., 990 are ALL that was analysed.
+        stats = self._stats(_frames_df(range(0, 1000, 10)))
+
+        assert stats["total_frames"] == 100
+        assert stats["temporal_coverage"] == pytest.approx(1.0)
+
+    def test_a_real_gap_lowers_coverage(self):
+        # 100 analysed samples, the subject missing from 20 of them.
+        kept = [f for f in range(0, 1000, 10) if not 400 <= f < 600]
+
+        stats = self._stats(_frames_df(kept))
+
+        assert stats["total_frames"] == 80
+        assert stats["temporal_coverage"] == pytest.approx(0.8)
+
+    def test_frames_without_detection_are_missing_not_rows(self):
+        # Two animals; frames 50-59 have nobody. 90 frames seen out of 100.
+        frames = np.array([f for f in range(100) if not 50 <= f < 60])
+        df = _frames_df(np.repeat(frames, 2), np.tile([1, 2], frames.size))
+
+        stats = self._stats(df)
+
+        assert stats["total_frames"] == 90
+        assert stats["temporal_coverage"] == pytest.approx(0.9)
+
+    def test_short_trajectory_warning_counts_frames(self):
+        # 2 frames x 2 animals = 4 rows, still shorter than 3 frames.
+        validator = TrajectoryQualityValidator(fps=10.0, min_trajectory_frames=3)
+        df = _frames_df([0, 0, 1, 1], [1, 2, 1, 2])
+
+        warnings = validator.validate(df)["warnings"]
+
+        assert any("Trajectory is short: 2 frames" in w for w in warnings)
+
+    def test_without_frame_numbers_coverage_comes_from_the_time_base(self):
+        # 10 Hz, 1 s missing in the middle of 10 s: 90 of 100 instants, 2 animals.
+        t = np.array([i / 10 for i in range(100) if not 50 <= i < 60])
+        df = pd.DataFrame({"timestamp": np.repeat(t, 2), "track_id": np.tile([1, 2], t.size)})
+
+        stats = self._stats(df)
+
+        assert stats["total_frames"] == 90
+        assert stats["temporal_coverage"] == pytest.approx(0.9)
+
+    def test_frames_off_the_analysis_step_do_not_exceed_full_coverage(self):
+        # Step 10 with one extra frame at 35: 7 frames where 6 were expected.
+        stats = self._stats(_frames_df([0, 10, 20, 30, 35, 40, 50]))
+
+        assert stats["total_frames"] == 7
+        assert stats["temporal_coverage"] == 1.0
+
+
+class TestUniqueTracksIsTheSubjectCount:
+    """#671: ``unique_tracks`` reads the one rule of how many animals there are."""
+
+    def _stats(self, df: pd.DataFrame) -> dict:
+        validator = TrajectoryQualityValidator(fps=10.0, min_trajectory_frames=3)
+        return validator.validate(df)["stats"]
+
+    def test_rows_without_id_are_not_an_animal(self):
+        df = _frames_df(range(30), [1.0] * 10 + [np.nan] * 10 + [2.0] * 10)
+
+        assert self._stats(df)["unique_tracks"] == 2
+
+    def test_a_trajectory_without_any_id_is_one_animal(self):
+        df = _frames_df(range(30), [np.nan] * 30)
+
+        assert self._stats(df)["unique_tracks"] == 1

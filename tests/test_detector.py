@@ -159,7 +159,7 @@ class TestDetector(unittest.TestCase):
     def test_set_single_subject_mode_reinitializes_tracker_and_notifies_plugin(self):
         sentinel_tracker = object()
         self.detector._byte_tracker = cast(Any, sentinel_tracker)
-        self.detector._byte_tracker_params = (0.5, 0.5, 30, 0.5, 0.5, True, True)
+        self.detector._byte_tracker_params = (0.5, 0.5, 30, 0.5, 0.5, True, True, 30.0, 1)
 
         self.detector.set_single_subject_mode(True)
 
@@ -172,7 +172,7 @@ class TestDetector(unittest.TestCase):
         sentinel_tracker = object()
         self.detector._single_subject_mode = True
         self.detector._byte_tracker = cast(Any, sentinel_tracker)
-        self.detector._byte_tracker_params = (0.5, 0.5, 30, 0.5, 0.5, True, True)
+        self.detector._byte_tracker_params = (0.5, 0.5, 30, 0.5, 0.5, True, True, 30.0, 1)
 
         self.detector.set_single_subject_mode(True)
 
@@ -184,7 +184,7 @@ class TestDetector(unittest.TestCase):
         sentinel_tracker = MagicMock()
         self.detector._single_subject_tracker = sentinel_tracker
         self.detector._byte_tracker = cast(Any, object())
-        self.detector._byte_tracker_params = (0.5, 0.5, 30, 0.5, 0.5, True, True)
+        self.detector._byte_tracker_params = (0.5, 0.5, 30, 0.5, 0.5, True, True, 30.0, 1)
 
         BaseTrack._count = 5
 
@@ -408,6 +408,9 @@ class TestDetector(unittest.TestCase):
         dummy_frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
         zones = ZoneData(polygon=[[0, 0], [1, 1]])
         self.detector.set_zones(zones, 640, 480)
+        # A known source rate keeps the ByteTrack fps-fallback warning (#630)
+        # out of this test, which is about the dimension warning only.
+        self.detector.set_source_fps(30.0)
 
         with patch("zebtrack.core.detection.single_detector.log.warning") as mock_log:
             self.detector.detect(dummy_frame, "live")
@@ -554,15 +557,11 @@ class TestDetectorZoneLogic(unittest.TestCase):
             with patch.object(self.detector.zone_scaler, "is_inside_polygon", return_value=True):
                 detections2, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
-            # Detection should be preserved even if ByteTracker can't confirm track yet
-            # ByteTracker may return 0 tracks if the track is in "unconfirmed" state
-            # Our passthrough mechanism ensures we still get the detection
+            # The track confirmed on frame 1 keeps its id; a row without id is
+            # never written (#671).
             self.assertGreaterEqual(len(detections2), 1)
             if len(detections2) > 0:
-                track_id2 = detections2[0][5]
-                # Track ID may be None if passthrough was used, or same as before if tracked
-                if track_id2 is not None:
-                    self.assertEqual(track_id1, track_id2)
+                self.assertEqual(detections2[0][5], track_id1)
 
     def test_bytetrack_handles_empty_detections(self):
         """Test that BYTETracker handles frames with no detections gracefully."""

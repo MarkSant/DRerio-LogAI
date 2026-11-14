@@ -17,6 +17,8 @@ parênteses quando isso ajuda a achar o botão).
 - [Que tipo de projeto criar](#que-tipo-de-projeto-criar)
 - [Criando um projeto pré-gravado](#criando-um-projeto-pré-gravado-7-passos)
 - [Desenhando a arena e as ROIs](#desenhando-a-arena-e-as-rois)
+- [Usar um peso com outras classes](#usar-um-peso-com-outras-classes-papéis)
+- [Definir início e fim da análise](#definir-início-e-fim-da-análise)
 - [Processando os vídeos](#processando-os-vídeos)
 - [Relatórios e resultados](#relatórios-e-resultados)
 - [Projetos ao vivo](#projetos-ao-vivo)
@@ -258,6 +260,91 @@ qual deles você está desenhando.
 As zonas pertencem ao vídeo em que foram desenhadas. Um vídeo sem zonas próprias usa o padrão do
 projeto.
 
+## Usar um peso com outras classes (papéis)
+
+Desde a v8 qualquer peso de detecção YOLOv8/v11 funciona, não só os de zebrafish. O que o programa
+precisa saber é o que cada classe do peso **é**:
+
+| Papel | Significado |
+| --- | --- |
+| **Sujeito** | O animal que é rastreado e medido. Várias classes podem ser sujeito. |
+| **Arena** | O aparato — aquário, caixa, labirinto. No máximo uma classe. |
+| **Contexto** | Visto e registrado em todo frame, nunca rastreado: o experimentador, uma caixa de partida, uma tampa. Serve para iniciar ou encerrar a análise. |
+| **Ignorada** | Descartada. |
+
+Na maior parte das vezes você não faz nada: classes com nomes como `fish`, `zebrafish`, `rat`,
+`mouse`, `animal` ou `subject` viram o sujeito, e `arena`, `tank`, `aquarium` ou `maze` viram a
+arena. O resto fica ignorado até você dizer o contrário. Um peso com três ou mais classes nomeadas e
+**nenhuma** reconhecível como o animal é recusado com uma mensagem — do contrário ele rastrearia a
+classe que viesse primeiro.
+
+Onde definir os papéis:
+
+- **Para o peso** — *Configuração Global de Modelos…* → catálogo de pesos → selecione o peso →
+  **Papéis das classes…**. Todo projeto que usar esse peso recebe esses papéis.
+- **Para um projeto** — aba **Config. Modelo IA**, *Papéis das classes do peso do projeto*. Os
+  papéis ficam presos àquele arquivo de peso exato: se você trocar ou retreinar o peso, o painel avisa
+  que eles estão sendo ignorados.
+- **Ao criar o projeto** — a seção opcional **Papéis das classes** do passo 5 (Modelos e Pesos).
+
+Em qualquer um deles, escolha um papel por classe na tabela e clique em **Salvar**; **Restaurar
+automático** volta aos papéis pelo nome. O painel recusa um mapa sem sujeito ou com duas arenas.
+
+**Exemplo — o peso do labirinto de Barnes.** Ele tem quatro classes: `arena`, `experimenter`,
+`rat` e `start_box`. Os papéis automáticos já fazem de `rat` o sujeito e de `arena` a arena; marque
+`experimenter` e `start_box` como **Contexto** para que a janela de análise possa vê-los. Com um
+mapa explícito, o canvas de zonas e o quadro de análise desenham cada papel com a sua cor, as caixas
+de contexto em laranja com o nome da classe.
+
+As detecções de contexto, e uma linha de "batimento" por frame processado, são gravadas ao lado da
+trajetória em `3c_Objetos_<vídeo>.parquet`.
+
+## Definir início e fim da análise
+
+Por padrão a análise cobre a gravação inteira, a partir do primeiro frame em que o animal aparece.
+Quando o protocolo diz que a medida começa depois — quando o experimentador sai, quando uma porta
+abre, quando o Arduino manda um código — defina uma **janela de análise**.
+
+Na aba **Configuração de Zonas**, o painel **Janela de Análise (Opcional)** mostra a regra atual em
+palavras. **Editar condições…** abre o editor, com um bloco **Início** e um bloco **Fim**. Cada bloco
+é uma lista de linhas:
+
+| Linha | Dispara quando |
+| --- | --- |
+| Classe presente / ausente | uma classe (ou qualquer classe de um papel) está ou não visível |
+| …mantida por (segundos ou frames) | as linhas de classe acima ficaram verdadeiras por esse tempo |
+| Sujeito entra / sai da ROI | o animal entra ou sai de uma das ROIs do projeto |
+| Tempo do vídeo atinge / Número do frame atinge | um instante fixo do vídeo |
+| Tempo após o início | tantos segundos depois do Início (só no Fim) |
+| Sinal do Arduino | o Arduino envia um código (em branco = qualquer código) |
+| Sinal manual | você clica em **Marcar início/fim** numa sessão ao vivo |
+| Fim do vídeo | a gravação termina (só no Fim) |
+
+**Combinar as linhas** com *todas*, *qualquer uma (vale a primeira)* ou *em sequência*. Mais duas
+escolhas completam a regra: **Se o Início nunca acontecer** (usar a gravação inteira, com aviso, ou
+deixar as métricas vazias) e, em sessões ao vivo, **Quando o Fim acontecer** (só marcar o fim, ou
+encerrar a sessão ao vivo). **Salvar** grava a regra no projeto; ela vale na próxima vez que você
+rodar a análise — nada precisa ser detectado de novo.
+
+**Exemplo — o labirinto de Barnes.** **Predefinição: labirinto de Barnes** preenche o protocolo:
+Início quando a caixa de partida e o experimentador estão ausentes e o rato está presente, mantido
+por 5 frames; Fim no primeiro entre o fim do vídeo, o rato ausente por 3 s ou 240 s após o Início.
+Se o peso não tiver classe com algum desses nomes, o editor avisa; revise as linhas e clique em
+**Salvar**.
+
+O que a janela muda nos resultados:
+
+- O vídeo é sempre gravado por inteiro; só as métricas ficam restritas a [Início, Fim].
+- As condições são medidas no relógio da própria gravação (os carimbos de tempo do vídeo, ou o
+  instante de captura numa sessão ao vivo), e um evento mantido por algum tempo é datado no seu
+  **primeiro** frame.
+- Taxas e percentuais dividem pela duração da janela. A latência de ROI conta a partir do Início; um
+  animal que já está dentro no Início tem latência 0, marcada *presente no início*; um que nunca
+  entra recebe a duração da janela, marcada *censurada* — um teto, não uma medida.
+- O relatório Word ganha uma seção **Janela de Análise**, o `.xlsx` ganha as colunas `window_*` e
+  as marcas de latência por ROI, e `7_AnalysisWindow_<vídeo>.json` registra o início e o fim ao lado
+  da trajetória.
+
 ## Processando os vídeos
 
 Em **Controle Principal**:
@@ -294,14 +381,20 @@ Duplo clique em qualquer item abre o arquivo.
 ### Os arquivos gerados, por vídeo
 
 ```text
-<video>_results/
-├── 1_ArenaROI_<video>.parquet       # Definições de arena e ROI
-├── 2_Zones_<video>.parquet          # Metadados das zonas
-├── 3_CoordMovimento_<video>.parquet # Trajetória quadro a quadro
-├── 3b_Mascaras_<video>.parquet      # Máscaras de segmentação (só quando gravadas)
-├── <video>_summary.xlsx             # Métricas por ROI, mais uma aba por animal
-└── <video>_report.docx              # Relatório ilustrado
+<pasta de resultados>/
+├── 1_ProcessingArea_<vídeo>.parquet # Arena (área de processamento)
+├── 2_AreasOfInterest_<vídeo>.parquet # ROIs
+├── 3_CoordMovimento_<vídeo>.parquet # Trajetória quadro a quadro
+├── 3b_Mascaras_<vídeo>.parquet      # Máscaras de segmentação (só quando gravadas)
+├── 3c_Objetos_<vídeo>.parquet       # Objetos detectados por frame (v8)
+├── 7_AnalysisWindow_<vídeo>.json    # Início e fim da janela de análise (v8, só com janela)
+├── 4_Relatorio_<vídeo>.xlsx         # Métricas por ROI, mais uma aba por animal
+└── 4_Relatorio_<vídeo>.docx         # Relatório ilustrado
 ```
+
+Com vários aquários num vídeo, cada um ganha uma subpasta `aquarium_1/`, `aquarium_2/`, … com os
+mesmos arquivos. Um vídeo único analisado sem projeto grava `<vídeo>_summary.xlsx` e
+`<vídeo>_report.docx` no lugar do par `4_Relatorio_`.
 
 O esquema da trajetória é fixo e não muda entre versões:
 

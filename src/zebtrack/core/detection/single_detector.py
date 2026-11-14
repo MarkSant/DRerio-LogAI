@@ -13,6 +13,8 @@ import numpy as np
 import structlog
 
 from zebtrack.core.detection.bbox_area_gate import BboxAreaGate
+from zebtrack.core.detection.class_aliases import ClassAliases
+from zebtrack.core.detection.class_roles import ClassRoleMap, resolve_class_role_map
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.detection_types import MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.single_subject_tracker import SingleSubjectTracker
@@ -49,6 +51,8 @@ class SingleDetector:
         base_width: The reference width the zones were defined on.
         base_height: The reference height the zones were defined on.
         settings_obj: Settings instance (injected, optional for backward compat).
+        class_role_map: Roles of the model's classes (ADR-009). ``None`` builds
+            the map from the aliases -- literally the 7.2 resolution.
     """
 
     def __init__(
@@ -59,6 +63,7 @@ class SingleDetector:
         base_width: int = 1280,
         base_height: int = 720,
         settings_obj: "Settings | None" = None,
+        class_role_map: ClassRoleMap | None = None,
     ) -> None:
         self.plugin = plugin
         if not self.plugin:
@@ -88,7 +93,21 @@ class SingleDetector:
         self._single_subject_mode = False
         self._single_subject_tracker = SingleSubjectTracker()
         self._byte_tracker: BYTETracker | None = None
-        self._byte_tracker_params: tuple[float, float, int, float, float, bool, bool] | None = None
+        self._byte_tracker_params: (
+            tuple[float, float, int, float, float, bool, bool, float, int] | None
+        ) = None
+        #: Detection cadence of the current run (every N source frames), declared
+        #: by ``set_processing_interval``. ``None`` until the caller knows it;
+        #: ByteTrack then falls back to ``settings.video_processing.processing_interval``
+        #: (#667). It is the Kalman filter's ``dt``.
+        self._processing_interval: int | None = None
+        #: Real frame rate of the current source (video ``CAP_PROP_FPS`` or the
+        #: camera's rate). ``None`` until the caller knows it; ByteTrack then
+        #: falls back to ``settings.video_processing.fps`` with a warning (#630).
+        self._source_fps: float | None = None
+        #: Instant (s) of the frame about to be tracked, declared by
+        #: ``set_frame_time`` and consumed by the next ByteTrack update (#654).
+        self._frame_time_s: float | None = None
 
         # Máscaras do frame corrente, indexadas pela bbox JÁ no espaço do frame
         # inteiro. A bbox é a chave porque ela é o único identificador que
@@ -129,10 +148,25 @@ class SingleDetector:
         #: multi-aquário mantém um portão por aquário.
         self._tracked_area_gate = BboxAreaGate.from_settings(settings_obj, label="single_tracked")
 
-        # Dynamic class ID resolution
-        self.aquarium_class_id, self.animal_class_id = DetectionPostProcessor.resolve_class_ids(
-            plugin
-        )
+        # Class roles by NAME (ADR-009). Without an explicit map the aliases
+        # decide, non-strictly, exactly as ``resolve_class_ids`` did in 7.2.
+        if class_role_map is None:
+            class_role_map = resolve_class_role_map(
+                getattr(plugin, "class_names", None),
+                aliases=ClassAliases.from_settings(settings_obj),
+                strict=False,
+            )
+        self.class_role_map: ClassRoleMap = class_role_map
+        self.aquarium_class_id, self.animal_class_id = class_role_map.to_legacy_tuple()
+        self._subject_ids: frozenset[int] = class_role_map.subject_ids
+        if class_role_map.has_context:
+            # Per-class NMS on backends that default to agnostic (OpenVINO).
+            nms_setter = getattr(plugin, "set_context_classes_present", None)
+            if callable(nms_setter):
+                nms_setter(True)
+        # Subject/context detections of the last ``detect()``; see
+        # ``pop_class_observations``.
+        self._class_observations: list[dict[str, Any]] = []
 
     # =========================================================================
     # Captura de máscaras de segmentação (regra ROI ``seg_overlap``)
@@ -182,6 +216,19 @@ class SingleDetector:
             if contour is not None:
                 by_track[int(det[5])] = contour
         return by_track
+
+    def pop_class_observations(self) -> list[dict[str, Any]]:
+        """Subject and context detections of the last ``detect()``.
+
+        Same contract as :meth:`pop_track_masks`: consumed once per frame. A
+        second call without a new ``detect()`` returns ``[]``, so an object seen
+        in one frame is never recorded again under the next frame's index.
+        Each item carries ``class_id``, ``class_name``, ``role``, ``bbox``
+        (full-frame pixels), ``confidence`` and ``aquarium_id``.
+        """
+        observations = self._class_observations
+        self._class_observations = []
+        return observations
 
     # =========================================================================
     # Properties — backward compatibility
@@ -360,6 +407,7 @@ class SingleDetector:
             ValueError: If frame is invalid.
         """
         DetectionPostProcessor.validate_frame(frame)
+        self._class_observations = []
 
         if not self._zones_configured:
             raise RuntimeError(
@@ -385,16 +433,35 @@ class SingleDetector:
         if self.zone_scaler.scaled_polygon.size == 0:
             return [], None
 
-        crop_info = self.zone_scaler.get_crop_info(frame, self.zone_scaler.scaled_polygon)
+        role_map = self.class_role_map
+        has_context = role_map.has_context
+        if has_context:
+            crop_info = self._context_crop_info(frame)
+        else:
+            # No context class: the legacy crop, byte for byte (ADR-013).
+            crop_info = self.zone_scaler.get_crop_info(frame, self.zone_scaler.scaled_polygon)
         if crop_info is None:
             return [], None
 
         cropped_frame, crop_x1, crop_y1 = crop_info
-        raw_detections = self.plugin.detect(cropped_frame, conf_threshold=conf_threshold)
+        floors: tuple[float, float, float] | None = None
+        inference_conf = conf_threshold
+        if has_context:
+            floors = self._role_floors(conf_threshold)
+            inference_conf = floors[0]
+        raw_detections = self.plugin.detect(cropped_frame, conf_threshold=inference_conf)
         self._index_frame_masks(raw_detections, crop_x1, crop_y1)
 
         predictions = DetectionPostProcessor.offset_detections(raw_detections, crop_x1, crop_y1)
+        if floors is not None:
+            predictions = DetectionPostProcessor.filter_by_role_confidence(
+                predictions, role_map, floors[1], floors[2]
+            )
+        self._class_observations = DetectionPostProcessor.class_observations(predictions, role_map)
 
+        # Context classes were captured above, BEFORE this filter: they live
+        # around the arena, so the polygon filter only ever applies to what can
+        # still become the tracked subject (the expanded crop bounds context).
         if self.zone_scaler.scaled_polygon.size > 0:
             filtered = []
             for det in predictions:
@@ -409,14 +476,18 @@ class SingleDetector:
                     filtered.append(det)
             predictions = filtered
 
-        predictions = DetectionPostProcessor.apply_class_mismatch_fallback(
-            predictions,
-            self.zone_scaler.scaled_polygon,
-            self.aquarium_class_id,
-            self.animal_class_id,
-        )
-        if self.animal_class_id is not None:
-            predictions = [det for det in predictions if det[6] == self.animal_class_id]
+        if not role_map.is_explicit:
+            # "Small arena box = animal" is a 7.2 heuristic for weights whose
+            # classes nobody named. With an explicit map it would turn a
+            # partially occluded arena into a ghost subject.
+            predictions = DetectionPostProcessor.apply_class_mismatch_fallback(
+                predictions,
+                self.zone_scaler.scaled_polygon,
+                self.aquarium_class_id,
+                self.animal_class_id,
+            )
+        subject_ids = self._subject_ids
+        predictions = [det for det in predictions if det[6] in subject_ids]
 
         # Runaway-bbox gate runs HERE — after class filtering (so only real
         # animal boxes feed the median) and BEFORE ``track()``, so the tracker
@@ -442,6 +513,29 @@ class SingleDetector:
             return tracked, None
 
         return self.track(predictions, project_type)
+
+    def _context_crop_info(self, frame: np.ndarray) -> tuple[np.ndarray, int, int] | None:
+        """Crop for a map WITH context classes (``context_inference_scope``)."""
+        scope, margin, _floor = DetectionPostProcessor.context_settings(self.settings)
+        box = DetectionPostProcessor.context_crop_box(
+            self.zone_scaler.scaled_polygon,
+            frame.shape,
+            scope=scope,
+            margin_frac=margin,
+        )
+        if box is None:
+            log.warning("single_detector.context_crop.invalid", frame_size=frame.shape[:2])
+            return None
+        x1, y1, x2, y2 = box
+        return frame[y1:y2, x1:x2], x1, y1
+
+    def _role_floors(self, conf_threshold: float | None) -> tuple[float, float, float]:
+        """``(inference, subject, context)`` confidence floors for a context map."""
+        subject_floor = conf_threshold
+        if subject_floor is None:
+            subject_floor = float(getattr(self.plugin, "conf_threshold", 0.25))
+        _scope, _margin, context_floor = DetectionPostProcessor.context_settings(self.settings)
+        return DetectionPostProcessor.role_confidence_floors(float(subject_floor), context_floor)
 
     def _index_frame_masks(self, raw_detections: list[tuple], crop_x1: int, crop_y1: int) -> None:
         """Indexa os contornos do frame pela bbox no espaço do frame inteiro.
@@ -553,6 +647,66 @@ class SingleDetector:
             except Exception:  # pragma: no cover - defensive
                 log.warning("single_detector.plugin_update_failed", exc_info=True)
 
+    def set_source_fps(self, fps: float | None) -> None:
+        """Declare the real frame rate of the source being tracked (issue #630).
+
+        ByteTrack's lost-track buffer is counted in frames, so it must be scaled
+        with the rate the frames actually arrive at, not the nominal
+        ``settings.video_processing.fps``. Call it once per video / camera
+        session, before the first ``detect()``. A change of rate rebuilds the
+        tracker on the next frame (the rate is part of its parameter key).
+
+        Args:
+            fps: Real frames per second, or ``None`` when unknown.
+        """
+        self._source_fps = fps
+        log.debug("single_detector.source_fps.set", fps=fps)
+
+    @property
+    def source_fps(self) -> float | None:
+        """Real frame rate declared by ``set_source_fps`` (``None`` if unknown)."""
+        return self._source_fps
+
+    def set_processing_interval(self, interval: int | None) -> None:
+        """Declare the detection cadence of the run being tracked (issue #667).
+
+        ByteTrack's Kalman filter predicts with ``dt = processing_interval``, so
+        it must be the interval the frames are really detected at, not the
+        nominal ``settings.video_processing.processing_interval``. Call it once per
+        video / camera session, beside ``set_source_fps``. A change rebuilds the
+        tracker on the next frame (the interval is part of its parameter key).
+
+        Args:
+            interval: Detect every N source frames, or ``None`` when unknown.
+        """
+        self._processing_interval = interval
+        log.debug("single_detector.processing_interval.set", interval=interval)
+
+    @property
+    def processing_interval(self) -> int | None:
+        """Interval declared by ``set_processing_interval`` (``None`` if unknown)."""
+        return self._processing_interval
+
+    def set_frame_time(self, t_s: float | None) -> None:
+        """Declare the instant of the frame the next ``detect()`` will track (#654).
+
+        ByteTrack then ages lost tracks in SECONDS on this clock (PTS for a
+        video, the capture instant for a camera), so the lost-track lifetime no
+        longer depends on the frame rate, the analysis interval or the frames
+        dropped on the way. Call it before every ``detect()``. The value is
+        consumed by ONE tracker update: a caller that stops declaring falls back
+        to counting updates instead of freezing every age at a stale instant.
+
+        Args:
+            t_s: Frame instant in seconds, or ``None`` when unknown.
+        """
+        self._frame_time_s = None if t_s is None else float(t_s)
+
+    def _take_frame_time(self) -> float | None:
+        """The declared frame instant, cleared so it is used for one update only."""
+        frame_time_s, self._frame_time_s = self._frame_time_s, None
+        return frame_time_s
+
     def is_single_subject_mode(self) -> bool:
         """Expose the current single-subject tracking flag."""
         return self._single_subject_mode
@@ -628,12 +782,13 @@ class SingleDetector:
             frame_shape=frame_shape,
         )
 
+        frame_time_s = self._take_frame_time()
         if not detections:
             tracker = self._ensure_byte_tracker()
             if tracker is not None:
                 empty = np.empty((0, 5), dtype=np.float32)
                 frame_dims = (frame_shape[0], frame_shape[1])
-                tracker.update(empty, frame_dims, frame_dims)
+                tracker.update(empty, frame_dims, frame_dims, frame_time_s=frame_time_s)
             log.debug(
                 "single_detector.bytetrack.output",
                 num_tracks=0,
@@ -680,7 +835,7 @@ class SingleDetector:
             img_size_passed=frame_dims,
         )
 
-        tracks = tracker.update(det_array, frame_dims, frame_dims)
+        tracks = tracker.update(det_array, frame_dims, frame_dims, frame_time_s=frame_time_s)
 
         log.debug(
             "single_detector.bytetrack.update_result",
@@ -790,45 +945,33 @@ class SingleDetector:
                     )
                 ]
             else:
+                # Multi-subject: nothing is written. ByteTrack holds back what it
+                # has not confirmed (an animal's first frame after the tracker's
+                # first) and emits it once it persists -- the rule the branch
+                # below applies when SOME tracks came out. Until 8.0 this branch
+                # wrote every detection of the frame with ``track_id=None``
+                # (``passthrough_untracked``): NaN rows that could belong to
+                # different animals and counted as one more in the analysis
+                # (#671). Parquets written before are screened at read time by
+                # ``analysis.track_significance.drop_untracked_rows``.
                 log.debug(
-                    "single_detector.bytetrack.passthrough_untracked",
+                    "single_detector.bytetrack.unconfirmed_not_written",
                     num_detections=len(detections),
-                    reason=("bytetracker_returned_no_tracks_but_detections_exist"),
+                    reason="bytetracker_returned_no_tracks",
                 )
-                results = [
-                    (
-                        int(det[0]),
-                        int(det[1]),
-                        int(det[2]),
-                        int(det[3]),
-                        float(det[4]),
-                        None,
-                        int(det[6]),
-                    )
-                    for det in detections
-                ]
 
-        if len(results) < len(detections) and not self._single_subject_mode:
-            from zebtrack.tracker.basetrack import BaseTrack
-
-            log.warning(
-                "single_detector.bytetrack.fallback_simple_ids",
+        if 0 < len(results) < len(detections):
+            # ByteTrack holds back what it is not sure of (a box below
+            # ``track_thresh``, a track not yet confirmed); it emits it on a
+            # later frame if it persists. Writing it now with a fresh id -- as
+            # this branch did, and for EVERY detection of the frame, the tracked
+            # animal included -- produced the one-row tracks that made a
+            # one-rat Barnes video report three animals (#649).
+            log.debug(
+                "single_detector.bytetrack.unemitted_detections",
                 num_tracks=len(results),
                 num_detections=len(detections),
-                reason="bytetrack_returned_fewer_tracks_than_detections",
             )
-            results = [
-                (
-                    int(det[0]),
-                    int(det[1]),
-                    int(det[2]),
-                    int(det[3]),
-                    float(det[4]),
-                    BaseTrack.next_id(),
-                    int(det[6]),
-                )
-                for det in detections
-            ]
 
         # Re-filter tracked positions by polygon
         if self.zone_scaler.scaled_polygon.size > 0:
@@ -874,7 +1017,11 @@ class SingleDetector:
         iou_threshold = pp.get_iou_threshold(self.settings)
         use_bytetrack = pp.should_use_bytetrack(self.settings)
         single_animal_mode = pp.get_single_animal_mode(self.settings, self._single_subject_mode)
+        frame_rate, fps_origin = pp.resolve_tracker_fps(self.settings, self._source_fps)
+        processing_interval = pp.get_processing_interval(self.settings, self._processing_interval)
 
+        # Every parameter the BYTETracker is built from is in its key, so a
+        # change to any of them rebuilds it (#666, #667, #698).
         params = (
             track_thresh,
             match_thresh,
@@ -883,6 +1030,8 @@ class SingleDetector:
             iou_threshold,
             single_animal_mode,
             use_bytetrack,
+            frame_rate,
+            processing_interval,
         )
         if self._byte_tracker is not None and self._byte_tracker_params == params:
             return self._byte_tracker
@@ -898,11 +1047,17 @@ class SingleDetector:
                 mot20=False,
             )
 
-            processing_interval = pp.get_processing_interval(self.settings)
-            frame_rate = pp.get_fps(self.settings)
+            if fps_origin != "source":
+                log.warning(
+                    "single_detector.bytetrack.fps_fallback_to_settings",
+                    frame_rate=frame_rate,
+                    reason="source_fps_unknown",
+                )
 
             log.info(
                 "single_detector.bytetrack.initializing",
+                frame_rate=frame_rate,
+                frame_rate_origin=fps_origin,
                 track_thresh=track_thresh,
                 match_thresh=match_thresh,
                 track_buffer=track_buffer,

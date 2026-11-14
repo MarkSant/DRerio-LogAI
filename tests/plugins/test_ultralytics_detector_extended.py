@@ -179,7 +179,8 @@ class TestUltralyticsDetectorExtended2:
             assert plugin.nms_threshold == 0.45
             assert plugin.track_threshold == 0.25
             assert plugin.match_threshold == 0.95
-            assert plugin.track_buffer == 60
+            # #666: the ByteTrack buffer is the settings' to decide, never the plugin's.
+            assert not hasattr(plugin, "track_buffer")
             assert plugin._half_enabled is False
 
     def test_initialization_with_injected_settings(self):

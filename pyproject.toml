@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "drerio-logai"
-version = "7.2.0"
+version = "8.0.0"
 description = "AI-powered tracking and behavioral analysis for Danio rerio (zebrafish) research. Automates video tracking, behavioral metrics, and scientific report generation."
 authors = [
     "Marco Antonio Sant'Ana Camargos <marco.sant@unesp.br>",
@@ -37,8 +37,8 @@ structlog = "^25.4.0"
 # (12.2.0 previously covered the earlier CVE-2026-40192/42308/42309/42310/42311 set.)
 # The 13.0.0 fixes (CVE-2026-1123xx/1128xx/1129xx) are out of reach: every
 # ttkbootstrap release, 2.2.3 included, requires pillow<13, and forcing 13
-# makes the resolver fall back to ttkbootstrap 1.12.1. Those CVEs are ignored
-# in the pip-audit step of ci.yml until ttkbootstrap lifts the cap.
+# makes the resolver fall back to ttkbootstrap 1.12.1. Those CVEs are listed
+# in scripts/pip_audit_ignores.txt until ttkbootstrap lifts the cap.
 Pillow = ">=12.3.0"
 # urllib3 >=2.8.0 fixes PYSEC-2026-4175/4176/4177 (pip-audit CI gate).
 # (2.7.0 previously covered PYSEC-2026-141/142.)
@@ -67,7 +67,6 @@ tomli = "^2.0.1"
 # docxcompose (used by docxtpl for Word reports) still uses deprecated pkg_resources
 # See: https://setuptools.pypa.io/en/latest/pkg_resources.html
 setuptools = "<81"
-plotly = "^6.0.0"
 punq = "^0.7.0"
 # DirectShow camera friendly names on Windows (used by WizardService.detect_available_cameras
 # to show "USB2.0 HD UVC WebCam" instead of just resolution). Windows-only by design.
@@ -99,6 +98,9 @@ types-pyserial = "^3.5.0.20251001"
 types-psutil = "^7.2.2.20260130"
 hypothesis = "^6.100.0"
 pytest-rerunfailures = "^16.0"
+pytest-repeat = "^0.9.4"
+bandit = "^1.9.4"
+pip-audit = "^2.10.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -197,7 +199,6 @@ module = [
     "seaborn.*",
     "docxtpl.*",
     "ttkbootstrap.*",
-    "plotly.*",
     "matplotlib.*",
     "pandas.*",
     "pyarrow.*",

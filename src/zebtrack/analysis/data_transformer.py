@@ -20,7 +20,7 @@ from zebtrack.analysis.perspective_utils import (
 )
 from zebtrack.analysis.roi import ROIAnalyzer
 
-__all__ = ["DataTransformer"]
+__all__ = ["WINDOW_COLUMNS", "DataTransformer", "window_columns"]
 
 log = structlog.get_logger(__name__)
 
@@ -115,6 +115,11 @@ DISPLAY_COLUMN_MAPPING = {
     "validation_unique_tracks": "Val: Unique Tracks",
     "validation_temporal_coverage_pct": "Val: Coverage (%)",
     "unobserved_time_s": "Unobserved Time (s)",
+    "window_status": "Analysis Window Status",
+    "window_start_s": "Analysis Window Start (s)",
+    "window_stop_s": "Analysis Window Stop (s)",
+    "window_duration_s": "Analysis Window Duration (s)",
+    "window_reason": "Analysis Window End Reason",
     "group_id": "Group",
     "experiment_id": "Experiment ID",
     "aquarium_id": "Aquarium",
@@ -155,6 +160,20 @@ PER_ANIMAL_COLUMNS = (
     "latencia_primeira_entrada_s",
     "distancia_cm",
     "tempo_nao_observado_s",
+    # v8 (English: the Portuguese names above are a persistence contract).
+    "latency_censored",
+    "latency_present_at_start",
+)
+
+#: Analysis-window columns of the summary (ADR-011). ALWAYS present -- NaN
+#: without a window -- so summaries of windowed and plain videos have the same
+#: schema and the unified report never flags a mismatch.
+WINDOW_COLUMNS = (
+    "window_status",
+    "window_start_s",
+    "window_stop_s",
+    "window_duration_s",
+    "window_reason",
 )
 
 # Fallback keys to search for group ID in metadata when not explicitly provided
@@ -168,6 +187,26 @@ REQUIRED_COLUMNS = (
     "total_distance_cm",
     "mean_speed_cm_s",
 )
+
+
+def window_columns(report: dict[str, Any]) -> dict[str, Any]:
+    """The ``window_*`` summary values of a report (``None`` = no window).
+
+    ``report["analysis_window"]`` is ``{"status": "none"}`` without a window;
+    every column is then ``None`` (NaN in the frame), never omitted.
+    """
+    window = report.get("analysis_window") or {}
+    if window.get("status") in (None, "none"):
+        return dict.fromkeys(WINDOW_COLUMNS)
+    start = window.get("start") or {}
+    stop = window.get("stop") or {}
+    return {
+        "window_status": window.get("status"),
+        "window_start_s": start.get("t_s"),
+        "window_stop_s": stop.get("t_s"),
+        "window_duration_s": window.get("window_duration_s"),
+        "window_reason": window.get("reason"),
+    }
 
 
 def _rgb_to_color_name(rgb_tuple):
@@ -418,6 +457,9 @@ class DataTransformer:
 
         combined_data["data_hora_analise"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         combined_data["group_id"] = self._resolve_group_id(combined_data, metadata)
+        # Analysis window (ADR-011): always present, NaN without one, and LAST --
+        # third-party scripts read the summary by column position.
+        combined_data.update(window_columns(report))
         return pd.DataFrame([combined_data])
 
     def _collect_roi_metrics(
@@ -449,6 +491,8 @@ class DataTransformer:
         distances = roi_analysis.get("distancia_por_roi", {})
         velocities = roi_analysis.get("estatisticas_velocidade_por_roi", {})
         freezing = roi_analysis.get("congelamento_por_roi", {})
+        censored = report.get("latency_censored", {}) or {}
+        present_at_start = report.get("latency_present_at_start", {}) or {}
 
         total_roi_entries = 0
         for roi_name in r_analyzer.rois:
@@ -492,6 +536,11 @@ class DataTransformer:
         # acima simplesmente NÃO cobrem. Fica fora de ``roi_column_templates``
         # de propósito — aquele mapa é só para colunas sufixadas por nome de ROI.
         combined_data["tempo_nao_observado_s"] = roi_analysis.get("tempo_nao_observado_s")
+        # Qualifiers of each ROI latency (v8, English names), appended AFTER every
+        # pre-v8 column so the column positions of the summary do not move.
+        for roi_name in r_analyzer.rois:
+            combined_data[f"latency_censored_{roi_name}"] = censored.get(roi_name)
+            combined_data[f"latency_present_at_start_{roi_name}"] = present_at_start.get(roi_name)
         return combined_data
 
     def build_per_animal_dataframe(
@@ -533,6 +582,8 @@ class DataTransformer:
             entries = metrics.get("contagem_entradas", {}) or {}
             exits = metrics.get("contagem_saidas", {}) or {}
             latencies = metrics.get("latencia_primeira_entrada", {}) or {}
+            animal_censored = metrics.get("latency_censored", {}) or {}
+            animal_present = metrics.get("latency_present_at_start", {}) or {}
             distances = metrics.get("distancia_por_roi", {}) or {}
             unobserved = metrics.get("tempo_nao_observado_s")
 
@@ -551,6 +602,8 @@ class DataTransformer:
                         "latencia_primeira_entrada_s": latencies.get(roi_name),
                         "distancia_cm": distances.get(roi_name),
                         "tempo_nao_observado_s": unobserved,
+                        "latency_censored": animal_censored.get(roi_name),
+                        "latency_present_at_start": animal_present.get(roi_name),
                     }
                 )
 
@@ -584,6 +637,8 @@ class DataTransformer:
             ("entradas_no_{}", 0),  # Count: use 0 instead of NaN
             ("saidas_do_{}", 0),  # Count: use 0 instead of NaN
             ("latencia_para_{}_s", pd.NA),
+            ("latency_censored_{}", pd.NA),
+            ("latency_present_at_start_{}", pd.NA),
             ("distancia_no_{}_cm", pd.NA),
             ("velocidade_media_no_{}_cm_s", pd.NA),
             ("episodios_congelamento_no_{}", 0),  # Count: use 0
@@ -787,6 +842,12 @@ class DataTransformer:
         if col_name.startswith("mean_speed_in_") and "_cm_s" in col_name:
             roi = col_name.replace("mean_speed_in_", "").replace("_cm_s", "")
             return f"Mean Speed in {roi} (cm/s)"
+        if col_name.startswith("latency_censored_"):
+            roi = col_name.replace("latency_censored_", "", 1)
+            return f"Latency to {roi} Censored"
+        if col_name.startswith("latency_present_at_start_"):
+            roi = col_name.replace("latency_present_at_start_", "", 1)
+            return f"In {roi} at Window Start"
         if col_name.startswith("latencia_para_") or col_name.startswith("latency_to_"):
             # Handle potential mixed cases or just EN
             roi = col_name.replace("latency_to_", "").replace("_s", "")

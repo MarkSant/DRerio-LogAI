@@ -7,18 +7,25 @@ a relay, deliver a stimulus) lives entirely in the Arduino sketch.
 
 The only typed value is the short integer token; ROI and edge are chosen from
 controls. Persisted in ``project_data["arduino_bindings"]``.
+
+With two or more aquariums an "Aquarium" column appears: a binding can watch the
+ROI of one aquarium only (``ArduinoBinding.aquarium_id``, #656), or the ROI of
+that name in any aquarium ("All" = ``aquarium_id=None``). A table row is keyed
+by ``(aquarium_id, roi)`` because ROI names repeat between aquariums (#701).
 """
 
 from __future__ import annotations
 
 import threading
 from collections.abc import Sequence
+from pathlib import Path
 from tkinter import StringVar, ttk
 from typing import Any, cast
 
 import structlog
 from pydantic import ValidationError
 
+from zebtrack.core.project.output_registration_manager import LIVE_REFERENCE_FRAME_FILENAME
 from zebtrack.core.services.arduino_ack_semantics import edge_ack_is_inverted
 from zebtrack.core.services.arduino_bindings import (
     ArduinoBinding,
@@ -62,6 +69,22 @@ def conflict_warning() -> str:
 TOKEN_MIN = 0
 TOKEN_MAX = 255
 
+# Treeview columns. ``aquarium_id`` is never displayed: it holds the raw id
+# ("" = unscoped) so the round trip never has to parse the translated "All".
+_COLUMNS = ("aquarium_id", "aquarium", "roi", "label", "enter", "exit")
+_SINGLE_AQUARIUM_DISPLAY = ("roi", "label", "enter", "exit")
+_MULTI_AQUARIUM_DISPLAY = ("aquarium", *_SINGLE_AQUARIUM_DISPLAY)
+
+
+def all_aquariums_label() -> str:
+    """Choice meaning "the ROI of that name in any aquarium" (``aquarium_id=None``)."""
+    return _("All")
+
+
+def aquarium_number(aquarium_id: int) -> str:
+    """Operator-facing aquarium number: 1-based, like the ``aquarium_N/`` folders."""
+    return str(aquarium_id + 1)
+
 
 class ArduinoBindingsPanel(ttk.Frame):
     """Editor table for ROI → enter/exit Arduino tokens."""
@@ -75,9 +98,18 @@ class ArduinoBindingsPanel(ttk.Frame):
         self.enter_token = StringVar(master=self)
         self.exit_token = StringVar(master=self)
         self.device_label = StringVar(master=self)
+        self.aquarium_choice = StringVar(master=self, value=all_aquariums_label())
+
+        # Choices of the aquarium combobox, index-aligned with its values:
+        # ``None`` ("All") first, then each aquarium id of the live split.
+        self._aquarium_ids: list[int | None] = [None]
+        self._roi_names_by_aquarium: dict[int, list[str]] = {}
 
         self._tree: ttk.Treeview | None = None
         self._roi_combo: ttk.Combobox | None = None
+        self._aquarium_combo: ttk.Combobox | None = None
+        self._aquarium_row: ttk.Frame | None = None
+        self._editor_row: ttk.Frame | None = None
         self._status: ttk.Label | None = None
         self._note: ttk.Label | None = None
         self._frame: ttk.LabelFrame | None = None
@@ -113,12 +145,19 @@ class ArduinoBindingsPanel(ttk.Frame):
             anchor="w", pady=(0, 6)
         )
 
-        cols = ("roi", "label", "enter", "exit")
-        tree = ttk.Treeview(frame, columns=cols, show="headings", height=4)
+        tree = ttk.Treeview(
+            frame,
+            columns=_COLUMNS,
+            displaycolumns=_SINGLE_AQUARIUM_DISPLAY,
+            show="headings",
+            height=4,
+        )
+        tree.heading("aquarium", text=_("Aquarium"))
         tree.heading("roi", text=_("ROI"))
         tree.heading("label", text=_("Device"))
         tree.heading("enter", text=_("On Enter"))
         tree.heading("exit", text=_("On Exit"))
+        tree.column("aquarium", width=70, anchor="center")
         tree.column("roi", width=95, anchor="w")
         tree.column("label", width=115, anchor="w")
         tree.column("enter", width=70, anchor="center")
@@ -127,7 +166,23 @@ class ArduinoBindingsPanel(ttk.Frame):
         tree.bind("<<TreeviewSelect>>", self._on_select)
         self._tree = tree
 
+        # Packed by _load_aquariums only when the project has 2+ aquariums.
+        aquarium_row = ttk.Frame(frame)
+        self._aquarium_row = aquarium_row
+        ttk.Label(aquarium_row, text=_("Aquarium:")).pack(side="left")
+        self._aquarium_combo = ttk.Combobox(
+            aquarium_row, textvariable=self.aquarium_choice, state="readonly", width=8
+        )
+        self._aquarium_combo.pack(side="left", padx=(2, 8))
+        self._aquarium_combo.bind("<<ComboboxSelected>>", lambda _e: self.refresh_roi_choices())
+        ttk.Label(
+            aquarium_row,
+            text=_("All = this ROI in any aquarium"),
+            foreground="gray",
+        ).pack(side="left")
+
         editor = ttk.Frame(frame)
+        self._editor_row = editor
         editor.pack(fill="x", pady=(6, 0))
         ttk.Label(editor, text=_("ROI:")).pack(side="left")
         self._roi_combo = ttk.Combobox(
@@ -244,11 +299,14 @@ class ArduinoBindingsPanel(ttk.Frame):
             self._note.pack_forget()
 
     def refresh_roi_choices(self) -> None:
-        """Reload the ROI dropdown from the project's current zone data."""
-        names = self._project_roi_names()
+        """Reload the aquarium split and the ROI dropdown of the chosen aquarium."""
+        self._load_aquariums()
+        names = self._roi_names_for(self._aquarium_id_for_choice(self.aquarium_choice.get()))
         if self._roi_combo is not None:
             self._roi_combo["values"] = names
-            if not self.roi_choice.get() and names:
+            # A choice that is not offered (empty, or an ROI that only exists in
+            # the previously chosen aquarium) would save a binding to nothing.
+            if names and self.roi_choice.get() not in names:
                 self.roi_choice.set(names[0])
         if self._status is not None:
             self._status.config(
@@ -268,16 +326,66 @@ class ArduinoBindingsPanel(ttk.Frame):
         cfg = ArduinoBindingConfig.from_project_data(self._project_data())
         self._refresh_conflict_warning(cfg)
         for binding in cfg.bindings:
-            self._tree.insert("", "end", iid=binding.roi, values=self._row_values(binding))
+            iid = self._row_iid(binding.aquarium_id, binding.roi)
+            if self._tree.exists(iid):
+                # Two stored entries for the same (aquarium, ROI): the later one
+                # wins, exactly as editing it in the panel would.
+                log.warning(
+                    "arduino_bindings_panel.load.duplicate_binding",
+                    roi=binding.roi,
+                    aquarium_id=binding.aquarium_id,
+                )
+                self._tree.item(iid, values=self._row_values(binding))
+                continue
+            self._tree.insert("", "end", iid=iid, values=self._row_values(binding))
 
     @staticmethod
-    def _row_values(binding: ArduinoBinding) -> tuple[str, str, str, str]:
-        """Tree row for a binding — column order must match ``cols`` in _build."""
+    def _row_iid(aquarium_id: int | None, roi: str) -> str:
+        """Tree item id of the binding for ``roi`` in ``aquarium_id``.
+
+        The ROI name alone is not a key: aquariums reuse names, and two
+        bindings for ``Z1`` in different aquariums collided on one row (#701).
+        ``*`` marks "any aquarium".
+        """
+        scope = "*" if aquarium_id is None else str(aquarium_id)
+        return f"{scope}|{roi}"
+
+    @staticmethod
+    def _row_values(binding: ArduinoBinding) -> tuple[str, str, str, str, str, str]:
+        """Tree row for a binding — column order must match ``_COLUMNS``."""
+        aquarium_id = binding.aquarium_id
         return (
+            "" if aquarium_id is None else str(aquarium_id),
+            all_aquariums_label() if aquarium_id is None else aquarium_number(aquarium_id),
             binding.roi,
             binding.label or "",
             "" if binding.on_enter is None else str(binding.on_enter),
             "" if binding.on_exit is None else str(binding.on_exit),
+        )
+
+    @staticmethod
+    def _aquarium_id_from_cell(value: Any) -> int | None:
+        """Raw ``aquarium_id`` cell back to the id ("" = unscoped).
+
+        ttk returns numeric-looking cells as ``int``, hence the ``str``.
+        """
+        text = str(value).strip()
+        return int(text) if text else None
+
+    @classmethod
+    def _binding_from_row(cls, values: Sequence[Any]) -> ArduinoBinding:
+        """Inverse of :meth:`_row_values`; ``aquarium_id`` survives the trip.
+
+        The displayed aquarium cell is ignored: it is translated text, and the
+        raw id sits in its own hidden column.
+        """
+        raw_aquarium, _shown, roi, label, enter, exit_ = values
+        return ArduinoBinding(
+            roi=str(roi),
+            on_enter=cls._parse_token(enter),
+            on_exit=cls._parse_token(exit_),
+            label=str(label),
+            aquarium_id=cls._aquarium_id_from_cell(raw_aquarium),
         )
 
     # ------------------------------------------------------------------
@@ -289,10 +397,16 @@ class ArduinoBindingsPanel(ttk.Frame):
         selection = self._tree.selection()
         if not selection:
             return
-        roi, label, enter, exit_ = cast(
-            "tuple[Any, Any, Any, Any]", self._tree.item(selection[0], "values")
+        raw_aquarium, _shown, roi, label, enter, exit_ = cast(
+            "tuple[Any, Any, Any, Any, Any, Any]", self._tree.item(selection[0], "values")
         )
-        self.roi_choice.set(roi)
+        aquarium_id = self._aquarium_id_from_cell(raw_aquarium)
+        self.aquarium_choice.set(
+            all_aquariums_label() if aquarium_id is None else aquarium_number(aquarium_id)
+        )
+        # Set the aquarium first: the ROI list it offers is what accepts ``roi``.
+        self.refresh_roi_choices()
+        self.roi_choice.set(str(roi))
         self.device_label.set(str(label))
         self.enter_token.set(str(enter))
         self.exit_token.set(str(exit_))
@@ -308,6 +422,7 @@ class ArduinoBindingsPanel(ttk.Frame):
                 on_enter=self._parse_token(self.enter_token.get()),
                 on_exit=self._parse_token(self.exit_token.get()),
                 label=self.device_label.get(),
+                aquarium_id=self._aquarium_id_for_choice(self.aquarium_choice.get()),
             )
         # ValidationError (Pydantic) subclasses ValueError, but catch it
         # explicitly so a model-level constraint never escapes to crash the UI.
@@ -318,10 +433,11 @@ class ArduinoBindingsPanel(ttk.Frame):
             self._set_status(_("Provide at least one token (Enter or Exit)."), error=True)
             return
 
-        if self._tree is not None and self._tree.exists(roi):
-            self._tree.item(roi, values=self._row_values(binding))
+        iid = self._row_iid(binding.aquarium_id, roi)
+        if self._tree is not None and self._tree.exists(iid):
+            self._tree.item(iid, values=self._row_values(binding))
         elif self._tree is not None:
-            self._tree.insert("", "end", iid=roi, values=self._row_values(binding))
+            self._tree.insert("", "end", iid=iid, values=self._row_values(binding))
         self._save()
 
     def _remove(self) -> None:
@@ -415,9 +531,16 @@ class ArduinoBindingsPanel(ttk.Frame):
             # this?" helper on the model. Leading with the DEVICE name (and
             # keeping the ROI as the qualifier) is what makes the result line
             # read as the operator's own wiring rather than the sketch's.
-            display_name = (
-                f"{binding.display_name()} [{binding.roi}]" if binding.label else binding.roi
+            # Two aquariums reuse ROI names: a scoped binding says which one,
+            # or the operator reads two identical "Z1" lines.
+            roi_name = (
+                binding.roi
+                if binding.aquarium_id is None
+                else _("{roi} (aquarium {number})").format(
+                    roi=binding.roi, number=aquarium_number(binding.aquarium_id)
+                )
             )
+            display_name = f"{binding.display_name()} [{roi_name}]" if binding.label else roi_name
             if binding.on_enter is not None:
                 plan.append((display_name, "enter", binding.on_enter))
             if binding.on_exit is not None:
@@ -537,24 +660,18 @@ class ArduinoBindingsPanel(ttk.Frame):
         bindings: list[ArduinoBinding] = []
         if self._tree is not None:
             for iid in self._tree.get_children():
-                roi, label, enter, exit_ = cast(
-                    "tuple[Any, Any, Any, Any]", self._tree.item(iid, "values")
-                )
-                bindings.append(
-                    ArduinoBinding(
-                        roi=str(roi),
-                        on_enter=self._parse_token(enter),
-                        on_exit=self._parse_token(exit_),
-                        label=str(label),
-                    )
-                )
+                bindings.append(self._binding_from_row(self._tree.item(iid, "values")))
         return ArduinoBindingConfig(bindings=bindings)
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
     def _project_data(self) -> dict[str, Any]:
-        return getattr(self.project_manager, "project_data", {}) or {}
+        # ``or {}`` would be wrong here: a just-created project's EMPTY dict is
+        # falsy, and the bindings would then be saved into a throwaway dict
+        # while the status still reported success (#644).
+        data = getattr(self.project_manager, "project_data", None)
+        return data if isinstance(data, dict) else {}
 
     def _project_roi_names(self) -> list[str]:
         try:
@@ -562,8 +679,96 @@ class ArduinoBindingsPanel(ttk.Frame):
         # except Exception justified: zone data may be unavailable early on.
         except Exception:
             return []
-        names = list(getattr(zone_data, "roi_names", []) or [])
-        return [str(n) for n in names if str(n).strip()]
+        return self._clean_names(getattr(zone_data, "roi_names", []))
+
+    @staticmethod
+    def _clean_names(names: Any) -> list[str]:
+        return [str(n) for n in list(names or []) if str(n).strip()]
+
+    def _live_multi_aquarium_zone_data(self) -> Any | None:
+        """The live split, read where the live session reads it.
+
+        A live project keeps its zones under ``live_camera_reference_frame.png``
+        in the project folder (``LiveAnalysisPostProcessor`` resolves the same
+        key). Without a project path there is nothing to split.
+        """
+        project_path = getattr(self.project_manager, "project_path", None)
+        if not project_path:
+            return None
+        try:
+            return self.project_manager.get_multi_aquarium_zone_data(
+                Path(project_path) / LIVE_REFERENCE_FRAME_FILENAME
+            )
+        # except Exception justified: zone data may be unavailable early on;
+        # the panel then behaves as single-aquarium, which is still editable.
+        except Exception:
+            log.debug("arduino_bindings_panel.multi_aquarium_lookup_failed", exc_info=True)
+            return None
+
+    def _load_aquariums(self) -> None:
+        """Read the aquarium split and show/hide the aquarium column and picker.
+
+        Only a split of 2+ aquariums shows them: a single-aquarium session is
+        aquarium 0 and every binding there behaves the same scoped or not.
+        Hidden or not, each row keeps its ``aquarium_id`` (hidden column).
+        """
+        # Lazy: the detection package pulls the detectors in at import.
+        from zebtrack.core.detection.detection_types import MultiAquariumZoneData
+
+        multi = self._live_multi_aquarium_zone_data()
+        aquariums = multi.aquariums if isinstance(multi, MultiAquariumZoneData) else []
+        self._roi_names_by_aquarium = {
+            int(aq.id): self._clean_names(aq.roi_names)
+            for aq in sorted(aquariums, key=lambda aq: aq.id)
+        }
+        multi_view = len(self._roi_names_by_aquarium) >= 2
+        self._aquarium_ids = [None, *self._roi_names_by_aquarium] if multi_view else [None]
+        choices = [
+            all_aquariums_label() if aq_id is None else aquarium_number(aq_id)
+            for aq_id in self._aquarium_ids
+        ]
+        if self._aquarium_combo is not None:
+            self._aquarium_combo["values"] = choices
+        # Single view: the picker is hidden and its value only comes from a
+        # selected row, so a scoped row keeps its scope through an edit.
+        if multi_view and self.aquarium_choice.get() not in choices:
+            self.aquarium_choice.set(all_aquariums_label())
+
+        if self._tree is not None:
+            self._tree["displaycolumns"] = (
+                _MULTI_AQUARIUM_DISPLAY if multi_view else _SINGLE_AQUARIUM_DISPLAY
+            )
+        if self._aquarium_row is not None and self._editor_row is not None:
+            if multi_view:
+                self._aquarium_row.pack(fill="x", pady=(6, 0), before=self._editor_row)
+            else:
+                self._aquarium_row.pack_forget()
+
+    def _aquarium_id_for_choice(self, choice: str) -> int | None:
+        """Aquarium id behind a combobox choice; unknown text is "All" (``None``).
+
+        With the picker hidden (fewer than 2 aquariums) a number can only have
+        come from a selected scoped row, and it is read back as that row's id
+        so editing the row does not unscope it.
+        """
+        for aq_id in self._aquarium_ids:
+            if aq_id is not None and aquarium_number(aq_id) == choice:
+                return aq_id
+        picker_hidden = len(self._aquarium_ids) < 2
+        if picker_hidden and choice.isdigit() and int(choice) >= 1:
+            return int(choice) - 1
+        return None
+
+    def _roi_names_for(self, aquarium_id: int | None) -> list[str]:
+        """ROIs offered for ``aquarium_id``: its own, or every name for "All"."""
+        if not self._roi_names_by_aquarium:
+            return self._project_roi_names()
+        if aquarium_id is not None:
+            return list(self._roi_names_by_aquarium.get(aquarium_id, []))
+        names: list[str] = []
+        for aq_names in self._roi_names_by_aquarium.values():
+            names.extend(n for n in aq_names if n not in names)
+        return names
 
     @staticmethod
     def _parse_token(value: Any) -> int | None:

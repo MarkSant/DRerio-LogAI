@@ -1,0 +1,213 @@
+{
+  "analise_roi": {
+    "congelamento_por_roi": {
+      "Direita": {
+        "count": 1,
+        "episodes": [
+          {
+            "duration": 2.4,
+            "end_time": 6.6,
+            "start_time": 4.2
+          }
+        ],
+        "total_duration": 2.4
+      },
+      "Esquerda": {
+        "count": 0,
+        "episodes": [],
+        "total_duration": 0
+      }
+    },
+    "contagem_entradas": {
+      "Direita": 1,
+      "Esquerda": 1
+    },
+    "contagem_saidas": {
+      "Direita": 1,
+      "Esquerda": 1
+    },
+    "distancia_por_roi": {
+      "Direita": 126.041161407,
+      "Esquerda": 49.415880204
+    },
+    "estatisticas_velocidade_por_roi": {
+      "Direita": {
+        "mean": 13.552813055,
+        "median": 10.0,
+        "std_dev": 11.795336137
+      },
+      "Esquerda": {
+        "mean": 14.534082413,
+        "median": 10.025462091,
+        "std_dev": 8.357472926
+      }
+    },
+    "latencia_primeira_entrada": {
+      "Direita": 2.1,
+      "Esquerda": null
+    },
+    "n_animais": 1,
+    "por_animal": {
+      "1": {
+        "contagem_entradas": {
+          "Direita": 1,
+          "Esquerda": 1
+        },
+        "contagem_saidas": {
+          "Direita": 1,
+          "Esquerda": 1
+        },
+        "distancia_por_roi": {
+          "Direita": 126.041161407,
+          "Esquerda": 49.415880204
+        },
+        "latencia_primeira_entrada": {
+          "Direita": 2.1,
+          "Esquerda": null
+        },
+        "tempo_gasto_por_roi": {
+          "Direita": {
+            "percentage": 78.151260504,
+            "seconds": 9.3
+          },
+          "Esquerda": {
+            "percentage": 28.571428571,
+            "seconds": 3.4
+          }
+        },
+        "tempo_nao_observado_s": 0.0
+      }
+    },
+    "semantica": "any_track",
+    "tempo_gasto_por_roi": {
+      "Direita": {
+        "percentage": 78.151260504,
+        "seconds": 9.3
+      },
+      "Esquerda": {
+        "percentage": 28.571428571,
+        "seconds": 3.4
+      }
+    },
+    "tempo_nao_observado_s": 0.0,
+    "transicoes_entre_rois": {
+      "Direita": {
+        "Direita": 92,
+        "Esquerda": 1,
+        "nan": 0
+      },
+      "Esquerda": {
+        "Direita": 1,
+        "Esquerda": 25,
+        "nan": 1
+      }
+    }
+  },
+  "comportamento_geral": {
+    "curvas_acentuadas": {
+      "sharp_turns_count": 7,
+      "sharp_turns_per_minute": 35.294117647,
+      "sharp_turns_timestamps": [
+        6.8,
+        7.7,
+        8.5,
+        9.3,
+        10.1,
+        10.9,
+        11.7
+      ]
+    },
+    "distancia_total_cm": 159.970186743,
+    "duracao_video_s": 12.0,
+    "episodios_congelamento": [
+      {
+        "duration": 2.4,
+        "end_time": 6.6,
+        "start_time": 4.2
+      }
+    ],
+    "estatisticas_velocidade": {
+      "max": 33.590918017,
+      "mean": 13.442872836,
+      "median": 10.0,
+      "std_dev": 10.919371136
+    },
+    "estatisticas_velocidade_angular": {
+      "max": 754.581151623,
+      "mean": 68.850380284,
+      "median": 6.869184199,
+      "std_dev": 124.916263902
+    },
+    "geotaxis_avg_dist": 24.499702381,
+    "geotaxis_indice": 0.0,
+    "geotaxis_zones": {
+      "bottom_zones_pct": 12.5,
+      "zone_0_pct": 12.5,
+      "zone_1_pct": 24.166666667,
+      "zone_2_pct": 63.333333333
+    },
+    "periodos_inatividade": {
+      "count": 1,
+      "episodes": [
+        {
+          "duration": 2.4,
+          "end_time": 6.6,
+          "start_time": 4.2
+        }
+      ],
+      "percentage_of_recording": 20.168067227,
+      "threshold_cm_s": 1.0,
+      "total_duration_s": 2.4
+    },
+    "rajadas_velocidade": {
+      "count": 0,
+      "episodes": [],
+      "threshold_cm_s": 28.71767409,
+      "total_duration_s": 0.0
+    },
+    "thigmotaxis_avg_dist": 11.735099206,
+    "thigmotaxis_indice": 0.0,
+    "tortuosidade": 8.673184338,
+    "total_frames_analisados": 120
+  },
+  "log_eventos": [
+    {
+      "event": "enter",
+      "roi_name": "Esquerda",
+      "timestamp": 0.0
+    },
+    {
+      "event": "exit",
+      "roi_name": "Esquerda",
+      "timestamp": 2.1
+    },
+    {
+      "event": "enter",
+      "roi_name": "Direita",
+      "timestamp": 2.1
+    },
+    {
+      "event": "exit",
+      "roi_name": "Direita",
+      "timestamp": 11.4
+    },
+    {
+      "event": "enter",
+      "roi_name": "Esquerda",
+      "timestamp": 11.4
+    }
+  ],
+  "validacao": {
+    "avisos": [],
+    "estatisticas": {
+      "frame_range": {
+        "max": 119,
+        "min": 0,
+        "span": 120
+      },
+      "temporal_coverage": 1.0,
+      "total_frames": 120,
+      "unique_tracks": 1
+    }
+  }
+}

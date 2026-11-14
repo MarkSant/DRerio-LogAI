@@ -4,6 +4,30 @@ from pathlib import Path
 import numpy as np
 
 
+def bytetrack_threshold_hints(settings_obj: object | None) -> tuple[float, float]:
+    """``(track_threshold, match_threshold)`` a plugin exposes as its ByteTrack hints.
+
+    Read from ``settings_obj.bytetrack`` when there is one, otherwise the shared
+    defaults (#698). These attributes are only the tracker's fallback for a caller
+    with no settings: ``DetectionPostProcessor`` reads the settings first, so a
+    value written after the plugin was built still reaches ByteTrack. The two
+    plugins used to disagree on the no-settings match default (0.95 vs 0.80).
+
+    Args:
+        settings_obj: Application settings, or ``None``.
+
+    Returns:
+        The track and match thresholds.
+    """
+    from zebtrack.settings import DEFAULT_MATCH_THRESHOLD, DEFAULT_TRACK_THRESHOLD
+
+    bytetrack = getattr(settings_obj, "bytetrack", None)
+    return (
+        float(getattr(bytetrack, "track_threshold", DEFAULT_TRACK_THRESHOLD)),
+        float(getattr(bytetrack, "match_threshold", DEFAULT_MATCH_THRESHOLD)),
+    )
+
+
 class DetectorPlugin(ABC):
     """
     Abstract Base Class for a detector plugin.

@@ -54,3 +54,40 @@ def test_noop_when_coordinator_missing():
     controller.on_arduino_event(1)
 
     root.after.assert_not_called()
+
+
+def _make_with_live(*, owns: bool):
+    controller, legacy = _make_controller(root=None)
+    live = MagicMock()
+    live.owns_arduino_events.return_value = owns
+    controller.live_camera_session_coordinator = live
+    return controller, legacy, live
+
+
+def test_code_goes_to_the_grid_coordinator_while_it_owns_the_codes():
+    """The triggered grid session (no longer pending) still receives code 0."""
+    controller, legacy, live = _make_with_live(owns=True)
+    live.has_pending_external_trigger.return_value = False
+
+    controller.on_arduino_event(0)
+
+    live.on_arduino_event.assert_called_once_with(0)
+    legacy.on_arduino_event.assert_not_called()
+
+
+def test_code_goes_to_legacy_when_the_grid_coordinator_does_not_own_it():
+    controller, legacy, live = _make_with_live(owns=False)
+
+    controller.on_arduino_event(0)
+
+    legacy.on_arduino_event.assert_called_once_with(0)
+    live.on_arduino_event.assert_not_called()
+
+
+def test_probe_failure_falls_back_to_legacy():
+    controller, legacy, live = _make_with_live(owns=True)
+    live.owns_arduino_events.side_effect = RuntimeError("probe")
+
+    controller.on_arduino_event(1)
+
+    legacy.on_arduino_event.assert_called_once_with(1)

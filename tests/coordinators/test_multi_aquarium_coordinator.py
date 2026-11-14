@@ -363,6 +363,27 @@ class TestResolveSingleAnimalMode:
         coordinator.project_manager.project_data = {"calibration": {"animals_per_aquarium": 4}}
         assert coordinator._resolve_single_animal_mode() is False
 
+    def test_the_animal_count_beats_a_stale_tracking_flag(self, coordinator):
+        """#649: a one-rat project whose ``tracking`` flag a migration filled with
+        the global default (False) must still track ONE subject."""
+        coordinator.project_manager.project_data = {
+            "tracking": {"use_single_subject_tracker": False},
+            "calibration": {"animals_per_aquarium": 1},
+        }
+        assert coordinator._resolve_single_animal_mode() is True
+
+        coordinator.project_manager.project_data = {
+            "tracking": {"use_single_subject_tracker": True},
+            "calibration": {"animals_per_aquarium": 3},
+        }
+        assert coordinator._resolve_single_animal_mode() is False
+
+    def test_the_flag_decides_only_without_a_count(self, coordinator):
+        coordinator.project_manager.project_data = {
+            "tracking": {"use_single_subject_tracker": True},
+        }
+        assert coordinator._resolve_single_animal_mode() is True
+
 
 # ---------------------------------------------------------------------------
 # Arena detection policy — the pre-recorded flow must honour aquarium_method

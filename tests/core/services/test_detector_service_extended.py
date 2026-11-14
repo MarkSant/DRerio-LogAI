@@ -30,7 +30,7 @@ class TestDetectorServiceExtended:
 
     def test_constants(self):
         assert DEFAULT_TRACK_THRESHOLD == 0.25
-        assert DEFAULT_MATCH_THRESHOLD == 0.80
+        assert DEFAULT_MATCH_THRESHOLD == 0.95
 
     def test_resolve_single_subject_tracker_preference_from_project_data(
         self, service: DetectorService
@@ -112,7 +112,7 @@ class TestDetectorServiceExtended:
 class TestDetectorServiceThresholdsAndValidation:
     def test_default_threshold_constants(self):
         assert DEFAULT_TRACK_THRESHOLD == 0.25
-        assert DEFAULT_MATCH_THRESHOLD == 0.80
+        assert DEFAULT_MATCH_THRESHOLD == 0.95
 
     def test_update_tracking_parameters_validates_conf_threshold_range(self):
         svc = DetectorService(
@@ -185,7 +185,7 @@ class TestDetectorServiceThresholdsAndValidation:
 class TestDetectorServiceExtended3:
     def test_default_thresholds(self):
         assert DEFAULT_TRACK_THRESHOLD == 0.25
-        assert DEFAULT_MATCH_THRESHOLD == 0.80
+        assert DEFAULT_MATCH_THRESHOLD == 0.95
 
     def test_initialize_detector_no_model_path(self):
         state_mgr = MagicMock()
@@ -288,7 +288,7 @@ class TestDetectorServiceExtended3:
 class TestDetectorServiceExtended4:
     def test_default_thresholds(self):
         assert DEFAULT_TRACK_THRESHOLD == 0.25
-        assert DEFAULT_MATCH_THRESHOLD == 0.80
+        assert DEFAULT_MATCH_THRESHOLD == 0.95
 
     def test_initialize_detector_no_model_path(self):
         state_mgr = MagicMock()

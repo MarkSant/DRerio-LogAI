@@ -33,13 +33,52 @@ jobs:
           curl -sSL https://install.python-poetry.org | python3 -
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      # Same display and decoder the memory job and ci.yml give the suite: without a
+      # display tests/conftest.py falls back to a MagicMock Tk root, a mode CI never
+      # runs, and the slow tests read real video files.
+      - name: Install system dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -uo pipefail
+          packages="xvfb ffmpeg libavcodec-extra"
+          for attempt in 1 2 3; do
+            if timeout 120 sudo -E apt-get update \
+               && timeout 240 sudo -E apt-get install -y --no-install-recommends $packages; then
+              echo "apt: succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::warning::apt attempt ${attempt} stalled or failed; retrying"
+            sudo pkill -9 -f 'apt-get|dpkg' || true
+            sudo rm -f /var/lib/apt/lists/lock \
+                       /var/cache/apt/archives/lock \
+                       /var/lib/dpkg/lock \
+                       /var/lib/dpkg/lock-frontend
+            sudo dpkg --configure -a || true
+            sleep 5
+          done
+          echo "::error::apt failed after 3 attempts"
+          exit 1
+
+      # pytest-repeat (--count) is a dev dependency. Until it was, this step died at
+      # argument parsing -- "unrecognized arguments: --count" -- before collecting a
+      # single test, and continue-on-error painted the job green every night.
       - name: Install dependencies
         run: poetry install --no-interaction
 
+      - name: Build wizard template archive
+        run: poetry run python scripts/build_templates.py
+
+      - name: Compile translations
+        run: poetry run python scripts/compile_translations.py
+
       - name: Run threading stress tests (10x)
+        id: stress-run
+        # continue-on-error so the results below are still uploaded; the outcome is
+        # enforced by the explicit gate after them.
         run: |
-          poetry run pytest -m slow --count=10 -v --tb=short \
-            --junit-xml=threading-stress-results.xml
+          xvfb-run --auto-servernum poetry run pytest -m slow --count=10 -v --tb=short \
+            --no-cov --junit-xml=threading-stress-results.xml
         continue-on-error: true
 
       - name: Upload test results
@@ -48,15 +87,25 @@ jobs:
         with:
           name: threading-stress-results
           path: threading-stress-results.xml
+          if-no-files-found: ignore
+
+      - name: Fail when the stress run did not pass
+        if: steps.stress-run.outcome != 'success'
+        run: |
+          echo "pytest -m slow --count=10 outcome: ${{ steps.stress-run.outcome }}" >&2
+          exit 1
 
       - name: Create issue on failure
-        if: failure()
+        # A job that hits timeout-minutes ends as CANCELLED, not failed, and then
+        # neither the gate nor failure() fires: the night goes red without an alarm.
+        # Scheduled runs only, so cancelling a manual run by hand files nothing.
+        if: failure() || (cancelled() && github.event_name == 'schedule')
         uses: actions/github-script@v8
         with:
           script: |
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+            const fileNightlyIssue = require('./.github/scripts/file_nightly_issue.js');
+            await fileNightlyIssue({
+              github, context, core,
               title: 'Nightly Stress Test Failed - Threading Tests',
               body: `## Threading Stress Test Failure\n\n` +
                     `**Workflow:** ${context.workflow}\n` +
@@ -64,13 +113,15 @@ jobs:
                     `**Commit:** ${context.sha}\n\n` +
                     `[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
               labels: ['stress-test-failure', 'needs-investigation', 'threading'],
-              assignees: []
             });
 
   memory-leak-detection:
     name: Memory Leak Detection
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Setup takes ~4 min and the suite ~42 min under memray, which tracks every
+    # allocation. At 45 the first fully passing run (43428147257) was cancelled at
+    # 99% with 7987 passed and 0 failed. 75 leaves room for the suite to grow.
+    timeout-minutes: 75
 
     steps:
       - name: Checkout code
@@ -86,17 +137,54 @@ jobs:
           curl -sSL https://install.python-poetry.org | python3 -
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      # The same environment ci.yml gives the suite it profiles. Without a display,
+      # tests/conftest.py falls back to a MagicMock Tk root -- a mode CI never runs.
+      # Every widget built over that mock climbed `.master` forever inside
+      # tkinter.Misc._root(), so from 2026-09-17 on this job died on pytest-timeout
+      # at ~90% of the suite, night after night (#576 and 55 duplicates).
+      - name: Install system dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -uo pipefail
+          packages="xvfb ffmpeg libavcodec-extra"
+          # Same retry as ci.yml: a stalled apt mirror never recovers on its own.
+          for attempt in 1 2 3; do
+            if timeout 120 sudo -E apt-get update \
+               && timeout 240 sudo -E apt-get install -y --no-install-recommends $packages; then
+              echo "apt: succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::warning::apt attempt ${attempt} stalled or failed; retrying"
+            sudo pkill -9 -f 'apt-get|dpkg' || true
+            sudo rm -f /var/lib/apt/lists/lock \
+                       /var/cache/apt/archives/lock \
+                       /var/lib/dpkg/lock \
+                       /var/lib/dpkg/lock-frontend
+            sudo dpkg --configure -a || true
+            sleep 5
+          done
+          echo "::error::apt failed after 3 attempts"
+          exit 1
+
       - name: Install dependencies + memray
         run: |
           poetry install --no-interaction
           poetry run pip install memray pytest-memray
+
+      - name: Build wizard template archive
+        run: poetry run python scripts/build_templates.py
+
+      - name: Compile translations
+        run: poetry run python scripts/compile_translations.py
 
       - name: Run tests with memory profiling
         id: profiled-run
         # continue-on-error so the artifacts below are still collected; the
         # outcome is enforced by the explicit gate after them.
         run: |
-          poetry run pytest --memray --memray-bin-path=./memray-results \
+          xvfb-run --auto-servernum poetry run pytest --memray \
+            --memray-bin-path=./memray-results \
             -v --tb=short --junit-xml=memory-leak-results.xml
         continue-on-error: true
 
@@ -136,13 +224,16 @@ jobs:
           exit 1
 
       - name: Create issue on failure
-        if: failure()
+        # A job that hits timeout-minutes ends as CANCELLED, not failed, and then
+        # neither the gate nor failure() fires: the night goes red without an alarm.
+        # Scheduled runs only, so cancelling a manual run by hand files nothing.
+        if: failure() || (cancelled() && github.event_name == 'schedule')
         uses: actions/github-script@v8
         with:
           script: |
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+            const fileNightlyIssue = require('./.github/scripts/file_nightly_issue.js');
+            await fileNightlyIssue({
+              github, context, core,
               title: 'Nightly memory profiling run failed',
               body: `## The profiled test run did not pass\n\n` +
                     `**Workflow:** ${context.workflow}\n` +
@@ -153,7 +244,6 @@ jobs:
                     `by itself mean a memory leak was measured: read the log first, then ` +
                     `the memray-results tarball.`,
               labels: ['stress-test-failure', 'needs-investigation'],
-              assignees: []
             });
 
   flakiness-detection:
@@ -175,12 +265,53 @@ jobs:
           curl -sSL https://install.python-poetry.org | python3 -
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      - name: Install system dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -uo pipefail
+          packages="xvfb ffmpeg libavcodec-extra"
+          for attempt in 1 2 3; do
+            if timeout 120 sudo -E apt-get update \
+               && timeout 240 sudo -E apt-get install -y --no-install-recommends $packages; then
+              echo "apt: succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::warning::apt attempt ${attempt} stalled or failed; retrying"
+            sudo pkill -9 -f 'apt-get|dpkg' || true
+            sudo rm -f /var/lib/apt/lists/lock \
+                       /var/cache/apt/archives/lock \
+                       /var/lib/dpkg/lock \
+                       /var/lib/dpkg/lock-frontend
+            sudo dpkg --configure -a || true
+            sleep 5
+          done
+          echo "::error::apt failed after 3 attempts"
+          exit 1
+
       - name: Install dependencies
         run: poetry install --no-interaction
 
+      - name: Build wizard template archive
+        run: poetry run python scripts/build_templates.py
+
+      - name: Compile translations
+        run: poetry run python scripts/compile_translations.py
+
       - name: Run full suite 3 times
+        id: flakiness-run
+        # continue-on-error so the results below are still uploaded; the outcome is
+        # enforced by the explicit gate after them.
+        # tests.pytest_repeat_hypothesis silences ONLY Hypothesis's
+        # differing_executors health check, which every repeated @given method
+        # trips because each repetition gets a new test-class instance. `python -m`
+        # puts the checkout on sys.path so `-p` can import it before conftest runs.
+        # --no-cov: pytest.ini turns coverage on for every run, but nothing here reads
+        # it, and its tracer sat on every thread's stack when the first full run
+        # aborted (SIGABRT) inside a threaded camera test.
         run: |
-          poetry run pytest --count=3 -x -v --tb=short \
+          xvfb-run --auto-servernum poetry run python -m pytest --count=3 -x -v --tb=short \
+            --no-cov -p tests.pytest_repeat_hypothesis \
             --junit-xml=flakiness-results.xml
         continue-on-error: true
 
@@ -190,15 +321,25 @@ jobs:
         with:
           name: flakiness-results
           path: flakiness-results.xml
+          if-no-files-found: ignore
+
+      - name: Fail when the repeated suite did not pass
+        if: steps.flakiness-run.outcome != 'success'
+        run: |
+          echo "pytest --count=3 outcome: ${{ steps.flakiness-run.outcome }}" >&2
+          exit 1
 
       - name: Create issue on failure
-        if: failure()
+        # A job that hits timeout-minutes ends as CANCELLED, not failed, and then
+        # neither the gate nor failure() fires: the night goes red without an alarm.
+        # Scheduled runs only, so cancelling a manual run by hand files nothing.
+        if: failure() || (cancelled() && github.event_name == 'schedule')
         uses: actions/github-script@v8
         with:
           script: |
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+            const fileNightlyIssue = require('./.github/scripts/file_nightly_issue.js');
+            await fileNightlyIssue({
+              github, context, core,
               title: 'Nightly Stress Test Failed - Flaky Tests Detected',
               body: `## Flakiness Detection Failure\n\n` +
                     `**Workflow:** ${context.workflow}\n` +
@@ -207,7 +348,6 @@ jobs:
                     `Some tests failed when run 3 times consecutively. This indicates flaky tests.\n\n` +
                     `[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
               labels: ['stress-test-failure', 'flaky-test', 'needs-investigation'],
-              assignees: []
             });
 
   mutation-testing:
@@ -259,6 +399,10 @@ jobs:
   # off the PR critical path. Unlike the mutmut job above it is NOT
   # continue-on-error -- a survivor here is a named hole in the tests, and the
   # failure opens an issue.
+  #
+  # --jobs 4 matches the runner's 4 vCPUs. Without it the v8 catalogue
+  # (70 blocks, ~390 pytest processes at ~8 s each on this runner) would not
+  # fit in the 45 minutes. Each mutant runs in a private copy of the tree.
   mutation-catalogue:
     name: Curated Mutation Catalogue (--all)
     runs-on: ubuntu-latest
@@ -300,7 +444,7 @@ jobs:
       - name: Run the curated mutation catalogue
         run: |
           xvfb-run --auto-servernum poetry run python scripts/mutation_check.py \
-            --all --json mutation-catalogue.json
+            --all --jobs 4 --json mutation-catalogue.json
 
       - name: Upload mutation catalogue report
         if: always()
@@ -310,13 +454,16 @@ jobs:
           path: mutation-catalogue.json
 
       - name: Create issue on failure
-        if: failure()
+        # A job that hits timeout-minutes ends as CANCELLED, not failed, and then
+        # neither the gate nor failure() fires: the night goes red without an alarm.
+        # Scheduled runs only, so cancelling a manual run by hand files nothing.
+        if: failure() || (cancelled() && github.event_name == 'schedule')
         uses: actions/github-script@v8
         with:
           script: |
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+            const fileNightlyIssue = require('./.github/scripts/file_nightly_issue.js');
+            await fileNightlyIssue({
+              github, context, core,
               title: 'Nightly Mutation Catalogue Failed - surviving mutations',
               body: `## Curated mutation catalogue\n\n` +
                     `**Workflow:** ${context.workflow}\n` +
@@ -328,5 +475,4 @@ jobs:
                     `The per-mutation verdicts are in the \`mutation-catalogue-report\` artifact.\n\n` +
                     `[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
               labels: ['stress-test-failure', 'needs-investigation', 'test-quality'],
-              assignees: []
             });

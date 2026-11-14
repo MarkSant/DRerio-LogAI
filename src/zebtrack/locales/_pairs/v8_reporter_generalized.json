@@ -1,0 +1,5 @@
+{
+  "_domain": "reporter",
+  "_comment": "v8.0.0 (F7): the validation 'Definitions' paragraph of the Word report was outside _() and said 'fish'; wrapped and generalised to 'animal'. Genuine translation.",
+  "Definitions:\n- Temporal Gaps: Frames where the animal was not detected (occlusion/error).\n- Missing Frames: Total frames skipped if using processing_interval > 1 (expected behavior).\n- Max Gap: The largest consecutive sequence of lost frames.": "Definições:\n- Lacunas temporais: frames em que o animal não foi detectado (oclusão/erro).\n- Frames ausentes: total de frames pulados ao usar processing_interval > 1 (comportamento esperado).\n- Maior lacuna: a maior sequência consecutiva de frames perdidos."
+}

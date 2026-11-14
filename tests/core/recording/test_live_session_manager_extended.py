@@ -467,3 +467,109 @@ class TestLiveSessionManagerExtended5:
         assert svc.analysis_completed is False
         assert svc._dropped_frames_processing == 0
         assert svc._dropped_frames_video == 0
+
+
+class _IntervalProbeService(LiveSessionManagerMixin):
+    """Enough of LiveCameraService to reach the detector preparation in start_session."""
+
+    def __init__(self, detector: Any):
+        self.settings = MagicMock()
+        self.settings.model_selection.animal_method = "det"
+        self.project_manager = MagicMock()
+        self.project_manager.project_path = None
+        self.project_manager.project_data = {}
+        self.project_manager.get_zone_data.return_value = MagicMock(polygon=[[0, 0], [1, 1]])
+        self.project_workflow_service = None
+        self.state_manager = MagicMock()
+        self.state_manager.get_detector_state.return_value = MagicMock(
+            use_openvino=False, active_weight_name=""
+        )
+        self.detector_service = MagicMock()
+        self.detector_service.detector = detector
+
+        def _initialize_detector(**_kwargs: Any) -> tuple[bool, Any]:
+            # Like the real service: a (re)built detector is what it then holds.
+            self.detector_service.detector = detector
+            return True, detector
+
+        self.detector_service.initialize_detector.side_effect = _initialize_detector
+        self.recording_service = MagicMock()
+        self.recorder = MagicMock()
+        self.event_bus: Any = None
+        self.root = None
+        self.controller = None
+        self.exit_event = MagicMock()
+        self.capture_thread = None
+        self.processing_thread = None
+        self.video_recording_thread = None
+        self._analysis_params = {}
+        self._saved_detector_context = None
+        self._arena_defined_event = MagicMock()
+        self._animals_per_aquarium = 1
+        self._aquarium_detection_phase = False
+        self.camera = MagicMock(actual_fps=30.0, actual_width=640, actual_height=480)
+        self.preview_window = None
+
+    def _setup_camera(self, camera_index: int) -> bool:
+        return True
+
+    def _start_threads(self) -> bool:
+        return False
+
+    def _resolve_session_multi_zone_data(self) -> Any:
+        return None
+
+    def set_last_detections(self, detections: list) -> None:
+        pass
+
+
+class TestSessionIntervalReachesTheDetector:
+    """#667: the live detector's Kalman dt is the session's detection cadence.
+
+    Both live paths (project grid and ad-hoc dialog) start through here, so the
+    session's ``analysis_interval_frames`` is declared to the detector once,
+    beside the camera's real frame rate.
+    """
+
+    def test_session_interval_is_declared_to_the_detector(self, tmp_path):
+        detector = MagicMock()
+        svc = _IntervalProbeService(detector)
+
+        svc.start_session(
+            camera_index=0,
+            duration_s=10.0,
+            experiment_id="day1_G1_S1",
+            analysis_interval_frames=7,
+            record_video=False,
+            output_base_dir=tmp_path,
+            zones_validated=True,
+        )
+
+        detector.set_processing_interval.assert_called_once_with(7)
+
+    def test_a_real_detector_builds_its_tracker_with_the_session_interval(self, tmp_path):
+        from zebtrack.core.detection import SingleDetector
+        from zebtrack.plugins.base import DetectorPlugin
+
+        settings_obj = load_settings()
+        settings_obj.video_processing.processing_interval = 10
+        settings_obj.tracking.use_bytetrack = True
+        plugin = MagicMock(spec=DetectorPlugin)
+        plugin.get_name.return_value = "MockDetector"
+        plugin.detect.return_value = []
+        detector = SingleDetector(plugin=plugin, settings_obj=settings_obj)
+        svc = _IntervalProbeService(detector)
+
+        svc.start_session(
+            camera_index=0,
+            duration_s=10.0,
+            experiment_id="day1_G1_S1",
+            analysis_interval_frames=3,
+            record_video=False,
+            output_base_dir=tmp_path,
+            zones_validated=True,
+        )
+        tracker = detector._ensure_byte_tracker()
+
+        assert tracker is not None
+        assert tracker.processing_interval == 3

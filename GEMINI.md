@@ -39,7 +39,8 @@ Constraint: If a file is modified, output the ENTIRE changed section with suffic
 
 # Gemini Project Context: DRerio LogAI
 
-Zebrafish tracking and behavioral analysis application using YOLO/OpenVINO, Tkinter GUI, and
+Animal tracking and behavioral analysis application (zebrafish first; since v8 any YOLO weight
+through class roles) using YOLO/OpenVINO, Tkinter GUI, and
 event-driven architecture with dependency injection.
 
 ---
@@ -84,6 +85,7 @@ event-driven architecture with dependency injection.
 5. **MultiAquariumZoneData compatibility**: Always check when modifying `ProjectManager`/`ZoneManager`
 6. **Unified Reports (v3.3)**: Use `reports.delete_unified` for cleanup; rely on `group_id`, not `group`
 7. **MANDATORY AUTO-APPROVAL**: All agent-suggested `poetry`, `mypy`, and `powershell -Command` commands are pre-approved and MUST be run with `SafeToAutoRun: true`.
+8. **Class roles and analysis windows (v8)**: `resolve_class_role_map()`, `resolve_analysis_window()` and `time_base.resolve_time_base()` are the single sources; see the "Papéis de classe" and "Janela de análise" sections of `CLAUDE.md`.
 
 ---
 

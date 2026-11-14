@@ -29,6 +29,8 @@ from typing import Any, Final
 
 import structlog
 
+from zebtrack.analysis.gap_policy import MAX_GAP_AUTO_FACTOR
+
 log = structlog.get_logger()
 
 __all__ = [
@@ -96,8 +98,9 @@ DEFAULT_ROI_MIN_GAP_S: Final[float] = 0.0
 # ``MAX_GAP_AUTO_FACTOR`` vezes a mediana do intervalo observado entre frames
 # analisados. ``math.inf`` desliga o teto (comportamento histórico: uma lacuna
 # de rastreamento de 5 s era creditada INTEIRA à ROI onde o animal reapareceu).
+# ``MAX_GAP_AUTO_FACTOR`` mora em ``zebtrack.analysis.gap_policy`` (re-exportado
+# aqui): o mesmo teto decide a lacuna do comportamento (#632).
 DEFAULT_ROI_MAX_GAP_S: Final[float | None] = None
-MAX_GAP_AUTO_FACTOR: Final[float] = 3.0
 
 VALID_ROI_INCLUSION_RULES: Final[frozenset[str]] = frozenset(
     {

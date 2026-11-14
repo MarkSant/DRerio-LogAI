@@ -15,15 +15,22 @@ import structlog
 from zebtrack.utils.validation import validate_calibration
 
 torch: Any | None
+TORCH_AVAILABLE: bool
 
-try:  # pragma: no cover - optional dependency
-    import torch as _torch
 
-    torch = _torch
-    TORCH_AVAILABLE = True
-except ImportError:  # pragma: no cover - graceful degradation
-    torch = None
-    TORCH_AVAILABLE = False
+def __getattr__(name: str) -> Any:
+    """Resolve ``torch`` / ``TORCH_AVAILABLE`` on first access (#643).
+
+    Every module imports ``zebtrack.utils``; importing torch here made each of
+    them pay several seconds. See ``zebtrack.utils.optional_deps``.
+    """
+    from zebtrack.utils.optional_deps import TORCH_LOADERS, resolve_lazy_attribute
+
+    try:
+        return resolve_lazy_attribute(globals(), name, TORCH_LOADERS)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
 
 log = structlog.get_logger()
 
@@ -55,13 +62,15 @@ def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
 
-    if TORCH_AVAILABLE and torch is not None:  # pragma: no cover - depends on torch
-        torch.manual_seed(seed)
-        if torch.cuda.is_available():  # pragma: no cover - GPU specific
-            torch.cuda.manual_seed(seed)
-            torch.cuda.manual_seed_all(seed)
-            torch.backends.cudnn.deterministic = True
-            torch.backends.cudnn.benchmark = False
+    torch_available = __getattr__("TORCH_AVAILABLE")
+    torch_module = __getattr__("torch")
+    if torch_available and torch_module is not None:  # pragma: no cover - depends on torch
+        torch_module.manual_seed(seed)
+        if torch_module.cuda.is_available():  # pragma: no cover - GPU specific
+            torch_module.cuda.manual_seed(seed)
+            torch_module.cuda.manual_seed_all(seed)
+            torch_module.backends.cudnn.deterministic = True
+            torch_module.backends.cudnn.benchmark = False
 
     log.info("reproducibility.seed.set", seed=seed)
 

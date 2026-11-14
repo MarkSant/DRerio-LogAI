@@ -186,6 +186,8 @@ class ProjectWorkflowService:
             "subjects_per_group",
             "num_groups",
             "group_names",
+            # Analysis window (v8): START/STOP conditions from the wizard/template
+            "analysis_window",
             # Wizard metadata
             "_wizard_metadata",
         }
@@ -531,6 +533,9 @@ class ProjectWorkflowService:
         wizard_metadata = context["wizard_metadata"]
         initial_slot_weights = context.get("initial_slot_weights") or {}
         detector_hyperparams = context.get("detector_hyperparams") or {}
+        initial_class_roles, initial_class_roles_sha = context.get(
+            "initial_class_roles", (None, None)
+        )
 
         is_valid, error_msg = self._validate_project_input(**prepared_kwargs)
         if not is_valid:
@@ -580,6 +585,8 @@ class ProjectWorkflowService:
         self._persist_initial_project_overrides(
             initial_slot_weights,
             detector_hyperparams,
+            class_roles=initial_class_roles,
+            class_roles_weight_sha256=initial_class_roles_sha,
         )
 
         self._emit_project_created_event()
@@ -720,6 +727,13 @@ class ProjectWorkflowService:
             kwargs.get("detector_parameters")
         )
 
+        # Class roles edited in the wizard's model step (ADR-009). They do not
+        # pass the create_new_project whitelist: like the slot weights they land
+        # in model_overrides, with the sha of the animal weight they were made for.
+        initial_class_roles = self._build_initial_class_roles(
+            kwargs.get("class_roles"), kwargs.get("class_roles_weight_sha256")
+        )
+
         model_selection = kwargs.get("model_selection")
         if (
             "openvino_device" not in kwargs
@@ -757,6 +771,7 @@ class ProjectWorkflowService:
             "wizard_metadata": wizard_metadata,
             "initial_slot_weights": initial_slot_weights,
             "detector_hyperparams": detector_hyperparams,
+            "initial_class_roles": initial_class_roles,
         }
 
     def _validate_project_input(self, **kwargs: Any) -> tuple[bool, str | None]:
@@ -790,6 +805,17 @@ class ProjectWorkflowService:
         model_selection = getattr(self.settings, "model_selection", None)
         aquarium_method = getattr(model_selection, "aquarium_method", None)
         animal_method = getattr(model_selection, "animal_method", None)
+        # The project's own det/seg choice (written by the wizard since 8.0,
+        # backfilled from _wizard_metadata on load) beats the global one.
+        project_data = getattr(self.project_manager, "project_data", None)
+        project_selection = (
+            project_data.get("model_selection") if isinstance(project_data, dict) else None
+        )
+        if isinstance(project_selection, dict):
+            if project_selection.get("aquarium_method") in VALID_METHODS:
+                aquarium_method = project_selection["aquarium_method"]
+            if project_selection.get("animal_method") in VALID_METHODS:
+                animal_method = project_selection["animal_method"]
 
         pairs: list[tuple[str, str]] = []
         if aquarium_method in VALID_METHODS:
@@ -837,6 +863,30 @@ class ProjectWorkflowService:
 
         return slot_weights
 
+    @staticmethod
+    def _build_initial_class_roles(
+        raw_roles: Any, raw_sha: Any
+    ) -> tuple[dict[str, str] | None, str | None]:
+        """Validate the wizard's class roles: ``(roles, sha)`` or ``(None, None)``.
+
+        A map without the sha of the weight it was made for would be discarded by
+        the resolver on every load, so it is dropped here with a warning instead
+        of being stored to no effect.
+        """
+        from zebtrack.core.detection.class_roles import parse_class_roles
+
+        if raw_roles is None:
+            return None, None
+        parsed = parse_class_roles(raw_roles)
+        if parsed is None or not isinstance(raw_sha, str) or not raw_sha:
+            log.warning(
+                "project_workflow_service.class_roles.dropped",
+                roles=raw_roles,
+                has_sha=bool(raw_sha),
+            )
+            return None, None
+        return {name: role.value for name, role in parsed.items()}, raw_sha
+
     def _build_detector_hyperparam_overrides(
         self,
         detector_parameters: Any,
@@ -870,15 +920,20 @@ class ProjectWorkflowService:
         self,
         slot_weights: dict[str, str] | None,
         detector_hyperparams: dict[str, float] | None,
+        *,
+        class_roles: dict[str, str] | None = None,
+        class_roles_weight_sha256: str | None = None,
     ) -> None:
-        """Write wizard-derived slot weights and hyperparams into project_data.
+        """Write wizard-derived slot weights, hyperparams and class roles.
 
         Called after the project structure is created and before
         ``apply_project_model_overrides`` runs, so the project's
         ``model_overrides`` block already contains the wizard's choices when
-        runtime resolution kicks in.
+        runtime resolution kicks in. ``class_roles`` is stored only together with
+        the sha256 of the weight it was made for (ADR-009).
         """
-        if not slot_weights and not detector_hyperparams:
+        store_roles = bool(class_roles) and bool(class_roles_weight_sha256)
+        if not slot_weights and not detector_hyperparams and not store_roles:
             return
 
         project_data = self.project_manager.project_data
@@ -908,6 +963,11 @@ class ProjectWorkflowService:
                 if overrides.get(key) != value:
                     overrides[key] = value
                     updated = True
+
+        if store_roles:
+            overrides["class_roles"] = dict(class_roles or {})
+            overrides["class_roles_weight_sha256"] = class_roles_weight_sha256
+            updated = True
 
         if updated and self.project_manager.project_path:
             self.project_manager.save_project()
@@ -1011,8 +1071,27 @@ class ProjectWorkflowService:
         )
         return True, None
 
+    @staticmethod
+    def _wizard_model_selection(kwargs: dict[str, Any]) -> dict[str, str]:
+        """det/seg methods chosen at creation (wizard dict first, then top level)."""
+        selection = kwargs.get("model_selection")
+        selection = selection if isinstance(selection, dict) else {}
+        resolved: dict[str, str] = {}
+        for key in ("aquarium_method", "animal_method"):
+            value = selection.get(key, kwargs.get(key))
+            if value in VALID_METHODS:
+                resolved[key] = value
+        return resolved
+
     def _persist_project_data(self, kwargs: dict[str, Any]) -> None:
         project_updated = False
+        # Until 8.0 the det/seg choice went only to _wizard_metadata and a
+        # reopened project silently used the GLOBAL method (AUDIT §1).
+        model_selection = self._wizard_model_selection(kwargs)
+        if model_selection:
+            if self.project_manager.project_data.get("model_selection") != model_selection:
+                self.project_manager.project_data["model_selection"] = model_selection
+                project_updated = True
         behavioral_analysis = kwargs.get("behavioral_analysis")
         if isinstance(behavioral_analysis, dict) and behavioral_analysis:
             if self.project_manager.project_data.get("behavioral_config") != behavioral_analysis:
