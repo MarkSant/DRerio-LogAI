@@ -190,11 +190,11 @@ domains:
 
         # ── Legacy / generic widget events ──────────────────────────────
         ZONES_UPDATED:
-          publishers: ["ui/dialogs/dialog_manager.py", "ui/components/canvas/*", "ui/gui.py"]
+          publishers: ["ui/components/dialog_manager.py", "ui/components/canvas/*", "ui/gui.py"]
           subscribers: ["ui/components/event_dispatcher.py", "ui/components/canvas/*"]
 
         VIDEO_TREE_REFRESH_REQUESTED:
-          publishers: ["ui/dialogs/dialog_manager.py", "ui/components/zone_controls.py"]
+          publishers: ["ui/components/dialog_manager.py", "ui/components/zone_controls.py"]
           subscribers: ["ui/components/project_views/*"]
 
         WIZARD_CREATE_PROJECT:
@@ -244,7 +244,7 @@ domains:
     key_files:
       - "src/zebtrack/core/project/zone_manager.py"
       - "src/zebtrack/core/project/project_manager.py"
-      - "src/zebtrack/plugins/detector.py"
+      - "src/zebtrack/core/detection/multi_aquarium_detector.py"
       - "src/zebtrack/io/recorder.py"
       - "src/zebtrack/analysis/analysis_service.py"
       - "src/zebtrack/coordinators/video_processing_coordinator.py"
@@ -680,7 +680,7 @@ tests:
   gui:
     command: "pytest -m gui -n0"
     count: "~949 tests"
-    covers: ["ui/", "widgets/", "dialogs/"]
+    covers: ["ui/", "ui/components/", "ui/dialogs/", "ui/wizard/"]
 
   processing:
     command: "pytest tests/test_processing*.py tests/test_recorder.py"
