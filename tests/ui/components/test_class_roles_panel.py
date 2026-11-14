@@ -18,7 +18,7 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -1201,3 +1201,81 @@ class TestPanelTemplateSeed:
 
         loader.assert_called_once_with(files["rat"].name)
         assert panel.draft_mapping() == BARNES_ROLES
+
+
+class TestTemplateSeedHeadless:
+    """The seed logic of :class:`ClassRolesPanel` driven without a Tk display.
+
+    ``object.__new__`` skips the widgets; every call below runs the panel's
+    real methods (``_names_loaded``, ``seed_roles``, ``restore_automatic``),
+    which tolerate absent widgets by design.
+    """
+
+    @staticmethod
+    def _panel(names: dict[int, str]) -> Any:
+        from zebtrack.ui.components.class_roles_panel import TargetWeight, build_view
+
+        target = TargetWeight(name="w.pt", sha256="a" * 64)
+        panel = object.__new__(ClassRolesPanel)
+        panel.editor = cast(
+            Any,
+            SimpleNamespace(
+                settings_obj=None,
+                target=lambda: target,
+                view=lambda n, t: build_view(n, scope=ClassRolesScope.WEIGHT, target=t),
+            ),
+        )
+        for attr in (
+            "_tree",
+            "_warning",
+            "_status",
+            "_source_label",
+            "_weight_label",
+            "_save_button",
+            "_restore_button",
+            "_role_combo",
+            "_view",
+            "_seed",
+            "_seed_fit",
+            "_seed_error",
+        ):
+            setattr(panel, attr, None)
+        panel._persist = False
+        panel._compact = False
+        panel._rows = []
+        panel._pending = target
+        panel.is_alive = lambda: True  # type: ignore[method-assign]
+        panel._names_loaded(target, names)
+        return panel
+
+    def test_seed_applies_when_the_classes_load(self) -> None:
+        panel = self._panel({})
+        panel.seed_roles(BARNES_ROLES)  # nothing loaded yet: kept for later
+        assert panel.draft_mapping() is None
+
+        panel._names_loaded(panel._pending, BARNES_NAMES)
+
+        assert panel.draft_mapping() == BARNES_ROLES
+
+    def test_fit_rows_follow_the_names(self) -> None:
+        panel = self._panel({0: "rat", 1: "arena", 2: "experimenter", 3: "start_box"})
+        panel.seed_roles(BARNES_ROLES)
+        assert [(row.class_id, row.role) for row in panel.rows()] == [
+            (0, ClassRole.SUBJECT),
+            (1, ClassRole.ARENA),
+            (2, ClassRole.CONTEXT),
+            (3, ClassRole.CONTEXT),
+        ]
+
+    def test_unresolvable_weight_is_reported(self) -> None:
+        panel = self._panel({0: "person", 1: "bicycle", 2: "car"})
+        panel.seed_roles(BARNES_ROLES)
+        assert isinstance(panel.seed_error(), ClassRolesUnresolvedError)
+
+    def test_restore_automatic_forgets_the_seed(self) -> None:
+        panel = self._panel(BARNES_NAMES)
+        panel.seed_roles(BARNES_ROLES)
+        panel.restore_automatic()
+        assert not panel.has_seed()
+        panel._names_loaded(panel._pending, BARNES_NAMES)
+        assert panel.draft_mapping() is None

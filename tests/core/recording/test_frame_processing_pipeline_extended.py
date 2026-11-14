@@ -7,7 +7,7 @@ import queue
 import threading
 import time
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -1421,7 +1421,7 @@ class TestLiveOverlayClassRoles:
 
     class _Pipeline(FrameProcessingMixin):
         def __init__(self, detector: Any) -> None:
-            self.detector_service = SimpleNamespace(detector=detector)
+            self.detector_service = cast(Any, SimpleNamespace(detector=detector))
 
     def test_explicit_map_is_published_by_id(self):
         from zebtrack.core.detection.class_roles import resolve_class_role_map

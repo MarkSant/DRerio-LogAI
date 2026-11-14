@@ -813,3 +813,75 @@ BARNES_TEMPLATE_ROLES = {
     "rat": "subject",
     "start_box": "context",
 }
+
+
+class TestTemplateRolesHeadless:
+    """Model-step template-role wiring driven without a Tk display (#646).
+
+    ``object.__new__`` skips the widgets; the real ``_class_roles_data`` and
+    ``_seed_template_class_roles`` run against a recording stand-in panel.
+    """
+
+    class _Panel:
+        def __init__(self, *, error=None, mapping=None):
+            self.seeded: list = []
+            self.loaded = 0
+            self._error = error
+            self._mapping = mapping
+
+        def seed_roles(self, roles):
+            self.seeded.append(roles)
+
+        def has_seed(self):
+            return bool(self.seeded and self.seeded[-1])
+
+        def load_now(self):
+            self.loaded += 1
+
+        def draft_mapping(self):
+            return self._mapping
+
+        def draft_weight_sha256(self):
+            return "sha"
+
+        def seed_error(self):
+            return self._error
+
+    @staticmethod
+    def _step(panel, wizard_data=None) -> Any:
+        step: Any = object.__new__(ModelSelectionStep)
+        step.class_roles_panel = panel
+        step.class_roles_section = MagicMock()
+        step.wizard_data = wizard_data or {}
+        step._seeded_template_roles = None
+        return step
+
+    def test_template_roles_are_seeded_and_the_section_opened(self):
+        panel = self._Panel()
+        roles = {"rat": "subject"}
+        step = self._step(panel, {"template_class_roles": {"class_roles": roles}})
+
+        step._seed_template_class_roles()
+        step._seed_template_class_roles()
+
+        assert panel.seeded == [roles]
+        step.class_roles_section.expand.assert_called_once_with()
+
+    def test_unresolved_template_raises_by_type(self):
+        from zebtrack.core.detection.class_roles import ClassRolesUnresolvedError
+
+        error = ClassRolesUnresolvedError({0: "person", 1: "bicycle", 2: "car"})
+        panel = self._Panel(error=error)
+        step = self._step(panel, {"template_class_roles": {"class_roles": {"rat": "subject"}}})
+        step._seed_template_class_roles()
+
+        with pytest.raises(ClassRolesUnresolvedError):
+            step._class_roles_data()
+        assert panel.loaded == 1
+
+    def test_a_hand_made_map_wins_over_the_error(self):
+        from zebtrack.core.detection.class_roles import ClassRolesUnresolvedError
+
+        error = ClassRolesUnresolvedError({0: "person", 1: "bicycle", 2: "car"})
+        step = self._step(self._Panel(error=error, mapping={"person": "subject"}))
+        assert step._class_roles_data() == ({"person": "subject"}, "sha")
