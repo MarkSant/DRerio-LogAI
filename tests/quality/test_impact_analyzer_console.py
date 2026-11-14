@@ -11,7 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "impact_analyzer.py"
 
 
-def _run(encoding: str) -> subprocess.CompletedProcess[str]:
+def _run(encoding: str) -> subprocess.CompletedProcess[bytes]:
     env = {**os.environ, "PYTHONIOENCODING": encoding}
     env.pop("PYTHONUTF8", None)
     return subprocess.run(
