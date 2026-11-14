@@ -711,3 +711,105 @@ class TestModelSelectionClassRoles:
 
         assert panel.editor.weight_name == "zebra.pt"
         assert panel.draft_weight_sha256() == "sha-zebra.pt"
+
+
+@pytest.mark.gui
+class TestModelSelectionTemplateClassRoles:
+    """#646: a template's roles are re-validated against the chosen weight."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, wizard_dependencies, monkeypatch):
+        from zebtrack.ui.components import class_roles_panel
+
+        self.root = wizard_dependencies["root"]
+        # Each test gives "rat.pt" different classes: no session-wide cache.
+        monkeypatch.setattr(
+            class_roles_panel, "SHARED_CLASS_NAMES", class_roles_panel.ClassNamesCache()
+        )
+
+    weight_manager = TestModelSelectionClassRoles.weight_manager
+
+    def _step(self, names: dict, template_roles: dict | None) -> ModelSelectionStep:
+        service = MagicMock()
+        service.inspect_model.return_value = {"class_names": names}
+        wizard_data: dict[str, Any] = {
+            "animals_per_aquarium": 1,
+            "model_selection": {"animal_method": "det"},
+            "weight_assignments": {"animal": "rat.pt"},
+            "template_class_roles": (
+                None
+                if template_roles is None
+                else {"class_roles": template_roles, "class_roles_weight_sha256": None}
+            ),
+        }
+        step = ModelSelectionStep(self.root, wizard_data, settings_obj=None, model_service=service)
+        step.build_ui()
+        step.animal_method_var.set("Detection (det)")
+        step.animal_weight_var.set("rat.pt")
+        step.confidence_var.set("0.25")
+        step.nms_var.set("0.45")
+        return step
+
+    def test_template_roles_open_the_section(self, weight_manager):
+        step = self._step(BARNES_NAMES, BARNES_TEMPLATE_ROLES)
+        assert step.class_roles_section is not None
+        assert step.class_roles_section.is_collapsed is False
+
+    def test_template_roles_become_the_project_roles(self, weight_manager):
+        step = self._step(BARNES_NAMES, BARNES_TEMPLATE_ROLES)
+
+        assert step.validate() == (True, "")
+        data = step.get_data()
+        assert data["class_roles"] == BARNES_TEMPLATE_ROLES
+        assert data["class_roles_weight_sha256"] == "sha-rat.pt"
+
+    def test_unresolvable_weight_blocks_the_step(self, weight_manager):
+        step = self._step({0: "person", 1: "bicycle", 2: "car"}, BARNES_TEMPLATE_ROLES)
+
+        ok, message = step.validate()
+
+        assert ok is False
+        assert message.startswith("None of the model classes (0: person, 1: bicycle, 2: car)")
+        assert step.get_data()["class_roles"] is None
+
+    def test_choosing_the_subject_by_hand_unblocks_it(self, weight_manager):
+        step = self._step({0: "person", 1: "bicycle", 2: "car"}, BARNES_TEMPLATE_ROLES)
+        step.validate()
+        panel = step.class_roles_panel
+        assert panel is not None
+
+        panel.set_role([0], ClassRole.SUBJECT)
+
+        assert step.validate() == (True, "")
+        assert step.get_data()["class_roles"] == {
+            "person": "subject",
+            "bicycle": "ignored",
+            "car": "ignored",
+        }
+
+    def test_without_template_roles_nothing_changes(self, weight_manager):
+        step = self._step(BARNES_NAMES, None)
+        panel = step.class_roles_panel
+        assert panel is not None
+        assert step.class_roles_section is not None
+        assert step.class_roles_section.is_collapsed is True
+        assert not panel.has_seed()
+        assert step.get_data()["class_roles"] is None
+
+    def test_on_show_picks_up_a_template_loaded_later(self, weight_manager):
+        step = self._step(BARNES_NAMES, None)
+        step.wizard_data["template_class_roles"] = {"class_roles": BARNES_TEMPLATE_ROLES}
+
+        step.on_show()
+
+        panel = step.class_roles_panel
+        assert panel is not None and panel.has_seed()
+        assert step.get_data()["class_roles"] == BARNES_TEMPLATE_ROLES
+
+
+BARNES_TEMPLATE_ROLES = {
+    "arena": "arena",
+    "experimenter": "context",
+    "rat": "subject",
+    "start_box": "context",
+}

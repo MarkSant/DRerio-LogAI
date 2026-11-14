@@ -48,8 +48,10 @@ from zebtrack.core.detection.class_aliases import ClassAliases, normalize_class_
 from zebtrack.core.detection.class_roles import (
     ClassRole,
     ClassRoleMap,
+    ClassRolesFit,
     ClassRoleSource,
     ClassRolesUnresolvedError,
+    fit_class_roles,
     overlay_class_roles,
     parse_class_roles,
     resolve_class_role_map,
@@ -273,6 +275,33 @@ def build_role_mapping(rows: Iterable[RoleRow]) -> dict[str, str]:
     if len(arenas) > 1:
         raise SeveralArenaClassesError(arenas)
     return {name: role.value for name, role in roles.items()}
+
+
+def template_fit_warning(fit: ClassRolesFit) -> str:
+    """What the editor says after re-applying a template's roles to a weight."""
+    if fit.is_exact:
+        return ""
+    lines: list[str] = []
+    if not fit.applied:
+        lines.append(
+            _(
+                "The template's class roles do not name a subject class of this weight; "
+                "the roles below are the automatic ones."
+            )
+        )
+    if fit.unmatched:
+        lines.append(
+            _("Template classes missing from this weight: {names}.").format(
+                names=", ".join(fit.unmatched)
+            )
+        )
+    if fit.applied and fit.unassigned:
+        lines.append(
+            _("Classes of this weight the template does not mention (ignored): {names}.").format(
+                names=", ".join(fit.unassigned)
+            )
+        )
+    return "\n".join(lines)
 
 
 def overlay_roles_for(role_map: ClassRoleMap | None) -> dict[int, str] | None:
@@ -899,6 +928,11 @@ class ClassRolesPanel(ttk.Frame):
         self._rows: list[RoleRow] = []
         self._view: ClassRolesView | None = None
         self._pending: TargetWeight | None = None
+        # Roles loaded from a wizard template (#646): re-applied BY NAME to every
+        # weight whose classes this panel loads.
+        self._seed: dict[str, str] | None = None
+        self._seed_fit: ClassRolesFit | None = None
+        self._seed_error: ClassRolesUnresolvedError | None = None
 
         self._weight_label: ttk.Label | None = None
         self._source_label: ttk.Label | None = None
@@ -1063,6 +1097,7 @@ class ClassRolesPanel(ttk.Frame):
             self._show_view(None, target)
             return
         self._show_view(self.editor.view(names, target), target)
+        self._apply_seed()
 
     # ------------------------------------------------------------------
     # Rendering
@@ -1182,6 +1217,85 @@ class ClassRolesPanel(ttk.Frame):
         self._set_status("")
 
     # ------------------------------------------------------------------
+    # Template seed (wizard, #646)
+    # ------------------------------------------------------------------
+    def seed_roles(self, roles: Mapping[str, str] | None) -> None:
+        """Pre-fill the draft from roles saved BY NAME (a wizard template).
+
+        The roles are re-validated against each weight whose classes load here
+        (:func:`fit_class_roles`): what matches is pre-filled, what does not is
+        reported, and a weight the roles do not fit resolves automatically —
+        never by position.
+        """
+        parsed = parse_class_roles(roles) if roles is not None else None
+        self._seed = {name: role.value for name, role in parsed.items()} if parsed else None
+        self._seed_fit = None
+        self._seed_error = None
+        self._apply_seed()
+
+    def has_seed(self) -> bool:
+        """Whether template roles wait to be (or were) applied."""
+        return self._seed is not None
+
+    def seed_fit(self) -> ClassRolesFit | None:
+        """The last re-validation of the template roles (``None``: not yet)."""
+        return self._seed_fit
+
+    def seed_error(self) -> ClassRolesUnresolvedError | None:
+        """The weight the template roles did not fit has no resolvable subject."""
+        return self._seed_error
+
+    def load_now(self) -> None:
+        """Load the target weight's classes synchronously if not loaded yet.
+
+        The wizard section is lazy; a template seed must still be checked
+        against the chosen weight before the step is left.
+        """
+        try:
+            target = self.editor.target()
+        # except Exception justified: same contract as :meth:`refresh`.
+        except Exception:
+            log.warning("class_roles_panel.target_failed", exc_info=True)
+            return
+        if self._view is not None and self._view.target == target:
+            return
+        background = self._background
+        self._background = False
+        try:
+            self.refresh()
+        finally:
+            self._background = background
+
+    def _apply_seed(self) -> None:
+        view = self._view
+        if self._seed is None or view is None or not view.class_names:
+            return
+        self._seed_error = None
+        try:
+            fit = fit_class_roles(
+                self._seed,
+                view.class_names,
+                weight_sha256=view.target.sha256 or None,
+                weight_entry=view.target.details,
+                aliases=ClassAliases.from_settings(self.editor.settings_obj),
+            )
+        except ClassRolesUnresolvedError as exc:
+            self._seed_fit = None
+            self._seed_error = exc
+            self._show_warning(str(exc))
+            return
+        self._seed_fit = fit
+        self._rows = rows_from_role_map(fit.role_map)
+        self._render_rows()
+        self._show_warning(
+            "\n".join(
+                text
+                for text in (self._warning_text(view, view.target), template_fit_warning(fit))
+                if text
+            )
+        )
+
+    # ------------------------------------------------------------------
     # Draft (wizard)
     # ------------------------------------------------------------------
     def draft_mapping(self) -> dict[str, str] | None:
@@ -1220,9 +1334,11 @@ class ClassRolesPanel(ttk.Frame):
     def restore_automatic(self) -> bool:
         """Drop the explicit map (persisting panel) or the draft edits (wizard)."""
         if not self._persist:
+            self.seed_roles(None)
             if self._view is not None:
                 self._rows = list(self._view.rows)
                 self._render_rows()
+                self._show_warning(self._warning_text(self._view, self._view.target))
             self._set_status(_("Automatic roles restored."))
             return True
         try:

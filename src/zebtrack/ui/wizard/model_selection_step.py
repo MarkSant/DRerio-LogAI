@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.core.detection.class_roles import ClassRolesUnresolvedError
 from zebtrack.core.services.weight_manager import WeightManager
 from zebtrack.i18n import _
 from zebtrack.settings import (
@@ -28,7 +29,11 @@ from zebtrack.ui.components.class_roles_panel import (
 )
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
-from zebtrack.ui.wizard.templates import format_template_banner
+from zebtrack.ui.wizard.templates import (
+    TEMPLATE_ROLES_KEY,
+    WIZARD_TEMPLATE_ROLES_KEY,
+    format_template_banner,
+)
 from zebtrack.ui.wizard.tooltip import ToolTip
 from zebtrack.utils.hardware_detection import get_openvino_devices, recommend_backend
 
@@ -96,6 +101,7 @@ class ModelSelectionStep(WizardStep):
         self._model_service = model_service
         self.class_roles_section: CollapsibleFrame | None = None
         self.class_roles_panel: ClassRolesPanel | None = None
+        self._seeded_template_roles: Any = None
 
         self.weight_manager = WeightManager(settings_obj=settings_obj)
         self.seg_weight_names: list[str] = []
@@ -847,6 +853,26 @@ class ModelSelectionStep(WizardStep):
         )
         self.class_roles_panel.pack(fill="x")
         self.class_roles_section = section
+        self._seed_template_class_roles()
+
+    def _seed_template_class_roles(self) -> None:
+        """Hand the loaded template's class roles to the panel (#646).
+
+        The roles were saved by NAME; the panel re-validates them against the
+        animal weight chosen here and reports what did not match. The section is
+        opened so that report is seen, and its classes load.
+        """
+        panel = self.class_roles_panel
+        if panel is None:
+            return
+        block = self.wizard_data.get(WIZARD_TEMPLATE_ROLES_KEY)
+        roles = block.get(TEMPLATE_ROLES_KEY) if isinstance(block, dict) else None
+        if roles == self._seeded_template_roles:
+            return
+        self._seeded_template_roles = roles
+        panel.seed_roles(roles)
+        if roles and self.class_roles_section is not None:
+            self.class_roles_section.expand()
 
     def _on_animal_weight_change(self, *_args: Any) -> None:
         panel = self.class_roles_panel
@@ -855,12 +881,24 @@ class ModelSelectionStep(WizardStep):
         panel.set_weight_name(self._strip_annotation(self.animal_weight_var.get()) or None)
 
     def _class_roles_data(self) -> tuple[dict[str, str] | None, str | None]:
-        """The edited roles and the sha of the animal weight, or ``(None, None)``."""
+        """The edited roles and the sha of the animal weight, or ``(None, None)``.
+
+        Raises:
+            RoleMapError: the edited rows are not a valid map.
+            ClassRolesUnresolvedError: a template's roles do not fit the chosen
+                weight, which has no subject the resolver can name, and nobody
+                chose one by hand (never answered by position).
+        """
         panel = self.class_roles_panel
         if panel is None:
             return None, None
+        if panel.has_seed():
+            panel.load_now()
         mapping = panel.draft_mapping()
         if mapping is None:
+            error = panel.seed_error()
+            if error is not None:
+                raise error
             return None, None
         return mapping, panel.draft_weight_sha256()
 
@@ -1217,6 +1255,7 @@ class ModelSelectionStep(WizardStep):
         """Handle step visibility and refresh UI from shared wizard data."""
         # Refresh UI from shared wizard data so templates/back navigation stay in sync
         self._prefill_from_wizard_data()
+        self._seed_template_class_roles()
         self._update_template_banner()
         self._refresh_weight_dropdowns()
         self._update_animal_method_hint()
@@ -1384,6 +1423,8 @@ class ModelSelectionStep(WizardStep):
             self._class_roles_data()
         except RoleMapError as exc:
             return False, role_map_error_message(exc)
+        except ClassRolesUnresolvedError as exc:
+            return False, str(exc)
 
         return True, ""
 
@@ -1397,7 +1438,7 @@ class ModelSelectionStep(WizardStep):
         animal_method = self._method_key_from_label(self.animal_method_var.get())
         try:
             class_roles, class_roles_sha = self._class_roles_data()
-        except RoleMapError:
+        except (RoleMapError, ClassRolesUnresolvedError):
             # validate() runs first and refuses an invalid map; never store one.
             class_roles, class_roles_sha = None, None
 

@@ -336,6 +336,13 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
   (`core/services/worker_model_resolution.resolve_worker_model()`: caminho, sha256, exportação
   OpenVINO, papéis). Histórico: até a 7.2 o worker lia `settings.weights.*` e processava o projeto
   de rato com o peso de zebrafish.
+- **O overlay pinta com o mapa do DETECTOR, não com o que a UI resolve (#645).** Todo payload
+  que leva detecções à UI carrega `class_roles` de `class_roles.overlay_class_roles()`: `{}` =
+  mapa legado (cores 7.2); só `None` deixa a UI cair para `gui.overlay_class_roles`.
+- **Templates do wizard (schema v5) guardam papéis por NOME + sha (#646)** em
+  `model_overrides`, igual ao projeto. Ao aplicar, `class_roles.fit_class_roles()` revalida os
+  nomes contra o peso escolhido e avisa o que não casou; sem sujeito, resolve automático e
+  levanta `ClassRolesUnresolvedError` (capturada pelo tipo) — nunca cai para a posição.
 - **Detecções de contexto vão para o `3c_Objetos_<base>.parquet`, nunca para a trajetória.**
   `core/services/object_capture.should_capture_objects()` decide se o sidecar é escrito (só um
   `True` booleano liga); `io/object_sidecar.py` lê e valida — arquivo ausente ou incompatível vira
@@ -446,7 +453,8 @@ Pattern: `domain.action.result`.
 - `ui/dialogs/` — ~25 dialog classes (incl. `LiveAnalysisDialog`, `LivePreviewWindow`).
 - `ui/components/canvas/` — canvas sub-package.
 - `ui/wizard/` — project wizard (7 steps pre-recorded, 6 live); `models.py` holds Pydantic
-  validation models; `templates.py` holds template schema v4 (with `analysis_window`).
+  validation models; `templates.py` holds template schema v5 (`analysis_window`, and
+  `model_overrides.class_roles` by class name, re-fitted to the chosen weight).
 
 ### Configuration
 

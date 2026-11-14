@@ -1,0 +1,7 @@
+{
+  "_comment": "#646: class roles in wizard templates. Appended by hand to the .pot/.po (see docs/guides/developer/i18n.md); kept here for the next full regeneration.",
+  "The template's class roles could not be read and were dropped: the roles of the weight's classes will be resolved automatically.": "Os papéis de classe do template não puderam ser lidos e foram descartados: os papéis das classes do peso serão resolvidos automaticamente.",
+  "The template's class roles do not name a subject class of this weight; the roles below are the automatic ones.": "Os papéis de classe do template não indicam uma classe sujeito deste peso; os papéis abaixo são os automáticos.",
+  "Template classes missing from this weight: {names}.": "Classes do template ausentes neste peso: {names}.",
+  "Classes of this weight the template does not mention (ignored): {names}.": "Classes deste peso que o template não menciona (ignoradas): {names}."
+}
