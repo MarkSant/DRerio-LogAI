@@ -32,6 +32,8 @@ from zebtrack.ui.event_bus_v2 import Event, UIEvents
 class Spy:
     """Records every method call as ``(name, args, kwargs)``; returns ``returns[name]``."""
 
+    camera: Any = None  # a real attribute, so a Spy never invents a callable camera
+
     def __init__(self, **returns: Any) -> None:
         self.calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
         self._returns = returns
