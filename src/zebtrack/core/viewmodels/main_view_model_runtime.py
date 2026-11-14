@@ -143,6 +143,9 @@ class MainViewModelRuntime:
                 self._handle_zone_event(data)
             case (
                 UIEvents.PROJECT_DELETE_ASSET
+                | UIEvents.PROJECT_DELETE_GROUP
+                | UIEvents.PROJECT_DELETE_DAY
+                | UIEvents.PROJECT_DELETE_SUBJECT
                 | UIEvents.PROJECT_DELETE_AQUARIUM
                 | UIEvents.PROJECT_CLEAR_AQUARIUM_SUBJECT
                 | UIEvents.PROJECT_RESET_ANALYSIS_DATA
