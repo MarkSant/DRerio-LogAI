@@ -13,8 +13,9 @@ experimenter is still in the picture when the recording starts and the rat must
 only be measured after the start box is lifted. Every piece of this release was
 tested end to end against that case.
 
-> **The version DOI for 8.0.0 does not exist yet.** Zenodo mints it when this
-> release is published. Until then, cite the all-versions DOI
+> **Version DOI of 8.0.0:**
+> [`10.5281/zenodo.24226429`](https://doi.org/10.5281/zenodo.24226429). To cite the
+> software in general, use the all-versions DOI
 > [`10.5281/zenodo.22650404`](https://doi.org/10.5281/zenodo.22650404).
 
 ## Relation to the published results

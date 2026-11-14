@@ -10,7 +10,8 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 __ID:__ TASK-086
 __Agent:__ Claude Code (Opus 5.5)
-__Status:__ In Progress 🔄
+__Status:__ Completed ✅ (PR #715; #629 mergeado em `main` como 1ab2de3e; tag `v8.0.0`;
+DOI 10.5281/zenodo.24226429 registrado no PR seguinte)
 __Branch:__ release/8.0.0-prep (a partir de `release/8.0`, 695f6686)
 __Description:__
 Último PR antes do #629 (`release/8.0` → `main`) e da tag `v8.0.0`, conforme
@@ -321,8 +322,8 @@ __Resultado (2026-11-05):__
 
 __ID:__ TASK-076
 __Agent:__ Claude Code (Opus 5.5) + agentes de implementação por frente
-__Status:__ Ready for release 🟡 (código, catálogo e documentação prontos; tag, release e DOI
-aguardam o mantenedor)
+__Status:__ Released ✅ (tag `v8.0.0` em 1ab2de3e, release publicado em 2026-11-14, DOI de
+versão 10.5281/zenodo.24226429)
 __Branch:__ release/8.0 (frentes `feat/v8-*`, ver `docs/tasks/v8/PLAN.md`)
 __Description:__
 O programa supunha dois papéis fixos (aquário e peixe) e um tempo zero implícito (a primeira

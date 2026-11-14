@@ -559,11 +559,9 @@ O software está arquivado no Zenodo:
 | DOI | Resolve para |
 | --- | --- |
 | [`10.5281/zenodo.22650404`](https://doi.org/10.5281/zenodo.22650404) | **Todas as versões.** Cite este, a menos que precise fixar um release específico. |
+| [`10.5281/zenodo.24226429`](https://doi.org/10.5281/zenodo.24226429) | O release **8.0.0** especificamente (este). |
 | [`10.5281/zenodo.22783436`](https://doi.org/10.5281/zenodo.22783436) | O release **7.2.0** especificamente. |
 | [`10.5281/zenodo.22650405`](https://doi.org/10.5281/zenodo.22650405) | O release **7.0.0** especificamente. |
-
-O release **8.0.0** ganha um DOI de versão próprio quando for publicado no GitHub; até lá,
-cite o DOI de todas as versões.
 
 > **Reproduzindo os resultados publicados.** Os números de validação e benchmark reportados nos
 > manuscritos associados foram produzidos com o release **4.0.0** (tag
