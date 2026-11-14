@@ -179,7 +179,7 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `ui/components/event_dispatcher.py` + `dialog_manager.py` (window state banner) | `tests/ui/components/test_event_dispatcher.py::TestAnalysisWindowStateChanged` (`-m gui`) |
 | `ui/components/tab_builder.py` ("Mark start/stop") | `tests/ui/components/test_tab_builder.py::TestMarkWindowEventButton` (`-m gui`) |
 | `ui/components/analysis_window_panel.py` | `tests/ui/components/test_analysis_window_panel.py` (pure line model + preview in the fast suite; Tk panel under `-m gui -n0`) + `--module analysis_window_panel` |
-| `ui/wizard/templates.py` (v4 migration) | `tests/ui/wizard/test_wizard_templates.py` (`TestMigrateTemplate` is pure; `TestApplyTemplateData` is `gui`) + `--module wizard_templates` |
+| `ui/wizard/templates.py` (v4/v5 migration, class roles) | `tests/ui/wizard/test_wizard_templates.py` (`TestMigrateTemplate` is pure; `TestApplyTemplateData` is `gui`) + `--module wizard_templates` |
 | `ui/components/class_roles_panel.py` | `tests/ui/components/test_class_roles_panel.py` (validation, pre-fill, stale sha, both scopes, event, context: fast suite; Tk panel and dialog: `-m gui -n0`) + `--module class_roles_panel` |
 | `ui/components/canvas/overlay_roles.py` | `tests/ui/components/canvas/test_overlay_roles.py`; renderer/frame wiring in `test_canvas_renderer.py`, `test_canvas_manager.py` + `--module overlay_roles` |
 | `coordinators/model_diagnostics_coordinator.py` (class roles) | `tests/coordinators/test_model_diagnostics_coordinator.py::TestReportClassRoles` |

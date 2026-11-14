@@ -18,7 +18,7 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -26,6 +26,7 @@ import pytest
 from zebtrack.core.detection.class_roles import (
     ClassRole,
     ClassRoleSource,
+    ClassRolesUnresolvedError,
     resolve_class_role_map,
 )
 from zebtrack.core.services.weight_manager import WeightManager
@@ -1044,3 +1045,237 @@ class TestClassRolesPanel:
         assert panel._status.winfo_manager() == "pack"
         panel._set_status("")
         assert panel._status.winfo_manager() == ""
+
+
+# ---------------------------------------------------------------------------
+# Template seed (#646)
+# ---------------------------------------------------------------------------
+
+
+class TestTemplateFitWarning:
+    def test_exact_fit_says_nothing(self) -> None:
+        from zebtrack.core.detection.class_roles import fit_class_roles
+        from zebtrack.ui.components.class_roles_panel import template_fit_warning
+
+        assert template_fit_warning(fit_class_roles(BARNES_ROLES, BARNES_NAMES)) == ""
+
+    def test_lists_missing_and_unmentioned_classes(self) -> None:
+        from zebtrack.core.detection.class_roles import fit_class_roles
+        from zebtrack.ui.components.class_roles_panel import template_fit_warning
+
+        text = template_fit_warning(fit_class_roles(BARNES_ROLES, {0: "arena", 1: "rat", 2: "lid"}))
+        assert text.splitlines() == [
+            "Template classes missing from this weight: experimenter, start_box.",
+            "Classes of this weight the template does not mention (ignored): lid.",
+        ]
+
+    def test_says_when_the_template_does_not_apply(self) -> None:
+        from zebtrack.core.detection.class_roles import fit_class_roles
+        from zebtrack.ui.components.class_roles_panel import template_fit_warning
+
+        text = template_fit_warning(fit_class_roles(BARNES_ROLES, ZEBRA_NAMES))
+        lines = text.splitlines()
+        assert lines[0].startswith("The template's class roles do not name a subject class")
+        assert lines[1] == (
+            "Template classes missing from this weight: arena, experimenter, rat, start_box."
+        )
+        assert len(lines) == 2
+
+
+@pytest.mark.gui
+class TestPanelTemplateSeed:
+    """Template roles re-validated BY NAME against the weight the panel loads."""
+
+    @staticmethod
+    def _panel(root: Any, registry: Any, names_by_weight: dict[str, dict[int, str]]) -> Any:
+        wm, files = registry
+        editor = ClassRolesEditor(
+            scope=ClassRolesScope.WEIGHT,
+            weight_manager=wm,
+            settings_obj=_settings(),
+            weight_name=files["rat"].name,
+        )
+        panel = ClassRolesPanel(
+            root,
+            editor=editor,
+            names_loader=lambda name: names_by_weight[name],
+            cache=ClassNamesCache(),
+            persist=False,
+            background=False,
+        )
+        panel.pack()
+        root.update()
+        return panel
+
+    def test_seed_becomes_the_draft_for_the_loaded_weight(self, tkinter_root, registry) -> None:
+        _wm, files = registry
+        panel = self._panel(tkinter_root, registry, {files["rat"].name: BARNES_NAMES})
+
+        panel.seed_roles(BARNES_ROLES)
+
+        assert panel.has_seed()
+        assert panel.seed_fit() is not None and panel.seed_fit().is_exact
+        assert panel.draft_mapping() == BARNES_ROLES
+        assert panel.draft_weight_sha256() == _sha(files["rat"])
+        assert panel._warning.cget("text") == ""
+
+    def test_seed_follows_names_not_ids_on_another_weight(self, tkinter_root, registry) -> None:
+        _wm, files = registry
+        retrained = {0: "rat", 1: "start_box", 2: "arena", 3: "experimenter", 4: "lid"}
+        panel = self._panel(
+            tkinter_root,
+            registry,
+            {files["rat"].name: BARNES_NAMES, files["zebra"].name: retrained},
+        )
+        panel.seed_roles(BARNES_ROLES)
+
+        panel.set_weight_name(files["zebra"].name)
+
+        assert panel.draft_mapping() == {**BARNES_ROLES, "lid": "ignored"}
+        assert panel.draft_weight_sha256() == _sha(files["zebra"])
+        assert "(ignored): lid." in panel._warning.cget("text")
+
+    def test_seed_that_does_not_fit_leaves_the_automatic_roles(
+        self, tkinter_root, registry
+    ) -> None:
+        _wm, files = registry
+        panel = self._panel(tkinter_root, registry, {files["rat"].name: ZEBRA_NAMES})
+
+        panel.seed_roles({"rat": "subject"})
+
+        assert panel.draft_mapping() is None
+        assert panel.seed_error() is None
+        assert "do not name a subject class" in panel._warning.cget("text")
+
+    def test_unresolvable_weight_is_reported_by_type(self, tkinter_root, registry) -> None:
+        _wm, files = registry
+        coco = {0: "person", 1: "bicycle", 2: "car"}
+        panel = self._panel(tkinter_root, registry, {files["rat"].name: coco})
+
+        panel.seed_roles(BARNES_ROLES)
+
+        assert isinstance(panel.seed_error(), ClassRolesUnresolvedError)
+        assert panel.draft_mapping() is None
+        assert "person" in panel._warning.cget("text")
+
+    def test_restore_automatic_drops_the_seed(self, tkinter_root, registry) -> None:
+        _wm, files = registry
+        panel = self._panel(tkinter_root, registry, {files["rat"].name: BARNES_NAMES})
+        panel.seed_roles(BARNES_ROLES)
+
+        panel.restore_automatic()
+
+        assert not panel.has_seed()
+        assert panel.draft_mapping() is None
+
+    def test_clearing_the_seed(self, tkinter_root, registry) -> None:
+        _wm, files = registry
+        panel = self._panel(tkinter_root, registry, {files["rat"].name: BARNES_NAMES})
+        panel.seed_roles(BARNES_ROLES)
+        panel.seed_roles(None)
+        assert not panel.has_seed()
+        assert panel.seed_fit() is None
+
+    def test_load_now_applies_a_seed_on_a_lazy_panel(self, tkinter_root, registry) -> None:
+        wm, files = registry
+        editor = ClassRolesEditor(
+            scope=ClassRolesScope.WEIGHT,
+            weight_manager=wm,
+            settings_obj=_settings(),
+            weight_name=files["rat"].name,
+        )
+        loader = MagicMock(return_value=BARNES_NAMES)
+        panel = ClassRolesPanel(
+            tkinter_root,
+            editor=editor,
+            names_loader=loader,
+            cache=ClassNamesCache(),
+            persist=False,
+            load_when_mapped=True,
+        )
+        panel.seed_roles(BARNES_ROLES)
+        loader.assert_not_called()
+
+        panel.load_now()
+        panel.load_now()
+
+        loader.assert_called_once_with(files["rat"].name)
+        assert panel.draft_mapping() == BARNES_ROLES
+
+
+class TestTemplateSeedHeadless:
+    """The seed logic of :class:`ClassRolesPanel` driven without a Tk display.
+
+    ``object.__new__`` skips the widgets; every call below runs the panel's
+    real methods (``_names_loaded``, ``seed_roles``, ``restore_automatic``),
+    which tolerate absent widgets by design.
+    """
+
+    @staticmethod
+    def _panel(names: dict[int, str]) -> Any:
+        from zebtrack.ui.components.class_roles_panel import TargetWeight, build_view
+
+        target = TargetWeight(name="w.pt", sha256="a" * 64)
+        panel = object.__new__(ClassRolesPanel)
+        panel.editor = cast(
+            Any,
+            SimpleNamespace(
+                settings_obj=None,
+                target=lambda: target,
+                view=lambda n, t: build_view(n, scope=ClassRolesScope.WEIGHT, target=t),
+            ),
+        )
+        for attr in (
+            "_tree",
+            "_warning",
+            "_status",
+            "_source_label",
+            "_weight_label",
+            "_save_button",
+            "_restore_button",
+            "_role_combo",
+            "_view",
+            "_seed",
+            "_seed_fit",
+            "_seed_error",
+        ):
+            setattr(panel, attr, None)
+        panel._persist = False
+        panel._compact = False
+        panel._rows = []
+        panel._pending = target
+        panel.is_alive = lambda: True  # type: ignore[method-assign]
+        panel._names_loaded(target, names)
+        return panel
+
+    def test_seed_applies_when_the_classes_load(self) -> None:
+        panel = self._panel({})
+        panel.seed_roles(BARNES_ROLES)  # nothing loaded yet: kept for later
+        assert panel.draft_mapping() is None
+
+        panel._names_loaded(panel._pending, BARNES_NAMES)
+
+        assert panel.draft_mapping() == BARNES_ROLES
+
+    def test_fit_rows_follow_the_names(self) -> None:
+        panel = self._panel({0: "rat", 1: "arena", 2: "experimenter", 3: "start_box"})
+        panel.seed_roles(BARNES_ROLES)
+        assert [(row.class_id, row.role) for row in panel.rows()] == [
+            (0, ClassRole.SUBJECT),
+            (1, ClassRole.ARENA),
+            (2, ClassRole.CONTEXT),
+            (3, ClassRole.CONTEXT),
+        ]
+
+    def test_unresolvable_weight_is_reported(self) -> None:
+        panel = self._panel({0: "person", 1: "bicycle", 2: "car"})
+        panel.seed_roles(BARNES_ROLES)
+        assert isinstance(panel.seed_error(), ClassRolesUnresolvedError)
+
+    def test_restore_automatic_forgets_the_seed(self) -> None:
+        panel = self._panel(BARNES_NAMES)
+        panel.seed_roles(BARNES_ROLES)
+        panel.restore_automatic()
+        assert not panel.has_seed()
+        panel._names_loaded(panel._pending, BARNES_NAMES)
+        assert panel.draft_mapping() is None

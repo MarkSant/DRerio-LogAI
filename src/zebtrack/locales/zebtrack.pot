@@ -13939,3 +13939,19 @@ msgstr ""
 #: src/zebtrack/utils/report_files.py:117
 msgid "recorded video"
 msgstr ""
+
+#: src/zebtrack/ui/wizard/templates.py
+msgid "The template's class roles could not be read and were dropped: the roles of the weight's classes will be resolved automatically."
+msgstr ""
+
+#: src/zebtrack/ui/components/class_roles_panel.py
+msgid "The template's class roles do not name a subject class of this weight; the roles below are the automatic ones."
+msgstr ""
+
+#: src/zebtrack/ui/components/class_roles_panel.py
+msgid "Template classes missing from this weight: {names}."
+msgstr ""
+
+#: src/zebtrack/ui/components/class_roles_panel.py
+msgid "Classes of this weight the template does not mention (ignored): {names}."
+msgstr ""

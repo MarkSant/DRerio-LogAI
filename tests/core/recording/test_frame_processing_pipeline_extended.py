@@ -7,7 +7,7 @@ import queue
 import threading
 import time
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -1414,3 +1414,33 @@ class TestMultiAquariumOverlay:
         h.display_interval_frames = 1
         h.run([(1, T0 + 1.0)])
         assert detector.overlays == 1
+
+
+class TestLiveOverlayClassRoles:
+    """#645: the live canvas draws with the live detector's own role map."""
+
+    class _Pipeline(FrameProcessingMixin):
+        def __init__(self, detector: Any) -> None:
+            self.detector_service = cast(Any, SimpleNamespace(detector=detector))
+
+    def test_explicit_map_is_published_by_id(self):
+        from zebtrack.core.detection.class_roles import resolve_class_role_map
+
+        role_map = resolve_class_role_map(
+            {0: "arena", 1: "experimenter", 2: "rat"},
+            weight_entry={
+                "class_roles": {"arena": "arena", "experimenter": "context", "rat": "subject"}
+            },
+        )
+        pipe = self._Pipeline(SimpleNamespace(class_role_map=role_map))
+        assert pipe._live_overlay_class_roles() == {0: "arena", 1: "context", 2: "subject"}
+
+    def test_legacy_map_is_published_empty(self):
+        from zebtrack.core.detection.class_roles import resolve_class_role_map
+
+        role_map = resolve_class_role_map({0: "aqua", 1: "zebrafish"})
+        pipe = self._Pipeline(SimpleNamespace(class_role_map=role_map))
+        assert pipe._live_overlay_class_roles() == {}
+
+    def test_no_detector_publishes_none(self):
+        assert self._Pipeline(None)._live_overlay_class_roles() is None

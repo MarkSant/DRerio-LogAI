@@ -90,6 +90,7 @@ class TrackingSessionRunnerMixin:
             ProcessingCallbacks,
             ProcessingContext,
             ProcessingWorker,
+            class_roles_from_frame_info,
         )
 
         # Resolve actual path from video_path object if it's a FrameSource
@@ -153,6 +154,7 @@ class TrackingSessionRunnerMixin:
                             data=payloads.FrameDisplayPayload(
                                 frame=frame,
                                 detections=detections or [],
+                                class_roles=class_roles_from_frame_info(info),
                             ),
                         )
                     )

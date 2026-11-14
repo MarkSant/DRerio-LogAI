@@ -57,7 +57,10 @@ __all__ = [
     "ClassRole",
     "ClassRoleMap",
     "ClassRoleSource",
+    "ClassRolesFit",
     "ClassRolesUnresolvedError",
+    "fit_class_roles",
+    "overlay_class_roles",
     "parse_class_roles",
     "resolve_class_role_map",
 ]
@@ -432,6 +435,120 @@ def resolve_class_role_map(
 
     vocab = aliases or ClassAliases.defaults()
     return _logged(_alias_map(class_map, vocab, weight_sha256=weight_sha256, strict=strict))
+
+
+def overlay_class_roles(role_map: ClassRoleMap | None) -> dict[int, str] | None:
+    """``{class id: role token}`` that overlays draw with (#645).
+
+    Published with the detections by whoever ran the detector, so the UI colours
+    the boxes with the map the detector REALLY used instead of resolving its own.
+
+    Returns:
+        ``None`` when there is no map at all (the UI may resolve one itself);
+        ``{}`` for a legacy alias/positional map — "the detector resolved, and
+        nobody said what the classes are", which keeps the 7.2 colours; the
+        role of every named class for an explicit (project or weight) map.
+    """
+    if role_map is None:
+        return None
+    if not role_map.is_explicit or not role_map.names:
+        return {}
+    return {class_id: role_map.role_of_id(class_id).value for class_id in sorted(role_map.names)}
+
+
+class ClassRolesFit(BaseModel):
+    """Roles saved for one weight, re-applied to another weight by NAME (#646).
+
+    Attributes:
+        roles: ``{normalised name: role token}`` to store for the target weight
+            — only names the weight really has. Empty when nothing applies.
+        unmatched: Saved names the target weight does not have.
+        unassigned: Target class names the saved roles say nothing about (they
+            resolve to ``ignored`` while the saved roles apply).
+        applied: The saved roles name a subject of the target weight and are
+            used; ``False`` means the roles resolve automatically instead.
+        role_map: What the detector will resolve for the target weight.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    roles: dict[str, str]
+    unmatched: tuple[str, ...]
+    unassigned: tuple[str, ...]
+    applied: bool
+    role_map: ClassRoleMap
+
+    @property
+    def is_exact(self) -> bool:
+        """Every saved name exists and every class of the weight has a saved role."""
+        return self.applied and not self.unmatched and not self.unassigned
+
+
+def fit_class_roles(
+    saved_roles: Any,
+    names: Any,
+    *,
+    weight_sha256: str | None = None,
+    weight_entry: Mapping[str, Any] | None = None,
+    aliases: ClassAliases | None = None,
+) -> ClassRolesFit:
+    """Re-validate roles saved by name (a wizard template) against a weight.
+
+    The saved roles were chosen for some weight, possibly another file. They are
+    matched to ``names`` by NORMALISED name, never by id or position. They apply
+    when the names that match still carry a subject; otherwise the weight's roles
+    resolve automatically (weight registry, then aliases), strictly.
+
+    Args:
+        saved_roles: ``{class name: role token}`` as saved.
+        names: The target model's ``names`` (mapping or sequence).
+        weight_sha256: sha256 of the target weight.
+        weight_entry: The target weight's ``weights_config.json`` entry.
+        aliases: Role vocabularies; built-in ones when ``None``.
+
+    Raises:
+        ClassRolesUnresolvedError: the saved roles do not apply and the weight
+            has names, ``MIN_CLASSES_FOR_STRICT_SUBJECT`` or more classes and no
+            subject the resolver can name. Never answered by position.
+    """
+    class_map = _as_class_map(names)
+    weight_names = {normalize_class_name(name) for name in class_map.values()}
+    parsed = parse_class_roles(saved_roles) or {}
+    matched = {name: role for name, role in parsed.items() if name in weight_names}
+    unmatched = tuple(sorted(name for name in parsed if name not in weight_names))
+    unassigned = tuple(sorted(name for name in weight_names if name and name not in parsed))
+
+    role_map: ClassRoleMap | None = None
+    if class_map and ClassRole.SUBJECT in matched.values():
+        role_map = _explicit_map(
+            class_map,
+            {name: role.value for name, role in matched.items()},
+            source=ClassRoleSource.PROJECT,
+            weight_sha256=weight_sha256,
+        )
+    applied = role_map is not None
+    if role_map is None:
+        role_map = resolve_class_role_map(
+            class_map,
+            weight_entry=weight_entry,
+            weight_sha256=weight_sha256,
+            aliases=aliases,
+            strict=True,
+        )
+    log.info(
+        "class_roles.fit",
+        applied=applied,
+        unmatched=list(unmatched),
+        unassigned=list(unassigned),
+        source=role_map.source.value,
+    )
+    return ClassRolesFit(
+        roles={name: role.value for name, role in matched.items()} if applied else {},
+        unmatched=unmatched,
+        unassigned=unassigned,
+        applied=applied,
+        role_map=role_map,
+    )
 
 
 def _logged(role_map: ClassRoleMap) -> ClassRoleMap:

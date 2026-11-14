@@ -127,6 +127,33 @@ class TestRunTrackingIfNeeded:
 
     @patch("zebtrack.core.video.processing_worker.ProcessingWorker")
     @patch("zebtrack.core.video.tracking_session_runner.os.path.exists")
+    def test_preview_frames_carry_the_workers_roles(
+        self, mock_exists, mock_worker, video_processing_service
+    ):
+        """#645: the single-video preview draws with the worker's role map."""
+        mock_exists.return_value = False
+        mock_worker.return_value.start_in_thread.return_value = Mock()
+        video_processing_service.project_manager.get_zone_data = Mock(
+            return_value=ZoneData(polygon=[[0, 0], [640, 0], [640, 480]])
+        )
+        video_processing_service.run_tracking_if_needed(
+            video_path="/fake/video.mp4",
+            results_dir="/fake/results",
+            experiment_id="test_001",
+            analysis_interval_frames=1,
+        )
+        callbacks = mock_worker.call_args.args[1]
+        bus = video_processing_service.ui_event_bus
+        bus.publish.reset_mock()
+
+        callbacks.on_frame_processed("frame", [(0, 0, 1, 1)], {"class_roles": {1: "context"}})
+        callbacks.on_frame_processed("frame", [], {"fps": 3.0})
+
+        shown = [c.args[0].data.class_roles for c in bus.publish.call_args_list]
+        assert shown == [{1: "context"}, None]
+
+    @patch("zebtrack.core.video.processing_worker.ProcessingWorker")
+    @patch("zebtrack.core.video.tracking_session_runner.os.path.exists")
     def test_ships_the_project_weight_to_the_worker(
         self, mock_exists, mock_worker, video_processing_service, tmp_path
     ):
