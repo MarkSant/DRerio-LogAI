@@ -172,6 +172,28 @@ class TestApplyTemplateData:
         for key in expected_keys:
             assert wizard_data[key] == template[key], f"{key!r} not applied to wizard_data"
 
+    def test_builtin_rodent_template_prefills_the_behavioural_widget(self):
+        """#695: loading the shipped template fills the calibration step's widget."""
+        from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
+        from zebtrack.ui.wizard.discovery_step import DiscoveryStep
+        from zebtrack.ui.wizard.templates import RODENT_TOP_DOWN_TEMPLATE, builtin_templates_dir
+
+        path = builtin_templates_dir() / RODENT_TOP_DOWN_TEMPLATE
+        wizard_data: dict = {}
+        step = DiscoveryStep(self.root, wizard_data)
+        step.build_ui()
+        step._apply_template_data(json.loads(path.read_text(encoding="utf-8")), path)
+
+        widget = BehavioralConfigWidget(self.root)
+        widget.set_values(wizard_data["behavioral_analysis"])
+        values = widget.get_values()
+
+        assert values["aquarium_perspective"] == "top_down"
+        assert values["geotaxis_enabled"] is False
+        assert values["thigmotaxis_distance_cm"] == 15.0
+        assert values["max_plausible_speed_cm_s"] == 100.0
+        assert widget.validate() == (True, [])
+
     def test_v3_trigger_template_arrives_as_an_analysis_window(self):
         from zebtrack.ui.wizard.discovery_step import DiscoveryStep
 
@@ -597,3 +619,111 @@ class TestTemplateClassRoles:
         assert template_migration_note_text(NOTE_CLASS_ROLES_DROPPED).startswith(
             "The template's class roles could not be read"
         )
+
+
+class TestBuiltinRodentTemplate:
+    """#695: a shipped "rodent, top view" template carries the three rodent defaults."""
+
+    @staticmethod
+    def _rodent() -> dict[str, Any]:
+        from zebtrack.ui.wizard.templates import RODENT_TOP_DOWN_TEMPLATE, builtin_templates_dir
+
+        path = builtin_templates_dir() / RODENT_TOP_DOWN_TEMPLATE
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def test_it_lives_in_the_curated_resources_folder(self):
+        from zebtrack.paths import repo_root
+        from zebtrack.ui.wizard.templates import builtin_templates_dir
+
+        assert builtin_templates_dir() == repo_root() / "resources" / "wizard_templates"
+
+    def test_behavioural_block_is_the_rodent_one(self):
+        migrated, notes = migrate_template(self._rodent())
+        behavioural = migrated["behavioral_analysis"]
+
+        assert notes == ()
+        assert behavioural["aquarium_perspective"] == "top_down"
+        assert behavioural["geotaxis_enabled"] is False
+        assert 10.0 <= behavioural["thigmotaxis_distance_cm"] <= 20.0
+        # A rat sprints well past the 50 cm/s zebrafish ceiling.
+        assert behavioural["max_plausible_speed_cm_s"] > 50.0
+
+    def test_behavioural_block_passes_the_wizard_model(self):
+        from zebtrack.ui.wizard.models import BehavioralAnalysisData
+
+        data = BehavioralAnalysisData.model_validate(self._rodent()["behavioral_analysis"])
+
+        assert (
+            data.max_plausible_speed_cm_s
+            == self._rodent()["behavioral_analysis"]["max_plausible_speed_cm_s"]
+        )
+
+    def test_no_class_roles_are_invented_without_a_shipped_rodent_weight(self):
+        migrated, _notes = migrate_template(self._rodent())
+
+        assert migrated["schema_version"] == TEMPLATE_SCHEMA_VERSION
+        assert migrated["model_overrides"] is None
+
+
+class TestBuiltinTemplateInstall:
+    """Curated templates reach the folder the wizard's Load dialog opens."""
+
+    @staticmethod
+    def _builtin(tmp_path: Path) -> Path:
+        source = tmp_path / "builtin"
+        source.mkdir()
+        (source / "rodent.json").write_text(
+            json.dumps({"name": "Rodent", "builtin_id": "rodent", "schema_version": 5}),
+            encoding="utf-8",
+        )
+        (source / "legacy.json").write_text(json.dumps({"name": "Legacy"}), encoding="utf-8")
+        return source
+
+    def test_flagged_templates_are_installed_into_an_empty_folder(self, tmp_path):
+        user_dir = tmp_path / "user"
+        TemplateManager(templates_dir=user_dir, builtin_templates_dir=self._builtin(tmp_path))
+
+        assert (user_dir / "rodent.json").exists()
+        # Only templates that declare a builtin_id are shipped to users.
+        assert not (user_dir / "legacy.json").exists()
+
+    def test_an_existing_user_file_is_never_overwritten(self, tmp_path):
+        user_dir = tmp_path / "user"
+        user_dir.mkdir()
+        (user_dir / "rodent.json").write_text('{"name": "Mine"}', encoding="utf-8")
+
+        TemplateManager(templates_dir=user_dir, builtin_templates_dir=self._builtin(tmp_path))
+
+        assert json.loads((user_dir / "rodent.json").read_text(encoding="utf-8")) == {
+            "name": "Mine"
+        }
+
+    def test_a_deleted_builtin_stays_deleted(self, tmp_path):
+        user_dir = tmp_path / "user"
+        source = self._builtin(tmp_path)
+        manager = TemplateManager(templates_dir=user_dir, builtin_templates_dir=source)
+        assert manager.delete_template("rodent")
+
+        TemplateManager(templates_dir=user_dir, builtin_templates_dir=source)
+
+        assert not (user_dir / "rodent.json").exists()
+
+    def test_an_explicit_folder_without_a_source_installs_nothing(self, tmp_path):
+        TemplateManager(templates_dir=tmp_path)
+
+        assert list(tmp_path.glob("*.json")) == []
+
+    def test_a_missing_source_folder_is_not_an_error(self, tmp_path):
+        user_dir = tmp_path / "user"
+
+        manager = TemplateManager(templates_dir=user_dir, builtin_templates_dir=tmp_path / "nope")
+
+        assert manager.list_templates() == []
+
+    def test_the_shipped_rodent_template_is_flagged_for_install(self, tmp_path):
+        from zebtrack.ui.wizard.templates import RODENT_TOP_DOWN_TEMPLATE, builtin_templates_dir
+
+        user_dir = tmp_path / "user"
+        TemplateManager(templates_dir=user_dir, builtin_templates_dir=builtin_templates_dir())
+
+        assert (user_dir / RODENT_TOP_DOWN_TEMPLATE).exists()

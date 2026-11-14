@@ -3606,3 +3606,79 @@ _load_registry()"
         description: "#634: o dialogo avulso deixa de saber do gatilho externo do projeto aberto"
         find: 'key: project_data[key] for key in TRIGGER_CONTEXT_KEYS if key in project_data'
         replace: 'key: project_data[key] for key in () if key in project_data'
+
+  wizard_templates_builtin:
+    source: src/zebtrack/ui/wizard/templates.py
+    tests:
+      - tests/ui/wizard/test_wizard_templates.py
+    mutations:
+      - id: deleted-builtin-comes-back
+        description: "#695: template embutido apagado pelo usuario volta a ser instalado"
+        find: 'if not isinstance(builtin_id, str) or not builtin_id or builtin_id in installed:'
+        replace: 'if not isinstance(builtin_id, str) or not builtin_id:'
+      - id: unflagged-baseline-installed
+        description: "#695: baseline legado sem builtin_id passa a ser instalado para todo usuario"
+        find: 'builtin_id = template.get(BUILTIN_ID_KEY) if isinstance(template, dict) else None'
+        replace: 'builtin_id = source.stem'
+      - id: user-file-overwritten
+        description: "#695: o template embutido sobrescreve o arquivo do usuario de mesmo nome"
+        find: |-
+          if target.exists():
+                          continue
+        replace: |-
+          if False:
+                          continue
+      - id: builtin-folder-moved
+        description: "#695: a pasta dos templates curados deixa de ser resources/wizard_templates"
+        find: 'return repo_root() / "resources" / "wizard_templates"'
+        replace: 'return repo_root() / "wizard_templates"'
+
+  advanced_tab_speed_ceiling:
+    source: src/zebtrack/ui/builders/analysis_widgets.py
+    tests:
+      - tests/ui/builders/test_analysis_widgets.py
+    mutations:
+      - id: project-ceiling-leaks-into-shared-settings
+        description: "#695: salvar no projeto grava o teto de velocidade do projeto no Settings compartilhado"
+        find: 'shared.behavioral_analysis.max_plausible_speed_cm_s'
+        replace: 'value.max_plausible_speed_cm_s'
+      - id: unedited-keys-dropped
+        description: "#695: salvar a aba apaga geotaxis_enabled do behavioral_config do projeto"
+        find: 'merged = dict(existing) if isinstance(existing, dict) else {}'
+        replace: 'merged = {}'
+      - id: settings-names-in-project
+        description: "#695: behavioral_config volta a guardar default_thigmotaxis_distance_cm"
+        find: '("default_thigmotaxis_distance_cm", "thigmotaxis_distance_cm"),'
+        replace: '("default_thigmotaxis_distance_cm", "default_thigmotaxis_distance_cm"),'
+      - id: settings-ceiling-not-shown
+        description: "#695: sem teto no projeto, o formulario nao mostra o das settings"
+        find: '"max_plausible_speed_cm_s": ba.max_plausible_speed_cm_s,'
+        replace: '"max_plausible_speed_cm_s": 50.0,'
+
+  wizard_speed_ceiling_bounds:
+    source: src/zebtrack/ui/wizard/models.py
+    tests:
+      - tests/ui/wizard/test_wizard_edge_cases.py
+    mutations:
+      - id: zero-ceiling-accepted
+        description: "#695: teto de velocidade zero (desliga a checagem) passa no wizard"
+        find: |-
+          default=None,
+                  gt=0.0,
+        replace: |-
+          default=None,
+                  ge=0.0,
+      - id: ceiling-above-the-limit-accepted
+        description: "#695: o wizard aceita teto acima do limite das settings"
+        find: 'le=MAX_PLAUSIBLE_SPEED_LIMIT_CM_S,'
+        replace: 'le=10 * MAX_PLAUSIBLE_SPEED_LIMIT_CM_S,'
+
+  speed_ceiling_limit:
+    source: src/zebtrack/settings.py
+    tests:
+      - tests/ui/wizard/test_wizard_edge_cases.py
+    mutations:
+      - id: ceiling-limit-moved
+        description: "#695: o limite do teto deixa de ser o das settings (1000 cm/s)"
+        find: 'MAX_PLAUSIBLE_SPEED_LIMIT_CM_S: Final[float] = 1000.0'
+        replace: 'MAX_PLAUSIBLE_SPEED_LIMIT_CM_S: Final[float] = 2000.0'

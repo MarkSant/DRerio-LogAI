@@ -70,6 +70,10 @@ THIGMOTAXIS_MAX_DISTANCE_CM: Final[float] = 50.0
 #: Zebrafish ceiling for a plausible speed (cm/s); the setting's default (#631).
 DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S: Final[float] = 50.0
 
+#: Upper bound of the plausible-speed ceiling (cm/s), shared by the settings, the
+#: wizard model and the behavioural widget (#695).
+MAX_PLAUSIBLE_SPEED_LIMIT_CM_S: Final[float] = 1000.0
+
 #: ByteTrack lost-track lifetime, as frames at the 30 fps reference: 150 = 5 s
 #: (#666). The ONE default: the settings model, config.yaml, the wizard, the
 #: diagnostics panel and the detector resolver all read it. It used to be 300
@@ -1264,7 +1268,7 @@ class BehavioralAnalysisSettings(BaseModel):
     max_plausible_speed_cm_s: float = Field(
         DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S,
         gt=0.0,
-        le=1000.0,
+        le=MAX_PLAUSIBLE_SPEED_LIMIT_CM_S,
         description=(
             "Speed (cm/s) above which a frame is flagged as implausible by the trajectory "
             "validator. 50 cm/s suits adult zebrafish; rodents sprint faster. A project can "

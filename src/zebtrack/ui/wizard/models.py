@@ -14,7 +14,7 @@ import structlog
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from zebtrack.i18n import _
-from zebtrack.settings import THIGMOTAXIS_MAX_DISTANCE_CM
+from zebtrack.settings import MAX_PLAUSIBLE_SPEED_LIMIT_CM_S, THIGMOTAXIS_MAX_DISTANCE_CM
 
 log = structlog.get_logger()
 
@@ -88,6 +88,15 @@ class BehavioralAnalysisData(BaseModel):
         ge=1,
         le=2,
         description="Number of bottom zones to consider as 'bottom' (1 or 2)",
+    )
+    max_plausible_speed_cm_s: float | None = Field(
+        default=None,
+        gt=0.0,
+        le=MAX_PLAUSIBLE_SPEED_LIMIT_CM_S,
+        description=(
+            "Speed (cm/s) above which a frame is flagged as implausible (#695). None "
+            "falls back to settings.behavioral_analysis.max_plausible_speed_cm_s."
+        ),
     )
 
     @model_validator(mode="after")

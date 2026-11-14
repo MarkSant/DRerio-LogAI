@@ -1,0 +1,7 @@
+{
+  "_comment": "#695: speed ceiling field of the behavioural widget. Appended by hand to the .pot/.po (see docs/guides/developer/i18n.md); kept here for the next full regeneration.",
+  "Plausible Speed": "Velocidade plausível",
+  "Frames faster than this are flagged as implausible. 50 cm/s suits adult zebrafish; rodents sprint faster.": "Quadros mais rápidos que isto são marcados como implausíveis. 50 cm/s servem para zebrafish adulto; roedores correm mais rápido.",
+  "Maximum speed (cm/s):": "Velocidade máxima (cm/s):",
+  "The maximum plausible speed must be greater than 0 and at most {maximum} cm/s": "A velocidade máxima plausível deve ser maior que 0 e no máximo {maximum} cm/s"
+}

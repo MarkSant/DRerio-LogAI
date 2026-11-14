@@ -17924,3 +17924,20 @@ msgstr "Classes do template ausentes neste peso: {names}."
 #: src/zebtrack/ui/components/class_roles_panel.py
 msgid "Classes of this weight the template does not mention (ignored): {names}."
 msgstr "Classes deste peso que o template não menciona (ignoradas): {names}."
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py
+msgid "Plausible Speed"
+msgstr "Velocidade plausível"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py
+msgid "Frames faster than this are flagged as implausible. 50 cm/s suits adult zebrafish; rodents sprint faster."
+msgstr "Quadros mais rápidos que isto são marcados como implausíveis. 50 cm/s servem para zebrafish adulto; roedores correm mais rápido."
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py
+msgid "Maximum speed (cm/s):"
+msgstr "Velocidade máxima (cm/s):"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py
+#, python-brace-format
+msgid "The maximum plausible speed must be greater than 0 and at most {maximum} cm/s"
+msgstr "A velocidade máxima plausível deve ser maior que 0 e no máximo {maximum} cm/s"

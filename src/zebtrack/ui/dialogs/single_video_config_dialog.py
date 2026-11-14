@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import structlog
 
 from zebtrack.i18n import _
+from zebtrack.settings import DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.wizard.tooltip import create_help_label
 
@@ -489,6 +490,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         def_geo_btm = 1
         def_perspective = "lateral"
         def_geotaxis_mode = "zones"
+        def_max_speed = DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S
 
         if self.settings and hasattr(self.settings, "behavioral_analysis"):
             def_thig = self.settings.behavioral_analysis.default_thigmotaxis_distance_cm
@@ -500,6 +502,9 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
                 def_perspective = self.settings.behavioral_analysis.aquarium_perspective
             if hasattr(self.settings.behavioral_analysis, "geotaxis_mode"):
                 def_geotaxis_mode = self.settings.behavioral_analysis.geotaxis_mode
+            def_max_speed = getattr(
+                self.settings.behavioral_analysis, "max_plausible_speed_cm_s", def_max_speed
+            )
 
         self.behavioral_config_widget = BehavioralConfigWidget(
             behavioral_frame_container,
@@ -509,6 +514,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             default_bottom_zones=def_geo_btm,
             default_perspective=def_perspective,
             default_geotaxis_mode=def_geotaxis_mode,
+            default_max_speed_cm_s=def_max_speed,
             event_bus=self.event_bus,
         )
         self.behavioral_config_widget.pack(fill="x", expand=True)

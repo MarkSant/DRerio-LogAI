@@ -25,6 +25,16 @@ Alguns números mudam de propósito; a tabela em "Changed" diz quais e por quê.
 
 ### Added
 
+- **Padrões de roedor (#695)**: template embutido "Rodent, top view"
+  (`resources/wizard_templates/rodent_top_down.json`: vista superior, sem
+  geotaxia, tigmotaxia de 15 cm, teto de velocidade de 100 cm/s), instalado uma
+  vez na pasta de templates do usuário (apagado, não volta). Campo "Velocidade
+  máxima (cm/s)" no widget de análise comportamental e na aba Configurações
+  Avançadas: grava `behavioral_config["max_plausible_speed_cm_s"]` no projeto e,
+  sem valor no projeto, mostra o das settings; salvar no projeto não grava o
+  teto no `Settings` compartilhado. A aba passa a gravar o `behavioral_config`
+  com os nomes do projeto (`thigmotaxis_distance_cm`), mesclado sobre o que já
+  existia, em vez de despejar o modelo das settings (`default_*`).
 - **Resolução de classes independente de espécie**
   (`core/detection/class_aliases.py`): um único vocabulário de papéis
   (arena/animal) que reconhece os nomes de zebrafish de sempre e também

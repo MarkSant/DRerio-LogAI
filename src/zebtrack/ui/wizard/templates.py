@@ -18,6 +18,7 @@ from zebtrack.core.conditions import WindowSpec
 from zebtrack.core.conditions.presets import external_trigger_preset
 from zebtrack.core.detection.class_roles import parse_class_roles
 from zebtrack.i18n import _
+from zebtrack.paths import repo_root
 
 log = structlog.get_logger()
 
@@ -50,6 +51,28 @@ TEMPLATE_ROLES_KEY = "class_roles"
 TEMPLATE_ROLES_SHA_KEY = "class_roles_weight_sha256"
 #: Where the wizard keeps the block of the template it loaded (``wizard_data``).
 WIZARD_TEMPLATE_ROLES_KEY = "template_class_roles"
+
+#: A curated template declares this key to be installed into the user's
+#: templates folder (#695). Legacy baselines in the same folder do not carry it
+#: and stay out of every user's Load dialog.
+BUILTIN_ID_KEY = "builtin_id"
+#: File (in the user's templates folder) recording which built-ins were already
+#: installed, so a template the user deleted is not installed again. No ``.json``
+#: suffix: ``list_templates`` globs ``*.json``.
+BUILTIN_INSTALLED_MARKER = ".builtin_installed"
+#: The "rodent, top view" template (#695): top_down, rodent thigmotaxis band and
+#: rodent speed ceiling. No class roles: no rodent weight is shipped, so there is
+#: no weight whose sha256 they could be recorded against.
+RODENT_TOP_DOWN_TEMPLATE = "rodent_top_down.json"
+
+
+def builtin_templates_dir() -> Path:
+    """Folder of the curated templates shipped with the application."""
+    return repo_root() / "resources" / "wizard_templates"
+
+
+#: Alias used where the parameter of the same name shadows the function.
+_shipped_templates_dir = builtin_templates_dir
 
 
 def _normalised_sha(raw: Any) -> str | None:
@@ -240,22 +263,95 @@ class TemplateManager:
     blindly.
     """
 
-    def __init__(self, templates_dir: Path | None = None):
+    def __init__(
+        self,
+        templates_dir: Path | None = None,
+        builtin_templates_dir: Path | None = None,
+    ):
         """
         Initialize template manager.
 
         Args:
             templates_dir: Directory to store templates. If None, uses default
                           location in user's home directory.
+            builtin_templates_dir: Curated templates to install into
+                ``templates_dir``. Defaults to :func:`builtin_templates_dir` only
+                for the default user folder, so a caller-chosen folder is never
+                filled behind its back.
         """
         if templates_dir is None:
             # Default location: ~/.zebtrack/wizard_templates/
             templates_dir = Path.home() / ".zebtrack" / "wizard_templates"
+            if builtin_templates_dir is None:
+                builtin_templates_dir = _shipped_templates_dir()
 
         self.templates_dir = templates_dir
         self.templates_dir.mkdir(parents=True, exist_ok=True)
 
+        if builtin_templates_dir is not None:
+            self.install_builtin_templates(builtin_templates_dir)
+
         log.info("template_manager.initialized", templates_dir=str(self.templates_dir))
+
+    def install_builtin_templates(self, source_dir: Path) -> list[str]:
+        """Copy the curated templates the user has not seen yet (#695).
+
+        Only files declaring :data:`BUILTIN_ID_KEY` are installed. A file already
+        in the user's folder is never overwritten, and a built-in installed once
+        is recorded in :data:`BUILTIN_INSTALLED_MARKER`, so deleting it sticks.
+
+        Returns:
+            The file names installed by this call.
+        """
+        marker_path = self.templates_dir / BUILTIN_INSTALLED_MARKER
+        installed = self._read_installed_marker(marker_path)
+        newly_installed: list[str] = []
+
+        if not source_dir.is_dir():
+            return newly_installed
+
+        for source in sorted(source_dir.glob("*.json")):
+            try:
+                template = json.loads(source.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                log.warning("template_manager.builtin_unreadable", path=str(source), error=str(exc))
+                continue
+            builtin_id = template.get(BUILTIN_ID_KEY) if isinstance(template, dict) else None
+            if not isinstance(builtin_id, str) or not builtin_id or builtin_id in installed:
+                continue
+            target = self.templates_dir / source.name
+            installed.add(builtin_id)
+            if target.exists():
+                continue
+            try:
+                target.write_bytes(source.read_bytes())
+            except OSError as exc:
+                installed.discard(builtin_id)
+                log.warning(
+                    "template_manager.builtin_install_failed", path=str(target), error=str(exc)
+                )
+                continue
+            newly_installed.append(source.name)
+
+        try:
+            marker_path.write_text(json.dumps(sorted(installed), indent=2), encoding="utf-8")
+        except OSError as exc:
+            log.warning("template_manager.builtin_marker_failed", error=str(exc))
+
+        if newly_installed:
+            log.info("template_manager.builtin_installed", templates=newly_installed)
+        return newly_installed
+
+    @staticmethod
+    def _read_installed_marker(marker_path: Path) -> set[str]:
+        if not marker_path.exists():
+            return set()
+        try:
+            raw = json.loads(marker_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            log.warning("template_manager.builtin_marker_unreadable", error=str(exc))
+            return set()
+        return {item for item in raw if isinstance(item, str)} if isinstance(raw, list) else set()
 
     def save_template(
         self,

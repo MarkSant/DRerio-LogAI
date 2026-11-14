@@ -314,6 +314,7 @@ class CalibrationStep(WizardStep):
             default_bottom_zones=def_geo_btm,
             default_perspective=def_perspective,
             default_geotaxis_mode=def_geotaxis_mode,
+            default_max_speed_cm_s=settings.behavioral_analysis.max_plausible_speed_cm_s,
             event_bus=self.event_bus,
         )
         self.behavioral_config_widget.pack(fill="x", expand=True)

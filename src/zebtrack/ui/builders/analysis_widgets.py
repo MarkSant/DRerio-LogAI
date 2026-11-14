@@ -24,6 +24,38 @@ from zebtrack.ui.event_bus_v2 import UIEvents
 
 log = structlog.get_logger()
 
+#: ``settings.behavioral_analysis`` field -> key of the project's
+#: ``behavioral_config`` (the names ``project_settings_snapshot``,
+#: ``behavioral_policy`` and the wizard use). The Advanced Settings form speaks the
+#: settings names; a project stores the project names (#695).
+SETTINGS_TO_PROJECT_BEHAVIOURAL_KEYS: tuple[tuple[str, str], ...] = (
+    ("default_thigmotaxis_distance_cm", "thigmotaxis_distance_cm"),
+    ("default_geotaxis_distance_cm", "geotaxis_distance_cm"),
+    ("default_geotaxis_num_zones", "geotaxis_num_zones"),
+    ("default_geotaxis_bottom_zones", "geotaxis_bottom_zones"),
+    ("aquarium_perspective", "aquarium_perspective"),
+    ("geotaxis_mode", "geotaxis_mode"),
+    ("max_plausible_speed_cm_s", "max_plausible_speed_cm_s"),
+)
+
+
+def project_behavioral_config(
+    validated_behavioural: Any, existing: dict[str, Any] | None
+) -> dict[str, Any]:
+    """The project's ``behavioral_config`` after an Advanced Settings save.
+
+    The form's values are written under the PROJECT key names, merged over the
+    existing block so the keys the form does not edit (``geotaxis_enabled``) are
+    kept. Until #695 the settings model was dumped as-is, so the project held
+    ``default_thigmotaxis_distance_cm`` that no project reader looks up.
+    """
+    merged = dict(existing) if isinstance(existing, dict) else {}
+    dumped = validated_behavioural.model_dump()
+    for settings_key, project_key in SETTINGS_TO_PROJECT_BEHAVIOURAL_KEYS:
+        if settings_key in dumped:
+            merged[project_key] = dumped[settings_key]
+    return merged
+
 
 class AnalysisWidgetsBuilder:
     """Builder for analysis and processing/report tabs."""
@@ -379,14 +411,10 @@ class AnalysisWidgetsBuilder:
         if self.gui.controller.project_manager.project_path:
             project_data = self.gui.controller.project_manager.project_data
             if project_data and "behavioral_config" in project_data:
-                bc = project_data["behavioral_config"]
+                bc = project_data["behavioral_config"] or {}
                 behavioral_values = {
-                    "default_thigmotaxis_distance_cm": bc.get("thigmotaxis_distance_cm"),
-                    "default_geotaxis_distance_cm": bc.get("geotaxis_distance_cm"),
-                    "default_geotaxis_num_zones": bc.get("geotaxis_num_zones"),
-                    "default_geotaxis_bottom_zones": bc.get("geotaxis_bottom_zones"),
-                    "aquarium_perspective": bc.get("aquarium_perspective"),
-                    "geotaxis_mode": bc.get("geotaxis_mode"),
+                    settings_key: bc.get(project_key)
+                    for settings_key, project_key in SETTINGS_TO_PROJECT_BEHAVIOURAL_KEYS
                 }
                 behavioral_values = {k: v for k, v in behavioral_values.items() if v is not None}
 
@@ -399,6 +427,7 @@ class AnalysisWidgetsBuilder:
                 "default_geotaxis_bottom_zones": ba.default_geotaxis_bottom_zones,
                 "aquarium_perspective": ba.aquarium_perspective,
                 "geotaxis_mode": ba.geotaxis_mode,
+                "max_plausible_speed_cm_s": ba.max_plausible_speed_cm_s,
             }
             for k, v in defaults.items():
                 if k not in behavioral_values:
@@ -475,13 +504,25 @@ class AnalysisWidgetsBuilder:
 
     def _update_current_project_settings(self, validated: Settings) -> None:
         """Update settings for the currently active project."""
+        shared = self._settings
+        if shared is None:
+            return
         try:
+            project_behavioural = validated.behavioral_analysis
             for field_name in validated.model_fields:
-                setattr(
-                    self._settings,
-                    field_name,
-                    getattr(validated, field_name),
-                )
+                value = getattr(validated, field_name)
+                if field_name == "behavioral_analysis":
+                    # The speed ceiling is the PROJECT's (#695): it is stored in
+                    # behavioral_config below and must not leak into the shared
+                    # Settings, which ad-hoc runs fall back to.
+                    value = value.model_copy(
+                        update={
+                            "max_plausible_speed_cm_s": (
+                                shared.behavioral_analysis.max_plausible_speed_cm_s
+                            )
+                        }
+                    )
+                setattr(shared, field_name, value)
 
             project_data = self.gui.controller.project_manager.project_data
 
@@ -491,7 +532,9 @@ class AnalysisWidgetsBuilder:
             project_data["display_interval_frames"] = validated.video_processing.display_interval
             project_data["video_processing"] = validated.video_processing.model_dump()
 
-            project_data["behavioral_config"] = validated.behavioral_analysis.model_dump()
+            project_data["behavioral_config"] = project_behavioral_config(
+                project_behavioural, project_data.get("behavioral_config")
+            )
 
             # PER-PROJECT analysis thresholds.
             #
