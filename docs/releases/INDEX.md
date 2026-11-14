@@ -6,7 +6,7 @@ the text published on each GitHub release is in `RELEASE_NOTES_v<version>.md` ne
 
 | Version | Date | In one line |
 | --- | --- | --- |
-| [8.0.0](#800--any-weight-any-protocol) | unreleased | Class roles for any detection weight; start/end-of-analysis windows; time measured on the recording's own clock |
+| [8.0.0](#800--any-weight-any-protocol) | 2026-11-14 | Class roles for any detection weight; start/end-of-analysis windows; time measured on the recording's own clock |
 | [7.2.0](#720--documentation-and-prerequisites) | 2026-09-15 | The installer installs Python and Poetry; docs rewritten for people who have never used a terminal |
 | [7.1.0](#710--the-first-run-release) | 2026-09-08 | Install and open the program without a terminal; a getting-started window |
 | [7.0.0](#700--first-public-release) | 2026-09-07 | First public and citable release; the models became obtainable |
@@ -19,8 +19,7 @@ the text published on each GitHub release is in `RELEASE_NOTES_v<version>.md` ne
 
 ## 8.0.0 — any weight, any protocol
 
-Not tagged yet; the release notes are in
-[`RELEASE_NOTES_v8.0.0.md`](RELEASE_NOTES_v8.0.0.md).
+The release notes are in [`RELEASE_NOTES_v8.0.0.md`](RELEASE_NOTES_v8.0.0.md).
 
 - **🧩 Class roles.** Every class of a weight is a subject (tracked), the arena, context
   (seen and recorded, not tracked) or ignored, stored by class name. Set them per weight
@@ -37,6 +36,18 @@ Not tagged yet; the release notes are in
   ROI, recording duration with several tracks or frame skipping, and every time-based
   metric of variable-rate videos.
 - **🔧 The batch worker loads the project's weight**; before, it always loaded the default.
+  Only the zebrafish weights are distributed; a weight for another species is added by the
+  user, with the role of each class.
+- **🐀 Rodent defaults.** No geotaxis in top-down views, per-project thigmotaxis band and
+  speed ceiling, and a *Rodent, top view* wizard template. The Barnes preset ends the trial
+  when the rat enters the escape hole.
+- **🐟🐟 Two aquariums, live.** Each aquarium gets its own trajectory, analysis window,
+  overlay and Arduino bindings.
+- **🎯 Tracking.** Lost tracks live for seconds on the recording's clock; tracker settings
+  changed after start-up reach the tracker; only confirmed tracks are recorded, so a one-rat
+  video is one animal.
+- **🗑️ Removed:** the interactive HTML report and the R/Python script export, which no
+  screen ever produced.
 
 ## 7.2.0 — documentation and prerequisites
 

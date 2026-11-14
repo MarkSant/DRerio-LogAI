@@ -528,9 +528,15 @@ partida rastreia o rato, e não a classe que vier primeiro; um peso sem nenhuma 
 como o animal é recusado em vez de rastrear o objeto errado. Cada gravação também pode ter o seu
 **início e fim de análise**, definidos por condições (classes presentes ou ausentes, entradas em
 ROI, tempo, códigos do Arduino, uma marcação manual) e medidos no relógio da própria gravação — com
-uma predefinição pronta para o labirinto de Barnes. Alguns números mudam de propósito (latência de
-ROI, duração da gravação, taxa de quadros de vídeos com taxa variável); as
-[notas da versão](docs/releases/RELEASE_NOTES_v8.0.0.md) dizem quais e por quê.
+uma predefinição pronta para o labirinto de Barnes, que encerra a prova quando o rato entra na toca.
+Os padrões de comportamento deixam de supor um peixe: a geotaxia fica desligada na vista superior, a
+faixa de tigmotaxia e o teto de velocidade são do projeto, e o template _Rodent, top view_ do
+assistente os preenche. Sessões ao vivo com dois aquários passam a gravar e analisar cada aquário,
+com comandos do Arduino por aquário. Os pesos distribuídos continuam sendo os de zebrafish: um peso
+de outra espécie é você quem adiciona ao catálogo, dizendo o papel de cada classe. Alguns números
+mudam de propósito (latência de ROI, duração da gravação, taxa de quadros de vídeos com taxa
+variável, lacunas de rastreio); as [notas da versão](docs/releases/RELEASE_NOTES_v8.0.0.md) dizem
+quais e por quê.
 
 **Versão 7.2.0** — o instalador passou a instalar sozinho o Python e o Poetry quando faltam, em vez
 de pedir que você faça isso num terminal; a documentação foi reescrita para quem nunca usou um; e o
