@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import numpy as np
 import pytest
 
@@ -248,7 +250,7 @@ class TestSharedBufferEdges:
             frame = np.arange(12, dtype=np.uint8).reshape(3, 4)
             meta = buffer.write(frame)
             assert meta == {"shm_seq": 1, "shm_shape": (3, 4), "shm_dtype": "uint8"}
-            assert np.array_equal(buffer.read(1), frame)
+            assert np.array_equal(cast(Any, buffer.read(1)), frame)
         finally:
             buffer.close_and_unlink()
 

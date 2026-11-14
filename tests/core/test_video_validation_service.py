@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -227,7 +228,7 @@ class TestScanEnrichment:
             multi_error=RuntimeError("zone scan failed"),
         )
 
-        result = VideoValidationService().scan_and_validate_paths(["/v/a.mp4"], project)
+        result = VideoValidationService().scan_and_validate_paths(["/v/a.mp4"], cast(Any, project))
 
         info = result.info_by_norm["/v/a.mp4"]
         assert info["is_multi_aquarium"] is True
@@ -251,7 +252,7 @@ class TestScanEnrichment:
             multi=_MultiZoneData(aquariums=[_Aquarium(id=1, polygon=[], roi_polygons=[])]),
         )
 
-        VideoValidationService().scan_and_validate_paths(["/v/a.mp4"], project)
+        VideoValidationService().scan_and_validate_paths(["/v/a.mp4"], cast(Any, project))
 
         assert project.flag_calls == [("/v/a.mp4", 1)]
 
@@ -265,7 +266,9 @@ class TestScanEnrichment:
             },
         )
 
-        result = VideoValidationService().scan_and_validate_paths(["/v/b.mp4", "/v/c.mp4"], project)
+        result = VideoValidationService().scan_and_validate_paths(
+            ["/v/b.mp4", "/v/c.mp4"], cast(Any, project)
+        )
 
         b = result.info_by_norm["/v/b.mp4"]
         assert (b["has_arena"], b["has_rois"], b["has_trajectory"], b["has_complete_data"]) == (
@@ -287,7 +290,7 @@ class TestScanEnrichment:
         )
 
         result = VideoValidationService().scan_and_validate_paths(
-            ["/v/unknown.mp4", "/v/gone.mp4"], project
+            ["/v/unknown.mp4", "/v/gone.mp4"], cast(Any, project)
         )
 
         assert result.scanned_videos[0] == {"name": "no path"}

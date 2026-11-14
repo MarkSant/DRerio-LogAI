@@ -12,6 +12,7 @@ These tests focus on validating the service layer logic with mocked components.
 
 import threading
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import Mock
 
 import pytest
@@ -347,18 +348,18 @@ class _Rig:
         self.bus = _Bus()
         self.scheduler = _Scheduler()
         self.project = _Project(entry)
-        self.calls = []
-        self.ctx = _Ctx() if context else None
+        self.calls: list[tuple] = []
+        self.ctx: Any = _Ctx() if context else None
         self.results = tmp_path / "results"
-        self.tracking = (True, [[0, 0], [1, 0], [1, 1]])
+        self.tracking: tuple[bool, Any] = (True, [[0, 0], [1, 0], [1, 1]])
         self.analysis = True
         self.service = VideoProcessingService(
-            project_manager=self.project,
-            state_manager=SimpleNamespace(),
-            ui_coordinator=self.scheduler,
-            ui_event_bus=self.bus,
+            project_manager=cast(Any, self.project),
+            state_manager=cast(Any, SimpleNamespace()),
+            ui_coordinator=cast(Any, self.scheduler),
+            ui_event_bus=cast(Any, self.bus),
             cancel_event=self.cancel,
-            settings_obj=SimpleNamespace(),
+            settings_obj=cast(Any, SimpleNamespace()),
         )
         svc = self.service
 
@@ -415,7 +416,7 @@ class _Rig:
         }
         kwargs.update(overrides)
         self.kwargs = kwargs
-        return self.service.process_single_video(**kwargs)
+        return self.service.process_single_video(**cast(Any, kwargs))
 
 
 class TestProcessSingleVideoOrchestration:
@@ -458,7 +459,7 @@ class TestProcessSingleVideoOrchestration:
         assert analysis["progress_callback"] is args[5]
         # Released once, and the detector cache cleared once.
         assert rig.ctx.released == 1
-        assert detector.cleared == 1
+        assert cast(Any, detector).cleared == 1
         # The analysis view is told who is being processed, on the main thread.
         assert rig.scheduler.delays == [0]
         events = rig.bus.events
@@ -495,7 +496,7 @@ class TestProcessSingleVideoOrchestration:
         assert rig.process(video_info=info, detector=detector) == (False, None)
 
         assert rig.calls == []
-        assert detector.cleared == 1
+        assert cast(Any, detector).cleared == 1
 
     def test_an_unreadable_video_is_refused_and_nothing_is_released(self, tmp_path, monkeypatch):
         rig = _Rig(tmp_path, monkeypatch, context=False)
@@ -574,7 +575,7 @@ class TestProcessSingleVideoOrchestration:
             rig.process(detector=detector)
 
         assert rig.ctx.released == 1
-        assert detector.cleared == 1
+        assert cast(Any, detector).cleared == 1
 
     @pytest.mark.parametrize("detector", [None, object()])
     def test_a_detector_without_a_cache_is_left_alone(self, tmp_path, monkeypatch, detector):

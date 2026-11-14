@@ -421,7 +421,7 @@ if __name__ == "__main__":
 class _ScriptedWorker:
     """``ProcessingWorker`` stand-in: replays a script through the callbacks."""
 
-    script = ()  # callables taking the callbacks
+    script: tuple = ()  # callables taking the callbacks
     instances: list = []  # noqa: RUF012 - test double, reset by the fixture
 
     def __init__(self, context, callbacks):

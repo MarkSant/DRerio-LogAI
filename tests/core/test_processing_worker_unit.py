@@ -1869,7 +1869,7 @@ class _Run:
         self.worker._default_zone_data = None
         self.zone = zone
         self.detector = Detector(
-            plugin=_IndexPlugin(hits or {}),
+            plugin=cast(Any, _IndexPlugin(hits or {})),
             base_width=capture.props[cv2.CAP_PROP_FRAME_WIDTH],
             base_height=capture.props[cv2.CAP_PROP_FRAME_HEIGHT],
             settings_obj=self.settings,
@@ -2071,9 +2071,8 @@ class TestProcessSingleVideo:
     def test_six_tuple_detections_are_scaled_too(self, tmp_path, monkeypatch):
         cap = _ScriptedCapture(1, width=2560, height=4)
         run = _Run(tmp_path, monkeypatch, capture=cap, display=1)
-        run.detector.detect = lambda frame, project_type=None: (  # type: ignore[method-assign]
-            [(256, 0, 512, 2, 0.5, 3)],
-            frame,
+        run.detector.detect = cast(  # type: ignore[method-assign]
+            Any, lambda frame, project_type=None: ([(256, 0, 512, 2, 0.5, 3)], frame)
         )
         assert run.run() is True
         (message,) = run.messages("frame")
@@ -2114,7 +2113,12 @@ class TestProcessSingleVideo:
             buffer.close_and_unlink()
 
     def test_without_a_polygon_the_detector_is_told_no_arena_exists(self, tmp_path, monkeypatch):
-        zone = {"polygon": [], "roi_polygons": [], "roi_names": [], "roi_colors": []}
+        zone: dict[str, Any] = {
+            "polygon": [],
+            "roi_polygons": [],
+            "roi_names": [],
+            "roi_colors": [],
+        }
         run = _Run(
             tmp_path,
             monkeypatch,
