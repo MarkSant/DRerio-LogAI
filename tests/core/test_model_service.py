@@ -120,6 +120,23 @@ class TestModelServiceOpenVINO(unittest.TestCase):
             assert result["path"] == "/path/to/openvino"
             assert result["error"] is None
 
+    def test_check_openvino_conversion_status_stale_export_is_not_ready(self):
+        """A folder that is not provably the export of THIS .pt must be re-converted."""
+        with patch("pathlib.Path.exists", return_value=True):
+            self.mock_weight_manager.get_weight_details.return_value = {
+                "openvino_status": "ready",
+                "openvino_path": "/cache/best_det_topdown_openvino_model",
+                "last_conversion_error": None,
+            }
+            self.mock_weight_manager.openvino_cache_is_current.return_value = False
+
+            result = self.service.check_openvino_conversion_status("weight.pt")
+
+        assert result["ready"] is False
+        assert result["status"] == "not_converted"
+        assert result["path"] is None
+        self.mock_weight_manager.openvino_cache_is_current.assert_called_once_with("weight.pt")
+
     def test_check_openvino_conversion_status_not_converted(self):
         """Test checking conversion status when not converted."""
         self.mock_weight_manager.get_weight_details.return_value = {

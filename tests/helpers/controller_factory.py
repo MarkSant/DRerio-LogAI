@@ -41,6 +41,9 @@ def create_mock_settings(**overrides):
     mock_settings.bytetrack.max_center_distance = 100
     mock_settings.bytetrack.iou_threshold = 0.3
 
+    # Analysis: shortest track that counts as an animal (#649)
+    mock_settings.min_track_duration_s = 0.5
+
     # Tracking settings
     mock_settings.tracking.use_bytetrack = True
     mock_settings.tracking.use_single_subject_tracker = False

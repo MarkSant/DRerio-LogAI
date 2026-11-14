@@ -21,8 +21,8 @@ class TestModelSelectionStepExtended:
         assert DEFAULT_TRACK_THRESHOLD == 0.25
         assert DEFAULT_MATCH_THRESHOLD == 0.95
         assert DEFAULT_TRACK_BUFFER == 150
-        assert DEFAULT_MAX_CENTER_DISTANCE == 200.0
-        assert DEFAULT_IOU_THRESHOLD == 0.1
+        assert DEFAULT_MAX_CENTER_DISTANCE == 400.0
+        assert DEFAULT_IOU_THRESHOLD == 0.05
 
     def test_method_options(self):
         options = _method_options()
@@ -138,3 +138,63 @@ class TestModelSelectionStepExtended4:
         step._load_weight_catalog()
         assert step.seg_weight_names == ["model_seg.pt"]
         assert step.det_weight_names == ["model_det.pt"]
+
+
+class TestConfiguredByteTrackDefaults:
+    """#698: what a new project starts from is the configuration, not a wizard constant.
+
+    ``object.__new__`` because building the step needs a Tk root; the method under
+    test, ``_configured_bytetrack_defaults``, is driven for real.
+    """
+
+    def _step(self, settings_obj):
+        step = object.__new__(ModelSelectionStep)
+        step.settings = settings_obj
+        return step
+
+    def test_configured_values_win(self):
+        from types import SimpleNamespace
+
+        settings_obj = SimpleNamespace(
+            bytetrack=SimpleNamespace(
+                track_threshold=0.3,
+                match_threshold=0.85,
+                track_buffer=210,
+                max_center_distance=333.0,
+                iou_threshold=0.07,
+            )
+        )
+
+        assert self._step(settings_obj)._configured_bytetrack_defaults() == {
+            "track_threshold": 0.3,
+            "match_threshold": 0.85,
+            "track_buffer": 210.0,
+            "max_center_distance": 333.0,
+            "iou_threshold": 0.07,
+        }
+
+    def test_without_settings_the_shared_defaults(self):
+        expected = {
+            "track_threshold": DEFAULT_TRACK_THRESHOLD,
+            "match_threshold": DEFAULT_MATCH_THRESHOLD,
+            "track_buffer": DEFAULT_TRACK_BUFFER,
+            "max_center_distance": DEFAULT_MAX_CENTER_DISTANCE,
+            "iou_threshold": DEFAULT_IOU_THRESHOLD,
+        }
+        assert self._step(None)._configured_bytetrack_defaults() == expected
+        # The wizard used to prefill 200 px / 0.1 and save them into the project.
+        assert expected["max_center_distance"] == 400.0
+        assert expected["iou_threshold"] == 0.05
+
+    def test_a_missing_or_unusable_value_keeps_its_default(self):
+        from types import SimpleNamespace
+
+        settings_obj = SimpleNamespace(
+            bytetrack=SimpleNamespace(match_threshold="x", max_center_distance=250.0)
+        )
+
+        defaults = self._step(settings_obj)._configured_bytetrack_defaults()
+
+        assert defaults["match_threshold"] == DEFAULT_MATCH_THRESHOLD
+        assert defaults["max_center_distance"] == 250.0
+        assert defaults["iou_threshold"] == DEFAULT_IOU_THRESHOLD

@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import structlog
 
@@ -6,6 +8,18 @@ from zebtrack.tracker.basetrack import BaseTrack, TrackState
 from zebtrack.tracker.kalman_filter import KalmanFilter
 
 log = structlog.get_logger()
+
+#: Frame rate ``track_buffer`` is expressed at: ``track_buffer=30`` means 1 s.
+REFERENCE_FPS = 30.0
+
+#: How many buffers a lost track survives in single-animal mode.
+#:
+#: Deliberate (issue #654): with exactly one animal there is nobody to confuse
+#: it with, so the lost track is kept six times longer and the next detection,
+#: however far, resurrects it (ID 1) instead of opening a new id. This used to
+#: be two scattered factors (``x3`` in ``__init__`` and ``x2`` in the removal
+#: step); it is applied ONCE, to the clock limit and to the count fallback.
+SINGLE_ANIMAL_LOST_FACTOR = 6
 
 
 class STrack(BaseTrack):
@@ -23,6 +37,9 @@ class STrack(BaseTrack):
 
         self.score = score
         self.tracklet_len = 0
+        #: Instant (s) of the last update that saw this track; ``None`` when the
+        #: caller gives no clock and the tracker counts updates instead (#654).
+        self.last_seen_s: float | None = None
 
     def predict(self):
         if self.mean is None:
@@ -74,7 +91,7 @@ class STrack(BaseTrack):
                 valid_stracks[i].mean = mean
                 valid_stracks[i].covariance = cov
 
-    def activate(self, kalman_filter, frame_id):
+    def activate(self, kalman_filter, frame_id, frame_time_s=None):
         """Start a new tracklet"""
         self.kalman_filter = kalman_filter
         self.track_id = self.next_id()
@@ -88,8 +105,9 @@ class STrack(BaseTrack):
 
         self.frame_id = frame_id
         self.start_frame = frame_id
+        self.last_seen_s = frame_time_s
 
-    def re_activate(self, new_track, frame_id, new_id=False):
+    def re_activate(self, new_track, frame_id, new_id=False, frame_time_s=None):
         if self.kalman_filter is None:
             # Should not happen if activate was called, but safety check
             return
@@ -103,19 +121,21 @@ class STrack(BaseTrack):
         self.state = TrackState.Tracked
         self.is_activated = True
         self.frame_id = frame_id
+        self.last_seen_s = frame_time_s
         if new_id:
             self.track_id = self.next_id()
         self.score = new_track.score
 
-    def update(self, new_track, frame_id):
+    def update(self, new_track, frame_id, frame_time_s=None):
         """
         Update a matched track
         :type new_track: STrack
         :type frame_id: int
-        :type update_feature: bool
+        :type frame_time_s: float | None
         :return:
         """
         self.frame_id = frame_id
+        self.last_seen_s = frame_time_s
         self.tracklet_len += 1
 
         new_tlwh = new_track.tlwh
@@ -201,6 +221,13 @@ class BYTETracker:
         processing_interval: Frames between detections (default 1). When > 1,
             the Kalman filter dt is adjusted to correctly predict motion over
             larger time steps, critical for stable track IDs.
+
+    Lost-track lifetime (issue #654): ``track_buffer`` frames at the 30 fps
+    reference, i.e. ``track_buffer / 30`` seconds, whatever the source rate,
+    the analysis interval or the frames dropped on the way. ``update()`` given
+    ``frame_time_s`` measures a lost track's age on that clock. Without it the
+    tracker counts updates, each one ``processing_interval`` source frames
+    apart: ``frame_rate / 30 * track_buffer / processing_interval`` updates.
     """
 
     def __init__(
@@ -219,12 +246,19 @@ class BYTETracker:
 
         self.frame_id = 0
         self.args = args
+        #: Last accepted ``frame_time_s``; a clock must advance to be trusted.
+        self._last_frame_time_s: float | None = None
 
         self.det_thresh = args.track_thresh + 0.1
-        # Scale buffer size by processing_interval to maintain equivalent
-        # temporal window (e.g., 90 frames @ 30fps with interval=5 = 450 real frames)
-        self.buffer_size = int(frame_rate / 30.0 * args.track_buffer * processing_interval)
+        # The buffer is counted in UPDATES, and ``frame_id`` advances once per
+        # update, each ``processing_interval`` source frames apart. Dividing by
+        # the interval keeps ``track_buffer / 30`` seconds; multiplying (as
+        # before #654) applied the interval twice: track_buffer * interval**2 / 30 s.
+        interval = max(1, int(processing_interval or 1))
+        self.buffer_size = max(1, int(frame_rate / REFERENCE_FPS * args.track_buffer / interval))
         self.max_time_lost = self.buffer_size
+        #: The same lifetime in seconds, used when ``update()`` gets a clock.
+        self.max_time_lost_s = args.track_buffer / REFERENCE_FPS
         # Pass processing_interval as dt to Kalman filter for correct motion prediction
         self.kalman_filter = KalmanFilter(dt=float(processing_interval))
 
@@ -241,16 +275,71 @@ class BYTETracker:
         if self.single_animal_mode:
             # In single animal mode, we want to maintain the track as long as possible
             # and recover it even after long disappearances
-            self.max_time_lost = self.buffer_size * 3  # Keep the ID alive longer
+            self.max_time_lost = self.buffer_size * SINGLE_ANIMAL_LOST_FACTOR
+            self.max_time_lost_s *= SINGLE_ANIMAL_LOST_FACTOR
             self.det_thresh = 0.0  # Accept any detection as a candidate
             self.iou_threshold = 0.0  # Prefer center-distance fallback for big jumps
 
-    def update(self, output_results, img_info, img_size):  # noqa: C901
+    def _lost_too_long(self, track, frame_time_s):
+        """Whether a lost track is past its lifetime (issue #654).
+
+        On the caller's clock when this update and the track's last hit both
+        have one; otherwise by update count (the upstream rule).
+        """
+        if frame_time_s is not None and track.last_seen_s is not None:
+            return frame_time_s - track.last_seen_s > self.max_time_lost_s
+        return self.frame_id - track.end_frame > self.max_time_lost
+
+    def _trusted_frame_time(self, frame_time_s):
+        """``frame_time_s`` if it is finite and ahead of the last one, else ``None``.
+
+        A clock that stands still (a backend whose ``CAP_PROP_POS_MSEC`` is
+        always 0) or goes back (a seek) would freeze or rewind every age, and a
+        frozen age keeps a lost track forever. Such an update counts instead.
+        """
+        if frame_time_s is None:
+            return None
+        frame_time_s = float(frame_time_s)
+        if not math.isfinite(frame_time_s) or (
+            self._last_frame_time_s is not None and frame_time_s <= self._last_frame_time_s
+        ):
+            log.debug(
+                "detector.bytetrack.frame_time_rejected",
+                frame_time_s=frame_time_s,
+                last_frame_time_s=self._last_frame_time_s,
+            )
+            return None
+        self._last_frame_time_s = frame_time_s
+        return frame_time_s
+
+    def update(self, output_results, img_info, img_size, frame_time_s=None):  # noqa: C901
+        """Advance one analysed frame.
+
+        Args:
+            output_results: ``(N, 5)`` array ``x1, y1, x2, y2, score``.
+            img_info: ``(height, width)`` of the frame.
+            img_size: ``(height, width)`` the boxes refer to.
+            frame_time_s: Instant of this frame in seconds (PTS, capture clock).
+                When given, lost tracks age in seconds, independent of the
+                frame rate, the analysis interval and dropped frames.
+        """
         self.frame_id += 1
 
         activated_starcks = []
         refind_stracks = []
         removed_stracks = []
+
+        frame_time_s = self._trusted_frame_time(frame_time_s)
+        if frame_time_s is not None:
+            # On a clock, time can pass with no update at all (dropped frames,
+            # a stalled source). A track that expired in that gap must not be
+            # re-found below.
+            expired = [t for t in self.lost_stracks if self._lost_too_long(t, frame_time_s)]
+            for track in expired:
+                track.mark_removed()
+                removed_stracks.append(track)
+            if expired:
+                self.lost_stracks = [t for t in self.lost_stracks if t not in expired]
 
         # Assumes Ultralytics YOLO format (5 columns: x1, y1, x2, y2, confidence)
         # All current detectors provide this format
@@ -337,10 +426,10 @@ class BYTETracker:
             track = strack_pool[itracked]
             det = detections[idet]
             if track.state == TrackState.Tracked:
-                track.update(detections[idet], self.frame_id)
+                track.update(detections[idet], self.frame_id, frame_time_s)
                 activated_starcks.append(track)
             else:
-                track.re_activate(det, self.frame_id, new_id=False)
+                track.re_activate(det, self.frame_id, new_id=False, frame_time_s=frame_time_s)
                 refind_stracks.append(track)
 
         """ Step 3: Association the unconfirmed to the high score detections"""
@@ -362,7 +451,7 @@ class BYTETracker:
         )
 
         for itracked, idet in matches_unconfirmed:
-            unconfirmed[itracked].update(detections_unconfirmed[idet], self.frame_id)
+            unconfirmed[itracked].update(detections_unconfirmed[idet], self.frame_id, frame_time_s)
             activated_starcks.append(unconfirmed[itracked])
 
         for it in u_unconfirmed:
@@ -416,12 +505,12 @@ class BYTETracker:
             track = r_tracked_stracks[itracked]
             det = detections_second[idet]
             if track.state == TrackState.Tracked:
-                track.update(det, self.frame_id)
+                track.update(det, self.frame_id, frame_time_s)
                 activated_starcks.append(track)
                 # log.debug("detector.bytetrack.match.second_pass",
                 #           track_id=track.track_id, reason="matched_low_score_det")
             else:
-                track.re_activate(det, self.frame_id, new_id=False)
+                track.re_activate(det, self.frame_id, new_id=False, frame_time_s=frame_time_s)
                 refind_stracks.append(track)
                 # log.debug("detector.bytetrack.reactivate.second_pass",
                 #           track_id=track.track_id, reason="refound_low_score_det")
@@ -463,7 +552,9 @@ class BYTETracker:
                     refound_track = sorted_lost[0]
 
                     # Force resurrection with ID preservation (or force ID 1)
-                    refound_track.re_activate(track, self.frame_id, new_id=False)
+                    refound_track.re_activate(
+                        track, self.frame_id, new_id=False, frame_time_s=frame_time_s
+                    )
                     refound_track.track_id = 1  # Enforce ID 1
                     refind_stracks.append(refound_track)
 
@@ -478,7 +569,7 @@ class BYTETracker:
                 # We should probably ignore this new detection or kill the old track?
                 # For now, let's assume if we are here, the old track is lost or new start.
 
-            track.activate(self.kalman_filter, self.frame_id)
+            track.activate(self.kalman_filter, self.frame_id, frame_time_s)
 
             # SINGLE ANIMAL MODE: IMMEDIATE ACTIVATION
             # Bypass "Unconfirmed" state. If we see it, it's the fish.
@@ -491,16 +582,27 @@ class BYTETracker:
             activated_starcks.append(track)
 
         """ Step 6: Update state"""
+        # Single-animal mode's longer lifetime is already in ``max_time_lost``
+        # and ``max_time_lost_s`` (SINGLE_ANIMAL_LOST_FACTOR).
         for track in self.lost_stracks:
-            # In single animal mode, keep tracks alive much longer to allow recovery
-            limit = self.max_time_lost * 2 if self.single_animal_mode else self.max_time_lost
-            if self.frame_id - track.end_frame > limit:
+            if self._lost_too_long(track, frame_time_s):
                 track.mark_removed()
                 removed_stracks.append(track)
 
         self.tracked_stracks = [t for t in self.tracked_stracks if t.state == TrackState.Tracked]
         self.tracked_stracks = joint_stracks(self.tracked_stracks, activated_starcks)
         self.tracked_stracks = joint_stracks(self.tracked_stracks, refind_stracks)
+        # Lost-pool bookkeeping, as in upstream ByteTrack (issue #630). Without it
+        # a re-found track stayed in BOTH lists, and ``remove_duplicate_stracks``
+        # -- which ties on duration because it is the same object -- dropped it
+        # from the TRACKED side: the animal was never emitted again. And an
+        # expired track stayed in the matching pool forever, absorbing
+        # detections, so ``max_time_lost`` (and the fps scaling it) had no effect.
+        self.lost_stracks = sub_stracks(self.lost_stracks, self.tracked_stracks)
+        self.lost_stracks = [t for t in self.lost_stracks if t.state != TrackState.Removed]
+        # Only the LAST update's removals: upstream's ever-growing list is a
+        # known leak, and nothing reads past removals.
+        self.removed_stracks = removed_stracks
 
         (
             self.tracked_stracks,

@@ -29,6 +29,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from zebtrack.core.detection.class_roles import ClassRole
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.model_selection_step import ModelSelectionStep
 
@@ -267,6 +268,56 @@ class TestModelSelectionStep:
         assert float(step.nms_var.get()) == 0.45
         assert float(step.track_var.get()) == 0.25
         assert float(step.match_var.get()) == 0.95
+
+    def test_new_project_prefills_bytetrack_from_the_configured_settings(self, mock_weight_manager):
+        """#698: a new project starts from what config.yaml / config.local.yaml say.
+
+        The wizard used to prefill its own 200 px / 0.1, and the project saved them,
+        overriding the 400 / 0.05 the shipped configuration declares.
+        """
+        from zebtrack.settings import load_settings
+
+        settings_obj = load_settings()
+        settings_obj.bytetrack.track_threshold = 0.3
+        settings_obj.bytetrack.match_threshold = 0.85
+        settings_obj.bytetrack.track_buffer = 210
+        settings_obj.bytetrack.max_center_distance = 333.0
+        settings_obj.bytetrack.iou_threshold = 0.07
+        step = ModelSelectionStep(self.root, {}, settings_obj=settings_obj)
+        step.build_ui()
+
+        assert float(step.track_var.get()) == pytest.approx(0.3)
+        assert float(step.match_var.get()) == pytest.approx(0.85)
+        assert int(step.track_buffer_var.get()) == 210
+        assert float(step.max_center_dist_var.get()) == pytest.approx(333.0)
+        assert float(step.iou_thresh_var.get()) == pytest.approx(0.07)
+
+    def test_without_settings_the_prefill_is_the_shared_default(self, mock_weight_manager):
+        from zebtrack.settings import (
+            DEFAULT_IOU_THRESHOLD,
+            DEFAULT_MATCH_THRESHOLD,
+            DEFAULT_MAX_CENTER_DISTANCE,
+            DEFAULT_TRACK_THRESHOLD,
+        )
+
+        step = ModelSelectionStep(self.root, {}, settings_obj=None)
+        step.build_ui()
+
+        assert float(step.track_var.get()) == pytest.approx(DEFAULT_TRACK_THRESHOLD)
+        assert float(step.match_var.get()) == pytest.approx(DEFAULT_MATCH_THRESHOLD)
+        assert float(step.max_center_dist_var.get()) == pytest.approx(DEFAULT_MAX_CENTER_DISTANCE)
+        assert float(step.iou_thresh_var.get()) == pytest.approx(DEFAULT_IOU_THRESHOLD)
+
+    def test_saved_project_values_still_win_over_the_settings(self, mock_weight_manager):
+        from zebtrack.settings import load_settings
+
+        settings_obj = load_settings()
+        settings_obj.bytetrack.max_center_distance = 333.0
+        wizard_data: dict[str, Any] = {"detector_parameters": {"max_center_distance": 120.0}}
+        step = ModelSelectionStep(self.root, wizard_data, settings_obj=settings_obj)
+        step.build_ui()
+
+        assert float(step.max_center_dist_var.get()) == pytest.approx(120.0)
 
     def test_weight_dropdown_updates_on_method_change(self, mock_weight_manager):
         """Weight dropdown should update when method changes."""
@@ -558,3 +609,105 @@ class TestBytetrackFieldsAreValidated:
             var.set(bad)
             assert step.validate()[0] is False, f"valor {bad!r} passou pelo validate()"
             var.set(original)
+
+
+BARNES_NAMES = {0: "arena", 1: "experimenter", 2: "rat", 3: "start_box"}
+
+
+@pytest.mark.gui
+class TestModelSelectionClassRoles:
+    """Collapsed "Class roles" section: lazy, draft-only, validated (ADR-009)."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, wizard_dependencies):
+        self.root = wizard_dependencies["root"]
+
+    @pytest.fixture
+    def weight_manager(self):
+        with patch("zebtrack.ui.wizard.model_selection_step.WeightManager") as mock_wm:
+            wm = MagicMock()
+            wm.get_all_weights.return_value = ["rat.pt", "zebra.pt"]
+            wm.get_weight_details.side_effect = lambda name: {
+                "type": "det",
+                "path": f"/weights/{name}",
+            }
+            wm.get_default_seg_weight.return_value = (None, None)
+            wm.get_default_det_weight.return_value = ("rat.pt", "/weights/rat.pt")
+            wm.get_weight_by_perspective_and_type.return_value = (None, None)
+            wm.get_weight_sha256.side_effect = lambda name: f"sha-{name}"
+            mock_wm.return_value = wm
+            yield wm
+
+    def _step(self, model_service: Any) -> ModelSelectionStep:
+        wizard_data: dict[str, Any] = {"animals_per_aquarium": 1}
+        step = ModelSelectionStep(
+            self.root, wizard_data, settings_obj=None, model_service=model_service
+        )
+        step.build_ui()
+        step.animal_method_var.set("Detection (det)")
+        step.animal_weight_var.set("rat.pt")
+        assert step.class_roles_panel is not None
+        step.class_roles_panel._background = False
+        return step
+
+    @staticmethod
+    def _service(names: dict) -> MagicMock:
+        service = MagicMock()
+        service.inspect_model.return_value = {"class_names": names}
+        return service
+
+    def test_section_is_collapsed_and_reads_nothing_until_opened(self, weight_manager):
+        service = self._service(BARNES_NAMES)
+        step = self._step(service)
+
+        assert step.class_roles_section is not None
+        assert step.class_roles_section.is_collapsed is True
+        service.inspect_model.assert_not_called()
+        data = step.get_data()
+        assert data["class_roles"] is None
+        assert data["class_roles_weight_sha256"] is None
+
+    def test_edited_roles_and_sha_go_to_the_step_data(self, weight_manager):
+        service = self._service(BARNES_NAMES)
+        step = self._step(service)
+        panel = step.class_roles_panel
+        assert panel is not None
+
+        panel.refresh()  # what opening the section does
+        service.inspect_model.assert_called_once_with("rat.pt")
+        panel.set_role([1, 3], ClassRole.CONTEXT)
+
+        data = step.get_data()
+        assert data["class_roles"] == {
+            "arena": "arena",
+            "experimenter": "context",
+            "rat": "subject",
+            "start_box": "context",
+        }
+        assert data["class_roles_weight_sha256"] == "sha-rat.pt"
+
+    def test_invalid_roles_block_the_step(self, weight_manager):
+        step = self._step(self._service(BARNES_NAMES))
+        panel = step.class_roles_panel
+        assert panel is not None
+        panel.refresh()
+        panel.set_role([2], ClassRole.CONTEXT)
+        step.confidence_var.set("0.25")
+        step.nms_var.set("0.45")
+
+        ok, message = step.validate()
+
+        assert ok is False
+        assert message == "Choose at least one class as the subject (the animal to track)."
+        assert step.get_data()["class_roles"] is None
+
+    def test_changing_the_animal_weight_retargets_the_section(self, weight_manager):
+        step = self._step(self._service(BARNES_NAMES))
+        panel = step.class_roles_panel
+        assert panel is not None
+        panel.refresh()
+
+        step.animal_weight_var.set("zebra.pt")
+
+        assert panel.editor.weight_name == "zebra.pt"
+        assert panel.draft_weight_sha256() == "sha-zebra.pt"

@@ -3,7 +3,7 @@
 Phase 2.3 decomposition: Thin facade delegating to four extracted mixins:
 
 - VideoContextFactoryMixin  — video I/O, results dirs, trajectory loading
-- TrackingSessionRunnerMixin — tracking loop, zone prep, calibration
+- TrackingSessionRunnerMixin — hands tracking to ProcessingWorker
 - ProgressNotifierMixin      — progress callbacks and UI notifications
 - AnalysisPipelineRunnerMixin — report generation, social analysis
 
@@ -28,6 +28,7 @@ import structlog
 if TYPE_CHECKING:
     from zebtrack.core.detection import Detector
     from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.io.recorder import Recorder
@@ -94,6 +95,7 @@ class VideoProcessingService(
         settings_baseline: Settings | None = None,
         detector: Detector | None = None,
         recorder: Recorder | None = None,
+        weight_manager: WeightManager | None = None,
     ) -> None:
         """Initialize VideoProcessingService with injected dependencies."""
         self.project_manager = project_manager
@@ -111,6 +113,9 @@ class VideoProcessingService(
         )
         self.detector = detector
         self.recorder = recorder
+        # Lets the tracking runner resolve the project's weight for the worker
+        # (``worker_model_resolution``) instead of the settings default.
+        self.weight_manager = weight_manager
 
         log.info("video_processing_service.init.complete")
 

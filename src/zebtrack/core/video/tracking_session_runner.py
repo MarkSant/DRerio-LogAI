@@ -1,37 +1,32 @@
-"""Tracking session runner mixin — tracking loop, zone prep, and calibration.
+"""Tracking session runner mixin: hands a video's tracking to the processing worker.
 
 Extracted from VideoProcessingService (Phase 2.3 decomposition).
-Methods:
-    _setup_tracking_session, _reset_detector_tracking_state, _process_tracking_frame,
-    _calculate_tracking_progress_stats, _finalize_tracking_session,
-    run_tracking_if_needed, _prepare_zone_data_for_tracking,
-    _build_calibration_context, _tracking_cancelled
+
+``run_tracking_if_needed`` is the only entry point. The frame loop itself lives in
+``core/video/processing_worker.py``: the in-process helpers this mixin used to carry
+(session setup, per-frame processing, calibration, finalisation) had no callers once
+tracking moved to the worker and were removed (#647). Notably, the removed setup path
+passed ``calibration=`` to ``start_recording``, which would have warped the trajectory
+out of raw pixels; the worker never does.
 """
 
 from __future__ import annotations
 
 import os
 import threading
-import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import cv2
-import numpy as np
 import structlog
 
 if TYPE_CHECKING:
     from zebtrack.core.detection import Detector
     from zebtrack.core.project.project_manager import ProjectManager
-    from zebtrack.core.state_manager import StateManager
-    from zebtrack.core.ui_scheduler import UIScheduler
-    from zebtrack.core.video.video_processing_service import VideoContext
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.io.recorder import Recorder
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
-from zebtrack.core.detection import ZoneData
-from zebtrack.core.detection.calibration import Calibration
 from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -40,223 +35,14 @@ log = structlog.get_logger()
 
 
 class TrackingSessionRunnerMixin:
-    """Mixin providing tracking session setup, execution loop, and finalisation."""
+    """Mixin that runs a video's tracking through ``ProcessingWorker``."""
 
     # ── Attribute stubs (provided by the facade __init__) ──
     project_manager: ProjectManager
-    state_manager: StateManager
-    ui_coordinator: UIScheduler
     ui_event_bus: EventBusV2
     cancel_event: threading.Event
     settings: Settings
-    detector: Detector | None
-    recorder: Recorder | None
-
-    # ── Cross-mixin method stubs (implemented by other mixins) ──
-    def ensure_arena_polygon(
-        self,
-        arena_polygon_px: list | None,
-        video_path: Path | str | None = None,
-        video_context: Any | None = None,
-    ) -> list[list[int]] | list | None: ...
-
-    def _setup_tracking_session(
-        self,
-        *,
-        video_path: Path,
-        results_dir: Path | str,
-        experiment_id: str,
-        calibration_data: dict | None,
-        recorder: Recorder,
-        detector: Detector,
-        video_context: VideoContext | None = None,
-    ) -> tuple[
-        cv2.VideoCapture | None,
-        Recorder | None,
-        ZoneData | None,
-        list | None,
-        Calibration | None,
-        tuple | None,
-    ]:
-        """Set up tracking session: open video, prepare recorder, zones, and calibration."""
-        session_recorder = recorder.__class__(settings_obj=self.settings)
-
-        cap: cv2.VideoCapture | None
-        if video_context is not None and video_context.cap is not None:
-            cap = video_context.cap
-            if cap.isOpened():
-                video_context.reset()
-            else:
-                log.error("controller.tracking.video_context_closed", path=video_context.path)
-                return None, None, None, None, None, None
-        else:
-            cap = cv2.VideoCapture(str(video_path))
-
-        if cap is None or not cap.isOpened():
-            log.error("controller.tracking.video_open_failed", path=video_path)
-            return None, None, None, None, None, None
-
-        if video_context is not None:
-            frame_width = video_context.width
-            frame_height = video_context.height
-        else:
-            frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-        zone_data, arena_polygon = self._prepare_zone_data_for_tracking(
-            frame_width, frame_height, detector
-        )
-
-        cal, pixel_per_cm_ratio = self._build_calibration_context(arena_polygon, calibration_data)
-
-        session_recorder.start_recording(
-            output_folder=results_dir,
-            frame_width=frame_width,
-            frame_height=frame_height,
-            zones=zone_data,
-            is_video_file=True,
-            base_name=experiment_id,
-            pixel_per_cm_ratio=pixel_per_cm_ratio,
-            calibration=cal,
-        )
-
-        # Captura de máscaras: a conjunção das três condições mora em
-        # ``should_capture_masks`` (flag + modelo seg + regra seg_overlap),
-        # com o ``project_data`` junto para que um override de regra do
-        # PROJETO conte — é a mesma precedência que o relatório vai aplicar.
-        if hasattr(detector, "set_mask_capture"):
-            from zebtrack.core.services.mask_capture import should_capture_masks
-
-            project_data = getattr(self.project_manager, "project_data", None)
-            detector.set_mask_capture(should_capture_masks(self.settings, project_data))
-
-        return cap, session_recorder, zone_data, arena_polygon, cal, pixel_per_cm_ratio
-
-    def _reset_detector_tracking_state(self, detector: Detector) -> None:
-        """Reset detector tracking state if supported."""
-        if detector and hasattr(detector, "reset_tracking_state"):
-            try:
-                detector.reset_tracking_state()
-            except Exception:  # pragma: no cover - defensive
-                plugin_obj = getattr(detector, "plugin", None)
-                plugin_class = getattr(plugin_obj, "__class__", type(detector))
-                log.warning(
-                    "controller.tracking.reset_tracker_failed",
-                    plugin=plugin_class,
-                    exc_info=True,
-                )
-
-    def _process_tracking_frame(
-        self,
-        *,
-        frame,
-        frame_num: int,
-        analysis_interval_frames: int,
-        cap: cv2.VideoCapture,
-        recorder: Recorder,
-        detector: Detector,
-    ) -> tuple[list, int, bool]:
-        """Process a single frame for tracking.
-
-        Returns:
-            Tuple of (detections, detected_count_increment, should_process)
-        """
-        should_process = frame_num % analysis_interval_frames == 0
-        detections: list[tuple[Any, ...]] = []
-        detected_count_increment = 0
-
-        if should_process:
-            # NOT `detections, _ =`: binding `_` locally shadows the gettext
-            # alias for the WHOLE function.
-            detections, _annotated = detector.detect(frame, project_type="pre-recorded")
-            timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
-            recorder.write_detection_data(timestamp, frame_num, detections)
-            if getattr(recorder, "persist_masks", False) and hasattr(detector, "pop_track_masks"):
-                recorder.write_mask_data(frame_num, detector.pop_track_masks(detections))
-
-            if detections:
-                detected_count_increment = 1
-
-        return detections, detected_count_increment, should_process
-
-    def _calculate_tracking_progress_stats(
-        self,
-        *,
-        frame_num: int,
-        processed_frames_count: int,
-        detected_frames_count: int,
-        start_time: float,
-        cap: cv2.VideoCapture,
-    ) -> tuple[float, dict]:
-        """Calculate tracking progress statistics.
-
-        Returns:
-            Tuple of (progress_fraction, stats_dict)
-        """
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        progress_fraction = (frame_num + 1) / total_frames if total_frames > 0 else 0
-
-        elapsed_time = time.time() - start_time
-        if frame_num > 0 and progress_fraction > 0:
-            estimated_total_time = elapsed_time / progress_fraction
-            eta_time = estimated_total_time - elapsed_time
-        else:
-            eta_time = -1  # Unknown
-
-        stats = {
-            "total_frames": total_frames,
-            "current_frame": frame_num + 1,
-            "processed_frames": processed_frames_count,
-            "detected_frames": detected_frames_count,
-            "start_time": start_time,
-            "elapsed": elapsed_time,
-            "eta": eta_time,
-            "percent": progress_fraction * 100,
-        }
-
-        return progress_fraction, stats
-
-    def _finalize_tracking_session(
-        self,
-        *,
-        recorder: Recorder,
-        cancel_requested: bool,
-        experiment_id: str,
-        trajectory_path: str,
-        arena_polygon: list,
-    ) -> tuple[bool, list]:
-        """Finalize tracking session: stop recording, log results, publish events.
-
-        Returns:
-            Tuple of (success, arena_polygon)
-        """
-        stop_reason = "Cancelled by user" if cancel_requested else None
-        recorder.stop_recording(force_stop=cancel_requested, reason=stop_reason)
-
-        if cancel_requested:
-            log.info("controller.tracking.cancelled", video=experiment_id)
-            self.ui_event_bus.publish(
-                Event(
-                    type=UIEvents.SET_STATUS,
-                    data=payloads.StatusPayload(
-                        message=_("Cancellation requested for {name}.").format(name=experiment_id)
-                    ),
-                )
-            )
-            return False, arena_polygon
-
-        log.info("controller.tracking.success", path=trajectory_path)
-        self.ui_event_bus.publish(
-            Event(
-                type=UIEvents.SET_STATUS,
-                data=payloads.StatusPayload(
-                    message=_("Trajectory for {experiment_id} generated.").format(
-                        experiment_id=experiment_id
-                    )
-                ),
-            )
-        )
-        return True, arena_polygon
+    weight_manager: WeightManager | None
 
     def run_tracking_if_needed(
         self,
@@ -299,6 +85,7 @@ class TrackingSessionRunnerMixin:
             )
         )
 
+        from zebtrack.core.services.worker_model_resolution import resolve_worker_model
         from zebtrack.core.video.processing_worker import (
             ProcessingCallbacks,
             ProcessingContext,
@@ -326,6 +113,7 @@ class TrackingSessionRunnerMixin:
             "experiment_id": experiment_id,
         }
 
+        project_data = getattr(self.project_manager, "project_data", None)
         context = ProcessingContext(
             videos_to_process=[task],
             output_base_dir=str(results_dir),
@@ -335,6 +123,11 @@ class TrackingSessionRunnerMixin:
             zone_data=zone_data,
             analysis_interval_frames=analysis_interval_frames,
             display_interval_frames=display_interval_frames,
+            model_spec=resolve_worker_model(
+                getattr(self, "weight_manager", None),
+                self.settings,
+                project_data if isinstance(project_data, dict) else None,
+            ),
         )
 
         result_status = {"success": False}
@@ -386,69 +179,3 @@ class TrackingSessionRunnerMixin:
         monitor_thread.join()
 
         return result_status["success"], arena_polygon
-
-    def _prepare_zone_data_for_tracking(
-        self, frame_width: int, frame_height: int, detector: Any | None = None
-    ) -> tuple[ZoneData, list[list[int]]]:
-        """Ensure zone data is ready for tracking and inform plugins."""
-        detector = detector or self.detector
-        if detector is None:
-            raise RuntimeError("Detector not available for zone preparation")
-
-        zone_data = self.project_manager.get_zone_data()
-        if not zone_data.polygon:
-            log.warning("controller.tracking.no_arena_defined.using_default")
-            zone_data.polygon = [
-                [0, 0],
-                [frame_width, 0],
-                [frame_width, frame_height],
-                [0, frame_height],
-            ]
-
-        arena_polygon = [list(point) for point in zone_data.polygon]
-
-        detector.set_zones(zone_data, frame_width, frame_height)
-
-        if detector:
-            has_aquarium = bool(zone_data and zone_data.polygon)
-            detector.set_aquarium_region_defined(has_aquarium)
-            log.info(
-                "controller.tracking.aquarium_status",
-                defined=has_aquarium,
-                plugin=detector.plugin.get_name(),
-            )
-
-        return zone_data, arena_polygon
-
-    def _build_calibration_context(
-        self,
-        arena_polygon: list[list[int]] | list | None,
-        calibration_data: dict | None,
-    ) -> tuple[Calibration | None, tuple[float, float] | None]:
-        """Calculate calibration and pixel/cm ratio for tracking outputs."""
-        pixel_per_cm_ratio = None
-        cal = None
-
-        calibration_source = calibration_data or (
-            self.project_manager.project_data.get("calibration")
-            if self.project_manager and self.project_manager.project_data
-            else None
-        )
-
-        if calibration_source:
-            width_cm = calibration_source.get("aquarium_width_cm")
-            height_cm = calibration_source.get("aquarium_height_cm")
-            if width_cm and height_cm and arena_polygon:
-                polygon_array = np.array(arena_polygon)
-                cal = Calibration(polygon_array, width_cm, height_cm)
-                pixel_per_cm_ratio = cal.pixel_per_cm_ratio
-
-        return cal, pixel_per_cm_ratio
-
-    def _tracking_cancelled(self, experiment_id: str, frame_num: int, log_key: str) -> bool:
-        """Handle cancel-event checks during tracking loop."""
-        if not self.cancel_event.is_set():
-            return False
-
-        log.info(log_key, frame=frame_num, video=experiment_id)
-        return True

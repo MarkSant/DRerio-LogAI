@@ -6,6 +6,283 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-14] Preset do Barnes: FIM pela entrada na toca (#650)
+
+__ID:__ TASK-083
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
+__Branch:__ claude/650-barnes-end-burrow-1a481c (a partir de `release/8.0`, efacc9da)
+__Description:__
+Nos vídeos reais do Barnes o rato fica visível até o último quadro, então "rato ausente
+por S s" nunca dispara e o FIM sai censurado no fim do vídeo. O preset passa a terminar no
+primeiro entre: entrada na ROI `toca` (`RoiEdge(toca, enter)`), rato ausente por S s,
+240 s e fim do vídeo. O editor da janela avisa quando a regra cita uma ROI que o projeto
+não tem, em vez de aceitá-la em silêncio. Sem avaliador novo: o `RoiEdge` já existe no
+avaliador único e as duas pontas (ao vivo e análise) já entregam `subject_rois`.
+A regra de INÍCIO não muda (depende das marcações manuais do laboratório).
+
+__Critério de pronto:__
+
+- Preset com a toca; `ConditionRuntime` e `evaluate_window()` dão o mesmo FIM.
+- E2E do Barnes: FIM na entrada da toca, latência até a toca não censurada.
+- Editor avisa ROI ausente ao carregar o preset e ao salvar.
+- PR contra `release/8.0` com CI verde e "Closes #650".
+
+__Resultado (2026-11-14):__ vídeos reais (peso `best_det_topdown_rat_v2`, toca = círculo de
+18 px no buraco de fuga em (537, 135)): `Exemp_1` FIM 55,13 s censurado → 41,15 s
+`roi_edge`, completo; `Exemp_2` 186,61 s censurado → 110,65 s `roi_edge`. No `Exemp_2` o rato
+só põe a cabeça no buraco e depois sai: com a regra de ROI do relatório (`bbox_intersects`)
+"entrar" é tocar a toca (latência primária), não a fuga com as quatro patas — pergunta em aberto
+para o laboratório, registrada no PR. Gates: `pytest -q` 8256 passed; `-m gui -n0` 1328 passed;
+mutation check escopado 43/43; ruff e `mypy .` limpos.
+
+### [2026-11-13] Multi-aquário: aquário vazio também avança o BYTETracker (#668)
+
+__ID:__ TASK-081
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
+__Branch:__ claude/668-empty-aquarium-update-85ed60 (a partir de `release/8.0`, cb1068ec)
+__Description:__
+`MultiAquariumDetector` só chamava `tracker.update()` num aquário que tinha detecção no
+quadro. O `frame_id` do tracker contava só os quadros com detecção e o Kalman não previa
+nos quadros vazios: ao reaparecer, a predição partia do último estado como se nenhum tempo
+tivesse passado. Agora todo aquário chama `update(np.empty((0, 5)))` em todo quadro
+analisado, como o `SingleDetector`, nos três caminhos (cheio, recortado e paralelo).
+
+__Critério de pronto:__
+
+- Aquário vazio por N quadros: `frame_id` avança N e a predição de Kalman se desloca.
+- A trilha reaparece casando com a predição (mesmo `track_id`).
+- Caminhos sequencial, recortado e paralelo produzem a mesma saída.
+- A trilha é gravada com a detecção de IoU > 0,1 (regra do `SingleDetector`), não com a
+  bbox do Kalman; sem tocar `single_detector.py` (a S6/#671 mexe nele).
+- PR contra `release/8.0` com CI verde e "Closes #668".
+
+__Resultado (2026-11-13):__ 16 testes novos (10 vermelhos sem o update vazio, 6 sem a
+regra da bbox); mutation check escopado 30/30 (bloco novo de 10 + o `find` do #654 que
+passou a casar duas linhas); goldens, multi-aquário e ao vivo multi (#635) verdes; ruff e
+`mypy .` limpos.
+
+### [2026-11-14] Linhas sem track_id não são um animal (#671)
+
+__ID:__ TASK-080
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
+__Branch:__ claude/671-untracked-rows-efce34 (a partir de `release/8.0`, cb1068ec)
+__Description:__
+Decisão do mantenedor (2026-11-14): opção (a), descartar. O `SingleDetector` deixa de
+gravar com `track_id=None` o que o ByteTrack não emitiu (fim do `passthrough_untracked`).
+Parquets antigos: uma regra única em `analysis/track_significance` tira da ANÁLISE as
+linhas sem id quando existe trilha identificada (todo-NaN continua sendo um sujeito).
+Validador, `behavior` e `window_observations` leem a mesma regra; a janela passa a usar a
+triagem de trilhas curtas do #649.
+
+__Critério de pronto:__
+
+- projeto multi-animal com linhas NaN longas não ganha um animal a mais;
+- `n_animais`/`unique_tracks`/rótulos do `behavior` iguais;
+- a janela vê as mesmas observações que o relatório;
+- e2e do Barnes em modo multi sem NaN e com 1 animal; PR contra `release/8.0`, CI verde.
+
+__Resultado (2026-11-14):__ suíte rápida 8216 passed; ruff/mypy limpos; goldens
+inalterados (14 passed); mutation check escopado 115/115 (14 mutantes novos).
+
+### [2026-11-13] ByteTrack: limiares e intervalo configurados chegam ao tracker (#698, #667)
+
+__ID:__ TASK-079
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
+__Branch:__ claude/698-667-bytetrack-params-a0c9f4 (a partir de `release/8.0`, dee16229)
+__Description:__
+Mesma regra do #666 (PR #700) para o resto dos parâmetros do `BYTETracker`: o valor
+configurado vence, o atributo do plugin é só fallback sem settings, uma constante por
+parâmetro (igual ao `config.yaml`) e todo parâmetro do tracker entra na chave que o
+reconstrói.
+
+__Critério de pronto:__
+
+- `get_track_threshold` / `get_match_threshold`: settings > plugin > constante; limiar
+  alterado depois do plugin construído chega ao tracker (único e multi-aquário).
+- `DEFAULT_TRACK_THRESHOLD/MATCH/MAX_CENTER_DISTANCE/IOU` em `settings.py`; wizard
+  pré-preenche das settings; reset de fábrica = `config.yaml` (confirmado pelo
+  mantenedor: projetos NOVOS ganham 400 px / 0,05; existentes não mudam).
+- `set_processing_interval()` nos dois detectores; chamado na sessão ao vivo (os dois
+  caminhos, em `live_session_manager.start_session`) e no worker; intervalo na chave.
+- Goldens verificados (rastreiam com `dt = 1`, saída idêntica); PR contra `release/8.0`
+  com CI verde, "Closes #698" e "Closes #667".
+
+__Resultado (2026-11-13):__ suíte rápida 8203 passed; GUI 1312 passed; ruff/mypy limpos;
+mutation check escopado 100/100 (24 mutantes novos em 9 blocos). Dois blocos do #666
+tinham `find` de uma linha que passou a aparecer duas vezes; ganharam a 2ª linha.
+
+### [2026-11-13] Painel de bindings Arduino: coluna de aquário e round trip sem perda (#701)
+
+__ID:__ TASK-078
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (PR contra `release/8.0`)
+__Branch:__ claude/701-arduino-panel-aquarium-01dfcd (a partir de `release/8.0`)
+__Description:__
+O #656 deu a cada binding um `aquarium_id` opcional, mas o painel
+(`ui/components/arduino_bindings_panel.py`) não sabia dele: não havia como escolher o aquário,
+salvar pelo painel apagava o campo e o `iid` da tabela era só o nome da ROI, então ROIs homônimas
+em aquários diferentes colidiam na mesma linha.
+
+__Critério de pronto:__
+
+- Coluna "Aquarium" (All / 1 / 2…) visível só com 2+ aquários; "All" = `aquarium_id=None`.
+- `iid` = `(aquarium_id, roi)`; a lista de ROIs vem do aquário escolhido.
+- `_collect_from_tree()` e `_add_or_update()` preservam `aquarium_id`; "Testar comandos" nomeia o
+  aquário.
+- Testes de GUI + bloco de mutação headless do round trip; aviso do guia do usuário removido.
+
+### [2026-11-13] ScriptExporter sem chamador (#696) e pares i18n órfãos (#703)
+
+__Branch:__ claude/696-703-orphans-4abdf8 (a partir de `release/8.0`)
+__Description:__
+`ScriptExporter` só é chamado pelos próprios testes (#696). Em paralelo, `update_translations.py`
+para em `i18n_pairs` por dois pares de `_pairs/` cujos msgids sumiram com o código morto do #690,
+e por isso o `.mo` deixa de ser recompilado (#703).
+
+__Critério de pronto:__
+
+- #696 resolvido conforme a decisão do mantenedor; `ScriptExporter` fora de `_KNOWN_ORPHANS`.
+- Os pares órfãos foram removidos, e um teste em `tests/i18n/` falha se um par de `_pairs/` não
+  existir no template.
+- `update_translations.py` roda até o fim e recompila o `.mo`.
+
+__Resultado (2026-11-13):__
+
+- #696: o mantenedor escolheu remover. Saem o módulo, o re-export, `test_script_exporter*.py`,
+  `TestExportRPython` (`tests/analysis/test_reporter.py`) e `TestBenchmarkAliases`
+  (`tests/performance/test_parallel_detection_benchmark.py`). `_KNOWN_ORPHANS` fica vazio.
+  `ScriptExporter` não tinha nenhuma string `_()`, então nenhum msgid ficou órfão.
+- #703: os dois msgids saíram junto com o código morto do #690 (texto removido, não renomeado),
+  então os pares foram removidos. O guarda usa `merge_into_catalog(check_only=True)`, o mesmo teste
+  do script. `update_translations.py` sai com 0 e recompila os dois `.mo`. O único diff era a data
+  `POT-Creation-Date`, e ele foi descartado.
+- Fora do escopo: 116 pares de `_pairs/` apontam para msgids que estão OBSOLETOS (`#~`) no `.po`.
+  Eles não param o script, mas também não têm mais origem no código.
+
+### [2026-11-13] Ao vivo: remover o frame skip dinâmico morto (#669)
+
+__Branch:__ claude/669-dead-fps-skip-bfbeb0 (a partir de `release/8.0`)
+__Description:__
+`FrameProcessingMixin._adjust_fps_dynamically` roda depois do `detect()` e o retorno só vai para
+um `log.debug`: nenhum quadro é pulado, `_current_fps` mede a vazão da inferência (não a taxa de
+quadros), `_target_fps` é fixo em 30 e ninguém lê `_frame_skip_count`. Remover o mecanismo e os
+testes que só exercitam o retorno; a cadência única do #637
+(`is_analysis_frame(frame - 1, analysis_interval_frames, offset)`) é quem decide o que é analisado.
+
+__Critério de pronto:__
+
+- Método, atributos (`_target_fps`, `_current_fps`, `_processing_times`, `_frame_skip_count`,
+  `_fps_adjustment_interval`) e chamada no `_processing_loop` removidos.
+- Teste novo: com inferência lenta, o laço real analisa exatamente os quadros da cadência e não
+  emite `fps_too_low`/`frame_skipped`; vermelho provado antes da remoção.
+- PR contra `release/8.0` com CI verde, "Closes #669".
+
+__Resultado (2026-11-13):__ mecanismo removido; teste novo vermelho→verde; suíte rápida 8161 passed;
+mypy limpo. De quebra, 4 `find` defasados do bloco `live_window_pipeline` (desde #656) atualizados:
+qualquer PR que tocasse `frame_processing_pipeline.py` era barrado pelo mutation check.
+
+### [2026-11-05] Mutation check paralelo e isolado: o PR #629 estoura os 20 min do passo
+
+__ID:__ TASK-077
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (branch publicada; PR aguarda o mantenedor)
+__Branch:__ claude/mutation-check-parallel-3d4605 (a partir de `release/8.0`)
+__Description:__
+`scripts/mutation_check.py` roda um pytest por vez (~10,6 s cada, 55 min no `--all` local) e
+aplica o mutante NO ARQUIVO REAL: matar o processo no meio deixou mutantes no disco duas vezes na
+v8. No PR #629 (`release/8.0` → `main`) o passo "Mutation check" estoura os 20 min, também porque
+o PR altera o próprio runner e "runner alterado ⇒ catálogo inteiro".
+
+__Critério de pronto:__
+
+- Cada mutante numa cópia isolada da árvore, com `PYTHONPATH` no `src/` da cópia (o
+  `drerio_logai.pth` aponta para o repositório principal); matar o runner não deixa nada mutado.
+- `--jobs N` com padrão por núcleos e RAM livre; saída e `--json` determinísticos (ordem do
+  catálogo).
+- Runner alterado ⇒ testes do runner + 1 mutante por bloco + blocos que o diff seleciona; o
+  `--all` noturno continua inteiro e bloqueante.
+- `--all` medido antes e depois nesta máquina, score idêntico; números no `MUTATION_BASELINE.md`.
+
+__Resultado (2026-11-05):__
+
+- `--all`: 4010 s (série, árvore real) → 841 s (`--jobs 7`, cópias), 321/321 nos dois, JSON com
+  os mesmos vereditos na mesma ordem. Máquina compartilhada nas duas medições.
+- Emulação do runner de 4 vCPUs (afinidade 0xF, 6 blocos/48 pytests): 533 s → 169 s, 3,15×.
+  Estimativa para o PR #629 no CI: ~16 min (367 processos × 8,1 s ÷ 3,15). Limite do passo
+  mantido em 20 min; se ficar perto, 30 cabe no job de 45 (12 min antes do passo).
+- Baseline vermelho passou a sair com 2; a checagem final compara bytes com o snapshot inicial
+  (o `git status` acusava edição local do próprio dev como vazamento).
+- Fora do escopo: o custo de import de torch por processo (issue #643); um bloco do catálogo para
+  o próprio runner (os testes dele precisam do `.git`, que a cópia não tem).
+
+### [2026-10-30] v8.0.0: qualquer peso/qualquer classe e janelas de análise por condição
+
+__ID:__ TASK-076
+__Agent:__ Claude Code (Opus 5.5) + agentes de implementação por frente
+__Status:__ Ready for release 🟡 (código, catálogo e documentação prontos; tag, release e DOI
+aguardam o mantenedor)
+__Branch:__ release/8.0 (frentes `feat/v8-*`, ver `docs/tasks/v8/PLAN.md`)
+__Description:__
+O programa supunha dois papéis fixos (aquário e peixe) e um tempo zero implícito (a primeira
+detecção). A v8 mapeia cada classe de qualquer peso a um papel (sujeito, arena, contexto,
+ignorada) e permite condições de INÍCIO/FIM da análise. Caso de aceitação: rato no Labirinto
+de Barnes (`{0: arena, 1: experimenter, 2: rat, 3: start_box}`). Auditoria e decisões em
+`docs/tasks/v8/` (AUDIT + ADR-009…013).
+
+__Critério de pronto:__
+
+- Peso multiclasse em ordem alfabética resolve os papéis por nome; pesos de zebrafish e projetos
+  7.2.0 funcionam sem intervenção (golden `_v72` + allowlist; fixture legada).
+- Sidecar `3c_Objetos_*` e artefato `7_AnalysisWindow_*`; motor de condições puro com testes de
+  unidade e propriedades; E2E Barnes com vídeo sintético.
+- fps real, `duracao_video_s` por tempo e latência por borda de subida com t0 explícito.
+- Suíte completa (`pytest -m "" -n0`) verde; versão 8.0.0; branches no GitHub; sem PR nem merge
+  na `main` sem ordem do mantenedor.
+
+__Resultado (F7, i18n/docs/versão, 2026-11-04):__
+
+- Frentes F0–F6, F4a e F4b integradas em `release/8.0`; F7 em `feat/v8-i18n-docs-release`
+  (7 commits: teste de sincronia do `.pot`, catálogo, generalização da interface, CHANGELOG,
+  versão, CLAUDE.md, documentação técnica + este registro).
+- `tests/i18n/test_pot_in_sync.py` re-extrai as msgids com o Babel e falha em qualquer uma fora do
+  `.pot` (estavam faltando 262 no `zebtrack` e 10 no `reporter`).
+- Catálogo pt_BR completo: 228 msgids novas ou órfãs traduzidas no primeiro passo e 54 da
+  generalização (`_pairs/v8_*.json`), "All catalogues are complete".
+- Interface generalizada de peixe/aquário para animal/arena (assistente, calibração, diálogos de
+  vídeo único e ao vivo, diagnóstico, editor de configuração, slots de peso, título dos scripts
+  exportados); o parágrafo "Definitions" do Word passou a ser traduzido. Nenhuma chave persistida
+  mudou.
+- Versão 8.0.0 nos cinco lugares do `RELEASE.md` + `docs/INDEX.md`, datada de 2026-11-04;
+  `RELEASE_NOTES_v8.0.0.md`; CHANGELOG sob `[Unreleased]` ("8.0.0 (unreleased)").
+- Gates: `pytest -q` 7858 passed / 4 skipped / 1 xfailed; `pytest -m gui -n0` 1306 passed;
+  `mutation_check.py --all` 312/312 (65 blocos); ruff, ruff format e mypy limpos.
+
+__Verificação com vídeos reais (2026-11-04, peso `best_det_topdown_rat_v2`):__ `Exemp_1` e
+`Exemp_2` processados inteiros; base de tempo pelo batimento do `3c` (55,23 s / 186,71 s, fps
+9,89) bate com o PTS; INÍCIO em 8,18 s / 4,87 s (experimentador visível com confiança ~0,96 até
+8,08 s / 4,77 s, ~1,5 s depois da marcação manual do laboratório); FIM censurado no fim do
+vídeo nos dois (o rato fica visível até o último quadro).
+
+__Fica para depois — issues abertas (#630–#651):__
+
+- Barnes e roedores: #630 (ByteTrack com fps 30), #631 (padrões herdados do zebrafish), #632
+  (freezing e distância através de lacunas), #633 (métricas do Barnes, v8.1), #634 (editor de
+  janela no ao vivo ad hoc), #649 (sujeito único; trilhas de 1 linha), #650 (FIM pela entrada na
+  toca), #651 (rabo do rato move a bbox).
+- Ao vivo: #635 (multi-aquário não grava linhas; xfail estrito), #636 (`_clear_queues` sem
+  ledger), #637 (quadros duplicados, dupla cadência, MP4 a 30 fps), #638 (`processing_offset`
+  ignorado).
+- Relatórios e dados: #639 (HTML a 30 fps), #640 (espaço das máscaras `3b`), #641
+  (`total_frames_analisados` conta linhas), #642 (START/STOP no aviso traduzido).
+- Interface e infraestrutura: #643 (import de torch), #644 (`ArduinoBindingsPanel` com dict
+  descartável), #645 (overlay sem papéis), #646 (papéis fora dos templates), #647 (código morto
+  em `tracking_session_runner`), #648 (`bandit`/`pip-audit` no pre-push).
+- Sem issue: DOI de versão da 8.0.0 (só existe depois de publicar o release).
+
 ### [2026-09-15] README para quem nunca abriu um terminal, instalador que instala os pré-requisitos, release 7.2.0
 
 __ID:__ TASK-075
@@ -2505,7 +2782,7 @@ based on exported git logs.
 
 __ID:__ TASK-012
 __Agent:__ GitHub Copilot (GPT-5.2-Codex)
-__Status:__ In Progress
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Resolve Bandit security warnings (hashing, pickle usage, shell calls) and
 stabilize Codecov upload in Linux CI.
@@ -2522,7 +2799,7 @@ stabilize Codecov upload in Linux CI.
 
 __ID:__ TASK-011
 __Agent:__ GitHub Copilot (GPT-5.2-Codex)
-__Status:__ In Progress
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Resolve Ubuntu GUI test failures in open-path utilities, processing report open
 behavior, and wizard project name validation handling.
@@ -2539,7 +2816,7 @@ behavior, and wizard project name validation handling.
 
 __ID:__ TASK-010
 __Agent:__ GitHub Copilot (GPT-5.2-Codex)
-__Status:__ In Progress
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Fix Windows CI failures for ROI template manager Tk variable initialization and
 AnalysisCoordinator summary video state.
@@ -2612,7 +2889,7 @@ event-driven behaviors while preserving UI thread-safety and event contracts.
 
 __ID:__ TASK-007
 __Agent:__ GitHub Copilot (GPT-5.2-Codex)
-__Status:__ In Progress
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Finalize coverage expansion by reviewing changes, validating readiness, and
 preparing the final summary for handoff.
@@ -2645,7 +2922,7 @@ while preserving thread-safety and existing event contracts.
 
 __ID:__ TASK-004
 __Agent:__ GitHub Copilot (GPT-5.2-Codex)
-__Status:__ In Progress
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Expand coverage for core utilities and composition root; stabilize property-based tests; add public
 exception tests; target low-coverage modules to raise overall baseline.

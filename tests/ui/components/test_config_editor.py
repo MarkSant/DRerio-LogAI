@@ -391,7 +391,16 @@ class TestSaveClickSurfacesFailures:
 
         assert len(errors) == 1
         assert not saves
-        assert "0.1" in errors[0].error and "10.0" in errors[0].error
+        assert "0.1" in errors[0].error and "50.0" in errors[0].error
+
+    def test_open_field_thigmotaxis_band_is_saved(self, config_widget, event_bus):
+        """#631: a rat's open-field periphery (15 cm) is no longer refused as out of range."""
+        errors = self._captured(event_bus, UIEvents.CONFIG_VALIDATION_ERROR)
+
+        config_widget.behavioral_config_widget.thigmotaxis_distance_var.set(15.0)
+        config_widget._on_save_clicked()
+
+        assert not errors
 
     def test_valid_form_still_saves(self, config_widget, event_bus):
         """A guarda nova não pode bloquear o caminho feliz."""

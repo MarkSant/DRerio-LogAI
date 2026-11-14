@@ -48,6 +48,8 @@ alongside the zones they fire on:
 2. Define your ROIs as usual.
 3. In the **"Per-Zone Arduino Commands (Optional)"** panel (bottom of the left column):
    - Click **🔄 ROIs** to load the ROI names you just defined.
+   - With two aquariums, pick the **Aquarium** first (**All** = the ROI of that
+     name in either aquarium).
    - Pick a ROI from the **ROI** dropdown.
    - Type the integer to send in **Enter** (on enter) and/or **Exit** (on exit).
    - Click **Add / Update**. The row appears in the table and is saved.
@@ -74,7 +76,16 @@ sweep guarantees it is off after recording stops.
 ## How it works (under the hood)
 
 - Bindings are stored in `project_data["arduino_bindings"]` as a list of
-  `{roi, on_enter, on_exit}` (see `core/services/arduino_bindings.py`).
+  `{roi, on_enter, on_exit, label}` (see `core/services/arduino_bindings.py`).
+- **Two aquariums (#656).** A binding may carry `aquarium_id` (0 = first aquarium,
+  1 = second) and then reacts only to that aquarium's ROI. Without it, the binding
+  reacts to the ROI of that name in ANY aquarium: the device stays on while an
+  animal of either aquarium is inside. In the panel this is the **Aquarium**
+  column and picker (shown only when the live camera is split into 2+ aquariums):
+  **All** = no `aquarium_id`, **1** = `aquarium_id` 0, **2** = `aquarium_id` 1.
+  The ROI dropdown then lists the ROIs of the chosen aquarium, and the same ROI
+  name can be bound once per aquarium. Editing and saving from the panel keeps
+  each binding's `aquarium_id` (#701).
 - During the live processing loop, the bbox **centroid** of each detection is
   tested against the detector's scaled ROI polygons
   (`core/services/arduino_roi_evaluator.py`). A ROI counts as occupied while any

@@ -30,6 +30,7 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorError,
     CoordinatorValidationError,
 )
+from zebtrack.core.services.processing_interval_resolver import resolve_processing_offset
 from zebtrack.core.state_manager import StateCategory
 from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
@@ -520,6 +521,7 @@ class RecordingSessionCoordinator(BaseCoordinator):
         """
         from zebtrack.core.services.external_trigger_gate import (
             ExternalTriggerDecision,
+            conflicting_triggers_message,
             decide_external_trigger,
         )
 
@@ -533,21 +535,24 @@ class RecordingSessionCoordinator(BaseCoordinator):
         if decision in (
             ExternalTriggerDecision.REJECT_NO_ARDUINO,
             ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE,
+            ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS,
         ):
+            if decision is ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS:
+                message = conflicting_triggers_message()
+            elif decision is ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE:
+                message = _(
+                    "The Arduino is not connected — check the cable "
+                    "and whether the port is in use by another program."
+                )
+            else:
+                message = _("External trigger mode requires a configured Arduino.")
             if self.event_bus:
                 self.event_bus.publish(
                     Event(
                         type=UIEvents.UI_SHOW_ERROR,
                         data=payloads.ErrorOccurredPayload(
                             title=_("External Trigger Unavailable"),
-                            message=(
-                                _(
-                                    "The Arduino is not connected — check the cable "
-                                    "and whether the port is in use by another program."
-                                )
-                                if decision is ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE
-                                else _("External trigger mode requires a configured Arduino.")
-                            ),
+                            message=message,
                         ),
                     )
                 )
@@ -720,12 +725,17 @@ class RecordingSessionCoordinator(BaseCoordinator):
                 duration_s=duration_s,
                 experiment_id=experiment_id,
                 analysis_interval_frames=analysis_interval,
+                analysis_offset_frames=resolve_processing_offset(
+                    analysis_interval, project_data, self.settings
+                ),
                 display_interval_frames=1,  # Default
                 record_video=True,
                 output_base_dir=output_folder,
                 animals_per_aquarium=1,
                 use_external_preview=False,  # Use integrated canvas in Analysis tab
                 analysis_config=analysis_config,
+                # Legacy project path: the project's analysis window (ADR-011).
+                analysis_window=project_data.get("analysis_window"),
             )
 
             if success:

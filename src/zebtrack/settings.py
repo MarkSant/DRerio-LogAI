@@ -62,6 +62,34 @@ log = structlog.get_logger()
 _DEFAULT_CONFIG_PATH: Final[Path] = _resolve_config_path()
 _DEFAULT_LOCAL_CONFIG_PATH: Final[Path] = _resolve_local_config_path()
 
+#: Upper bound of the thigmotaxis "near wall" band (#631). 10 cm fitted a fish
+#: tank; the open-field periphery of a rat is 10-20 cm. Shared by the settings,
+#: the wizard model and the behavioural widget so the three never disagree.
+THIGMOTAXIS_MAX_DISTANCE_CM: Final[float] = 50.0
+
+#: Zebrafish ceiling for a plausible speed (cm/s); the setting's default (#631).
+DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S: Final[float] = 50.0
+
+#: ByteTrack lost-track lifetime, as frames at the 30 fps reference: 150 = 5 s
+#: (#666). The ONE default: the settings model, config.yaml, the wizard, the
+#: diagnostics panel and the detector resolver all read it. It used to be 300
+#: here, 150 in config.yaml, 90 in the panel and a hard-coded 60 in both plugins,
+#: and the plugins' 60 won.
+DEFAULT_TRACK_BUFFER: Final[int] = 150
+
+#: ByteTrack association parameters (#698): ONE default each, equal to what
+#: config.yaml ships. The settings model, the detector resolver, the plugins'
+#: no-settings fallback, DetectorService (current and factory reset) and the
+#: wizard all read these. Until #698 match_threshold was 0.95 in config.yaml and
+#: 0.80 in the OpenVINO plugin, DetectorService and the factory reset, and
+#: max_center_distance / iou_threshold were 400 / 0.05 in config.yaml but
+#: 200 / 0.1 in the model, the wizard (which saved them into every new project)
+#: and the factory reset.
+DEFAULT_TRACK_THRESHOLD: Final[float] = 0.25
+DEFAULT_MATCH_THRESHOLD: Final[float] = 0.95
+DEFAULT_MAX_CENTER_DISTANCE: Final[float] = 400.0
+DEFAULT_IOU_THRESHOLD: Final[float] = 0.05
+
 
 # --- Pydantic Models for Configuration Structure ---
 
@@ -227,6 +255,16 @@ class RecorderSettings(BaseModel):
             "masks. Costs nothing when disabled: no mask is decoded in the "
             "tracking path and no file is created. Only takes effect with a "
             "segmentation model (model_selection.animal_method == 'seg')"
+        ),
+    )
+    persist_object_sidecar: bool = Field(
+        True,
+        description=(
+            "Persist every processed frame's subject and context detections, plus one "
+            "heartbeat row per frame, to the 3c_Objetos_<base>.parquet sidecar. Analysis "
+            "windows (start/stop conditions) are evaluated from it, so turning it off "
+            "means a window can only be computed from the trajectory. Kill switch only "
+            "(ADR-010)."
         ),
     )
 
@@ -454,7 +492,7 @@ class ByteTrackSettings(BaseModel):
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     track_threshold: float = Field(
-        0.1,
+        DEFAULT_TRACK_THRESHOLD,
         gt=0,
         lt=1,
         description=(
@@ -463,7 +501,7 @@ class ByteTrackSettings(BaseModel):
         ),
     )
     match_threshold: float = Field(
-        0.95,
+        DEFAULT_MATCH_THRESHOLD,
         gt=0,
         le=1,
         description=(
@@ -473,28 +511,28 @@ class ByteTrackSettings(BaseModel):
         ),
     )
     max_center_distance: float = Field(
-        200.0,
+        DEFAULT_MAX_CENTER_DISTANCE,
         gt=0,
         description=(
             "Maximum center-to-center distance (in pixels) for hybrid matching fallback. "
             "When IoU-based matching fails (no bbox overlap), ByteTrack falls back to "
             "center distance matching. This is useful for small, fast-moving objects "
-            "like zebrafish that can move significantly between frames. "
-            "Default 1000px allows matching movements across almost the entire aquarium."
+            "like zebrafish that can move significantly between frames."
         ),
     )
     track_buffer: int = Field(
-        300,
+        DEFAULT_TRACK_BUFFER,
         ge=10,
         le=1000,
         description=(
-            "Number of frames to keep a lost track before removing it. Higher values "
-            "allow re-identification after longer occlusions. Scaled by processing_interval "
-            "internally. Default 90 with interval=5 means track survives ~18 detection cycles."
+            "Lost-track lifetime as frames at the 30 fps reference: a lost track is "
+            "removed after track_buffer / 30 seconds of video (or capture) time, "
+            "whatever the source fps or the analysis interval. Higher values allow "
+            "re-identification after longer occlusions."
         ),
     )
     iou_threshold: float = Field(
-        0.1,
+        DEFAULT_IOU_THRESHOLD,
         ge=0,
         lt=1,
         description=(
@@ -860,6 +898,31 @@ class OpenVINOSettings(BaseModel):
     )
 
 
+class ClassAliasSettings(BaseModel):
+    """Extra class names mapped onto the arena and animal roles.
+
+    Built-in names (``aqua``/``aquarium``/``tank``/``agua``/``arena``… and
+    ``zebrafish``/``fish``/``peixe``/``rat``/``mouse``…) are always recognised;
+    these lists only ADD names, for weights whose classes use other labels.
+    See ``zebtrack.core.detection.class_aliases``.
+    """
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid",
+    )
+
+    arena: list[str] = Field(
+        default_factory=list,
+        description="Additional class names treated as the arena/container.",
+    )
+    animal: list[str] = Field(
+        default_factory=list,
+        description="Additional class names treated as the tracked animal.",
+    )
+
+
 class ModelSelectionSettings(BaseModel):
     """Settings for selecting which model type to use for different tasks."""
 
@@ -880,6 +943,39 @@ class ModelSelectionSettings(BaseModel):
     use_openvino: bool = Field(
         False,
         description="Whether to use OpenVINO for model inference (auto-detected if not set)",
+    )
+    class_aliases: ClassAliasSettings = Field(
+        default_factory=ClassAliasSettings,
+        description=(
+            "Extra class names for the arena and animal roles, on top of the "
+            "built-in species-agnostic aliases."
+        ),
+    )
+    context_inference_scope: Literal["arena_crop", "arena_crop_margin", "full_frame"] = Field(
+        "arena_crop_margin",
+        description=(
+            "Where context classes (experimenter, start box, ...) are looked for. Only "
+            "takes effect when the class-role map has at least one context class; "
+            "without one the arena crop is exactly the legacy one (ADR-009)."
+        ),
+    )
+    context_crop_margin_frac: float = Field(
+        0.15,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Fraction of the arena bounding box added on every side when "
+            "context_inference_scope is 'arena_crop_margin'."
+        ),
+    )
+    context_min_confidence: float | None = Field(
+        None,
+        gt=0.0,
+        lt=1.0,
+        description=(
+            "Confidence floor for context classes. None uses the animal confidence "
+            "threshold (resolve_animal_confidence)."
+        ),
     )
 
 
@@ -1136,7 +1232,7 @@ class BehavioralAnalysisSettings(BaseModel):
     default_thigmotaxis_distance_cm: float = Field(
         1.5,
         ge=0.1,
-        le=10.0,
+        le=THIGMOTAXIS_MAX_DISTANCE_CM,
         description="Default distance threshold (cm) for thigmotaxis 'near wall' calculation",
     )
     default_geotaxis_distance_cm: float = Field(
@@ -1164,6 +1260,16 @@ class BehavioralAnalysisSettings(BaseModel):
     geotaxis_mode: Literal["distance", "zones"] = Field(
         "zones",
         description="Default method for geotaxis calculation ('distance' or 'zones').",
+    )
+    max_plausible_speed_cm_s: float = Field(
+        DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S,
+        gt=0.0,
+        le=1000.0,
+        description=(
+            "Speed (cm/s) above which a frame is flagged as implausible by the trajectory "
+            "validator. 50 cm/s suits adult zebrafish; rodents sprint faster. A project can "
+            "override it with behavioral_config['max_plausible_speed_cm_s']."
+        ),
     )
 
 
@@ -1326,9 +1432,23 @@ class Settings(BaseModel):
             "Cap on the time credited to an ROI for a single trajectory step, "
             "in seconds. Tracking gaps would otherwise credit the whole gap to "
             "whichever ROI the animal reappeared in. The excess is reported as "
-            "analise_roi.tempo_nao_observado_s. null (default) means automatic: "
+            "analise_roi.tempo_nao_observado_s. The same cap defines a tracking "
+            "gap for behaviour: no freezing, inactivity or burst episode, "
+            "smoothing window or distance step crosses a longer interval. "
+            "null (default) means automatic: "
             "3x the median observed interval between analysed frames. Use .inf "
             "to disable the cap (historical behaviour)"
+        ),
+    )
+    min_track_duration_s: float = Field(
+        default=0.5,
+        ge=0.0,
+        description=(
+            "Shortest track, in seconds, that counts as an animal. Shorter "
+            "tracks (a one-row id opened by a tracker glitch) are left out of "
+            "the analysis with a warning, as long as a longer track exists, so "
+            "they never turn a one-animal report into a multi-animal one. The "
+            "trajectory file keeps them. 0.0 disables it"
         ),
     )
     roi_bbox_overlap_basis: Literal["bbox", "roi", "max"] = Field(

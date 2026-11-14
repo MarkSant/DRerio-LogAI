@@ -225,3 +225,27 @@ class TestUnionOfBothFormerCopies:
             baseline, {"roi_settings": {"roi_inclusion_rule": "centroid_in"}}
         )
         assert snapshot.roi_inclusion_rule == "centroid_in"
+
+
+class TestRodentBehaviouralDefaults:
+    """#631: a rodent project's numbers must reach the worker, not bounce off a fish cap."""
+
+    def test_open_field_thigmotaxis_band_is_kept(self, baseline):
+        snapshot = build_project_settings_snapshot(
+            baseline, {"behavioral_config": {"thigmotaxis_distance_cm": 15.0}}
+        )
+
+        assert snapshot.behavioral_analysis.default_thigmotaxis_distance_cm == 15.0
+
+    def test_project_speed_ceiling_reaches_the_worker(self, baseline):
+        snapshot = build_project_settings_snapshot(
+            baseline, {"behavioral_config": {"max_plausible_speed_cm_s": 150.0}}
+        )
+
+        assert snapshot.behavioral_analysis.max_plausible_speed_cm_s == 150.0
+
+    def test_zebrafish_project_keeps_the_fish_defaults(self, baseline):
+        snapshot = build_project_settings_snapshot(baseline, {})
+
+        assert snapshot.behavioral_analysis.max_plausible_speed_cm_s == 50.0
+        assert snapshot.behavioral_analysis.default_thigmotaxis_distance_cm == 1.5

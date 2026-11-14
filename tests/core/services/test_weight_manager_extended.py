@@ -687,3 +687,310 @@ class TestPerspectiveIsAHardConstraint:
         path = wm.get_weight_path_by_method(method="seg", task="aquarium", perspective="top_down")
 
         assert path == "/w/best_seg_lateral.pt", "degrade, never lose the detection"
+
+
+# ---------------------------------------------------------------------------
+# v8 (ADR-009 / ADR-012): class roles in the registry, weight sha256 and the
+# sha-keyed OpenVINO cache.
+# ---------------------------------------------------------------------------
+
+_RAT_ROLES = {"arena": "arena", "experimenter": "context", "rat": "subject"}
+
+
+def _details(wm: WeightManager, name: str) -> dict:
+    details = wm.get_weight_details(name)
+    assert details is not None, name
+    return details
+
+
+def _str(value: str | None) -> str:
+    assert value is not None
+    return value
+
+
+def _v8_manager(tmp_path: Path) -> WeightManager:
+    (tmp_path / "weights").mkdir(parents=True, exist_ok=True)
+    return WeightManager(
+        settings_obj=load_settings(),
+        config_dir=tmp_path,
+        weights_dir=tmp_path / "weights",
+    )
+
+
+def _registry_7_2(weight_path: Path) -> dict:
+    """A weights_config.json entry exactly as 7.2 wrote it (no class_roles)."""
+    return {
+        weight_path.name: {
+            "path": str(weight_path),
+            "is_default": True,
+            "type": "det",
+            "target": "aquarium",
+            "perspective": "top_down",
+            "is_default_seg": False,
+            "is_default_det": True,
+            "is_default_seg_aquarium": False,
+            "is_default_seg_zebrafish": False,
+            "is_default_det_aquarium": True,
+            "is_default_det_zebrafish": False,
+            "openvino_path": "",
+            "openvino_hash": "",
+            "openvino_status": OPENVINO_STATUS_NOT_CONVERTED,
+            "last_conversion_error": None,
+        }
+    }
+
+
+class TestWeightClassRoles:
+    def test_class_roles_survive_save_and_reload(self, tmp_path: Path):
+        pt = tmp_path / "weights" / "best_det_topdown_rat_v1.pt"
+        wm = _v8_manager(tmp_path)
+        pt.write_bytes(b"rat weight")
+        wm.discover_weights()
+
+        assert wm.set_weight_class_roles(pt.name, _RAT_ROLES) is True
+        reloaded = _v8_manager(tmp_path)
+
+        assert _details(reloaded, pt.name)["class_roles"] == _RAT_ROLES
+        on_disk = json.loads((tmp_path / WEIGHTS_CONFIG_FILE).read_text(encoding="utf-8"))
+        assert on_disk[pt.name]["class_roles"] == _RAT_ROLES
+
+    def test_invalid_roles_are_refused_and_none_clears(self, tmp_path: Path):
+        pt = tmp_path / "weights" / "best_det_topdown_rat_v1.pt"
+        wm = _v8_manager(tmp_path)
+        pt.write_bytes(b"rat weight")
+        wm.discover_weights()
+
+        assert wm.set_weight_class_roles(pt.name, {"rat": "animal"}) is False
+        assert "class_roles" not in _details(wm, pt.name)
+        assert wm.set_weight_class_roles("missing.pt", _RAT_ROLES) is False
+
+        wm.set_weight_class_roles(pt.name, _RAT_ROLES)
+        assert wm.set_weight_class_roles(pt.name, None) is True
+        assert "class_roles" not in _details(wm, pt.name)
+
+    def test_registry_from_7_2_without_class_roles_loads_unchanged(self, tmp_path: Path):
+        (tmp_path / "weights").mkdir()
+        pt = tmp_path / "weights" / "best_det_topdown.pt"
+        pt.write_bytes(b"zebrafish weight")
+        raw = json.dumps(_registry_7_2(pt), indent=4)
+        (tmp_path / WEIGHTS_CONFIG_FILE).write_text(raw, encoding="utf-8")
+
+        wm = _v8_manager(tmp_path)
+
+        assert wm.weights == _registry_7_2(pt)
+        assert (tmp_path / WEIGHTS_CONFIG_FILE).read_text(encoding="utf-8") == raw
+
+    def test_discovery_imports_class_roles_from_the_sibling_json(self, tmp_path: Path):
+        weights = tmp_path / "weights"
+        weights.mkdir()
+        (weights / "best_det_topdown_rat_v1.pt").write_bytes(b"rat weight")
+        (weights / "best_det_topdown_rat_v1.json").write_text(
+            json.dumps(
+                {
+                    "classes": {"0": "arena", "1": "experimenter", "2": "rat"},
+                    "target": "rat",
+                    "class_roles": {"Arena": "arena", "Experimenter": "context", "rat": "subject"},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        wm = _v8_manager(tmp_path)
+        details = _details(wm, "best_det_topdown_rat_v1.pt")
+
+        assert details["class_roles"] == _RAT_ROLES
+        # The registry target is a persistence contract: never "rat".
+        assert details["target"] in VALID_TARGETS
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            '{"classes": {"0": "rat"}}',
+            '{"class_roles": {"rat": "animal"}}',
+            '{"class_roles": ["rat"]}',
+            "not json",
+            '["class_roles"]',
+        ],
+    )
+    def test_sibling_json_without_usable_roles_is_ignored(self, tmp_path: Path, payload: str):
+        weights = tmp_path / "weights"
+        weights.mkdir()
+        (weights / "best_det_topdown_rat_v1.pt").write_bytes(b"rat weight")
+        (weights / "best_det_topdown_rat_v1.json").write_text(payload, encoding="utf-8")
+
+        wm = _v8_manager(tmp_path)
+
+        assert "class_roles" not in _details(wm, "best_det_topdown_rat_v1.pt")
+
+    def test_existing_entry_without_roles_picks_up_a_new_sibling(self, tmp_path: Path):
+        (tmp_path / "weights").mkdir()
+        pt = tmp_path / "weights" / "best_det_topdown.pt"
+        pt.write_bytes(b"zebrafish weight")
+        (tmp_path / WEIGHTS_CONFIG_FILE).write_text(json.dumps(_registry_7_2(pt)), encoding="utf-8")
+        pt.with_suffix(".json").write_text(json.dumps({"class_roles": _RAT_ROLES}), "utf-8")
+
+        wm = _v8_manager(tmp_path)
+
+        assert _details(wm, pt.name)["class_roles"] == _RAT_ROLES
+
+    def test_explicit_registry_roles_are_not_overwritten_by_the_sibling(self, tmp_path: Path):
+        (tmp_path / "weights").mkdir()
+        pt = tmp_path / "weights" / "best_det_topdown.pt"
+        pt.write_bytes(b"zebrafish weight")
+        registry = _registry_7_2(pt)
+        registry[pt.name]["class_roles"] = {"rat": "subject"}
+        (tmp_path / WEIGHTS_CONFIG_FILE).write_text(json.dumps(registry), encoding="utf-8")
+        pt.with_suffix(".json").write_text(json.dumps({"class_roles": _RAT_ROLES}), "utf-8")
+
+        wm = _v8_manager(tmp_path)
+
+        assert _details(wm, pt.name)["class_roles"] == {"rat": "subject"}
+
+
+class TestWeightSha256:
+    def test_sha256_matches_the_file_and_tracks_replacement(self, tmp_path: Path):
+        import hashlib
+        import os
+
+        pt = tmp_path / "weights" / "best_det_topdown.pt"
+        wm = _v8_manager(tmp_path)
+        pt.write_bytes(b"first")
+        wm.discover_weights()
+
+        assert wm.get_weight_sha256(pt.name) == hashlib.sha256(b"first").hexdigest()
+
+        pt.write_bytes(b"second, longer")
+        stat = pt.stat()
+        os.utime(pt, ns=(stat.st_atime_ns, stat.st_mtime_ns + 5_000_000_000))
+        assert wm.get_weight_sha256(pt.name) == hashlib.sha256(b"second, longer").hexdigest()
+
+    def test_unknown_or_missing_weight_has_no_sha(self, tmp_path: Path):
+        wm = _v8_manager(tmp_path)
+        wm.weights["gone.pt"] = {"path": str(tmp_path / "gone.pt")}
+
+        assert wm.get_weight_sha256("gone.pt") == ""
+        assert wm.get_weight_sha256("never_registered.pt") == ""
+        assert wm.sha256_for_path("") == ""
+
+
+class TestOpenVINOCacheKeyedBySha:
+    def _setup(self, tmp_path: Path) -> tuple[WeightManager, Path, str]:
+        import hashlib
+
+        pt = tmp_path / "weights" / "best_det_topdown.pt"
+        wm = _v8_manager(tmp_path)
+        pt.write_bytes(b"det weight v2")
+        wm.discover_weights()
+        return wm, pt, hashlib.sha256(b"det weight v2").hexdigest()
+
+    def _fake_export(self, tmp_path: Path, monkeypatch) -> list[dict]:
+        """Patch YOLO so an export produces a folder with one .xml."""
+        exports = tmp_path / "exports"
+        exports.mkdir(exist_ok=True)
+        calls: list[dict] = []
+
+        class _FakeYolo:
+            def __init__(self, path):
+                self.path = path
+                self.names = {0: "arena", 1: "rat"}
+
+            def export(self, **kwargs):
+                calls.append(kwargs)
+                out = exports / f"export_{len(calls)}"
+                out.mkdir()
+                (out / "model.xml").write_text("<xml/>", encoding="utf-8")
+                return str(out)
+
+        monkeypatch.setattr("zebtrack.core.services.weight_manager.ULTRALYTICS_AVAILABLE", True)
+        monkeypatch.setattr("zebtrack.core.services.weight_manager.YOLO", _FakeYolo)
+        return calls
+
+    def test_cache_dir_name_embeds_the_weight_sha(self, tmp_path: Path, monkeypatch):
+        wm, pt, sha = self._setup(tmp_path)
+        calls = self._fake_export(tmp_path, monkeypatch)
+
+        path = wm.convert_to_openvino(pt.name)
+
+        expected = tmp_path / OPENVINO_CACHE_DIR / f"best_det_topdown_{sha[:8]}_openvino_model"
+        assert Path(_str(path)) == expected
+        metadata = json.loads((expected / "metadata.json").read_text(encoding="utf-8"))
+        assert metadata["source_sha256"] == sha
+        assert len(calls) == 1
+        assert wm.openvino_cache_is_current(pt.name) is True
+
+        # Second call reuses the sha-named folder without exporting again.
+        assert wm.convert_to_openvino(pt.name) == path
+        assert len(calls) == 1
+
+    def test_legacy_dir_with_matching_recorded_sha_is_reused(self, tmp_path: Path, monkeypatch):
+        wm, pt, sha = self._setup(tmp_path)
+        calls = self._fake_export(tmp_path, monkeypatch)
+        legacy = tmp_path / OPENVINO_CACHE_DIR / "best_det_topdown_openvino_model"
+        legacy.mkdir(parents=True)
+        (legacy / "model.xml").write_text("<xml/>", encoding="utf-8")
+        (legacy / "metadata.json").write_text(json.dumps({"source_sha256": sha}), "utf-8")
+
+        path = wm.convert_to_openvino(pt.name)
+
+        assert Path(_str(path)) == legacy
+        assert calls == []
+
+    @pytest.mark.parametrize("recorded", [None, "0" * 64])
+    def test_legacy_dir_without_or_with_wrong_sha_is_re_exported(
+        self, tmp_path: Path, monkeypatch, recorded
+    ):
+        wm, pt, sha = self._setup(tmp_path)
+        calls = self._fake_export(tmp_path, monkeypatch)
+        legacy = tmp_path / OPENVINO_CACHE_DIR / "best_det_topdown_openvino_model"
+        legacy.mkdir(parents=True)
+        (legacy / "model.xml").write_text("<xml/>", encoding="utf-8")
+        metadata = {"original_model": pt.name}
+        if recorded:
+            metadata["source_sha256"] = recorded
+        (legacy / "metadata.json").write_text(json.dumps(metadata), "utf-8")
+
+        path = wm.convert_to_openvino(pt.name)
+
+        assert Path(_str(path)).name == f"best_det_topdown_{sha[:8]}_openvino_model"
+        assert len(calls) == 1
+
+    def test_registry_pointing_at_a_stale_legacy_export_is_not_current(self, tmp_path: Path):
+        wm, pt, _sha = self._setup(tmp_path)
+        legacy = tmp_path / OPENVINO_CACHE_DIR / "best_det_topdown_openvino_model"
+        legacy.mkdir(parents=True)
+        (legacy / "model.xml").write_text("<xml/>", encoding="utf-8")
+        details = _details(wm, pt.name)
+        details["openvino_path"] = str(legacy)
+        details["openvino_status"] = OPENVINO_STATUS_READY
+
+        assert wm.openvino_cache_is_current(pt.name) is False
+        assert wm.openvino_cache_is_current("never_registered.pt") is False
+
+    def test_registry_must_point_at_the_current_export_itself(self, tmp_path: Path, monkeypatch):
+        wm, pt, _sha = self._setup(tmp_path)
+        self._fake_export(tmp_path, monkeypatch)
+        wm.convert_to_openvino(pt.name)
+        other = tmp_path / OPENVINO_CACHE_DIR / "somewhere_else_openvino_model"
+        other.mkdir(parents=True)
+        _details(wm, pt.name)["openvino_path"] = str(other)
+
+        assert wm.openvino_cache_is_current(pt.name) is False
+
+    def test_int8_cache_is_keyed_by_sha_too(self, tmp_path: Path, monkeypatch):
+        wm, pt, sha = self._setup(tmp_path)
+        calls = self._fake_export(tmp_path, monkeypatch)
+        legacy = tmp_path / OPENVINO_CACHE_DIR / "best_det_topdown_openvino_int8_model"
+        legacy.mkdir(parents=True)
+        (legacy / "model.xml").write_text("<xml/>", encoding="utf-8")
+
+        path = wm.convert_to_openvino_int8(pt.name)
+
+        assert Path(_str(path)).name == f"best_det_topdown_{sha[:8]}_openvino_int8_model"
+        assert calls == [{"format": "openvino", "int8": True}]
+        metadata = json.loads((Path(_str(path)) / "metadata.json").read_text(encoding="utf-8"))
+        assert metadata["source_sha256"] == sha
+        assert wm.openvino_cache_is_current(pt.name, int8=True) is True
+
+    def test_targets_and_default_flags_keep_their_7_2_names(self):
+        assert VALID_TARGETS == ("aquarium", "zebrafish")
+        assert _default_flag_key("det", "zebrafish") == "is_default_det_zebrafish"

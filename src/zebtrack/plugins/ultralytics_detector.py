@@ -4,19 +4,28 @@ from typing import Any
 
 import numpy as np
 
-from zebtrack.plugins.base import DetectorPlugin
+from zebtrack.plugins.base import DetectorPlugin, bytetrack_threshold_hints
 from zebtrack.utils.hardware_detection import is_cuda_available
+from zebtrack.utils.optional_deps import YOLO_LOADERS, resolve_lazy_attribute
 
 YOLO: Any | None
+ULTRALYTICS_AVAILABLE: bool
 
-try:
-    from ultralytics import YOLO as _YOLO
 
-    YOLO = _YOLO
-    ULTRALYTICS_AVAILABLE = True
-except ImportError:
-    YOLO = None
-    ULTRALYTICS_AVAILABLE = False
+def __getattr__(name: str) -> Any:
+    """Resolve ``YOLO`` / ``ULTRALYTICS_AVAILABLE`` on first access (#643)."""
+    try:
+        return resolve_lazy_attribute(globals(), name, YOLO_LOADERS)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
+
+def _ultralytics_available() -> bool:
+    return bool(resolve_lazy_attribute(globals(), "ULTRALYTICS_AVAILABLE", YOLO_LOADERS))
+
+
+def _yolo_class() -> Any | None:
+    return resolve_lazy_attribute(globals(), "YOLO", YOLO_LOADERS)
 
 
 class UltralyticsDetectorPlugin(DetectorPlugin):
@@ -35,10 +44,11 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         self._frame_masks: list[np.ndarray | None] = []
 
         model_path = str(Path(model_path) if isinstance(model_path, str) else model_path)
-        if not ULTRALYTICS_AVAILABLE:
+        if not _ultralytics_available():
             raise ImportError("Ultralytics is not available. Please install ultralytics package.")
-        assert YOLO is not None
-        self.model = YOLO(model_path)
+        yolo_cls = _yolo_class()
+        assert yolo_cls is not None
+        self.model = yolo_cls(model_path)
 
         # Extract class names directly from the model (Bug Fix #1)
         self.class_names = dict(self.model.names)  # {0: 'aqua', 1: 'zebrafish', ...}
@@ -56,9 +66,8 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
             self.conf_threshold = resolve_animal_confidence(settings_obj.yolo_model)
             self.nms_threshold = settings_obj.yolo_model.nms_threshold
-            # Read ByteTrack thresholds from settings
-            self.track_threshold = getattr(settings_obj.bytetrack, "track_threshold", 0.25)
-            self.match_threshold = getattr(settings_obj.bytetrack, "match_threshold", 0.95)
+            # ByteTrack hints: a fallback only, the settings win in the tracker (#698)
+            self.track_threshold, self.match_threshold = bytetrack_threshold_hints(settings_obj)
             # OPTIMIZATION: Read inference performance settings
             self._use_half = getattr(settings_obj.yolo_model, "use_half_precision", True)
             self._imgsz = getattr(settings_obj.yolo_model, "inference_size", 640)
@@ -69,8 +78,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             # Fallback defaults when settings not injected
             self.conf_threshold = 0.25
             self.nms_threshold = 0.45
-            self.track_threshold = 0.25
-            self.match_threshold = 0.95  # Higher default for stable tracking (avoid ID jumps)
+            self.track_threshold, self.match_threshold = bytetrack_threshold_hints(None)
             self._use_half = True
             self._imgsz = 640
             self._device = None
@@ -90,8 +98,8 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             cuda_available=is_cuda_available(),
         )
 
-        # ByteTrack buffer size
-        self.track_buffer = 60
+        # No ``track_buffer`` here (#666): ByteTrack's buffer comes from
+        # ``settings.bytetrack.track_buffer`` via DetectionPostProcessor.
 
         # Phase 7: Model warm-up — eliminates JIT compilation latency on first real frame
         self._warm_up(log)

@@ -20,19 +20,30 @@ from zebtrack.core.detection.arena_candidate_selection import (
     is_degenerate_outline,
     rank_box_indices,
 )
+from zebtrack.core.detection.class_aliases import ClassAliases, resolve_arena_class_id
 from zebtrack.io.video_source import VideoFileSource
 from zebtrack.utils.geometry import DEFAULT_POLYGON_EPSILON_FACTOR, simplify_polygon
+from zebtrack.utils.optional_deps import YOLO_LOADERS, resolve_lazy_attribute
 
 YOLO: Any | None
+ULTRALYTICS_AVAILABLE: bool
 
-try:
-    from ultralytics import YOLO as _YOLO
 
-    YOLO = _YOLO
-    ULTRALYTICS_AVAILABLE = True
-except ImportError:
-    YOLO = None
-    ULTRALYTICS_AVAILABLE = False
+def __getattr__(name: str) -> Any:
+    """Resolve ``YOLO`` / ``ULTRALYTICS_AVAILABLE`` on first access (#643)."""
+    try:
+        return resolve_lazy_attribute(globals(), name, YOLO_LOADERS)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
+
+def _ultralytics_available() -> bool:
+    return bool(resolve_lazy_attribute(globals(), "ULTRALYTICS_AVAILABLE", YOLO_LOADERS))
+
+
+def _yolo_class() -> Any | None:
+    return resolve_lazy_attribute(globals(), "YOLO", YOLO_LOADERS)
+
 
 log = structlog.get_logger()
 
@@ -61,16 +72,23 @@ def _clamp_confidence(value: float | None, *, default: float) -> float:
 class AquariumDetector:
     """Detects aquariums in a video using a YOLO segmentation model."""
 
-    def __init__(self, model_path: Path | str, mode: str = "seg"):
+    def __init__(
+        self,
+        model_path: Path | str,
+        mode: str = "seg",
+        class_aliases: ClassAliases | None = None,
+    ):
         """
         Initialize the AquariumDetector.
 
         Args:
             model_path: Path to the YOLO model (.pt file).
             mode: Detection mode - "seg" for segmentation, "det" for detection.
+            class_aliases: Role vocabularies used to find the arena class by
+                name; built-in ones when ``None``.
         """
         model_path = str(Path(model_path) if isinstance(model_path, str) else model_path)
-        if not ULTRALYTICS_AVAILABLE:
+        if not _ultralytics_available():
             raise ImportError("Ultralytics is not available. Please install ultralytics package.")
 
         self.mode = mode
@@ -80,9 +98,10 @@ class AquariumDetector:
         if mode not in ["seg", "det"]:
             raise ValueError(f"Invalid mode '{mode}'. Must be 'seg' or 'det'.")
 
-        assert YOLO is not None
+        yolo_cls = _yolo_class()
+        assert yolo_cls is not None
         try:
-            self.model = YOLO(model_path)
+            self.model = yolo_cls(model_path)
             log.info("aquarium_detector.init.success", model_path=model_path, mode=mode)
         # except Exception justified: Ultralytics YOLO model initialization can raise
         # heterogeneous exceptions (path/weights/config issues); log and re-raise.
@@ -94,6 +113,14 @@ class AquariumDetector:
                 error=str(e),
             )
             raise
+
+        #: Class id passed to ``predict(classes=[...])``. Resolved by NAME so an
+        #: arena weight whose arena class is not id 0 (e.g. a multi-class rodent
+        #: weight) is still asked for the arena; falls back to the historical 0.
+        self.arena_class_id: int = resolve_arena_class_id(
+            getattr(self.model, "names", None), class_aliases
+        )
+        log.info("aquarium_detector.arena_class_id", arena_class_id=self.arena_class_id)
 
     @staticmethod
     def _as_valid_polygon(points: Any) -> Polygon | None:
@@ -480,11 +507,11 @@ class AquariumDetector:
                 frame=frame_index,
                 fallback_conf=fallback_confidence,
             )
-            # ``classes=[0]`` is NOT optional here. Without it this retry accepted
-            # the largest mask of ANY class, so on a multi-class weight the arena
-            # could come back as whatever object happened to be biggest.
+            # ``classes=[arena_class_id]`` is NOT optional here. Without it this
+            # retry accepted the largest mask of ANY class, so on a multi-class
+            # weight the arena could come back as whatever object was biggest.
             results_all = self.model.predict(
-                frame, verbose=False, classes=[0], conf=fallback_confidence
+                frame, verbose=False, classes=[self.arena_class_id], conf=fallback_confidence
             )
 
             if results_all and results_all[0].masks and results_all[0].masks.xy:
@@ -758,8 +785,10 @@ class AquariumDetector:
                 if frame is None:
                     continue
 
-                # Detect aquarium (class 0) using configured threshold
-                results = self.model.predict(frame, verbose=False, classes=[0], conf=conf)
+                # Detect the arena class (resolved by name) using configured threshold
+                results = self.model.predict(
+                    frame, verbose=False, classes=[self.arena_class_id], conf=conf
+                )
 
                 # Debug detailed results
                 log.info(
@@ -995,8 +1024,10 @@ class AquariumDetector:
                 self._last_source_width = int(frame.shape[1])
                 self._last_source_height = int(frame.shape[0])
 
-                # Detect all aquariums (class 0) using configured threshold
-                results = self.model.predict(frame, verbose=False, classes=[0], conf=conf)
+                # Detect all arenas (class resolved by name) using configured threshold
+                results = self.model.predict(
+                    frame, verbose=False, classes=[self.arena_class_id], conf=conf
+                )
 
                 if results and results[0].boxes:
                     # Get all detections for this frame

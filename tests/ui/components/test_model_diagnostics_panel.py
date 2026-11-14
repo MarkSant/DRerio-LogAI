@@ -111,3 +111,33 @@ def test_project_diagnostic_includes_selected_effective_weight(
     mock_error.assert_not_called()
     published_event = diagnostics_controller.ui_event_bus.publish.call_args.args[0]
     assert published_event.data.config["active_weight_name"] == "seg_project.pt"
+
+
+def test_project_diagnostic_ships_the_project_class_roles(tkinter_root, diagnostics_controller):
+    overrides = diagnostics_controller.project_manager.project_data["model_overrides"]
+    overrides["class_roles"] = {"rat": "subject"}
+    overrides["class_roles_weight_sha256"] = "abc"
+    panel = ModelDiagnosticsPanel(tkinter_root, diagnostics_controller, scope="project")
+    panel.diagnostic_video_path = "C:/tmp/video.mp4"
+    panel.active_weight_var.set("🐟 Animal (seg): seg_project.pt")
+
+    with patch("tkinter.messagebox.showerror"):
+        panel._run_diagnostic_test()
+
+    config = diagnostics_controller.ui_event_bus.publish.call_args.args[0].data.config
+    assert config["class_roles"] == {"rat": "subject"}
+    assert config["class_roles_weight_sha256"] == "abc"
+
+
+def test_global_diagnostic_ships_no_project_roles(tkinter_root, diagnostics_controller):
+    diagnostics_controller.project_manager.project_data["model_overrides"]["class_roles"] = {
+        "rat": "subject"
+    }
+    panel = ModelDiagnosticsPanel(tkinter_root, diagnostics_controller, scope="global")
+    panel.diagnostic_video_path = "C:/tmp/video.mp4"
+
+    with patch("tkinter.messagebox.showerror"):
+        panel._run_diagnostic_test()
+
+    config = diagnostics_controller.ui_event_bus.publish.call_args.args[0].data.config
+    assert "class_roles" not in config

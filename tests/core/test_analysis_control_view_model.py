@@ -186,3 +186,45 @@ def test_generate_parquet_summaries_starts_thread(view_model):
 
     tmock.assert_called_once()
     tmock.return_value.start.assert_called_once()
+
+
+def test_generate_summaries_applies_the_analysis_window(view_model, tmp_path):
+    """The summary entry resolves the window like the report coordinator (ADR-011)."""
+    trajectory = tmp_path / "3_CoordMovimento_exp1.parquet"
+    trajectory.write_text("data")
+    pm = view_model.project_manager
+    pm.find_video_entry.return_value = {"experiment_id": "exp1", "metadata": {}}
+    pm.resolve_results_directory.return_value = str(tmp_path)
+    pm.project_data = {"analysis_window": {"version": 1}}
+    pm.get_zone_data.return_value = SimpleNamespace(
+        polygon=[],
+        roi_polygons=[[(10, 10), (60, 10), (60, 60), (10, 60)]],
+        roi_names=["toca"],
+        roi_colors=[],
+    )
+    view_model.analysis_service.collect_analysis_parameters.return_value = {
+        "freezing_vel_threshold": 1.0,
+        "freezing_min_duration": 1.0,
+        "smoothing_window_length": 5,
+        "smoothing_polyorder": 2,
+    }
+    sentinel = object()
+
+    with (
+        patch(
+            "zebtrack.core.viewmodels.analysis_control_view_model.resolve_analysis_window",
+            return_value=sentinel,
+        ) as resolve,
+        patch("zebtrack.analysis.reporters.ReporterContext"),
+        patch("zebtrack.analysis.reporters.ExcelReporter"),
+        patch("zebtrack.analysis.reporters.ParquetSummaryReporter"),
+        patch("zebtrack.analysis.reporters.WordReporter"),
+        patch("zebtrack.core.video.video_metadata_service.VideoMetadataService"),
+    ):
+        view_model._generate_summaries_impl(["v.mp4"])
+
+    args, kwargs = resolve.call_args
+    assert args[1] == str(trajectory)
+    assert [roi.name for roi in kwargs["rois"]] == ["toca"]
+    call = view_model.analysis_service.run_full_analysis_as_dto.call_args
+    assert call.kwargs["window"] is sentinel

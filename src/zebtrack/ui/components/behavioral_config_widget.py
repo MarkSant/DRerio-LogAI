@@ -10,6 +10,7 @@ from typing import Any
 import structlog
 
 from zebtrack.i18n import _
+from zebtrack.settings import THIGMOTAXIS_MAX_DISTANCE_CM
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
@@ -205,7 +206,7 @@ class BehavioralConfigWidget(BaseWidget):
         self.thigmotaxis_spinbox = ttk.Spinbox(
             input_frame,
             from_=0.1,
-            to=10.0,
+            to=THIGMOTAXIS_MAX_DISTANCE_CM,
             increment=0.1,
             textvariable=self.thigmotaxis_distance_var,
             width=8,
@@ -506,8 +507,12 @@ class BehavioralConfigWidget(BaseWidget):
 
         # Validate thigmotaxis distance
         thigmotaxis = self.thigmotaxis_distance_var.get()
-        if thigmotaxis < 0.1 or thigmotaxis > 10.0:
-            errors.append(_("Thigmotaxis distance must be between 0.1 and 10.0 cm"))
+        if thigmotaxis < 0.1 or thigmotaxis > THIGMOTAXIS_MAX_DISTANCE_CM:
+            errors.append(
+                _("Thigmotaxis distance must be between {minimum} and {maximum} cm").format(
+                    minimum=0.1, maximum=THIGMOTAXIS_MAX_DISTANCE_CM
+                )
+            )
 
         # Validate geotaxis if enabled
         if self.geotaxis_enabled_var.get():

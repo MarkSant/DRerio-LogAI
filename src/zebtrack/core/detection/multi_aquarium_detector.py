@@ -7,13 +7,15 @@ video frame. Each aquarium gets independent tracking with offset track IDs.
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 import cv2
 import numpy as np
 import structlog
 
 from zebtrack.core.detection.bbox_area_gate import BboxAreaGate
+from zebtrack.core.detection.class_aliases import ClassAliases
+from zebtrack.core.detection.class_roles import ClassRoleMap, resolve_class_role_map
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.detection_types import AquariumData, MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.single_subject_tracker import SingleSubjectTracker
@@ -30,8 +32,34 @@ log = structlog.get_logger()
 # Track-ID offset multiplier: global_id = aquarium_id * MULTIPLIER + local_id
 AQUARIUM_TRACK_ID_MULTIPLIER: Final[int] = 1000
 MAX_LOCAL_TRACK_ID: Final[int] = AQUARIUM_TRACK_ID_MULTIPLIER - 1
+#: A track is recorded with the detection it overlaps by more than this (the
+#: ``SingleDetector`` rule); below it, the Kalman box (#668).
+_ORIGINAL_DETECTION_MIN_IOU: Final[float] = 0.1
 
-__all__ = ["AQUARIUM_TRACK_ID_MULTIPLIER", "MAX_LOCAL_TRACK_ID", "MultiAquariumDetector"]
+__all__ = [
+    "AQUARIUM_TRACK_ID_MULTIPLIER",
+    "MAX_LOCAL_TRACK_ID",
+    "MultiAquariumDetector",
+    "aquarium_of_track_id",
+]
+
+
+def aquarium_of_track_id(track_id: object) -> int | None:
+    """The aquarium a global track id belongs to, or ``None`` when unusable.
+
+    Inverse of the ``aquarium_id * 1000 + local_id`` offset applied by
+    :meth:`MultiAquariumDetector._offset_track_ids`. A negative id (untracked
+    detection) or a non-number has no aquarium.
+    """
+    if isinstance(track_id, bool):
+        return None
+    try:
+        value = int(track_id)  # type: ignore[call-overload]
+    except (TypeError, ValueError):
+        return None
+    if value < 0:
+        return None
+    return value // AQUARIUM_TRACK_ID_MULTIPLIER
 
 
 class MultiAquariumDetector:
@@ -47,6 +75,14 @@ class MultiAquariumDetector:
         base_width: The reference width zones were defined on.
         base_height: The reference height zones were defined on.
         settings_obj: Settings instance (injected, optional for backward compat).
+        class_role_map: Roles of the model's classes (ADR-009). ``None`` builds
+            the map from the aliases -- literally the 7.2 resolution.
+        source_fps: Real frame rate of the source (video ``CAP_PROP_FPS`` or the
+            camera's rate). Scales ByteTrack's lost-track buffer; ``None`` falls
+            back to ``settings.video_processing.fps`` with a warning (#630).
+        processing_interval: Detection cadence of the run (every N source
+            frames), the Kalman ``dt``. ``None`` falls back to
+            ``settings.video_processing.processing_interval`` (#667).
     """
 
     def __init__(
@@ -57,6 +93,9 @@ class MultiAquariumDetector:
         base_width: int = 1280,
         base_height: int = 720,
         settings_obj: "Settings | None" = None,
+        class_role_map: ClassRoleMap | None = None,
+        source_fps: float | None = None,
+        processing_interval: int | None = None,
     ) -> None:
         self.plugin = plugin
         if not self.plugin:
@@ -66,13 +105,35 @@ class MultiAquariumDetector:
         self.settings = settings_obj
         self.zone_scaler = zone_scaler
         self.post_processor = post_processor
+        self._source_fps: float | None = source_fps
+        self._processing_interval: int | None = processing_interval
+        #: Instant (s) of the frame about to be tracked, declared by
+        #: ``set_frame_time``; every aquarium of that frame ages its lost
+        #: tracks on it, then it is cleared (#654).
+        self._frame_time_s: float | None = None
         self.base_width = base_width
         self.base_height = base_height
 
-        # Dynamic class ID resolution
-        self.aquarium_class_id, self.animal_class_id = DetectionPostProcessor.resolve_class_ids(
-            plugin
-        )
+        # Class roles by NAME (ADR-009); without an explicit map the aliases
+        # decide, non-strictly, exactly as ``resolve_class_ids`` did in 7.2.
+        if class_role_map is None:
+            class_role_map = resolve_class_role_map(
+                getattr(plugin, "class_names", None),
+                aliases=ClassAliases.from_settings(settings_obj),
+                strict=False,
+            )
+        self.class_role_map: ClassRoleMap = class_role_map
+        self.aquarium_class_id, self.animal_class_id = class_role_map.to_legacy_tuple()
+        self._subject_ids: frozenset[int] = class_role_map.subject_ids
+        if class_role_map.has_context:
+            # Per-class NMS on backends that default to agnostic (OpenVINO).
+            nms_setter = getattr(plugin, "set_context_classes_present", None)
+            if callable(nms_setter):
+                nms_setter(True)
+        # Subject/context detections of the last detect call, per aquarium.
+        # A dict (not a list) because the parallel path fills it from worker
+        # threads; ``pop_class_observations`` flattens it in aquarium order.
+        self._class_observations: dict[int, list[dict[str, Any]]] = {}
 
         # Multi-aquarium state
         self._multi_aquarium_mode: bool = False
@@ -98,6 +159,151 @@ class MultiAquariumDetector:
             "multi_aquarium_detector.init.success",
             plugin=self.plugin.get_name(),
         )
+
+    def pop_class_observations(self) -> list[dict[str, Any]]:
+        """Subject and context detections of the last detect call.
+
+        Same contract as ``SingleDetector.pop_class_observations`` (and
+        ``pop_track_masks``): consumed once per frame. Items carry the
+        ``aquarium_id`` whose crop produced them.
+        """
+        observations = self._class_observations
+        self._class_observations = {}
+        return [item for aq_id in sorted(observations) for item in observations[aq_id]]
+
+    # =========================================================================
+    # Source frame rate (issue #630)
+    # =========================================================================
+
+    def set_source_fps(self, fps: float | None) -> None:
+        """Declare the real frame rate of the source being tracked.
+
+        Changing it makes ``_ensure_multi_trackers`` rebuild the trackers on the
+        next frame, because the rate is part of their parameter key.
+
+        Args:
+            fps: Real frames per second, or ``None`` when unknown.
+        """
+        self._source_fps = fps
+
+    @property
+    def source_fps(self) -> float | None:
+        """Real frame rate declared for the source (``None`` if unknown)."""
+        return self._source_fps
+
+    def set_processing_interval(self, interval: int | None) -> None:
+        """Declare the detection cadence of the run (issue #667).
+
+        Same contract as ``SingleDetector.set_processing_interval``: it is the
+        Kalman ``dt`` of every aquarium tracker, and changing it makes
+        ``_ensure_multi_trackers`` rebuild them on the next frame.
+
+        Args:
+            interval: Detect every N source frames, or ``None`` when unknown.
+        """
+        self._processing_interval = interval
+
+    @property
+    def processing_interval(self) -> int | None:
+        """Interval declared for the run (``None`` if unknown)."""
+        return self._processing_interval
+
+    def _tracker_processing_interval(self) -> int:
+        """Interval to build a ByteTrack with: declared > settings > 1 (#667)."""
+        return DetectionPostProcessor.get_processing_interval(
+            self.settings, self._processing_interval
+        )
+
+    def set_frame_time(self, t_s: float | None) -> None:
+        """Declare the instant of the frame the next ``detect_partitioned*`` tracks (#654).
+
+        Same contract as ``SingleDetector.set_frame_time``: ByteTrack ages lost
+        tracks in seconds on this clock, and the value serves ONE frame (all its
+        aquariums). It matters more here than in the single detector: an
+        aquarium with no detection skips ``update()`` altogether, so counting
+        updates froze the age of its lost track for as long as it stayed empty.
+
+        Args:
+            t_s: Frame instant in seconds, or ``None`` when unknown.
+        """
+        self._frame_time_s = None if t_s is None else float(t_s)
+
+    def _take_frame_time(self) -> float | None:
+        """The declared frame instant, cleared so it serves one frame only."""
+        frame_time_s, self._frame_time_s = self._frame_time_s, None
+        return frame_time_s
+
+    def _tracker_frame_rate(self) -> float:
+        """Frame rate to build a ByteTrack with; warns when it is the settings fallback."""
+        frame_rate, origin = DetectionPostProcessor.resolve_tracker_fps(
+            self.settings, self._source_fps
+        )
+        if origin != "source":
+            log.warning(
+                "multi_aquarium_detector.bytetrack.fps_fallback_to_settings",
+                frame_rate=frame_rate,
+                reason="source_fps_unknown",
+            )
+        return frame_rate
+
+    def _inference_window(
+        self, frame: np.ndarray, aquarium_id: int
+    ) -> tuple[np.ndarray, int, int, float | None, tuple[float, float, float] | None]:
+        """Crop, offset and confidence for one aquarium's inference.
+
+        Without context classes this is the legacy 10 px padded crop and the
+        plugin's own threshold -- byte for byte. With context classes the crop
+        follows ``context_inference_scope`` and the plugin infers with the lower
+        of the subject/context floors (re-applied per role afterwards).
+        """
+        if not self.class_role_map.has_context:
+            cropped, (offset_x, offset_y, _w, _h) = self.zone_scaler.crop_aquarium_region(
+                frame,
+                aquarium_id,
+                padding=10,
+            )
+            return cropped, offset_x, offset_y, None, None
+
+        scope, margin, context_floor = DetectionPostProcessor.context_settings(self.settings)
+        # Same polygon source as the legacy ``crop_aquarium_region``.
+        polygon = self.zone_scaler.get_aquarium_polygon(aquarium_id)
+        if polygon is None:
+            polygon = np.empty((0, 2), dtype=np.int32)
+        box = DetectionPostProcessor.context_crop_box(
+            polygon, frame.shape, scope=scope, margin_frac=margin, padding=10
+        )
+        if box is None:
+            x1, y1, x2, y2 = 0, 0, frame.shape[1], frame.shape[0]
+        else:
+            x1, y1, x2, y2 = box
+        subject_floor = float(getattr(self.plugin, "conf_threshold", 0.25))
+        floors = DetectionPostProcessor.role_confidence_floors(subject_floor, context_floor)
+        return frame[y1:y2, x1:x2], x1, y1, floors[0], floors
+
+    def _detect_in_window(
+        self,
+        window: tuple[np.ndarray, int, int, float | None, tuple[float, float, float] | None],
+        aquarium_id: int,
+    ) -> tuple[list[tuple], int, int]:
+        """Run the plugin on one aquarium's window (from ``_inference_window``).
+
+        Also records the aquarium's class observations (subject + context),
+        captured right after the offset as in the single detector.
+        """
+        cropped, offset_x, offset_y, inference_conf, floors = window
+        if inference_conf is None:
+            raw_detections = self.plugin.detect(cropped)
+        else:
+            raw_detections = self.plugin.detect(cropped, conf_threshold=inference_conf)
+        offset = DetectionPostProcessor.offset_detections(raw_detections, offset_x, offset_y)
+        if floors is not None:
+            offset = DetectionPostProcessor.filter_by_role_confidence(
+                offset, self.class_role_map, floors[1], floors[2]
+            )
+        self._class_observations[aquarium_id] = DetectionPostProcessor.class_observations(
+            offset, self.class_role_map, aquarium_id=aquarium_id
+        )
+        return raw_detections, offset_x, offset_y
 
     # =========================================================================
     # Zone configuration
@@ -213,8 +419,8 @@ class MultiAquariumDetector:
             mot20=False,
         )
 
-        processing_interval = pp.get_processing_interval(self.settings)
-        frame_rate = pp.get_fps(self.settings)
+        processing_interval = self._tracker_processing_interval()
+        frame_rate = self._tracker_frame_rate()
 
         try:
             self._byte_trackers_multi[aq.id] = BYTETracker(
@@ -291,7 +497,11 @@ class MultiAquariumDetector:
         track_buffer = pp.get_track_buffer(self.settings, self.plugin)
         max_dist = pp.get_max_center_distance(self.settings)
         iou_thresh = pp.get_iou_threshold(self.settings)
+        source_fps, _origin = pp.resolve_tracker_fps(self.settings, self._source_fps)
+        interval = self._tracker_processing_interval()
 
+        # Every parameter the trackers are built from is in the key, so a change
+        # to any of them rebuilds them (#666, #667, #698).
         params = (
             use_bytetrack,
             track_thresh,
@@ -299,6 +509,8 @@ class MultiAquariumDetector:
             track_buffer,
             max_dist,
             iou_thresh,
+            source_fps,
+            interval,
         )
 
         if self._multi_tracker_params == params:
@@ -323,8 +535,7 @@ class MultiAquariumDetector:
         try:
             for aq in self._aquariums:
                 if use_bytetrack:
-                    interval = pp.get_processing_interval(self.settings)
-                    fps = pp.get_fps(self.settings)
+                    fps = self._tracker_frame_rate()
                     new_byte[aq.id] = BYTETracker(
                         args=SimpleNamespace(
                             track_thresh=track_thresh,
@@ -403,6 +614,7 @@ class MultiAquariumDetector:
 
         self._ensure_multi_trackers()
         DetectionPostProcessor.validate_frame(frame)
+        self._class_observations = {}
 
         # Execute detection on full frame
         raw_detections = self.plugin.detect(frame)
@@ -416,9 +628,15 @@ class MultiAquariumDetector:
         # Partition detections by aquarium
         partitioned: dict[int, list] = {aq.id: [] for aq in self._aquariums}
 
+        explicit_roles = self.class_role_map.is_explicit
         for raw_det in raw_detections:
             det = DetectionPostProcessor.ensure_track_tuple(raw_det)
             x1, y1, x2, y2, conf, _track_id, _class_id = det
+            if explicit_roles and _class_id not in self._subject_ids:
+                # The legacy full-frame path never filtered by class. With an
+                # explicit map a context box (the experimenter) would otherwise
+                # be tracked as an animal; legacy weights keep the 7.2 path.
+                continue
             centroid = ((x1 + x2) / 2, (y1 + y2) / 2)
 
             for aq in self._aquariums:
@@ -479,15 +697,12 @@ class MultiAquariumDetector:
             return self.detect_partitioned(frame)
 
         # Process each aquarium with cropped regions
+        self._class_observations = {}
         partitioned: dict[int, list] = {}
         for aq in self._aquariums:
-            cropped, (offset_x, offset_y, _w, _h) = self.zone_scaler.crop_aquarium_region(
-                frame,
-                aq.id,
-                padding=10,
+            raw_detections, offset_x, offset_y = self._detect_in_window(
+                self._inference_window(frame, aq.id), aq.id
             )
-
-            raw_detections = self.plugin.detect(cropped)
 
             log.debug(
                 "multi_aquarium_detector.optimized.raw_crop",
@@ -505,8 +720,8 @@ class MultiAquariumDetector:
                 x2_g = x2 + offset_x
                 y2_g = y2 + offset_y
 
-                # Filter: class ID
-                if self.animal_class_id is not None and class_id != self.animal_class_id:
+                # Filter: class ID (every subject class, ADR-009)
+                if class_id not in self._subject_ids:
                     continue
 
                 # Filter: centroid within polygon (padding may capture outside)
@@ -559,6 +774,7 @@ class MultiAquariumDetector:
 
         results: dict[int, list[tuple]] = {}
         errors: dict[int, str] = {}
+        self._class_observations = {}
 
         def process_aquarium(
             aq_id: int,
@@ -573,17 +789,13 @@ class MultiAquariumDetector:
                         f"Aquarium {aq_id} not found in configuration",
                     )
 
-                cropped, crop_box = self.zone_scaler.crop_aquarium_region(
-                    frame,
-                    aq_id,
-                    padding=10,
-                )
-                offset_x, offset_y = crop_box[0], crop_box[1]
+                window = self._inference_window(frame, aq_id)
+                cropped = window[0]
 
                 if cropped is None or cropped.size == 0:
                     return aq_id, [], f"Aquarium {aq_id}: Empty crop region"
 
-                raw_detections = self.plugin.detect(cropped)
+                raw_detections, offset_x, offset_y = self._detect_in_window(window, aq_id)
 
                 adjusted = []
                 polygon = self._scaled_aquarium_polygons.get(aq_id)
@@ -596,7 +808,7 @@ class MultiAquariumDetector:
                     x2 = int(x2_f) + offset_x
                     y2 = int(y2_f) + offset_y
 
-                    if self.animal_class_id is not None and class_id != self.animal_class_id:
+                    if class_id not in self._subject_ids:
                         continue
 
                     centroid = ((x1 + x2) / 2, (y1 + y2) / 2)
@@ -616,6 +828,7 @@ class MultiAquariumDetector:
                 )
                 return aq_id, [], f"Aquarium {aq_id}: {e!s}"
 
+        frame_time_s = self._take_frame_time()
         start_time = time.perf_counter()
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(process_aquarium, aq.id): aq.id for aq in self._aquariums}
@@ -628,22 +841,20 @@ class MultiAquariumDetector:
                         results[aq_id] = []
                         continue
 
-                    # Tracking must be sequential (ByteTracker is not thread-safe)
-                    if detections:
-                        tracker = self._byte_trackers_multi.get(aq_id)
-                        if tracker is None:
-                            log.error(
-                                "multi_aquarium_detector.parallel.tracker_missing",
-                                aquarium_id=aq_id,
-                            )
-                            errors[aq_id] = f"ByteTracker not initialised for aquarium {aq_id}"
-                            results[aq_id] = []
-                            continue
-
-                        tracked = self._apply_byte_tracking_multi(detections, tracker)
-                        results[aq_id] = self._offset_track_ids(tracked, aq_id)
-                    else:
+                    # Tracking must be sequential (ByteTracker is not thread-safe).
+                    # An empty aquarium still advances its tracker (#668).
+                    tracker = self._byte_trackers_multi.get(aq_id)
+                    if tracker is None:
+                        log.error(
+                            "multi_aquarium_detector.parallel.tracker_missing",
+                            aquarium_id=aq_id,
+                        )
+                        errors[aq_id] = f"ByteTracker not initialised for aquarium {aq_id}"
                         results[aq_id] = []
+                        continue
+
+                    tracked = self._apply_byte_tracking_multi(detections, tracker, frame_time_s)
+                    results[aq_id] = self._offset_track_ids(tracked, aq_id)
                 # except Exception justified: zone/ROI — heterogeneous errors
                 except Exception as e:
                     aq_id = futures[future]
@@ -698,6 +909,7 @@ class MultiAquariumDetector:
         pp = DetectionPostProcessor
         use_bytetrack = pp.should_use_bytetrack(self.settings)
         results: dict[int, list[tuple]] = {}
+        frame_time_s = self._take_frame_time()
 
         # Runaway-bbox gate applied HERE because all three ``detect_partitioned*``
         # variants funnel through this method, and it sits before tracking — so
@@ -708,7 +920,9 @@ class MultiAquariumDetector:
         }
 
         for aq_id, detections in partitioned.items():
-            if detections:
+            # ByteTrack runs for EVERY aquarium, empty or not (#668); the simple
+            # tracker keeps its last assignment across an empty frame.
+            if detections or use_bytetrack:
                 if use_bytetrack:
                     tracker = self._byte_trackers_multi.get(aq_id)
                     if tracker is None:
@@ -721,7 +935,7 @@ class MultiAquariumDetector:
                             f"ByteTracker not initialised for aquarium {aq_id}. "
                             "Call set_multi_aquarium_zones() first."
                         )
-                    tracked = self._apply_byte_tracking_multi(detections, tracker)
+                    tracked = self._apply_byte_tracking_multi(detections, tracker, frame_time_s)
                 else:
                     simple = self._single_subject_trackers_multi.get(aq_id)
                     if simple is None:
@@ -779,47 +993,87 @@ class MultiAquariumDetector:
         self,
         detections: list[tuple],
         tracker: BYTETracker,
+        frame_time_s: float | None = None,
     ) -> list[tuple]:
         """Apply ByteTracker to detections for one aquarium.
+
+        An aquarium with no detection still advances its tracker (issue #668):
+        ``frame_id`` counts every analysed frame and the Kalman prediction keeps
+        moving, so the animal is looked for where it would be when it comes
+        back, as in ``SingleDetector``. Skipping the call froze the prediction at
+        the last hit and read the whole gap as one frame's worth of motion.
+
+        Each track is recorded with the box, confidence and class of the
+        detection it overlaps best (IoU > ``_ORIGINAL_DETECTION_MIN_IOU``), the
+        ``SingleDetector`` rule; the Kalman box is only the fallback. Until #668
+        the multi path recorded the Kalman box and took the class from a
+        detection whose top-left corner was within 10 px of it.
 
         Args:
             detections: List of detection tuples.
             tracker: ByteTracker instance for this aquarium.
+            frame_time_s: Instant of the frame (``set_frame_time``), or ``None``.
 
         Returns:
             List of detections with updated track_ids.
         """
+        frame_dims = [self._last_height or 720, self._last_width or 1280]
         if not detections:
+            tracker.update(
+                np.empty((0, 5), dtype=np.float32),
+                frame_dims,
+                frame_dims,
+                frame_time_s=frame_time_s,
+            )
             return []
 
         det_array = np.array([[d[0], d[1], d[2], d[3], d[4]] for d in detections])
 
         online_targets = tracker.update(
             det_array,
-            [self._last_height or 720, self._last_width or 1280],
-            [self._last_height or 720, self._last_width or 1280],
+            frame_dims,
+            frame_dims,
+            frame_time_s=frame_time_s,
         )
 
         tracked = []
         for track in online_targets:
             tlbr = track.tlbr
-            x1, y1, x2, y2 = (
-                int(tlbr[0]),
-                int(tlbr[1]),
-                int(tlbr[2]),
-                int(tlbr[3]),
-            )
-            track_id = track.track_id
-            conf = track.score
-
-            # Find original class_id from closest detection
-            class_id = self.animal_class_id
+            best_det = None
+            best_iou = 0.0
             for det in detections:
-                if abs(det[0] - x1) < 10 and abs(det[1] - y1) < 10:
-                    class_id = det[6]
-                    break
+                iou = DetectionPostProcessor.calculate_iou(
+                    tlbr[0], tlbr[1], tlbr[2], tlbr[3], det[0], det[1], det[2], det[3]
+                )
+                if iou > best_iou:
+                    best_iou = iou
+                    best_det = det
 
-            tracked.append((x1, y1, x2, y2, conf, track_id, class_id))
+            if best_det is not None and best_iou > _ORIGINAL_DETECTION_MIN_IOU:
+                box = best_det[:4]
+                conf = best_det[4]
+                class_id = best_det[6]
+            else:
+                box = tlbr
+                conf = track.score
+                class_id = self.animal_class_id
+                log.warning(
+                    "multi_aquarium_detector.bytetrack.no_matching_detection",
+                    track_id=track.track_id,
+                    best_iou=best_iou,
+                )
+
+            tracked.append(
+                (
+                    int(box[0]),
+                    int(box[1]),
+                    int(box[2]),
+                    int(box[3]),
+                    float(conf),
+                    track.track_id,
+                    class_id,
+                )
+            )
 
         return tracked
 
@@ -862,8 +1116,8 @@ class MultiAquariumDetector:
             track_buffer=pp.get_track_buffer(self.settings, self.plugin),
             mot20=False,
         )
-        processing_interval = pp.get_processing_interval(self.settings)
-        frame_rate = pp.get_fps(self.settings)
+        processing_interval = self._tracker_processing_interval()
+        frame_rate = self._tracker_frame_rate()
 
         if aquarium_id is not None:
             if aquarium_id in self._byte_trackers_multi:

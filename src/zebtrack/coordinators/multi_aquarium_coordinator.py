@@ -19,6 +19,10 @@ from typing import TYPE_CHECKING, Any, cast
 import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
+from zebtrack.core.services.single_subject_policy import (
+    count_means_single,
+    resolve_project_single_subject,
+)
 from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
@@ -190,6 +194,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
 
         try:
             from zebtrack.core.detection.aquarium_detector import AquariumDetector
+            from zebtrack.core.detection.class_aliases import ClassAliases
             from zebtrack.core.services.arena_detection_policy import resolve_arena_detection
             from zebtrack.utils.geometry import resolve_polygon_epsilon_factor
 
@@ -258,7 +263,11 @@ class MultiAquariumCoordinator(BaseCoordinator):
                 )
                 return None
 
-            detector = AquariumDetector(model_path=model_path, mode=detection_method)
+            detector = AquariumDetector(
+                model_path=model_path,
+                mode=detection_method,
+                class_aliases=ClassAliases.from_settings(self.settings),
+            )
 
             if multi_aquarium:
                 # The arena policy applies to TWO aquariums exactly as it does to
@@ -955,51 +964,21 @@ class MultiAquariumCoordinator(BaseCoordinator):
             True for single animal, False for multi, None if unresolvable.
         """
 
-        def _from_animals_count(value: object) -> bool | None:
-            if value in (None, ""):
-                return None
-            try:
-                return int(str(value)) <= 1
-            except (TypeError, ValueError):
-                return None
-
         if config:
             val = config.get("single_animal_per_aquarium")
             if val is not None:
                 return bool(val)
 
-            count_based = _from_animals_count(config.get("animals_per_aquarium"))
+            count_based = count_means_single(config.get("animals_per_aquarium"))
             if count_based is not None:
                 return count_based
 
-        # Check project data
+        # The project's rule lives in ONE place (#649): the animal count beats
+        # the stored ``tracking`` flag, which a migration used to fill from the
+        # global settings.
         project_data = getattr(self.project_manager, "project_data", {}) or {}
-
-        # 1. Explicit flag at top level (legacy)
-        val = project_data.get("single_animal_per_aquarium")
-        if val is not None:
-            return bool(val)
-
-        # 2. Top-level animals_per_aquarium (legacy)
-        count_based = _from_animals_count(project_data.get("animals_per_aquarium"))
-        if count_based is not None:
-            return count_based
-
-        # 3. tracking.use_single_subject_tracker (set by wizard at project creation)
-        tracking = project_data.get("tracking")
-        if isinstance(tracking, dict):
-            tracker_pref = tracking.get("use_single_subject_tracker")
-            if tracker_pref is not None:
-                return bool(tracker_pref)
-
-        # 4. calibration.animals_per_aquarium (set by wizard at project creation)
-        calibration = project_data.get("calibration")
-        if isinstance(calibration, dict):
-            count_based = _from_animals_count(calibration.get("animals_per_aquarium"))
-            if count_based is not None:
-                return count_based
-
-        return None
+        decision = resolve_project_single_subject(project_data)
+        return None if decision is None else decision.single
 
     def _resolve_single_subject_tracker_preference(self, config: dict | None = None) -> bool | None:
         """Resolve single subject tracker preference."""

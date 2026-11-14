@@ -497,6 +497,20 @@ class TestProjectManager(unittest.TestCase):
             self.assertEqual(data["batches"][0]["videos"][0]["status"], "pending")
             self.assertEqual(data["batches"][0]["videos"][1]["status"], "processed")
 
+    def test_create_new_project_persists_the_wizard_analysis_window(self):
+        """A converted v3 template's window must reach project_config.json."""
+        from zebtrack.core.conditions.presets import external_trigger_preset
+
+        window = external_trigger_preset().model_dump(mode="json", by_alias=True)
+        pm = ProjectManager(settings_obj=self.settings_obj)
+        project_path = os.path.join(self.test_dir, "window_project")
+        pm.create_new_project(project_path, "live", use_arduino=True, analysis_window=window)
+
+        with open(os.path.join(project_path, CONFIG_FILE_NAME)) as f:
+            data = json.load(f)
+        self.assertEqual(data["analysis_window"], window)
+        self.assertFalse(data["external_trigger_mode"])
+
     def test_create_new_project_initial_model_overrides(self):
         """Project creation should initialize model overrides as inherited defaults."""
         pm = ProjectManager(settings_obj=self.settings_obj)
@@ -507,6 +521,7 @@ class TestProjectManager(unittest.TestCase):
         with open(config_path) as f:
             data = json.load(f)
 
+        self.assertIsNone(data["analysis_window"])
         self.assertIn("model_overrides", data)
         self.assertEqual(
             data["model_overrides"],
@@ -515,6 +530,9 @@ class TestProjectManager(unittest.TestCase):
                 "use_openvino": None,
                 "device": "AUTO",
                 "slot_weights": {},
+                # ADR-009/012: explicit class roles, inert until the user sets them.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
         )
         self.assertEqual(
@@ -524,6 +542,9 @@ class TestProjectManager(unittest.TestCase):
                 "use_openvino": None,
                 "device": "AUTO",
                 "slot_weights": {},
+                # ADR-009/012: explicit class roles, inert until the user sets them.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
         )
 
@@ -762,14 +783,40 @@ class TestProjectManager(unittest.TestCase):
                 "use_openvino": None,
                 "device": "AUTO",
                 "slot_weights": {},
+                # ADR-009/012: explicit class roles, inert until the user sets them.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
         )
         self.assertIn("tracking", pm.project_data)
-        self.assertIn("use_single_subject_tracker", pm.project_data["tracking"])
-        self.assertEqual(
-            pm.project_data["tracking"]["use_single_subject_tracker"],
-            self.settings_obj.tracking.use_single_subject_tracker,
-        )
+        # #649: the flag follows the project's (migrated) count of 1 animal, not
+        # the global setting -- which is False by default and used to turn a
+        # one-animal project into a multi-subject one on its first load.
+        self.assertFalse(self.settings_obj.tracking.use_single_subject_tracker)
+        self.assertIs(pm.project_data["tracking"]["use_single_subject_tracker"], True)
+
+    def test_load_project_without_tracking_derives_the_flag_from_the_animal_count(self):
+        """#649: a 1-rat project opened without ``tracking`` tracks ONE subject."""
+        pm = ProjectManager(settings_obj=self.settings_obj)
+        self.assertFalse(self.settings_obj.tracking.use_single_subject_tracker)
+        results = {}
+        for animals in (1, 3):
+            project_path = os.path.join(self.test_dir, f"no_tracking_{animals}")
+            os.makedirs(project_path, exist_ok=True)
+            with open(os.path.join(project_path, CONFIG_FILE_NAME), "w") as f:
+                json.dump(
+                    {
+                        "project_name": f"no_tracking_{animals}",
+                        "project_type": "pre-recorded",
+                        "calibration": {"num_aquariums": 1, "animals_per_aquarium": animals},
+                        "batches": [],
+                    },
+                    f,
+                )
+            pm.load_project(project_path)
+            results[animals] = pm.project_data["tracking"]["use_single_subject_tracker"]
+
+        self.assertEqual(results, {1: True, 3: False})
 
     def test_load_project_migrates_missing_camera_and_interval_fields(self):
         """Legacy projects missing interval/camera fields should gain safe defaults."""
@@ -825,6 +872,9 @@ class TestProjectManager(unittest.TestCase):
                 "use_openvino": None,
                 "device": "AUTO",
                 "slot_weights": {},
+                # ADR-009/012: explicit class roles, inert until the user sets them.
+                "class_roles": None,
+                "class_roles_weight_sha256": None,
             },
         )
 

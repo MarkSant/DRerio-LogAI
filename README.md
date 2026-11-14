@@ -5,7 +5,7 @@
 
 **Intelligent Tracking and Behavioral Analysis Platform for _Danio rerio_ (Zebrafish)**
 
-![Version](https://img.shields.io/badge/version-7.2.0-blue.svg)
+![Version](https://img.shields.io/badge/version-8.0.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
 ![INPI](https://img.shields.io/badge/INPI-BR%2051%202026%20005215--7-blueviolet.svg)
@@ -312,7 +312,7 @@ poetry run fetch-weights            # download whatever is missing or corrupt
 
 ### The wizard, step by step
 
-Both flows start from **Create New Project**. The wizard is 1150×550 px and shows its own step
+Both flows start from **Create New Project**. The wizard is 1050×780 px and shows its own step
 counter.
 
 #### Pre-recorded project — 7 steps
@@ -512,6 +512,16 @@ Longer lists: [Troubleshooting](docs/wiki/user-guide/TROUBLESHOOTING.md),
 
 ## 🆕 What's new
 
+**Version 8.0.0** — any detection weight, any protocol. Each class of a weight gets a role
+(subject, arena, context or ignored), so a rodent weight with an experimenter and a start box in
+it tracks the rat and not whatever class came first; a weight with no class recognisable as the
+animal is refused instead of tracking the wrong object. Each recording can also have its own
+**start and end of analysis**, defined by conditions (classes present or absent, ROI entries,
+time, Arduino codes, a manual mark) and measured on the recording's own clock — with a ready-made
+preset for the Barnes maze. Some numbers change on purpose (ROI latency, recording duration, the
+frame rate of variable-rate videos); the [release notes](docs/releases/RELEASE_NOTES_v8.0.0.md)
+say which and why.
+
 **Version 7.2.0** — the installer now installs Python and Poetry itself when they are missing,
 instead of asking you to do it in a terminal; the documentation was rewritten for people who have
 never used one; and the DOI badge stopped rendering as a broken icon.
@@ -534,8 +544,11 @@ The software is archived on Zenodo:
 | DOI | Resolves to |
 | --- | --- |
 | [`10.5281/zenodo.22650404`](https://doi.org/10.5281/zenodo.22650404) | **All versions.** Cite this one unless you need to pin a specific release. |
-| [`10.5281/zenodo.22783436`](https://doi.org/10.5281/zenodo.22783436) | Release **7.2.0** specifically (this one). |
+| [`10.5281/zenodo.22783436`](https://doi.org/10.5281/zenodo.22783436) | Release **7.2.0** specifically. |
 | [`10.5281/zenodo.22650405`](https://doi.org/10.5281/zenodo.22650405) | Release **7.0.0** specifically. |
+
+Release **8.0.0** gets its own version DOI when it is published on GitHub; until then,
+cite the all-versions DOI.
 
 > **Reproducing the published results.** The validation and benchmark numbers reported in the
 > associated manuscripts were produced with release **4.0.0** (tag

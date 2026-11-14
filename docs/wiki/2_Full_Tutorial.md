@@ -34,6 +34,21 @@ This tutorial walks through the complete DRerio LogAI workflow: creating a proje
 
 > 🛈 When editing ROIs, the cyan snapping indicator and the handles stay within the arena boundaries, preventing accidental drags outside the valid area.
 
+### Optional (v8) · Class roles and the analysis window
+
+- **A weight with other classes** — a rodent weight with `arena`, `experimenter`, `rat` and
+  `start_box`, for instance — needs each class to have a role: subject (tracked), arena,
+  context (seen, not tracked) or ignored. Most names resolve on their own; set the rest in the
+  **AI Model Config.** tab or in *Global Model Configuration…* → **Class roles…**.
+- **An analysis that starts or stops on a condition** — the experimenter leaving, an ROI entry,
+  an Arduino code, 240 s after the start — is defined in this same tab, in the **Analysis Window
+  (Optional)** panel, with a ready-made **Barnes maze preset**. The video is always recorded in
+  full; only the metrics are cut.
+
+Step by step, with the Barnes example:
+[Using a weight with other classes](user-guide/GETTING_STARTED.md#using-a-weight-with-other-classes-class-roles)
+and [Defining the start and end of the analysis](user-guide/GETTING_STARTED.md#defining-the-start-and-end-of-the-analysis).
+
 ---
 
 ## Step 3 · Tune detector settings

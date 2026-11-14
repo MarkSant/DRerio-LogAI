@@ -16,7 +16,9 @@ registered in `plugins/__init__.py` via the `DETECTOR_PLUGINS` dict.
 
 **ByteTracker**
 Multi-object tracker (in `tracker/`) that assigns persistent `track_id`s across
-frames using Kalman filtering + matching.
+frames using Kalman filtering + matching. Its lost-track buffer is counted in
+frames and scaled by the source's REAL fps (#630), so it means the same real
+time on a 30 fps zebrafish video and on a ~9.9 fps Barnes video.
 
 **track_id (convention)**
 Persistent ID for one tracked subject across frames.
@@ -136,7 +138,7 @@ Identifier scoped to one experiment (often = day or treatment). Used in output
 folder naming for live sessions: `live_analysis_sessions/{experiment_id}_{ts}/`.
 
 **Subject**
-One tracked individual (one fish). Has `subject_name` (display) and
+One tracked individual (one animal). Has `subject_name` (display) and
 `subject_id` (stable). In single-subject mode, one subject per aquarium; in
 multi-subject mode, multiple per aquarium.
 
@@ -155,8 +157,8 @@ Group → Day → Subject → Video. Cascade deletion lives in
 ## Wizard
 
 **Wizard / WizardService**
-Project creation flow. UI lives in `ui/wizard/` (5-step flow: import config →
-file selection → calibration → model selection → confirmation). Business logic
+Project creation flow. UI lives in `ui/wizard/` (7 steps for a pre-recorded
+project, 6 for a live one; see `WizardStepID`). Business logic
 lives in `core/services/wizard_service.py` (validation, hardware detection,
 30s TTL hardware cache).
 
@@ -182,6 +184,92 @@ protocol so the processing pipeline doesn't care which source it has.
 **Recorder / RecorderFactory**
 Writes detection rows to parquet. `RecorderFactory` lazily imports
 pandas/pyarrow only when analysis starts (saves ~2.9s startup + 150 MB).
+
+## Class roles & analysis window (v8)
+
+**Class role**
+What a class of a detection weight *is*, one of four persisted tokens (never
+translated): `subject` (tracked and measured; several subject classes share one
+`track_id` axis), `arena` (the apparatus, at most one class), `context` (seen and
+recorded per frame, never tracked — e.g. `experimenter`, `start_box`) and
+`ignored`. Defined in `core/detection/class_roles.py` (ADR-009).
+
+**ClassRoleMap / role source**
+The frozen map of roles **by normalised class name** (never by id, so a retrain
+that inserts a class shifts nothing). `source` says where it came from:
+`project` (`model_overrides.class_roles`, valid only while
+`class_roles_weight_sha256` matches the effective weight), `weight` (the
+`class_roles` of the `weights_config.json` entry), `aliases` (`class_aliases.py`
+name lists; never produce `context`) or `legacy_positional` (ids 0/1, only for a
+model without names). Built only by `resolve_class_role_map()`.
+
+**ClassRolesUnresolvedError**
+Raised when a weight has class names, three or more classes and none resolvable
+as the subject. Live and batch detection refuse such a weight instead of tracking
+class 1 by position. Catch it by type, never by message.
+
+**Object sidecar (`3c_Objetos_<base>.parquet`)**
+Per-video file next to the trajectory with one **heartbeat** row per processed
+frame (`class_id = -1`, `role = "frame"`, no bbox) plus one row per subject and
+context detection. The heartbeat is what distinguishes "nothing was detected"
+from "the frame was not processed". Written unless
+`recorder.persist_object_sidecar` is `False` (`should_capture_objects()`); schema
+in [`data_schema.md`](data_schema.md).
+
+**Analysis window / WindowSpec**
+The rule that says when the analysis STARTS and STOPS inside a recording
+(ADR-011), stored in `project_data["analysis_window"]` (`None` = whole
+recording). A `WindowSpec` has a `start` and a `stop` condition,
+`on_start_not_met` (`whole_recording` | `empty`) and `on_stop` (`mark` |
+`end_session`, live only). The recording is always complete; only the metrics are
+cut.
+
+**Condition (level / trigger)**
+Nodes of a `WindowSpec`, discriminated by a persisted `kind`. A **level** is true
+or false on each frame (`ClassPresence`, `RoiInside`, `Not`, `AllOfLevel`,
+`AnyOfLevel`); a **trigger** fires once, at an instant (`Persist`, `RoiEdge`,
+`TimeReached`, `FrameReached`, `Delay`, `External`, `EndOfStream`, `FirstOf`,
+`AllOf`, `Sequence`). One evaluator (`core/conditions/evaluator.py`) serves live
+(`step` per frame) and analysis (`evaluate_window`, a fold over `step`).
+
+**Event clock**
+The clock conditions and the window are measured on: the video's PTS
+(`timestamp = POS_MSEC / 1000`) for pre-recorded files, the capture instant
+(`t_capture_perf − t0_perf` from the `6_FrameLedger`) for live sessions. The live
+`timestamp` column of `3_CoordMovimento` is a processing clock and never dates an
+event; `time_base.retime_from_ledger()` re-dates a live trajectory in memory.
+
+**Back-dating**
+A held condition ("rat visible for 5 frames") fires at the FIRST frame of the run
+that satisfied it, not at the frame that confirmed it. `WindowEvent` carries both
+(`frame`/`t_s` and `confirmed_frame`/`confirmed_t_s`): live acts at the
+confirmation, analysis cuts at the instant.
+
+**Censored (window / latency)**
+A window whose STOP was never met ends at the end of the recording with
+`censored = True` (reason `end_of_stream`). A subject that never enters an ROI
+inside a window gets the window duration as its latency, with
+`latency_censored[roi] = True` — a ceiling, not a measured value. Without a
+window, a never-entered ROI keeps latency `None` (legacy).
+
+**Present at start**
+`latency_present_at_start[roi] = True` when the subject is already inside the ROI
+at the window START (or at `t0` without a window): latency is `0.0` and the entry
+count only counts real outside→inside transitions afterwards.
+
+**`7_AnalysisWindow_<base>.json`**
+The resolved window next to the trajectory: `spec` and `spec_hash`, `clock`,
+`external_events` (Arduino/manual events recorded live), `online` (what the live
+runtime decided) and `offline` (what the analysis computed, with input hashes).
+`offline` governs the metrics; a divergence of more than one frame from `online`
+becomes a report warning. Reused while the rule and the inputs do not change
+(`AnalysisWindowService.resolve()`).
+
+**Time base**
+fps and duration of a recording, from `analysis/time_base.resolve_time_base()`:
+3c heartbeat > frame ledger > unique trajectory timestamps >
+`settings.video_processing.fps` (with a report warning). `duracao_video_s` is
+`(t_last − t_first) + median_dt` over unique timestamps, not a row count.
 
 ## Parquet schema (immutable)
 

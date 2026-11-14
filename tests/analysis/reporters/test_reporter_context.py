@@ -115,3 +115,42 @@ class TestReporterContextPerspectiveNormalization:
     def test_normalize_aquarium_perspective(self, raw, expected):
         """Mapeia variantes top/dorsal/overhead para top_down; resto para lateral."""
         assert ReporterContext._normalize_aquarium_perspective(raw) == expected
+
+
+@pytest.mark.unit
+class TestReporterContextWindow:
+    """The legacy path (parquet summaries) applies the analysis window too."""
+
+    def test_window_reaches_the_analysis(
+        self, reporter_trajectory_df, reporter_rois, reporter_mock_settings
+    ):
+        from zebtrack.analysis.analysis_window_service import WindowBound, WindowResolution
+
+        window = WindowResolution(
+            status="complete",
+            spec_hash="sha256:" + "c" * 64,
+            start=WindowBound(5, 0.5, "persist"),
+            stop=WindowBound(20, 2.0, "persist"),
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            ctx = ReporterContext(
+                **_legacy_kwargs(reporter_trajectory_df, reporter_rois, reporter_mock_settings),
+                window=window,
+            )
+
+        assert ctx.report["analysis_window"]["status"] == "complete"
+        assert ctx.b_analyzer.window_bounds == (0.5, 2.0)
+        assert ctx.tidy_data["window_duration_s"].iloc[0] == pytest.approx(1.5)
+
+    def test_no_window_keeps_status_none(
+        self, reporter_trajectory_df, reporter_rois, reporter_mock_settings
+    ):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            ctx = ReporterContext(
+                **_legacy_kwargs(reporter_trajectory_df, reporter_rois, reporter_mock_settings)
+            )
+
+        assert ctx.report["analysis_window"] == {"status": "none"}
+        assert pd.isna(ctx.tidy_data["window_duration_s"].iloc[0])

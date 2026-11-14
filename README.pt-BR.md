@@ -5,7 +5,7 @@
 
 **Plataforma Inteligente de Rastreamento e Análise Comportamental para _Danio rerio_ (Zebrafish)**
 
-![Version](https://img.shields.io/badge/version-7.2.0-blue.svg)
+![Version](https://img.shields.io/badge/version-8.0.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0--or--later%20effective-lightgrey.svg)
 ![INPI](https://img.shields.io/badge/INPI-BR%2051%202026%20005215--7-blueviolet.svg)
@@ -319,7 +319,7 @@ poetry run fetch-weights            # baixa o que faltar ou estiver corrompido
 
 ### O assistente, passo a passo
 
-Os dois fluxos partem de **Criar Novo Projeto**. O assistente tem 1150×550 px e mostra seu próprio
+Os dois fluxos partem de **Criar Novo Projeto**. O assistente tem 1050×780 px e mostra seu próprio
 contador de passos.
 
 #### Projeto pré-gravado — 7 passos
@@ -522,6 +522,16 @@ Listas mais longas: [Solução de problemas](docs/wiki/user-guide/TROUBLESHOOTIN
 
 ## 🆕 Novidades
 
+**Versão 8.0.0** — qualquer peso de detecção, qualquer protocolo. Cada classe de um peso ganha um
+papel (sujeito, arena, contexto ou ignorada), então um peso de roedor com experimentador e caixa de
+partida rastreia o rato, e não a classe que vier primeiro; um peso sem nenhuma classe reconhecível
+como o animal é recusado em vez de rastrear o objeto errado. Cada gravação também pode ter o seu
+**início e fim de análise**, definidos por condições (classes presentes ou ausentes, entradas em
+ROI, tempo, códigos do Arduino, uma marcação manual) e medidos no relógio da própria gravação — com
+uma predefinição pronta para o labirinto de Barnes. Alguns números mudam de propósito (latência de
+ROI, duração da gravação, taxa de quadros de vídeos com taxa variável); as
+[notas da versão](docs/releases/RELEASE_NOTES_v8.0.0.md) dizem quais e por quê.
+
 **Versão 7.2.0** — o instalador passou a instalar sozinho o Python e o Poetry quando faltam, em vez
 de pedir que você faça isso num terminal; a documentação foi reescrita para quem nunca usou um; e o
 badge do DOI parou de aparecer quebrado.
@@ -543,8 +553,11 @@ O software está arquivado no Zenodo:
 | DOI | Resolve para |
 | --- | --- |
 | [`10.5281/zenodo.22650404`](https://doi.org/10.5281/zenodo.22650404) | **Todas as versões.** Cite este, a menos que precise fixar um release específico. |
-| [`10.5281/zenodo.22783436`](https://doi.org/10.5281/zenodo.22783436) | O release **7.2.0** especificamente (este). |
+| [`10.5281/zenodo.22783436`](https://doi.org/10.5281/zenodo.22783436) | O release **7.2.0** especificamente. |
 | [`10.5281/zenodo.22650405`](https://doi.org/10.5281/zenodo.22650405) | O release **7.0.0** especificamente. |
+
+O release **8.0.0** ganha um DOI de versão próprio quando for publicado no GitHub; até lá,
+cite o DOI de todas as versões.
 
 > **Reproduzindo os resultados publicados.** Os números de validação e benchmark reportados nos
 > manuscritos associados foram produzidos com o release **4.0.0** (tag

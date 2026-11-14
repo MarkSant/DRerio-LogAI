@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.wizard.models import (
+    BehavioralAnalysisData,
     CalibrationData,
     ExperimentalDesignData,
     LiveConfigData,
@@ -435,6 +436,19 @@ class TestWizardStepTransitions:
         """Test canceling wizard discards all changes."""
         # UI test - would require actual wizard instance
         pass
+
+
+class TestRodentBehaviouralBounds:
+    """#631: the open-field periphery of a rat (10-20 cm) is a valid thigmotaxis band."""
+
+    def test_open_field_band_is_accepted(self):
+        data = BehavioralAnalysisData(thigmotaxis_distance_cm=15.0)
+
+        assert data.thigmotaxis_distance_cm == 15.0
+
+    def test_a_typo_of_another_order_of_magnitude_is_still_refused(self):
+        with pytest.raises(ValidationError):
+            BehavioralAnalysisData(thigmotaxis_distance_cm=150.0)
 
 
 if __name__ == "__main__":

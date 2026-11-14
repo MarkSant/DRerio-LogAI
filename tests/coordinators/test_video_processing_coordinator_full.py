@@ -539,3 +539,35 @@ class TestSingleSubjectReachesTheWorker:
         context = coord.create_processing_context([], "out", single_video_config=None)
 
         assert context.settings.tracking.use_single_subject_tracker is False
+
+
+class TestProjectWeightReachesTheWorker:
+    """The context ships the weight the PROJECT chose, resolved here (ADR-009)."""
+
+    def test_context_carries_the_project_slot_weight(self, mock_deps, tmp_path):
+        coord, deps = mock_deps
+        rat = tmp_path / "best_det_topdown_rat_v1.pt"
+        rat.write_bytes(b"rat")
+        weight_manager = deps["weight_manager"]
+        weight_manager.weights = {rat.name: {"path": str(rat), "type": "det"}}
+        weight_manager.get_weight_sha256.return_value = "a" * 64
+        deps["project_manager"].project_data = {
+            "model_selection": {"animal_method": "det"},
+            "model_overrides": {"slot_weights": {"det:zebrafish": rat.name}},
+            "use_openvino": False,
+        }
+        coord._multi_aquarium_coordinator = None
+        snapshot = SimpleNamespace(
+            tracking=SimpleNamespace(use_single_subject_tracker=False),
+            video_processing=SimpleNamespace(batch_retry_strategy="continue"),
+            model_selection=SimpleNamespace(animal_method="seg", use_openvino=False),
+        )
+        coord._create_project_settings_snapshot = lambda: snapshot  # type: ignore[method-assign]
+
+        context = coord.create_processing_context([], "out")
+
+        assert context.model_spec is not None
+        assert context.model_spec.model_path == str(rat)
+        assert context.model_spec.weight_sha256 == "a" * 64
+        assert context.model_spec.animal_method == "det"
+        weight_manager.get_weight_path_by_method.assert_not_called()

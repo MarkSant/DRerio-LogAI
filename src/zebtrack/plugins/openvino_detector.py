@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import structlog
 
-from zebtrack.plugins.base import DetectorPlugin
+from zebtrack.plugins.base import DetectorPlugin, bytetrack_threshold_hints
 from zebtrack.utils import IntegrityError, calculate_sha256
 
 ov: Any | None
@@ -329,15 +329,10 @@ class OpenVINOPlugin(DetectorPlugin):
         self.input_layer = self.compiled_model.input(0)
         self.infer_request = self.compiled_model.create_infer_request()
 
-        # ByteTrack threshold hints consumed by core.detector.Detector
-        # Read from settings if available, otherwise use sensible defaults
-        if settings_obj is not None and hasattr(settings_obj, "bytetrack"):
-            self.track_threshold = getattr(settings_obj.bytetrack, "track_threshold", 0.25)
-            self.match_threshold = getattr(settings_obj.bytetrack, "match_threshold", 0.80)
-        else:
-            self.track_threshold = 0.25
-            self.match_threshold = 0.80  # Higher default for stable tracking
-        self.track_buffer = 60
+        # ByteTrack hints: a fallback only, the settings win in the tracker (#698)
+        self.track_threshold, self.match_threshold = bytetrack_threshold_hints(settings_obj)
+        # No ``track_buffer`` here (#666): ByteTrack's buffer comes from
+        # ``settings.bytetrack.track_buffer`` via DetectionPostProcessor.
 
         # Load metadata if exists (Bug Fix: improved fallback)
         metadata_path = os.path.join(model_path, "metadata.json")
@@ -432,6 +427,25 @@ class OpenVINOPlugin(DetectorPlugin):
     def set_aquarium_region_defined(self, defined: bool) -> None:
         """Update aquarium region flag for downstream logic."""
         self._aquarium_region_defined = bool(defined)
+
+    #: Set by the detector when the class-role map declares context classes
+    #: (ADR-009): the rat inside the start box must survive NMS.
+    _context_classes_present: bool = False
+
+    def set_context_classes_present(self, present: bool) -> None:
+        """Force per-class NMS because the role map has context classes."""
+        self._context_classes_present = bool(present)
+
+    def _use_agnostic_nms(self) -> bool:
+        """Class-agnostic NMS only for the legacy two-class weights.
+
+        Agnostic NMS suppresses overlapping boxes of DIFFERENT classes: on a
+        Barnes weight the rat inside the start box was dropped in favour of the
+        box (Ultralytics, the other backend, has always been per class). The
+        zebrafish ``{aqua, zebrafish}`` weights keep the agnostic NMS they were
+        validated with (ADR-013).
+        """
+        return not (len(self.class_names) > 2 or self._context_classes_present)
 
     def set_tracking_parameters(
         self,
@@ -777,7 +791,7 @@ class OpenVINOPlugin(DetectorPlugin):
             prediction=torch.from_numpy(output_tensor),
             conf_thres=self.conf_threshold,
             iou_thres=self.nms_threshold,
-            agnostic=True,
+            agnostic=self._use_agnostic_nms(),
             nc=len(self.class_names),  # Explicitly pass number of classes so NMS can infer nm
         )
 

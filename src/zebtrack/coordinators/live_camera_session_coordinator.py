@@ -32,6 +32,7 @@ from zebtrack.coordinators.base_coordinator import (
 )
 from zebtrack.core.services.processing_interval_resolver import (
     resolve_processing_intervals,
+    resolve_processing_offset,
 )
 from zebtrack.core.state_manager import StateCategory
 from zebtrack.i18n import _
@@ -174,6 +175,11 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # esperar o sinal), e compartilhar o slot faria o segundo apagar o
         # primeiro. Ver ``_external_trigger_allows_start``.
         self._pending_trigger_context: dict[str, Any] | None = None
+        # Id of the live session the Arduino's code 1 started. While that
+        # session runs, its code 0 belongs HERE (end of protocol) — see
+        # ``owns_arduino_events``. Reset by every other start; a stopped session
+        # has no id, so it owns nothing.
+        self._triggered_session_id: str | None = None
 
         # Injetado por ``di_registrations`` DEPOIS do bootstrap (o manager é
         # criado lá, e este coordinator é construído antes). Serve para checar
@@ -222,6 +228,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         self._pending_live_kind = None
         self._pending_trigger_context = None
         self._active_live_session_id = None
+        self._triggered_session_id = None
         self._active_wizard_data = None
         self._restore_model_selection()
 
@@ -935,132 +942,34 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
     def _resolve_live_processing_mode(self):
         """Determine SINGLE_SUBJECT vs MULTI_TRACK from project data.
 
-        Mirrors ``MultiAquariumCoordinator._resolve_single_animal_mode``
-        but without the cross-coordinator import. Reads
-        ``animals_per_aquarium`` from project_data → calibration →
-        single_animal_per_aquarium flag, returning the mode.
-
-        Audit Erro 2 round 6 (2026-05-25): logs which key resolved the
-        mode (or which were checked when no value was found) so the next
-        runtime can pinpoint why the label still shows "multi-animais"
-        with 1 animal/aquarium. Also accepts the multi-aquarium
-        ``animals_per_aquarium_list`` (used by wizard wide-multi flow).
+        Delegates to ``single_subject_policy.resolve_project_single_subject``,
+        the rule the tracker itself is configured with (#649). Logs which key
+        resolved the mode, or which keys were present when none did.
         """
+        from zebtrack.core.services.single_subject_policy import (
+            resolve_project_single_subject,
+        )
         from zebtrack.core.video.processing_mode import ProcessingMode
 
         project_data = getattr(self.project_manager, "project_data", {}) or {}
-
-        def _to_mode_from_count(value: object):
-            if value in (None, ""):
-                return None
-            try:
-                return (
-                    ProcessingMode.SINGLE_SUBJECT
-                    if int(str(value)) <= 1
-                    else ProcessingMode.MULTI_TRACK
-                )
-            except (TypeError, ValueError):
-                return None
-
-        # 1. Explicit flag at top level
-        flag = project_data.get("single_animal_per_aquarium")
-        if flag is not None:
-            mode = ProcessingMode.SINGLE_SUBJECT if bool(flag) else ProcessingMode.MULTI_TRACK
-            log.info(
-                "live_camera.processing_mode.resolved",
-                source="single_animal_per_aquarium",
-                value=flag,
-                mode=str(mode),
+        # The same rule the tracker is configured with (#649), so the label
+        # never says "single subject" while the tracker runs multi, or back.
+        decision = resolve_project_single_subject(project_data)
+        if decision is None:
+            log.warning(
+                "live_camera.processing_mode.keys_checked_no_match",
+                keys_present=sorted(project_data),
             )
-            return mode
+            return None
 
-        # 2. Top-level animals_per_aquarium
-        top_animals = project_data.get("animals_per_aquarium")
-        mode = _to_mode_from_count(top_animals)
-        if mode is not None:
-            log.info(
-                "live_camera.processing_mode.resolved",
-                source="top.animals_per_aquarium",
-                value=top_animals,
-                mode=str(mode),
-            )
-            return mode
-
-        # 3. tracking.use_single_subject_tracker (wizard)
-        tracking = project_data.get("tracking")
-        if isinstance(tracking, dict):
-            tracker_pref = tracking.get("use_single_subject_tracker")
-            if tracker_pref is not None:
-                mode = (
-                    ProcessingMode.SINGLE_SUBJECT
-                    if bool(tracker_pref)
-                    else ProcessingMode.MULTI_TRACK
-                )
-                log.info(
-                    "live_camera.processing_mode.resolved",
-                    source="tracking.use_single_subject_tracker",
-                    value=tracker_pref,
-                    mode=str(mode),
-                )
-                return mode
-
-        # 4. calibration.animals_per_aquarium (wizard)
-        calibration = project_data.get("calibration")
-        calib_value = None
-        if isinstance(calibration, dict):
-            calib_value = calibration.get("animals_per_aquarium")
-            mode = _to_mode_from_count(calib_value)
-            if mode is not None:
-                log.info(
-                    "live_camera.processing_mode.resolved",
-                    source="calibration.animals_per_aquarium",
-                    value=calib_value,
-                    mode=str(mode),
-                )
-                return mode
-
-        # 5. multi-aquarium list (e.g. [1, 1, 2]) — single-subject iff all
-        # entries are 1. Reading either the calibration sub-dict or the
-        # _wizard_metadata depending on what survived the wizard adapter.
-        list_values = None
-        if isinstance(calibration, dict):
-            list_values = calibration.get("animals_per_aquarium_list")
-        if list_values is None:
-            wizard_meta = project_data.get("_wizard_metadata")
-            if isinstance(wizard_meta, dict):
-                list_values = wizard_meta.get("animals_per_aquarium_list")
-        if isinstance(list_values, list) and list_values:
-            try:
-                max_animals = max(int(v) for v in list_values)
-                mode = (
-                    ProcessingMode.SINGLE_SUBJECT
-                    if max_animals <= 1
-                    else ProcessingMode.MULTI_TRACK
-                )
-                log.info(
-                    "live_camera.processing_mode.resolved",
-                    source="animals_per_aquarium_list",
-                    value=list_values,
-                    max_animals=max_animals,
-                    mode=str(mode),
-                )
-                return mode
-            except (TypeError, ValueError):
-                pass
-
-        log.warning(
-            "live_camera.processing_mode.keys_checked_no_match",
-            keys_present={
-                "single_animal_per_aquarium": flag,
-                "top.animals_per_aquarium": top_animals,
-                "tracking.use_single_subject_tracker": tracking.get("use_single_subject_tracker")
-                if isinstance(tracking, dict)
-                else None,
-                "calibration.animals_per_aquarium": calib_value,
-                "animals_per_aquarium_list": list_values,
-            },
+        mode = ProcessingMode.SINGLE_SUBJECT if decision.single else ProcessingMode.MULTI_TRACK
+        log.info(
+            "live_camera.processing_mode.resolved",
+            source=decision.source,
+            value=decision.value,
+            mode=str(mode),
         )
-        return None
+        return mode
 
     def validate_dependencies(self) -> bool:
         """Validate that required dependencies are present.
@@ -1174,6 +1083,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
             # Store active session ID
             self._active_live_session_id = experiment_id
+            self._triggered_session_id = None
             self._active_wizard_data = wizard_data or {}
 
             # Prepara a aba "Análise" (zera contadores, re-inscreve o canvas e
@@ -1231,6 +1141,12 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 duration_s=duration_s,
                 experiment_id=experiment_id,
                 analysis_interval_frames=analysis_interval_frames,
+                # The caller fixed the interval; the offset follows the one rule (#638).
+                analysis_offset_frames=resolve_processing_offset(
+                    analysis_interval_frames,
+                    getattr(self.project_manager, "project_data", None),
+                    self.settings,
+                ),
                 display_interval_frames=display_interval_frames,
                 record_video=record_video,
                 output_base_dir=resolved_base,
@@ -1241,6 +1157,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 zones_validated=True,
                 use_countdown=use_countdown,
                 countdown_duration_s=countdown_duration_s,
+                # Ad hoc: the window comes from the dialog config, never from Settings.
+                analysis_window=(wizard_data or {}).get("analysis_window"),
             )
 
             if not success:
@@ -1834,6 +1752,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             self.settings,
         )
         analysis_interval_frames = _intervals.analysis
+        analysis_offset_frames = _intervals.offset
         display_interval_frames = _intervals.display
 
         # Video recording (optional)
@@ -1987,6 +1906,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # recording is about to start. Mirrors start_live_session so stop/cancel
         # and the UI live-context guards see a live session. Reverted on failure.
         self._active_live_session_id = experiment_id
+        self._triggered_session_id = None
         self._update_state(
             StateCategory.PROCESSING,
             is_live_session_active=True,
@@ -2062,6 +1982,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             duration_s=duration_s,
             experiment_id=experiment_id,
             analysis_interval_frames=analysis_interval_frames,
+            analysis_offset_frames=analysis_offset_frames,
             display_interval_frames=display_interval_frames,
             record_video=record_video,
             output_base_dir=resolved_base,
@@ -2072,6 +1993,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             zones_validated=True,
             use_countdown=use_countdown,
             countdown_duration_s=countdown_duration_s,
+            # Ad hoc: the window comes from the dialog config, never from Settings.
+            analysis_window=config.get("analysis_window"),
         )
 
         if not success:
@@ -2175,6 +2098,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         """
         from zebtrack.core.services.external_trigger_gate import (
             ExternalTriggerDecision,
+            conflicting_triggers_message,
             decide_external_trigger,
             normalize_arduino_port,
         )
@@ -2187,6 +2111,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         if decision in (
             ExternalTriggerDecision.REJECT_NO_ARDUINO,
             ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE,
+            ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS,
         ):
             offline = decision is ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE
             log.error(
@@ -2196,7 +2121,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             )
             if self.event_bus is not None:
                 port = normalize_arduino_port((project_data or {}).get("arduino_port"))
-                if offline:
+                if decision is ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS:
+                    message = conflicting_triggers_message()
+                elif offline:
                     port_suffix = _(" (port {port})").format(port=port) if port else ""
                     message = _(
                         "This project uses External Trigger Mode, but the Arduino "
@@ -2263,6 +2190,42 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
     def has_pending_external_trigger(self) -> bool:
         """True quando uma sessão está armada aguardando o sinal do Arduino."""
         return self._pending_trigger_context is not None
+
+    def mark_manual_window_event(self) -> bool:
+        """The "Mark start/stop" button: a manual event for the live analysis window.
+
+        Stamped with ``perf_counter`` at the click (Tk thread) and delivered to
+        the window with the first frame captured after it (ADR-011).
+
+        Returns:
+            ``False`` when no live analysis window is running.
+        """
+        push = getattr(self.live_camera_service, "push_manual_condition_event", None)
+        accepted = bool(push()) if callable(push) else False
+        log.info(
+            "live_camera_session_coordinator.analysis_window.manual_mark",
+            accepted=accepted,
+            session=self._active_live_session_id,
+        )
+        return accepted
+
+    def owns_arduino_events(self) -> bool:
+        """Whether the Arduino's 1/0 codes address THIS coordinator right now.
+
+        True while a session is armed waiting for code 1, AND while the session
+        that code 1 started is still running — its code 0 is the end of the
+        protocol. Before this, ``MainViewModel`` only checked the pending arm:
+        once code 1 cleared it, code 0 went to the legacy coordinator, which had
+        no recording of its own and ignored it, so the grid session never
+        stopped (AUDIT §2, ``main_view_model.py:421-446``).
+
+        A session started any other way does not claim the codes: a numeric
+        line from a sensor must not stop a recording nobody armed.
+        """
+        if self._pending_trigger_context is not None:
+            return True
+        session_id = self._active_live_session_id
+        return session_id is not None and session_id == self._triggered_session_id
 
     def clear_pending_external_trigger(self) -> None:
         """Desarma a espera pelo gatilho e limpa o aviso na UI."""
@@ -2431,6 +2394,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # numa sessão de projeto quem manda é o ``project_data``.
         _intervals = resolve_processing_intervals(None, project_data, self.settings)
         analysis_interval_frames = _intervals.analysis
+        analysis_offset_frames = _intervals.offset
         display_interval_frames = _intervals.display
         use_countdown = bool(project_data.get("use_countdown", False))
         countdown_duration_s = int(project_data.get("countdown_duration_s", 0) or 0)
@@ -2508,6 +2472,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # project entrypoint never did) and the UI live-context guards reset the
         # analysis-tab metadata to defaults. Reverted below if the service fails.
         self._active_live_session_id = experiment_id
+        # Started by the Arduino's code 1: its code 0 must reach this session.
+        self._triggered_session_id = experiment_id if external_trigger_armed else None
         self._update_state(
             StateCategory.PROCESSING,
             is_live_session_active=True,
@@ -2586,6 +2552,7 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             duration_s=duration_s,
             experiment_id=experiment_id,
             analysis_interval_frames=analysis_interval_frames,
+            analysis_offset_frames=analysis_offset_frames,
             display_interval_frames=display_interval_frames,
             record_video=True,  # Projects always record
             output_base_dir=resolved_base,
@@ -2596,6 +2563,8 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             zones_validated=True,
             use_countdown=use_countdown,
             countdown_duration_s=countdown_duration_s,
+            # Live project: the project's analysis window (ADR-011).
+            analysis_window=project_data.get("analysis_window"),
         )
 
         if not success:

@@ -179,6 +179,7 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         single-video processing pipeline.
         """
         from zebtrack.core.detection import ZoneData
+        from zebtrack.core.services.worker_model_resolution import resolve_worker_model
         from zebtrack.core.video.processing_worker import (
             ProcessingCallbacks,
             ProcessingContext,
@@ -265,9 +266,10 @@ class SequentialProcessingCoordinator(BaseCoordinator):
             resolve_processing_intervals,
         )
 
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
         intervals = resolve_processing_intervals(
             config=single_video_config,
-            project_data=getattr(self.project_manager, "project_data", {}) or {},
+            project_data=project_data,
             settings_obj=self.settings,
         )
         analysis_interval = intervals.analysis
@@ -300,6 +302,11 @@ class SequentialProcessingCoordinator(BaseCoordinator):
             },
             analysis_interval_frames=analysis_interval,
             display_interval_frames=display_interval,
+            model_spec=resolve_worker_model(
+                getattr(self.detector_service, "weight_manager", None),
+                self.settings,
+                project_data if isinstance(project_data, dict) else None,
+            ),
         )
 
         # Build callbacks

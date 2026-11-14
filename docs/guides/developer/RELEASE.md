@@ -40,16 +40,29 @@ v7.0.0 the manuscripts report results from **4.0.0** (tag `v4.0.0`), and the
 reproduction. Do not let the description claim the archived tag *is* the
 evaluated version unless it is.
 
-## 3. Gates that do not run locally
+## 3. Security gates: bandit and pip-audit
 
-`bandit` and `pip-audit` are installed ad-hoc by CI (`ci.yml`, the `lint` job)
-and are **not** in `pyproject.toml`. `pytest`, `ruff`, `mypy` and `pre-commit`
-can all be green while `main` goes red.
+Both are dev dependencies and run in the **pre-push** hook as well as in CI
+(#648). Until then they existed only in CI, so `pytest`, `ruff`, `mypy` and
+`pre-commit` could all be green while `main` went red.
 
 ```bash
-python -m pip install bandit pip-audit
-python -m bandit -r src/zebtrack -ll     # -ll = medium and above, as CI runs it
+bandit -r src/zebtrack -ll                 # -ll = medium and above, as CI runs it
+python scripts/run_pip_audit.py            # what the pre-push hook runs
+python scripts/run_pip_audit.py --no-cache --fail-on-error   # what CI runs
 ```
+
+- The pip-audit exceptions live **only** in `scripts/pip_audit_ignores.txt`,
+  one id per line with its justification. CI and the hook both read it; a
+  test (`tests/quality/test_run_pip_audit.py`) fails if `ci.yml` grows an
+  inline `--ignore-vuln` again. Adding an exception is a security decision:
+  write why it is not reachable, and when it can be dropped.
+- Locally, an unreachable advisory database (no network, timeout) only warns
+  and lets the push through; an advisory without an exception always blocks.
+  In CI both block.
+- A green audit is cached for the day in `.git/zebtrack-pip-audit.json`, keyed
+  by `poetry.lock` and the exception file, so repeated pushes pay the network
+  round trip once.
 
 Relatedly: ruff does not enable the `S*` rules here beyond `S110`, so a
 legitimate `# noqa: S310` shows up as an unused-noqa (RUF100). Removing it does

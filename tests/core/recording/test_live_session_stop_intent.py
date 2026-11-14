@@ -56,12 +56,17 @@ class DummyLiveService(LiveSessionManagerMixin):
         self._preview_window_destroyed = False
         self.on_session_stopped = None
         self.cleared_queues = 0
+        self.drained_with: list[float] = []
         self.finalized_ledgers = 0
         # Preenchido so pelos casos que plantam uma thread travada.
         self.halt_the_stuck_thread = threading.Event()
 
     def _clear_queues(self) -> None:
         self.cleared_queues += 1
+
+    def _drain_video_queue_for_stop(self, timeout_s: float) -> int:
+        self.drained_with.append(timeout_s)
+        return 0
 
     def _finalize_frame_ledger(self) -> None:
         self.finalized_ledgers += 1
@@ -179,6 +184,34 @@ class TestStopSessionOnDisk:
         service.stop_session(cancelled=True)
 
         assert service.finalized_ledgers == 1
+
+
+class TestStopDrainsTheVideoQueue:
+    """#636: the video thread writes what is queued before the queues are emptied."""
+
+    def test_a_kept_session_drains_within_the_join_budget(self, session_dir: Path):
+        service = DummyLiveService(session_dir, planned_s=300.0, elapsed_s=290.0)
+
+        service.stop_session(keep_data=True)
+
+        assert service.drained_with == [2.0]
+        assert service.cleared_queues == 1
+
+    def test_the_drain_never_exceeds_the_total_budget(self, session_dir: Path):
+        service = DummyLiveService(session_dir, planned_s=300.0, elapsed_s=290.0)
+        service._max_join_wait_s = 0.5
+
+        service.stop_session(keep_data=True)
+
+        assert service.drained_with == [0.5]
+
+    def test_a_manual_cancel_does_not_wait_for_a_folder_it_deletes(self, session_dir: Path):
+        service = DummyLiveService(session_dir, planned_s=300.0, elapsed_s=10.0)
+
+        service.stop_session(cancelled=True)
+
+        assert service.drained_with == []
+        assert service.cleared_queues == 1
 
 
 class TestThreadHangIsNotACancellation:

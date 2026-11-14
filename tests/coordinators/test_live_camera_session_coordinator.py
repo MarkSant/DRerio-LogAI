@@ -4,6 +4,7 @@ Focuses on the live camera session lifecycle and configuration.
 """
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
@@ -802,6 +803,26 @@ class TestStartLiveAnalysisAndSessionFromConfig:
         coordinator.detector_service.detector.set_single_subject_mode.assert_called_once_with(True)
         coordinator.live_camera_service.start_session.assert_called_once()
 
+    def test_start_session_from_config_hands_the_offset_to_the_camera(self, coordinator):
+        """#638: the live loop samples with the project's offset, not offset 0."""
+        coordinator.settings.model_selection = Mock()
+        coordinator.detector_service.detector = Mock()
+        coordinator.live_calibration_coordinator.ensure_zones_before_recording.return_value = True
+        coordinator.live_camera_service.start_session.return_value = True
+        coordinator.project_manager.project_data = {
+            "analysis_interval_frames": 10,
+            "analysis_offset_frames": 3,
+        }
+
+        coordinator.start_session_from_config(
+            {"camera_index": 0, "duration_s": 60.0, "experiment_id": "exp"},
+            zones_validated=True,
+        )
+
+        kwargs = coordinator.live_camera_service.start_session.call_args.kwargs
+        assert kwargs["analysis_interval_frames"] == 10
+        assert kwargs["analysis_offset_frames"] == 3
+
     def test_start_session_from_config_zones_deferred(self, coordinator):
         coordinator.live_calibration_coordinator.ensure_zones_before_recording.return_value = False
         coordinator.live_calibration_coordinator.pending_zone_confirmation = True
@@ -930,6 +951,47 @@ class TestSessionPersistenceAndTriggers:
         assert allowed is False
         mock_event_bus.publish.assert_called_once()
 
+    def test_conflicting_triggers_refuse_with_their_own_message(self, coordinator, mock_event_bus):
+        """Legacy trigger re-ticked over an Arduino analysis window (ADR-011)."""
+        from zebtrack.core.conditions.presets import external_trigger_preset
+        from zebtrack.core.services.external_trigger_gate import conflicting_triggers_message
+
+        coordinator_any: Any = coordinator
+        coordinator_any.arduino_manager = SimpleNamespace(is_connected=lambda: True)
+        project_data = {
+            "external_trigger_mode": True,
+            "use_arduino": True,
+            "analysis_window": external_trigger_preset().model_dump(mode="json", by_alias=True),
+        }
+
+        allowed = coordinator_any._external_trigger_allows_start(
+            context={"experiment_id": "exp1"}, project_data=project_data
+        )
+
+        assert allowed is False
+        assert coordinator.has_pending_external_trigger() is False
+        (event,) = [c.args[0] for c in mock_event_bus.publish.call_args_list]
+        assert event.data.message == conflicting_triggers_message()
+
+    def test_arduino_window_records_immediately(self, coordinator, mock_event_bus):
+        """PROCEED: the code becomes an engine event, the session is not armed."""
+        from zebtrack.core.conditions.presets import external_trigger_preset
+
+        coordinator_any: Any = coordinator
+        coordinator_any.arduino_manager = SimpleNamespace(is_connected=lambda: True)
+        project_data = {
+            "use_arduino": True,
+            "analysis_window": external_trigger_preset().model_dump(mode="json", by_alias=True),
+        }
+
+        allowed = coordinator_any._external_trigger_allows_start(
+            context={"experiment_id": "exp1"}, project_data=project_data
+        )
+
+        assert allowed is True
+        assert coordinator.has_pending_external_trigger() is False
+        mock_event_bus.publish.assert_not_called()
+
     def test_external_trigger_allows_start_armed(self, coordinator, mock_event_bus):
         coordinator_any: Any = coordinator
         from zebtrack.core.services.external_trigger_gate import ExternalTriggerDecision
@@ -976,3 +1038,34 @@ class TestSessionPersistenceAndTriggers:
 
         assert res is True
         coordinator.live_calibration_coordinator.clear_last_polygon_source.assert_called_once()
+
+    def test_start_live_project_session_hands_the_project_interval_to_the_camera(self, coordinator):
+        """#667: the session's detection cadence (and with it the Kalman dt) is the project's."""
+        coordinator_any: Any = coordinator
+        coordinator.project_manager.get_project_type.return_value = "live"
+        coordinator.project_manager.project_data = {
+            "camera_index": 0,
+            "analysis_interval_frames": 7,
+        }
+        coordinator_any._external_trigger_allows_start = MagicMock(return_value=True)
+        coordinator.live_camera_service.start_session.return_value = True
+
+        coordinator.start_live_project_session(
+            day=1, group="G1", subject="S1", camera_index_override=0, zones_validated=True
+        )
+
+        kwargs = coordinator.live_camera_service.start_session.call_args.kwargs
+        assert kwargs["analysis_interval_frames"] == 7
+
+
+class TestManualWindowMark:
+    """v8 F5: the "Mark start/stop" button reaches the live service."""
+
+    def test_mark_is_forwarded_to_the_running_window(self, coordinator):
+        coordinator.live_camera_service.push_manual_condition_event = Mock(return_value=True)
+        assert coordinator.mark_manual_window_event() is True
+        coordinator.live_camera_service.push_manual_condition_event.assert_called_once_with()
+
+    def test_no_window_running_reports_false(self, coordinator):
+        coordinator.live_camera_service.push_manual_condition_event = Mock(return_value=False)
+        assert coordinator.mark_manual_window_event() is False

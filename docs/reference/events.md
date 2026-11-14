@@ -67,6 +67,64 @@ DRerio LogAI utilizes two coexisting event bus systems to separate domain logic 
 | `ZONE_AQUARIUM_CONFIG_CONFIRMED` | `{'configs': list[AquariumConfig]}`              | Aquarium configuration confirmed.      |
 | `ZONE_AQUARIUM_CONFIG_UPDATED`   | `{'id': int, 'config': dict, 'video_path': str}` | Individual aquarium config updated.    |
 
+### 3.3. Analysis Window (v8)
+
+| Event Name                     | Payload Requirements                                | Description                              |
+| ------------------------------ | --------------------------------------------------- | ---------------------------------------- |
+| `ANALYSIS_WINDOW_SPEC_CHANGED` | `AnalysisWindowSpecChangedPayload(spec, spec_hash)` | The project's analysis window was saved. |
+
+- **Publisher:** `AnalysisWindowPanel.save()` (`ui/components/analysis_window_panel.py`), on the
+  Tk thread, after `project_data["analysis_window"]` was written (and persisted, when the
+  project has a path).
+- **Payload:** `spec` is `WindowSpec.model_dump(mode="json")` exactly as stored, or `None` for
+  "analyse the whole recording"; `spec_hash` is `core.conditions.spec_hash(spec)` (`None` with
+  it).
+- **Subscriber:** `EventDispatcher._on_analysis_window_spec_changed` (zone-tab wiring) writes
+  the status bar: the window applies to the NEXT analysis run, not to results already on disk.
+
+### 3.4. Class Roles (v8)
+
+| Event Name            | Payload Requirements                                                                  | Description                                     |
+| --------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `CLASS_ROLES_CHANGED` | `ClassRolesChangedPayload(scope, weight_name, weight_sha256, class_roles, source)` | The roles of a weight's classes were saved.     |
+
+- **Publisher:** `ClassRolesEditor.save()` / `restore_automatic()`
+  (`ui/components/class_roles_panel.py`), on the Tk thread, after the roles were stored: in the
+  weight's `weights_config.json` entry (`scope="weight"`, global model configuration →
+  "Class roles…") or in `project_data["model_overrides"]["class_roles"]` plus
+  `class_roles_weight_sha256` (`scope="project"`, "AI Model Config." tab).
+- **Payload:** `class_roles` is the `{normalised class name: role token}` just written, `None`
+  after "Restore automatic"; `source` is the `ClassRoleSource` token the weight resolves to after
+  the save (`project`, `weight`, `aliases` or `legacy_positional`). Role tokens are never
+  translated.
+- **Subscriber:** `EventDispatcher._on_class_roles_changed` (registered once per GUI in
+  `register_event_bus_handlers`, so a save from the global dialog with no project open is still
+  heard) writes the status bar — the roles apply from the next detector load / worker start — and
+  calls `gui.class_roles_context.refresh()`, which re-resolves the project weight's roles for the
+  overlays and the class names offered by the analysis-window editor.
+- **Related:** `UI_UPDATE_DETECTION_OVERLAY`'s `DetectionOverlayPayload` gained an optional
+  `class_roles: {class id: role token}`. No publisher fills it yet; when it is `None` the overlay
+  uses `gui.overlay_class_roles` (explicit maps only) and, without one, the 7.2 colours.
+
+### 3.5. Live Analysis Window State (v8)
+
+| Event Name                      | Payload Requirements                                                                       | Description                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| `ANALYSIS_WINDOW_STATE_CHANGED` | `AnalysisWindowStatePayload(state, t_s, reason, on_start_not_met, on_stop, experiment_id, aquarium_id)` | Phase of the LIVE analysis window changed.   |
+
+- **Publisher:** `FrameProcessingMixin._post_window_state` (`core/recording/frame_processing_pipeline.py`)
+  computes the payload on the processing thread and publishes it through `root.after(0, ...)`,
+  i.e. on the Tk thread (`EventBusV2.publish` is synchronous). Published once when the session's
+  runtime is armed and on every phase change.
+- **Payload:** `state` is a `core.recording.condition_runtime.WindowPhase` token —
+  `waiting_start`, `in_analysis`, `finished`, `start_not_met`. `t_s` is the START instant while
+  in analysis and the STOP instant once finished, in seconds on the session's capture clock;
+  `None` while waiting or when never met.
+- **Subscriber:** `EventDispatcher._on_analysis_window_state_changed` →
+  `DialogManager.show_analysis_window_state`: the external-trigger notice becomes a generic
+  "waiting for the start condition" banner (highlighted while waiting / never met), and the
+  status bar carries the same sentence (ad hoc sessions have no project banner).
+
 ---
 
 ## 4. How to Use (Implementation Patterns)

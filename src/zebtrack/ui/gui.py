@@ -513,6 +513,10 @@ class ApplicationGUI:
                 "project_model_configuration_panel",
                 "project_diagnostics_panel",
                 "arduino_bindings_panel",
+                "analysis_window_panel",
+                # Not a widget: re-resolves the project weight's class roles
+                # for the overlays and the analysis-window editor.
+                "class_roles_context",
             )
         ]
         panels.append(

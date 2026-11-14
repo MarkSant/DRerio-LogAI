@@ -790,3 +790,89 @@ def test_iter_polygon_parts():
     # None geometry
     parts = VisualizationGenerator._iter_polygon_parts(None)
     assert parts == []
+
+
+# ============================================================================
+# Time axes and the analysis window (ADR-011, F4b)
+# ============================================================================
+
+
+def _pts_analyzer(start_s: float = 5.0) -> ConcreteBehavioralAnalyzer:
+    """40 samples at 10 fps on a PTS clock that starts at ``start_s``."""
+    n = 40
+    x = [10.0 + i * 20.0 for i in range(n)]
+    y = [200.0 + (i % 5) * 150.0 for i in range(n)]
+    df = pd.DataFrame(
+        {
+            "timestamp": [round(start_s + i / 10, 9) for i in range(n)],
+            "frame": range(n),
+            "x_center_px": x,
+            "y_center_px": y,
+            "x1": [v - 5 for v in x],
+            "x2": [v + 5 for v in x],
+            "y1": [v - 5 for v in y],
+            "y2": [v + 5 for v in y],
+        }
+    )
+    return ConcreteBehavioralAnalyzer(
+        trajectory_df=df,
+        pixelcm_x=10.0,
+        pixelcm_y=10.0,
+        video_height_px=100,
+        arena_polygon_px=[(0.0, 0.0), (1000.0, 0.0), (1000.0, 1000.0), (0.0, 1000.0)],
+        fps=10.0,
+    )
+
+
+class TestWindowTimeAxes:
+    @pytest.mark.parametrize(
+        "method",
+        ["generate_position_vs_time_plot", "generate_cumulative_distance_plot"],
+    )
+    def test_window_axes_start_at_start(self, method):
+        analyzer = _pts_analyzer()
+        analyzer.restrict_to_window(6.0, 8.0)
+        viz = VisualizationGenerator(b_analyzer=analyzer, metadata={})
+
+        fig = getattr(viz, method)()
+
+        ax = fig.axes[0]
+        x = np.asarray(ax.lines[0].get_xdata())
+        assert x[0] == pytest.approx(0.0)
+        assert x[-1] == pytest.approx(2.0)
+        assert ax.get_xlabel() == "Time since window START (s)"
+        plt.close(fig)
+
+    def test_axes_are_relative_to_start_even_when_its_first_sample_is_later(self):
+        analyzer = _pts_analyzer()
+        analyzer.restrict_to_window(5.95, 7.0)
+        viz = VisualizationGenerator(b_analyzer=analyzer, metadata={})
+
+        fig = viz.generate_position_vs_time_plot()
+
+        assert np.asarray(fig.axes[0].lines[0].get_xdata())[0] == pytest.approx(0.05)
+        plt.close(fig)
+
+    def test_without_window_the_first_sample_is_zero(self):
+        viz = VisualizationGenerator(b_analyzer=_pts_analyzer(), metadata={})
+
+        fig = viz.generate_position_vs_time_plot()
+
+        ax = fig.axes[0]
+        assert np.asarray(ax.lines[0].get_xdata())[0] == pytest.approx(0.0)
+        assert ax.get_xlabel() == "Time (s)"
+        plt.close(fig)
+
+    def test_angular_velocity_axis_and_turns_share_the_start_origin(self):
+        analyzer = _pts_analyzer()
+        analyzer.restrict_to_window(6.0, 8.5)
+        viz = VisualizationGenerator(b_analyzer=analyzer, metadata={}, sharp_turn_threshold=1.0)
+
+        fig = viz.generate_angular_velocity_plot()
+
+        ax = fig.axes[0]
+        x = np.asarray(ax.lines[0].get_xdata())
+        assert x[0] == pytest.approx(0.0)
+        assert x[-1] == pytest.approx(2.5)
+        assert ax.get_xlabel() == "Time since window START (s)"
+        plt.close(fig)

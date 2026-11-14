@@ -479,37 +479,6 @@ def test_on_disconnect_user_action_stop_calls_stop_session(live_camera_service):
     live_camera_service.stop_session.assert_called_once()
 
 
-def test_adjust_fps_dynamically_increases_skip(live_camera_service):
-    live_camera_service._fps_adjustment_interval = 1
-    live_camera_service._target_fps = 30.0
-    live_camera_service._frame_skip_count = 0
-    live_camera_service._processing_times = [0.1] * 9
-
-    should_process = live_camera_service._adjust_fps_dynamically(10, 0.1)
-
-    assert should_process is True
-    assert live_camera_service._frame_skip_count == 1
-
-
-def test_adjust_fps_dynamically_decreases_skip(live_camera_service):
-    live_camera_service._fps_adjustment_interval = 1
-    live_camera_service._target_fps = 30.0
-    live_camera_service._frame_skip_count = 2
-    live_camera_service._processing_times = [0.01] * 9
-
-    should_process = live_camera_service._adjust_fps_dynamically(10, 0.01)
-
-    assert should_process is True
-    assert live_camera_service._frame_skip_count == 1
-
-
-def test_adjust_fps_dynamically_skips_frames(live_camera_service):
-    live_camera_service._frame_skip_count = 1
-
-    assert live_camera_service._adjust_fps_dynamically(1, 0.05) is False
-    assert live_camera_service._adjust_fps_dynamically(2, 0.05) is True
-
-
 def test_clear_queues_drains_all_items(live_camera_service):
     live_camera_service.frame_queue.put_nowait((1, "frame"))
     live_camera_service.video_queue.put_nowait((1, "video"))

@@ -6,8 +6,13 @@ import structlog
 from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig, resolve_roi_rule
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
+from zebtrack.ui.components.analysis_window_panel import AnalysisWindowPanel
 from zebtrack.ui.components.arduino_bindings_panel import ArduinoBindingsPanel
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
+from zebtrack.ui.components.class_roles_panel import (
+    ProjectClassRolesContext,
+    model_service_names_loader,
+)
 from zebtrack.ui.components.model_diagnostics_panel import ModelDiagnosticsPanel
 from zebtrack.ui.components.project_model_configuration_panel import (
     ProjectModelConfigurationPanel,
@@ -51,6 +56,42 @@ class TabBuilder:
         settings_obj = getattr(controller, "settings", None) or getattr(self.gui, "settings", None)
         project_data = getattr(self.project_manager, "project_data", None)
         return resolve_roi_rule(project_data, settings_obj)
+
+    def _build_class_roles_context(self) -> ProjectClassRolesContext | None:
+        """The zone tab's view of the project weight's classes and roles.
+
+        Returns ``None`` (legacy overlay, free-text class lines) when the
+        controller lacks a weight registry or a model service — tests and the
+        bare start-up GUI.
+        """
+        gui = cast(Any, self.gui)
+        gui.overlay_class_roles = None
+        gui.overlay_class_names = None
+        controller = getattr(self.gui, "controller", None)
+        weight_manager = getattr(controller, "weight_manager", None)
+        model_service = getattr(controller, "model_service", None)
+        root = getattr(self.gui, "root", None)
+        if weight_manager is None or model_service is None or root is None:
+            return None
+
+        def _on_change() -> None:
+            context = getattr(gui, "class_roles_context", None)
+            if context is None:
+                return
+            gui.overlay_class_roles = context.overlay_roles()
+            gui.overlay_class_names = context.class_names_by_id() or None
+            panel = getattr(gui, "analysis_window_panel", None)
+            if panel is not None:
+                panel.refresh_class_names()
+
+        return ProjectClassRolesContext(
+            weight_manager=weight_manager,
+            settings_obj=getattr(controller, "settings", None),
+            project_manager_getter=lambda: getattr(self.gui, "project_manager", None),
+            names_loader=model_service_names_loader(model_service),
+            schedule=lambda fn: root.after(0, fn),
+            on_change=_on_change,
+        )
 
     def build_main_controls_tab(self) -> ttk.Frame:
         """Build main controls tab based on project type."""
@@ -164,6 +205,33 @@ class TabBuilder:
         except Exception:
             log.warning("tab_builder.arduino_bindings_panel.build_failed", exc_info=True)
             gui.arduino_bindings_panel = None
+
+        # Class names and explicit role map of the project's effective weight
+        # (ADR-009): the analysis-window editor offers the names as a list, and
+        # both overlays colour boxes by role. Built before the window panel,
+        # which reads the names through it.
+        gui.class_roles_context = self._build_class_roles_context()
+
+        # Analysis-window START/STOP editor (ADR-011), packed after the Arduino
+        # panel so it sits just above it. Shown for every project type: the window
+        # restricts the metrics of pre-recorded and live recordings alike. Class
+        # lines become a read-only list of the weight's classes once the context
+        # has read them; until then (or without a weight) they are free text.
+        context = gui.class_roles_context
+        try:
+            gui.analysis_window_panel = AnalysisWindowPanel(
+                left_panel_frame,
+                self.gui.controller,
+                event_bus=self.gui.event_bus,
+                class_names_provider=context.class_names if context is not None else None,
+            )
+            gui.analysis_window_panel.pack(side="bottom", fill="x", pady=(6, 0))
+        # except Exception justified: optional panel must never block the zone tab.
+        except Exception:
+            log.warning("tab_builder.analysis_window_panel.build_failed", exc_info=True)
+            gui.analysis_window_panel = None
+        if context is not None:
+            context.refresh()
 
         # Update ZoneControlsWidget to accept these containers
         self.gui.zone_controls = ZoneControlsWidget(
@@ -373,6 +441,23 @@ class TabBuilder:
         if weight_hw is not None:
             weight_hw.refresh_weights_summary(scope="project")
 
+    def _on_mark_window_event(self) -> bool:
+        """Handle "Mark start/stop": a manual event for the running analysis window.
+
+        Returns:
+            Whether a live window took the mark. When none is running, the
+            status bar says so instead of the click doing nothing.
+        """
+        controller = getattr(self.gui, "controller", None)
+        coordinator = getattr(controller, "live_camera_session_coordinator", None)
+        mark = getattr(coordinator, "mark_manual_window_event", None)
+        accepted = bool(mark()) if callable(mark) else False
+        if not accepted:
+            status_var = getattr(self.gui, "status_var", None)
+            if status_var is not None:
+                status_var.set(_("No live session with an analysis window is running."))
+        return accepted
+
     def _build_live_project_widgets(self, parent):
         """Build widgets specific to live projects."""
         label = Label(
@@ -390,6 +475,15 @@ class TabBuilder:
         # Safe access to cget with defaults if needed
         self.gui._external_notice_default_bg = str(label.cget("background"))
         self.gui._external_notice_default_fg = str(label.cget("foreground"))
+
+        # v8 F5: manual START/STOP mark for an analysis window with
+        # ``External(source="manual")`` (ADR-011). Stamped at the click.
+        mark_button = ttk.Button(
+            parent,
+            text=_("Mark start/stop"),
+            command=self._on_mark_window_event,
+        )
+        mark_button.pack(anchor="w", padx=10, pady=(0, 8))
 
         self.gui.arduino_dashboard_widget = ArduinoDashboardWidget(
             parent,

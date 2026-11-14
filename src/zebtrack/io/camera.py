@@ -2,7 +2,7 @@ import threading
 import time
 from collections import deque
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 import cv2
 import numpy as np
@@ -14,6 +14,15 @@ if TYPE_CHECKING:
     from zebtrack.settings import Settings
 
 log = structlog.get_logger()
+
+
+class CapturedFrame(NamedTuple):
+    """One sensor frame as :meth:`Camera.read_next_frame` hands it out."""
+
+    frame: np.ndarray
+    seq: int  # 1-based count of successful reads of this Camera
+    t_perf: float  # time.perf_counter() when cap.read returned it
+    t_wall: float  # time.time() of the same instant
 
 
 class Camera(FrameSource):
@@ -89,6 +98,17 @@ class Camera(FrameSource):
         self._frame_buffer: deque[np.ndarray] = deque(maxlen=2)
         self._frame_timestamps: deque[float] = deque(maxlen=2)
         self._frame_available = False  # Track if any frame has been captured
+        # Every successful ``cap.read`` gets a sequence number and the instant it
+        # returned (#637). ``get_frame()`` hands out the newest frame WITHOUT
+        # consuming it, so a consumer polling it faster than the sensor turned
+        # one sensor frame into two pipeline frames, stamped at the POLL. The
+        # live capture thread uses ``read_next_frame()`` instead: one sensor
+        # frame, at most once, with its real read instant.
+        self._frame_seq = 0
+        self._last_read_perf = 0.0
+        self._last_read_wall = 0.0
+        self._read_perfs: deque[float] = deque(maxlen=120)
+        self._new_frame = threading.Condition(self._lock)
         self._stopped = threading.Event()
         self._shutdown_requested = threading.Event()  # v2.2: Atomic shutdown signal
         self._reconnect_state_ready = threading.Event()
@@ -295,6 +315,9 @@ class Camera(FrameSource):
         except (AttributeError, TypeError, RuntimeError, OSError):
             # v2.3: self.cap may be invalid during GC/shutdown
             return False
+        # The capture instant is when ``read`` RETURNED the frame: stamped
+        # before anything else so the lag checks below do not delay it.
+        read_perf = time.perf_counter()
 
         if not ret:
             self._consecutive_failures += 1
@@ -339,8 +362,55 @@ class Camera(FrameSource):
             self._frame_buffer.append(frame)
             self._frame_timestamps.append(now)
             self._frame_available = True
+            self._frame_seq += 1
+            self._last_read_perf = read_perf
+            self._last_read_wall = now
+            self._read_perfs.append(read_perf)
+            self._new_frame.notify_all()
 
         return True
+
+    def read_next_frame(self, after_seq: int, timeout: float = 0.5) -> CapturedFrame | None:
+        """Block until a frame newer than ``after_seq`` was read, and return it.
+
+        Unlike :meth:`get_frame`, a frame is handed out at most once per
+        consumer: pass back the ``seq`` you last received. The returned stamps
+        are the instant ``cap.read`` returned (``perf_counter`` and ``time``),
+        not the instant of this call.
+
+        Returns:
+            The newest frame (a copy), or ``None`` when no newer frame arrived
+            within ``timeout`` seconds (camera stalled or disconnected).
+        """
+        with self._new_frame:
+            ready = self._new_frame.wait_for(
+                lambda: self._frame_available and self._frame_seq > after_seq,
+                timeout=max(0.0, float(timeout)),
+            )
+            if not ready or not self._frame_buffer:
+                return None
+            return CapturedFrame(
+                frame=self._frame_buffer[-1].copy(),
+                seq=self._frame_seq,
+                t_perf=self._last_read_perf,
+                t_wall=self._last_read_wall,
+            )
+
+    def measured_fps(self, min_samples: int = 10) -> float | None:
+        """Rate the sensor is really delivering, from the last ~120 reads.
+
+        ``actual_fps`` is what the driver REPORTS (``CAP_PROP_FPS``), and many
+        webcams report 30 while delivering 39-41 fps. ``None`` with fewer than
+        ``min_samples`` reads or a non-positive span.
+        """
+        with self._lock:
+            stamps = list(self._read_perfs)
+        if len(stamps) < max(2, int(min_samples)):
+            return None
+        span = stamps[-1] - stamps[0]
+        if span <= 0:
+            return None
+        return (len(stamps) - 1) / span
 
     def get_frame(self) -> tuple[bool, np.ndarray | None]:
         """
