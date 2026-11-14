@@ -4992,6 +4992,43 @@ msgstr ""
 msgid "Preset loaded. Review the lines, then Save."
 msgstr "Predefinição carregada. Revise as linhas e depois clique em Salvar."
 
+#: src/zebtrack/ui/components/analysis_window_panel.py
+msgid "Preset loaded. Review the lines."
+msgstr "Predefinição carregada. Revise as linhas."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py
+msgid "Analysis window set for this session."
+msgstr "Janela de análise definida para esta sessão."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+msgid ""
+"This analysis window waits for an Arduino code, but no Arduino is enabled for this session, so the code could never arrive.\n"
+"\n"
+"Remove the Arduino condition from the analysis window, or open a project with the Arduino enabled."
+msgstr ""
+"Esta janela de análise espera um código do Arduino, mas nenhum Arduino está habilitado para esta sessão, então o código nunca chegaria.\n"
+"\n"
+"Remova a condição do Arduino da janela de análise ou abra um projeto com o Arduino habilitado."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+#, python-brace-format
+msgid ""
+"This analysis window waits for an Arduino code, but the Arduino is not connected{port}.\n"
+"\n"
+"Check the cable and whether another program holds the port, or remove the Arduino condition from the analysis window."
+msgstr ""
+"Esta janela de análise espera um código do Arduino, mas o Arduino não está conectado{port}.\n"
+"\n"
+"Verifique o cabo e se outro programa está usando a porta, ou remova a condição do Arduino da janela de análise."
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+msgid "Invalid Analysis Window"
+msgstr "Janela de Análise Inválida"
+
+#: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+msgid "Analysis Window Not Allowed"
+msgstr "Janela de Análise Não Permitida"
+
 #: src/zebtrack/ui/components/analysis_window_panel.py:1255
 msgid "Analysis window saved."
 msgstr "Janela de análise salva."

@@ -6,6 +6,28 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-14] Editor da janela de análise no diálogo ao vivo avulso (#634)
+
+__ID:__ TASK-084
+__Agent:__ Claude Code (Opus 5.5)
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
+__Branch:__ claude/634-live-dialog-window-editor-9350ff (a partir de `release/8.0`, 24433264)
+__Description:__
+O `LiveAnalysisDialog` (ao vivo sem projeto) não tinha editor de INÍCIO/FIM, embora
+`config["analysis_window"]` já chegasse ao `ConditionRuntime`. O `AnalysisWindowPanel`
+ganha um modo compacto e DESACOPLADO de projeto (guarda a regra num dict local, não salva
+projeto, não publica evento, lê as ROIs da sessão avulsa por um provedor injetado) e entra no
+diálogo. O diálogo emite `analysis_window` e recusa, com mensagem, a regra que espera o
+Arduino quando `decide_external_trigger()` a recusa (gatilho externo do projeto aberto, ou
+Arduino ausente/offline). Nenhuma escrita nova no `Settings` compartilhado.
+
+__Critério de pronto:__
+
+- GUI: o diálogo produz uma `WindowSpec` válida que `parse_window_spec`/`ConditionRuntime` aceitam.
+- GUI: sem janela, o resultado é o de hoje (`analysis_window` = `None`).
+- GUI: gatilho externo + janela que espera o Arduino é recusado no diálogo.
+- PR contra `release/8.0` com CI verde e "Closes #634".
+
 ### [2026-11-14] Preset do Barnes: FIM pela entrada na toca (#650)
 
 __ID:__ TASK-083
@@ -1005,7 +1027,7 @@ o conceito legacy de "Peso ativo" tornou-se enganoso na UI. Plano aprovado:
 
 __ID:__ TASK-064
 __Agent:__ GitHub Copilot (GPT-5.4)
-__Status:__ In Progress 🔄
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Branch:__ main
 __Description:__
 Implement explicit and safe deletion intents for multi-aquarium scenarios so users can:
@@ -1634,7 +1656,7 @@ __Addendum (Wave 3):__
 
 __ID:__ TASK-050
 __Agent:__ GitHub Copilot (GPT-5.3-Codex)
-__Status:__ In Progress 🔄
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Branch:__ main
 __Description:__
 Fix no-op behavior when double-clicking report file items in Processing and
@@ -1829,7 +1851,7 @@ __Results:__
 
 __ID:__ TASK-044
 __Agent:__ GitHub Copilot (GPT-5.2-Codex)
-__Status:__ In Progress 🔄
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Branch:__ (current)
 __Description:__
 Apply the excellence follow-up plan: adjust integration verification command,
@@ -2108,7 +2130,7 @@ code and decompose LiveCameraService (2,617→5 files) + VideoProcessingService
 
 __ID:__ TASK-037
 __Agent:__ GitHub Copilot (GPT-5.3-Codex)
-__Status:__ In Progress 🔄
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Investigate `event_bus.slow_handler` warnings for `UI_SET_ACTIVE_WEIGHT` and
 `UI_UPDATE_OPENVINO_CHECKBOX`, then reduce synchronous handler latency by
@@ -2333,7 +2355,7 @@ __Results:__
 
 __ID:__ TASK-030
 __Agent:__ GitHub Copilot (GPT-5.3-Codex)
-__Status:__ In Progress 🔄
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Investigate and fix the remaining PR #343 CI failures after initial commitlint-permission
 correction, including commitlint false negatives and Domain Tests instability on headless Linux.
@@ -2379,7 +2401,7 @@ by changing `CI` workflow trigger scope in `.github/workflows/ci.yml` from
 
 __ID:__ TASK-029
 __Agent:__ GitHub Copilot (GPT-5.3-Codex)
-__Status:__ In Progress 🔄
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Implement an integrated fix set for user-reported issues across pre-recorded processing and
 reporting: incorrect multi-individual tracking mode label in single-animal runs, missing
@@ -2497,7 +2519,7 @@ top-down videos, and stale processing state that blocks restarting analysis afte
 
 __ID:__ TASK-027
 __Agent:__ GitHub Copilot (GPT-5.3-Codex)
-__Status:__ In Progress 🔄
+__Status:__ Completed ✅ (PR contra `release/8.0`; aguarda o mantenedor)
 __Description:__
 Investigate and fix the pre-recorded project analysis flow where startup emits incorrect
 "video not found / not in project" warnings, analysis view shows frames/overlays but keeps

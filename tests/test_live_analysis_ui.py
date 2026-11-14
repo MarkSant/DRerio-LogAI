@@ -1329,3 +1329,253 @@ class TestAquariumDimensionFields:
         assert dialog.result is not None, "apply() nao montou o resultado"
         assert dialog.result["aquarium_width_cm"] == 32.5
         assert dialog.result["aquarium_height_cm"] == 19.0
+
+
+# ==============================================================================
+# #634 — analysis-window editor in the ad-hoc live dialog
+# ==============================================================================
+
+
+def _end_of_video_row():
+    from zebtrack.ui.components.analysis_window_panel import ConditionRow
+
+    return ConditionRow(kind="end_of_video")
+
+
+def _load_drafts(dialog, spec) -> None:
+    """What a researcher typing ``spec`` into the editor leaves behind."""
+    from zebtrack.ui.components.analysis_window_panel import (
+        drafts_from_spec,
+        on_start_not_met_labels,
+        on_stop_labels,
+    )
+
+    drafts = drafts_from_spec(spec)
+    assert drafts is not None
+    panel = dialog.analysis_window_panel
+    panel.drafts = {"start": drafts[0], "stop": drafts[1]}
+    panel.on_start_not_met.set(on_start_not_met_labels()[spec.on_start_not_met])
+    panel.on_stop.set(on_stop_labels()[spec.on_stop])
+
+
+@pytest.mark.gui
+class TestLiveAnalysisDialogAnalysisWindow:
+    """The dialog carries the compact Start/Stop editor and emits its window."""
+
+    @staticmethod
+    def _open(tkinter_root, settings, **kwargs):
+        with (
+            patch.object(LiveAnalysisDialog, "wait_window"),
+            patch(
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras",
+                return_value=[{"index": 0, "description": "Camera 0"}],
+            ),
+        ):
+            dialog = LiveAnalysisDialog(tkinter_root, settings_obj=settings, **kwargs)
+            process_tk_events(tkinter_root)
+        dialog.camera_combo.current(0)
+        dialog.output_folder_var.set("")
+        return dialog
+
+    @staticmethod
+    def _accept(dialog) -> bool:
+        if not dialog.validate():
+            return False
+        dialog.apply()
+        return True
+
+    def test_no_window_keeps_todays_result(self, tkinter_root, test_settings):
+        dialog = self._open(tkinter_root, test_settings)
+
+        assert self._accept(dialog) is True
+
+        assert dialog.result is not None
+        assert dialog.result["analysis_window"] is None
+
+    def test_barnes_window_reaches_the_condition_runtime(self, tkinter_root, test_settings):
+        from zebtrack.core.conditions.presets import barnes_maze_preset
+        from zebtrack.core.recording.condition_runtime import (
+            ConditionRuntime,
+            WindowPhase,
+            parse_window_spec,
+        )
+
+        dialog = self._open(tkinter_root, test_settings, roi_names_provider=lambda: ["Toca"])
+        panel = dialog.analysis_window_panel
+        assert panel.is_session_only is True
+
+        panel.apply_barnes_preset()
+        assert self._accept(dialog) is True
+
+        raw = dialog.result["analysis_window"]
+        assert isinstance(raw, dict)
+        spec = parse_window_spec(raw)
+        assert spec == barnes_maze_preset(burrow_roi="Toca")
+        runtime = ConditionRuntime(spec, role_names={})
+        assert runtime.phase is WindowPhase.WAITING_START
+
+    def test_window_is_sent_by_argument_never_through_settings(self, tkinter_root):
+        from zebtrack.core.conditions import EndOfStream, WindowSpec
+        from zebtrack.settings import load_settings
+        from zebtrack.ui.components.analysis_window_panel import SectionDraft
+
+        settings = load_settings()
+        before = settings.model_dump()
+        dialog = self._open(tkinter_root, settings)
+        dialog.analysis_window_panel.drafts["stop"] = SectionDraft(rows=(_end_of_video_row(),))
+
+        assert self._accept(dialog) is True
+
+        assert dialog.result["analysis_window"] == WindowSpec(stop=EndOfStream()).model_dump(
+            mode="json", by_alias=True
+        )
+        after = settings.model_dump()
+        changed = {key for key in before if before[key] != after[key]}
+        # Only the documented legacy writes (tests/integration/test_flow_isolation.py).
+        assert changed <= {
+            "video_processing",
+            "trajectory_smoothing",
+            "model_selection",
+            "analysis_config",
+            "tracking",
+        }
+
+    def test_invalid_window_blocks_the_start(self, tkinter_root, test_settings):
+        from zebtrack.ui.components.analysis_window_panel import ConditionRow, SectionDraft
+
+        dialog = self._open(tkinter_root, test_settings)
+        dialog.analysis_window_panel.drafts["start"] = SectionDraft(
+            rows=(ConditionRow(kind="hold", value=1.0),)
+        )
+
+        with patch("zebtrack.ui.dialogs.live_analysis_dialog.messagebox.showerror") as error:
+            assert dialog.validate() is False
+
+        error.assert_called_once()
+        assert dialog.result is None
+
+    def test_external_trigger_with_an_arduino_window_is_refused(self, tkinter_root, test_settings):
+        from zebtrack.core.conditions.presets import external_trigger_preset
+        from zebtrack.core.services.external_trigger_gate import conflicting_triggers_message
+
+        dialog = self._open(
+            tkinter_root,
+            test_settings,
+            trigger_context={"external_trigger_mode": True, "use_arduino": True},
+        )
+        _load_drafts(dialog, external_trigger_preset())
+
+        with patch("zebtrack.ui.dialogs.live_analysis_dialog.messagebox.showerror") as error:
+            assert dialog.validate() is False
+
+        error.assert_called_once()
+        assert error.call_args.args[1] == conflicting_triggers_message()
+
+    def test_external_trigger_alone_is_left_to_the_coordinator(self, tkinter_root, test_settings):
+        """Trigger on, window not waiting for the Arduino: the coordinator asks, not us."""
+        from zebtrack.ui.components.analysis_window_panel import SectionDraft
+
+        dialog = self._open(
+            tkinter_root,
+            test_settings,
+            trigger_context={"external_trigger_mode": True, "use_arduino": True},
+        )
+        dialog.analysis_window_panel.drafts["stop"] = SectionDraft(rows=(_end_of_video_row(),))
+
+        assert self._accept(dialog) is True
+        assert dialog.result["analysis_window"] is not None
+
+    def test_arduino_window_without_an_arduino_is_refused(self, tkinter_root, test_settings):
+        from zebtrack.core.conditions.presets import external_trigger_preset
+
+        dialog = self._open(tkinter_root, test_settings)
+        _load_drafts(dialog, external_trigger_preset())
+
+        with patch("zebtrack.ui.dialogs.live_analysis_dialog.messagebox.showerror") as error:
+            assert dialog.validate() is False
+
+        assert "no Arduino is enabled" in error.call_args.args[1]
+
+    def test_arduino_window_with_the_arduino_offline_is_refused(self, tkinter_root, test_settings):
+        from zebtrack.core.conditions.presets import external_trigger_preset
+
+        arduino = Mock()
+        arduino.is_connected.return_value = False
+        dialog = self._open(
+            tkinter_root,
+            test_settings,
+            trigger_context={"use_arduino": True, "arduino_port": "COM3"},
+            arduino_manager=arduino,
+        )
+        _load_drafts(dialog, external_trigger_preset())
+
+        with patch("zebtrack.ui.dialogs.live_analysis_dialog.messagebox.showerror") as error:
+            assert dialog.validate() is False
+
+        assert "not connected (port COM3)" in error.call_args.args[1]
+
+    def test_arduino_window_with_a_ready_arduino_is_accepted(self, tkinter_root, test_settings):
+        from zebtrack.core.conditions.presets import external_trigger_preset
+
+        arduino = Mock()
+        arduino.is_connected.return_value = True
+        dialog = self._open(
+            tkinter_root,
+            test_settings,
+            trigger_context={"use_arduino": True},
+            arduino_manager=arduino,
+        )
+        _load_drafts(dialog, external_trigger_preset())
+
+        assert self._accept(dialog) is True
+        assert dialog.result["analysis_window"] == external_trigger_preset().model_dump(
+            mode="json", by_alias=True
+        )
+
+
+class TestWindowTriggerRejection:
+    """The dialog's reading of ``decide_external_trigger`` (fast: no Tk)."""
+
+    def test_allowed_decisions_have_no_reason(self):
+        from zebtrack.core.services.external_trigger_gate import ExternalTriggerDecision
+        from zebtrack.ui.dialogs.live_analysis_dialog import window_trigger_rejection
+
+        assert window_trigger_rejection(ExternalTriggerDecision.PROCEED, {}) is None
+        # The legacy trigger alone is the coordinator's confirmation, not a refusal.
+        assert window_trigger_rejection(ExternalTriggerDecision.ARM_AND_WAIT, {}) is None
+
+    def test_conflicting_triggers_reuse_the_gate_message(self):
+        from zebtrack.core.services.external_trigger_gate import (
+            ExternalTriggerDecision,
+            conflicting_triggers_message,
+        )
+        from zebtrack.ui.dialogs.live_analysis_dialog import window_trigger_rejection
+
+        reason = window_trigger_rejection(ExternalTriggerDecision.REJECT_CONFLICTING_TRIGGERS, {})
+
+        assert reason == conflicting_triggers_message()
+
+    def test_no_arduino_is_explained(self):
+        from zebtrack.core.services.external_trigger_gate import ExternalTriggerDecision
+        from zebtrack.ui.dialogs.live_analysis_dialog import window_trigger_rejection
+
+        reason = window_trigger_rejection(ExternalTriggerDecision.REJECT_NO_ARDUINO, {})
+
+        assert reason is not None and "no Arduino is enabled" in reason
+
+    def test_offline_names_the_port_when_known(self):
+        from zebtrack.core.services.external_trigger_gate import ExternalTriggerDecision
+        from zebtrack.ui.dialogs.live_analysis_dialog import window_trigger_rejection
+
+        offline = ExternalTriggerDecision.REJECT_ARDUINO_OFFLINE
+        with_port = window_trigger_rejection(offline, {"arduino_port": " COM3 "})
+        without_port = window_trigger_rejection(offline, {})
+
+        assert with_port is not None and "not connected (port COM3)." in with_port
+        assert without_port is not None and "not connected." in without_port
+
+    def test_dialog_keeps_only_the_trigger_keys(self):
+        """The open project's data reaches the gate filtered and copied, never aliased."""
+        from zebtrack.ui.dialogs.live_analysis_dialog import TRIGGER_CONTEXT_KEYS
+
+        assert TRIGGER_CONTEXT_KEYS == ("external_trigger_mode", "use_arduino", "arduino_port")

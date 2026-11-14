@@ -3458,3 +3458,36 @@ _load_registry()"
         description: "banner volta a mostrar so o ultimo aquario publicado (#656)"
         find: 'getattr(self, "_window_state_by_aquarium", {}) or {}'
         replace: '{}'
+
+  # ---- #634: analysis window in the ad-hoc live dialog -----------------------
+  live_dialog_window_gate:
+    source: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+    tests:
+      - tests/test_live_analysis_ui.py
+    mutations:
+      - id: conflicting-triggers-accepted
+        description: "#634: gatilho externo + janela que espera o Arduino passa pelo dialogo"
+        find: 'return conflicting_triggers_message()'
+        replace: 'return None'
+      - id: no-arduino-accepted
+        description: "#634: janela que espera o Arduino sem Arduino habilitado passa pelo dialogo"
+        find: 'if decision is ExternalTriggerDecision.REJECT_NO_ARDUINO:'
+        replace: 'if False:'
+      - id: offline-port-dropped
+        description: "#634: a recusa por Arduino offline deixa de dizer qual porta"
+        find: 'port_suffix = _(" (port {port})").format(port=port) if port else ""'
+        replace: 'port_suffix = ""'
+
+  adhoc_window_session_rois:
+    source: src/zebtrack/coordinators/live_camera_session_coordinator.py
+    tests:
+      - tests/coordinators/test_live_camera_session_coordinator.py
+    mutations:
+      - id: blank-roi-offered
+        description: "#634: ROI de nome em branco da sessao avulsa vira opcao do editor da janela"
+        find: 'return [str(name).strip() for name in names if str(name).strip()]'
+        replace: 'return [str(name) for name in names]'
+      - id: trigger-context-dropped
+        description: "#634: o dialogo avulso deixa de saber do gatilho externo do projeto aberto"
+        find: 'key: project_data[key] for key in TRIGGER_CONTEXT_KEYS if key in project_data'
+        replace: 'key: project_data[key] for key in () if key in project_data'
