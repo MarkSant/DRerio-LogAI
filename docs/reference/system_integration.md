@@ -1454,6 +1454,23 @@ no longer started in silence either:
 project declares `external_trigger_mode`, and is a no-op otherwise (including
 with no project at all).
 
+**8. Analysis window (#634).** The dialog embeds the zone tab's Start/Stop
+editor in session mode (`AnalysisWindowPanel.compact_for_session`): no
+controller, its own dict instead of `project_data`, no project save, no
+`ANALYSIS_WINDOW_SPEC_CHANGED`, no Save/Revert (the lines ARE the window). Its
+ROI lines and missing-ROI warning read `roi_names_provider`, which the
+coordinator wires to `project_manager.get_zone_data()` — the zones the ad-hoc
+session records with — never to an open project's per-video ROIs.
+`validate()` runs the spec through `decide_external_trigger()` with the open
+project's `external_trigger_mode`/`use_arduino`/`arduino_port`
+(`TRIGGER_CONTEXT_KEYS`, read-only) and the `ArduinoManager`; a window that
+waits for the Arduino is refused with the reason under
+`REJECT_CONFLICTING_TRIGGERS`, `REJECT_NO_ARDUINO` or `REJECT_ARDUINO_OFFLINE`.
+`ARM_AND_WAIT` (legacy trigger, window not waiting for the Arduino) stays item 7's
+confirmation. The spec leaves as `result["analysis_window"]` (`None` without a
+window) and reaches `start_session(analysis_window=...)` by argument — nothing is
+written into the shared `Settings`.
+
 ### 5.15. Project Switch: `PROJECT_MANAGER_REPLACED` and `PROJECT_OPENED` (August 2026)
 
 `close_project` does not clear the current `ProjectManager` — it constructs a

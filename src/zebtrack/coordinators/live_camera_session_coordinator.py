@@ -1693,11 +1693,22 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 return
 
             from zebtrack.ui.dialogs import LiveAnalysisDialog
+            from zebtrack.ui.dialogs.live_analysis_dialog import TRIGGER_CONTEXT_KEYS
 
+            project_data = getattr(self.project_manager, "project_data", None)
+            if not isinstance(project_data, dict):
+                project_data = {}
             dialog = LiveAnalysisDialog(
                 self.root,
                 settings_obj=self.settings,
                 event_bus=self.event_bus,
+                # #634: the window editor checks its rule against the SAME gate
+                # as the project paths, and warns about ROIs the session lacks.
+                trigger_context={
+                    key: project_data[key] for key in TRIGGER_CONTEXT_KEYS if key in project_data
+                },
+                arduino_manager=self._arduino_manager(),
+                roi_names_provider=self._adhoc_session_roi_names,
             )
 
             if not dialog.result:
@@ -1708,6 +1719,23 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
 
         # Delegate to unified start method
         self.start_session_from_config(config)
+
+    def _adhoc_session_roi_names(self) -> list[str]:
+        """ROI names of the zones an ad-hoc session records with.
+
+        ``start_session_from_config`` reads ``project_manager.get_zone_data()``
+        as the session's zones, so this is the list the window's ROI lines can
+        match — not an open project's per-video ROIs. Empty until zones exist.
+        """
+        try:
+            zone_data = self.project_manager.get_zone_data()
+        # except Exception justified: zones may not exist before the zone gate;
+        # "no ROIs yet" is the honest answer for the editor's warning.
+        except Exception:
+            log.debug("live_camera_session_coordinator.adhoc_rois.unavailable", exc_info=True)
+            return []
+        names = getattr(zone_data, "roi_names", None) or []
+        return [str(name).strip() for name in names if str(name).strip()]
 
     def start_session_from_config(self, config: dict, *, zones_validated: bool = False) -> bool:
         """Start live camera analysis with full configuration from SingleVideoConfigDialog.

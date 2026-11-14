@@ -770,6 +770,52 @@ class TestStartLiveAnalysisAndSessionFromConfig:
         assert cfg["duration_s"] == 180.0
         assert cfg["experiment_id"] == "camera_1"
 
+    def test_dialog_gets_the_session_rois_and_the_trigger_context(self, coordinator):
+        """#634: the dialog's window editor reads the AD-HOC session's ROIs and
+        the open project's trigger flags, and its window reaches the start call."""
+        coordinator.root = Mock()
+        coordinator.start_session_from_config = Mock(return_value=True)
+        coordinator.project_manager.get_zone_data.return_value = Mock(roi_names=["toca", "  "])
+        coordinator.project_manager.project_data = {
+            "external_trigger_mode": True,
+            "use_arduino": True,
+            "arduino_port": "COM3",
+            "unrelated": "kept out",
+        }
+        arduino = Mock()
+        coordinator.arduino_manager = arduino
+        window = {"start": None, "stop": {"kind": "end_of_stream"}}
+
+        with patch("zebtrack.ui.dialogs.LiveAnalysisDialog") as dialog_cls:
+            dialog_cls.return_value.result = {"camera_index": 0, "analysis_window": window}
+            coordinator.start_live_camera_analysis(camera_index=None)
+
+        kwargs = dialog_cls.call_args.kwargs
+        assert kwargs["trigger_context"] == {
+            "external_trigger_mode": True,
+            "use_arduino": True,
+            "arduino_port": "COM3",
+        }
+        assert kwargs["arduino_manager"] is arduino
+        assert kwargs["roi_names_provider"]() == ["toca"]
+        cfg = coordinator.start_session_from_config.call_args[0][0]
+        assert cfg["analysis_window"] == window
+
+    def test_session_roi_provider_degrades_to_empty(self, coordinator):
+        coordinator.root = Mock()
+        coordinator.start_session_from_config = Mock()
+        coordinator.project_manager.get_zone_data.side_effect = RuntimeError("no zones yet")
+        coordinator.project_manager.project_data = None
+
+        with patch("zebtrack.ui.dialogs.LiveAnalysisDialog") as dialog_cls:
+            dialog_cls.return_value.result = None
+            coordinator.start_live_camera_analysis(camera_index=None)
+
+        kwargs = dialog_cls.call_args.kwargs
+        assert kwargs["trigger_context"] == {}
+        assert kwargs["roi_names_provider"]() == []
+        coordinator.start_session_from_config.assert_not_called()
+
     def test_start_live_analysis_no_root_returns_early(self, coordinator):
         coordinator.root = None
         coordinator.start_session_from_config = Mock()

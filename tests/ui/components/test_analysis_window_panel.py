@@ -1245,3 +1245,97 @@ class TestAnalysisWindowPanel:
         panel.refresh()
 
         assert panel.is_alive() is False
+
+
+@pytest.mark.gui
+class TestSessionPanel:
+    """#634: the compact editor of the ad-hoc live dialog — no project behind it."""
+
+    def _panel(
+        self, root: Any, *, roi_names: list[str] | None = None
+    ) -> tuple[AnalysisWindowPanel, MagicMock]:
+        provider = MagicMock(return_value=list(roi_names or []))
+        panel = AnalysisWindowPanel.compact_for_session(root, roi_names_provider=provider)
+        root.update_idletasks()
+        return panel, provider
+
+    @staticmethod
+    def _button_texts(widget: Any) -> list[str]:
+        texts: list[str] = []
+        for child in widget.winfo_children():
+            if child.winfo_class() == "TButton":
+                texts.append(str(child.cget("text")))
+            texts.extend(TestSessionPanel._button_texts(child))
+        return texts
+
+    def test_starts_without_a_window(self, tkinter_root: Any) -> None:
+        panel, _provider = self._panel(tkinter_root)
+
+        assert panel.is_session_only is True
+        assert panel.project_manager is None
+        assert panel.current_spec() is None
+        assert panel.preview_text() == (describe_window_spec(None), False)
+
+    def test_barnes_preset_reads_the_session_rois(self, tkinter_root: Any) -> None:
+        panel, provider = self._panel(tkinter_root, roi_names=["Toca"])
+
+        panel.apply_barnes_preset()
+
+        provider.assert_called()
+        assert panel.current_spec() == barnes_maze_preset(burrow_roi="Toca")
+        assert panel._status.cget("text") == "Preset loaded. Review the lines."  # type: ignore[union-attr]
+        assert str(panel._status.cget("foreground")) == "green"  # type: ignore[union-attr]
+
+    def test_barnes_preset_warns_when_the_session_has_no_burrow(self, tkinter_root: Any) -> None:
+        panel, _provider = self._panel(tkinter_root, roi_names=["center"])
+
+        panel.apply_barnes_preset()
+
+        status = panel._status.cget("text")  # type: ignore[union-attr]
+        assert "'toca'" in status
+        assert str(panel._status.cget("foreground")) == "red"  # type: ignore[union-attr]
+
+    def test_edits_are_the_window_with_nothing_to_save(self, tkinter_root: Any) -> None:
+        panel, _provider = self._panel(tkinter_root)
+        panel.open_editor()
+
+        panel.target_section.set("Stop")
+        panel._refresh_kind_choices()
+        panel.row_kind.set("End of the video")
+        panel._on_kind_changed()
+        panel.add_line()
+
+        assert panel.current_spec() == WindowSpec(stop=EndOfStream())
+        text, error = panel.preview_text()
+        assert error is False and "(not saved yet)" not in text
+        buttons = self._button_texts(panel._editor)
+        assert "Save" not in buttons and "Revert" not in buttons
+        assert "Clear all" in buttons and "Close" in buttons
+
+    def test_roi_lines_offer_the_session_rois(self, tkinter_root: Any) -> None:
+        panel, _provider = self._panel(tkinter_root, roi_names=["toca", "centro"])
+        panel.open_editor()
+
+        panel.row_kind.set(row_kind_labels()["roi_enter"])
+        panel._on_kind_changed()
+
+        assert list(panel._target_combo["values"]) == ["toca", "centro"]  # type: ignore[index]
+
+    def test_failing_roi_provider_degrades_to_no_rois(self, tkinter_root: Any) -> None:
+        panel = AnalysisWindowPanel.compact_for_session(
+            tkinter_root, roi_names_provider=MagicMock(side_effect=RuntimeError("no zones"))
+        )
+
+        assert panel._roi_names() == []
+
+    def test_save_never_touches_a_project_or_the_bus(self, tkinter_root: Any) -> None:
+        bus = MagicMock()
+        panel = AnalysisWindowPanel.compact_for_session(
+            tkinter_root, roi_names_provider=lambda: [], event_bus=bus
+        )
+        panel.drafts["stop"] = _section(ConditionRow(kind="end_of_video"))
+
+        assert panel.save() is True
+
+        bus.publish.assert_not_called()
+        assert panel.current_spec() == WindowSpec(stop=EndOfStream())
