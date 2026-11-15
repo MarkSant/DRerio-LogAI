@@ -4274,3 +4274,27 @@ _load_registry()"
         description: "o aviso de deteccao multi-aquario passa a abrir uma janela por frame"
         find: '        if getattr(self, "_multi_aq_failure_reported_for", None) == session:'
         replace: '        if False:'
+
+  unified_report_rois_every_aquarium:
+    source: src/zebtrack/coordinators/_unified_report_mixin.py
+    tests:
+      - tests/coordinators/test_unified_report.py
+    mutations:
+      - id: rois-from-aquarium-zero-only
+        description: "relatorio unificado volta a ler ROIs so do aquario 0 (A4-01)"
+        find: '        if isinstance(multi, MultiAquariumZoneData) and multi.aquariums:'
+        replace: '        if False:'
+      - id: later-aquarium-overwrites-colour
+        description: "cor de uma ROI repetida passa a vir do ultimo aquario, nao do primeiro"
+        find: '                    roi_colors_map.setdefault(roi_name, color)'
+        replace: '                    roi_colors_map[roi_name] = color'
+
+  unified_report_roi_names:
+    source: src/zebtrack/coordinators/report_generation_coordinator.py
+    tests:
+      - tests/coordinators/test_unified_report.py
+    mutations:
+      - id: duplicate-roi-name-kept
+        description: "ROI presente em dois aquarios aparece duas vezes na lista esperada"
+        find: '                        if name not in names:'
+        replace: '                        if True:'

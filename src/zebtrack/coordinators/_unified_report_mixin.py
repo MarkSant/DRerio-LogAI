@@ -247,11 +247,27 @@ class UnifiedReportMixin:
     # Host-provided method (implemented by ReportGenerationCoordinator)
     generate_parquet_summaries: Any  # (entries: list[dict], settings) -> None
 
+    def _video_zone_sets(self, path: Path | str) -> list[Any]:
+        """Every zone set of a video: one per aquarium, or the single one.
+
+        ``get_zone_data`` is the aquarium-0 compatibility shim (see CLAUDE.md,
+        "Multi-Aquarium"): reading ROIs through it alone dropped every ROI that
+        exists only in another aquarium from the unified report (audit A4-01).
+        """
+        from zebtrack.core.detection import MultiAquariumZoneData
+
+        multi = self.project_manager.get_multi_aquarium_zone_data(path)
+        if isinstance(multi, MultiAquariumZoneData) and multi.aquariums:
+            return list(multi.aquariums)
+        zone_data = self.project_manager.get_zone_data(video_path=path)
+        return [zone_data] if zone_data else []
+
     def _collect_roi_colors_into(self, path: Path | str, roi_colors_map: dict) -> None:
         """Acumula cores de ROI (nome → cor) das zonas do vídeo, sem sobrescrever."""
         try:
-            zone_data = self.project_manager.get_zone_data(video_path=path)
-            if zone_data and zone_data.roi_names and zone_data.roi_colors:
+            for zone_data in self._video_zone_sets(path):
+                if not (zone_data.roi_names and zone_data.roi_colors):
+                    continue
                 for roi_name, color in zip(zone_data.roi_names, zone_data.roi_colors, strict=True):
                     roi_colors_map.setdefault(roi_name, color)
         except (OSError, KeyError, ValueError) as e:
