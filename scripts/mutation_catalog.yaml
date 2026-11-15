@@ -4298,3 +4298,135 @@ _load_registry()"
         description: "ROI presente em dois aquarios aparece duas vezes na lista esperada"
         find: '                        if name not in names:'
         replace: '                        if True:'
+
+  # ---------------------------------------------------------------------------
+  # ui dialogs coverage (TASK-087)
+  # ---------------------------------------------------------------------------
+
+  camera_disconnect_dialog_callbacks:
+    source: src/zebtrack/ui/dialogs/camera_disconnect_recovery_dialog.py
+    tests:
+      - tests/ui/dialogs/test_camera_disconnect_recovery_dialog.py
+    mutations:
+      - id: failed-resume-still-closes
+        description: "Resume cujo callback falha fecha o dialogo e o operador perde a gravacao pausada (A5-S-009)"
+        find: 'if self._invoke_callback("resume"):'
+        replace: 'if self._invoke_callback("resume") or True:'
+      - id: failed-wait-never-repaired
+        description: "falha do callback de Wait nao agenda o reparo na thread de UI e o dialogo fica travado"
+        find: 'self.after(0, self._restore_after_callback_failure)'
+        replace: 'pass'
+      - id: repair-skipped-while-window-alive
+        description: "o reparo passa a rodar so quando a janela ja foi destruida"
+        find: 'if not self.winfo_exists():'
+        replace: 'if self.winfo_exists():'
+      - id: countdown-expires-one-second-late
+        description: "o fim da contagem so dispara Wait um tick depois de zerar"
+        find: 'if self.countdown_remaining <= 0:'
+        replace: 'if self.countdown_remaining < 0:'
+
+  multi_aquarium_preview_layout:
+    source: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py
+    tests:
+      - tests/ui/dialogs/test_multi_aquarium_live_preview_window.py
+    mutations:
+      - id: four-aquariums-use-three-columns
+        description: "4 aquarios deixam de caber em 2 colunas"
+        find: 'cols = 2 if num_aquariums <= 4 else 3'
+        replace: 'cols = 2 if num_aquariums < 4 else 3'
+      - id: row-height-uses-column-count
+        description: "altura da janela passa a depender do numero de colunas e nao de linhas"
+        find: 'return cols, rows, 400 * cols + 40, 350 * rows + 150'
+        replace: 'return cols, rows, 400 * cols + 40, 350 * cols + 150'
+      - id: progress-not-clamped-below
+        description: "progresso negativo (relogio andando para tras) deixa de ser limitado a zero"
+        find: 'return max(0.0, min(100.0, (elapsed_s / duration_s) * 100.0))'
+        replace: 'return min(100.0, (elapsed_s / duration_s) * 100.0)'
+      - id: eta-hour-boundary
+        description: "ETA de exatamente uma hora deixa de usar horas"
+        find: 'if minutes < 60:'
+        replace: 'if minutes <= 60:'
+
+  aquarium_detection_thumbnail:
+    source: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py
+    tests:
+      - tests/ui/dialogs/test_aquarium_detection_progress_dialog.py
+    mutations:
+      - id: thumbnail-overflows-binding-side
+        description: "o miniatura usa o maior fator de escala e estoura a area de 400x300"
+        find: 'scale = min(THUMBNAIL_MAX_WIDTH / frame_width, THUMBNAIL_MAX_HEIGHT / frame_height)'
+        replace: 'scale = max(THUMBNAIL_MAX_WIDTH / frame_width, THUMBNAIL_MAX_HEIGHT / frame_height)'
+      - id: bbox-x2-not-scaled
+        description: "a borda direita do bbox deixa de acompanhar a escala do miniatura"
+        find: 'return new_w, new_h, (int(x1 * scale), int(y1 * scale), int(x2 * scale), int(y2 * scale))'
+        replace: 'return new_w, new_h, (int(x1 * scale), int(y1 * scale), int(x2), int(y2 * scale))'
+      - id: bbox-presence-inverted
+        description: "sem bbox o miniatura tenta escalar None"
+        find: 'if bbox is None:'
+        replace: 'if bbox is not None:'
+
+  custom_regex_extraction:
+    source: src/zebtrack/ui/wizard/custom_regex_dialog.py
+    tests:
+      - tests/ui/wizard/test_custom_regex_dialog.py
+    mutations:
+      - id: capture-group-ignored
+        description: "o valor extraido passa a ser sempre o trecho inteiro, nao o grupo de captura"
+        find: 'return match.group(1) if match.groups() else match.group(0)'
+        replace: 'return match.group(0)'
+      - id: only-first-subject-listed
+        description: "nome com dois sujeitos mostra so o primeiro na previa"
+        find: 'values = [match_value(m) for m in pattern.finditer(path)]'
+        replace: 'values = [match_value(m) for m in pattern.finditer(path)][:1]'
+      - id: path-truncated-at-65
+        description: "caminho de exatamente 65 caracteres passa a ser truncado"
+        find: 'if len(path) > 65:'
+        replace: 'if len(path) >= 65:'
+      - id: test-path-anchored-at-start
+        description: "o painel de teste so acha o padrao no inicio do caminho"
+        find: 'match = pattern.search(path)'
+        replace: 'match = pattern.match(path)'
+
+  report_generator_unified_delete:
+    source: src/zebtrack/ui/components/project_views/report_generator_actions.py
+    tests:
+      - tests/ui/components/test_report_generator_actions.py
+    mutations:
+      - id: locked-folder-reported-as-deleted
+        description: "pasta que continua no disco volta a ser anunciada como apagada"
+        find: 'if not os.path.exists(unified_dir):'
+        replace: 'if True:'
+      - id: partial-scope-checks-total-folder
+        description: "relatorio parcial passa a checar a pasta do total para perguntar sobre substituicao"
+        find: 'scope_dir = "selecionados" if scope == "selected" else "total"'
+        replace: 'scope_dir = "total" if scope == "selected" else "selecionados"'
+      - id: answer-no-replaces
+        description: "responder Nao (manter os anteriores) passa a substituir"
+        find: 'return bool(response)'
+        replace: 'return True'
+      - id: single-delete-attempt
+        description: "a exclusao deixa de ser repetida contra travas transitorias do OneDrive"
+        find: 'for _attempt in range(3):'
+        replace: 'for _attempt in range(1):'
+
+  report_asset_actions_decisions:
+    source: src/zebtrack/ui/components/project_views/report_asset_actions.py
+    tests:
+      - tests/ui/components/test_report_asset_actions.py
+    mutations:
+      - id: duplicate-videos-reset-twice
+        description: "o mesmo video selecionado duas vezes e resetado e contado duas vezes"
+        find: 'unique_paths = list(dict.fromkeys(str(path) for path in video_paths if path))'
+        replace: 'unique_paths = list(str(path) for path in video_paths if path)'
+      - id: project-and-data-swapped
+        description: "escolher so os dados passa a remover o video do projeto"
+        find: 'if delete_mode == "project":'
+        replace: 'if delete_mode != "project":'
+      - id: declined-reset-runs-anyway
+        description: "recusar a confirmacao nao impede mais o reset dos dados de analise"
+        find: 'if not confirmed:'
+        replace: 'if False:'
+      - id: results-by-name-ignored
+        description: "resultados achados pelo nome esperado deixam de contar e o operador ve um aviso falso"
+        find: 'if not has_results and results_dir:'
+        replace: 'if False and results_dir:'

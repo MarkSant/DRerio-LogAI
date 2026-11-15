@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-15 06:42-0300\n"
+"POT-Creation-Date: 2026-11-15 18:15-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -80,7 +80,7 @@ msgstr ""
 #: src/zebtrack/ui/components/canvas/zone_editor.py:968
 #: src/zebtrack/ui/components/dialog_manager.py:1797
 #: src/zebtrack/ui/components/dialog_manager.py:1878
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:307
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:314
 #: src/zebtrack/ui/components/validation_manager.py:1610
 msgid "Success"
 msgstr ""
@@ -294,7 +294,7 @@ msgid ""
 msgstr ""
 
 #: src/zebtrack/coordinators/_single_video_mixin.py:224
-#: src/zebtrack/coordinators/report_generation_coordinator.py:989
+#: src/zebtrack/coordinators/report_generation_coordinator.py:992
 msgid "Single Video"
 msgstr ""
 
@@ -371,7 +371,7 @@ msgstr ""
 #: src/zebtrack/ui/gui.py:174 src/zebtrack/ui/gui.py:913
 #: src/zebtrack/ui/gui.py:991 src/zebtrack/ui/project_workflow_adapter.py:215
 #: src/zebtrack/ui/project_workflow_adapter.py:275
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:801
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:97
 #: src/zebtrack/ui/wizard/live_config_step.py:881
 msgid "Error"
 msgstr ""
@@ -425,11 +425,11 @@ msgstr ""
 msgid "Report Error"
 msgstr ""
 
-#: src/zebtrack/coordinators/_unified_report_mixin.py:691
+#: src/zebtrack/coordinators/_unified_report_mixin.py:707
 msgid "Could not generate any file of the unified report."
 msgstr ""
 
-#: src/zebtrack/coordinators/_unified_report_mixin.py:693
+#: src/zebtrack/coordinators/_unified_report_mixin.py:709
 #, python-brace-format
 msgid ""
 "\n"
@@ -438,39 +438,39 @@ msgid ""
 "{details}"
 msgstr ""
 
-#: src/zebtrack/coordinators/_unified_report_mixin.py:703
-#: src/zebtrack/coordinators/_unified_report_mixin.py:745
+#: src/zebtrack/coordinators/_unified_report_mixin.py:719
+#: src/zebtrack/coordinators/_unified_report_mixin.py:761
 msgid "Partial Unified Report"
 msgstr ""
 
-#: src/zebtrack/coordinators/_unified_report_mixin.py:705
+#: src/zebtrack/coordinators/_unified_report_mixin.py:721
 msgid ""
 "Some files could not be generated.\n"
 "Generated: "
 msgstr ""
 
-#: src/zebtrack/coordinators/_unified_report_mixin.py:707
+#: src/zebtrack/coordinators/_unified_report_mixin.py:723
 msgid ""
 "\n"
 "\n"
 "Failures:\n"
 msgstr ""
 
-#: src/zebtrack/coordinators/_unified_report_mixin.py:732
+#: src/zebtrack/coordinators/_unified_report_mixin.py:748
 msgid "Different ROIs"
 msgstr ""
 
-#: src/zebtrack/coordinators/_unified_report_mixin.py:734
+#: src/zebtrack/coordinators/_unified_report_mixin.py:750
 msgid ""
 "The selected videos have different ROIs.\n"
 "Missing columns were filled with empty values (NA)."
 msgstr ""
 
-#: src/zebtrack/coordinators/_unified_report_mixin.py:747
+#: src/zebtrack/coordinators/_unified_report_mixin.py:763
 msgid "Unified Report"
 msgstr ""
 
-#: src/zebtrack/coordinators/_unified_report_mixin.py:750
+#: src/zebtrack/coordinators/_unified_report_mixin.py:766
 #, python-brace-format
 msgid ""
 "Unified report generated successfully in:\n"
@@ -1435,41 +1435,41 @@ msgstr ""
 msgid "Reports generated for {count} videos."
 msgstr ""
 
-#: src/zebtrack/coordinators/report_generation_coordinator.py:703
+#: src/zebtrack/coordinators/report_generation_coordinator.py:706
 msgid "Video path not defined."
 msgstr ""
 
-#: src/zebtrack/coordinators/report_generation_coordinator.py:730
+#: src/zebtrack/coordinators/report_generation_coordinator.py:733
 #, python-brace-format
 msgid "{name}: multi-aquarium data missing."
 msgstr ""
 
-#: src/zebtrack/coordinators/report_generation_coordinator.py:756
+#: src/zebtrack/coordinators/report_generation_coordinator.py:759
 #, python-brace-format
 msgid "{name} ({count} aquariums)"
 msgstr ""
 
-#: src/zebtrack/coordinators/report_generation_coordinator.py:762
+#: src/zebtrack/coordinators/report_generation_coordinator.py:765
 #, python-brace-format
 msgid "{name}: no aquarium processed."
 msgstr ""
 
-#: src/zebtrack/coordinators/report_generation_coordinator.py:770
+#: src/zebtrack/coordinators/report_generation_coordinator.py:773
 #, python-brace-format
 msgid "{name}: multi-aquarium error {error}"
 msgstr ""
 
-#: src/zebtrack/coordinators/report_generation_coordinator.py:874
+#: src/zebtrack/coordinators/report_generation_coordinator.py:877
 #, python-brace-format
 msgid "{name}: trajectory missing."
 msgstr ""
 
-#: src/zebtrack/coordinators/report_generation_coordinator.py:883
+#: src/zebtrack/coordinators/report_generation_coordinator.py:886
 #, python-brace-format
 msgid "{name}: trajectory empty."
 msgstr ""
 
-#: src/zebtrack/coordinators/report_generation_coordinator.py:954
+#: src/zebtrack/coordinators/report_generation_coordinator.py:957
 #, python-brace-format
 msgid "{name}: error {error}"
 msgstr ""
@@ -1699,7 +1699,7 @@ msgstr ""
 #: src/zebtrack/core/detection/multi_aquarium_detector.py:1196
 #: src/zebtrack/ui/components/canvas/renderer.py:397
 #: src/zebtrack/ui/components/project_views/report_tree_builder.py:634
-#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:184
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:207
 #, python-brace-format
 msgid "Aquarium {number}"
 msgstr ""
@@ -3223,7 +3223,7 @@ msgstr ""
 #: src/zebtrack/ui/dialogs/project_video_import_dialog.py:511
 #: src/zebtrack/ui/dialogs/project_video_import_dialog.py:544
 #: src/zebtrack/ui/sentinels.py:57
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:39
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:40
 msgid "Day"
 msgstr ""
 
@@ -3470,7 +3470,7 @@ msgstr ""
 #: src/zebtrack/ui/dialogs/start_recording_dialog.py:214
 #: src/zebtrack/ui/dialogs/subject_selection_dialog.py:104
 #: src/zebtrack/ui/dialogs/zone_calibration_dialog.py:128
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:473
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:619
 #: src/zebtrack/ui/wizard/design_editor_dialog.py:269
 #: src/zebtrack/ui/wizard/wizard_dialog.py:214
 #: src/zebtrack/ui/wizard/wizard_dialog.py:510
@@ -4107,7 +4107,7 @@ msgstr ""
 #: src/zebtrack/ui/components/analysis_window_panel.py:1052
 #: src/zebtrack/ui/components/class_roles_panel.py:1015
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:981
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:466
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:612
 #: src/zebtrack/ui/wizard/design_editor_dialog.py:266
 msgid "Save"
 msgstr ""
@@ -5273,7 +5273,7 @@ msgstr ""
 #: src/zebtrack/ui/dialogs/project_video_import_dialog.py:193
 #: src/zebtrack/ui/dialogs/project_video_import_dialog.py:504
 #: src/zebtrack/ui/dialogs/project_video_import_dialog.py:537
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:39
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:40
 msgid "Group"
 msgstr ""
 
@@ -5283,7 +5283,7 @@ msgstr ""
 #: src/zebtrack/ui/dialogs/project_video_import_dialog.py:210
 #: src/zebtrack/ui/dialogs/project_video_import_dialog.py:519
 #: src/zebtrack/ui/dialogs/project_video_import_dialog.py:552
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:39
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:40
 msgid "Subject"
 msgstr ""
 
@@ -5659,7 +5659,7 @@ msgid "ROI renamed to '{name}'."
 msgstr ""
 
 #: src/zebtrack/ui/components/event_dispatcher.py:349
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:331
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:329
 #: src/zebtrack/ui/components/validation_manager.py:1624
 #: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py:264
 #: src/zebtrack/ui/dialogs/block_detail_dialog.py:1737
@@ -8559,28 +8559,32 @@ msgstr ""
 msgid "Unified report generation cancelled by the user."
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:307
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:308
+msgid "the folder still exists after the deletion attempt"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:314
 msgid "All unified reports have been deleted."
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:316
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:319
 msgid ""
 "Could not delete the folder.\n"
 "Check whether a file is still open."
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:318
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:321
 msgid ""
 "\n"
 "\n"
 "OneDrive may be locking files. Try again in a few moments."
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:321
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:324
 msgid "Deletion Error"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:322
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:325
 #, python-brace-format
 msgid ""
 "{message}\n"
@@ -8588,7 +8592,7 @@ msgid ""
 "Error: {error}"
 msgstr ""
 
-#: src/zebtrack/ui/components/project_views/report_generator_actions.py:331
+#: src/zebtrack/ui/components/project_views/report_generator_actions.py:329
 msgid "There were no unified reports to delete."
 msgstr ""
 
@@ -8876,63 +8880,63 @@ msgstr ""
 msgid "The subject of Aquarium {number} cannot be empty"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:68
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:93
 msgid "Detecting Aquarium"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:99
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:124
 msgid "⏳ Detecting the Aquarium Automatically"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:108
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:133
 #, python-brace-format
 msgid ""
 "Session: {experiment}\n"
 "Analyzing frames to identify the aquarium region..."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:141
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:166
 msgid "Detections:"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:148
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:215
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:173
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:240
 #, python-brace-format
 msgid "✓ Valid: {count}"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:155
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:217
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:180
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:242
 #, python-brace-format
 msgid "✗ Invalid: {count}"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:163
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:188
 msgid "Last Frame Analyzed"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:170
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:195
 #: src/zebtrack/ui/dialogs/live_preview_window.py:150
 msgid "Waiting for frames..."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:178
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:203
 msgid "Starting detection..."
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:230
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:255
 msgid "✓ Aquarium detected (valid area)"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:235
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:260
 msgid "✗ Detection ignored (insufficient area)"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:277
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:295
 msgid "VALID"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:277
+#: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py:295
 msgid "INVALID"
 msgstr ""
 
@@ -9731,6 +9735,10 @@ msgstr ""
 msgid "Waiting for the camera to reconnect..."
 msgstr ""
 
+#: src/zebtrack/ui/dialogs/camera_disconnect_recovery_dialog.py:337
+msgid "The reconnection request failed. Choose how to continue."
+msgstr ""
+
 #: src/zebtrack/ui/dialogs/center_periphery_dialog.py:34
 msgid "Method:"
 msgstr ""
@@ -10308,7 +10316,7 @@ msgstr ""
 
 #: src/zebtrack/ui/dialogs/live_preview_window.py:119
 #: src/zebtrack/ui/dialogs/live_preview_window.py:242
-#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:159
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:182
 msgid "Time: waiting..."
 msgstr ""
 
@@ -10381,34 +10389,74 @@ msgstr ""
 msgid "Global Model Diagnostics"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:59
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:82
 #, python-brace-format
 msgid "Multi-Aquarium Live Analysis - Camera {index}"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:107
-#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:222
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:128
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:245
 #, python-brace-format
 msgid "Start: {clock}"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:150
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:157
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:258
+#, python-brace-format
+msgid "Recorded frames: {count}"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:173
 #, python-brace-format
 msgid "Camera: {camera} | Aquariums: {count}"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:202
-#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:301
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:190
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:346
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:396
+#, python-brace-format
+msgid "Status: {text}"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:190
+msgid "Initializing..."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:225
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:328
 #, python-brace-format
 msgid "Detections: {count}"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:215
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:238
 msgid "Session"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:253
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:250
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:409
+#, python-brace-format
+msgid "End: {clock}"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:254
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:382
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:384
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:419
+#, python-brace-format
+msgid "ETA: {eta}"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:280
 msgid "⏹ Stop Analysis"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:359
+#, python-brace-format
+msgid "Time: {elapsed} / {remaining}"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py:396
+msgid "Stopping..."
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/pending_videos_dialog.py:56
@@ -12012,25 +12060,55 @@ msgstr ""
 msgid "Configure the camera in the previous step before creating the project."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:110
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:151
+msgid "✗ Enter a path to test"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:156
+#, python-brace-format
+msgid "○ {label}: pattern not defined"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:161
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:169
+#, python-brace-format
+msgid "✗ {label}: invalid regex - {error}"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:175
+#, python-brace-format
+msgid "✗ {label}: enter a path"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:180
+#, python-brace-format
+msgid "✓ {label}: '{value}'"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:182
+#, python-brace-format
+msgid "✗ {label}: no match"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:256
 msgid "Configure Custom Regex Patterns"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:124
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:270
 msgid "Custom Regex Patterns"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:131
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:277
 msgid ""
 "Define regexes to detect groups, days and subjects. Use capture groups ()"
 " or named ones (?P<name>) to extract the values."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:152
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:298
 msgid "Quick tips"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:157
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:303
 msgid ""
 "• Empty fields leave the design unchanged.\n"
 "• \\d captures digits (0-9); \\w covers letters, digits and _.\n"
@@ -12038,104 +12116,104 @@ msgid ""
 "• The preview recalculates automatically after each edit."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:169
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:315
 msgid "📚 Common Examples"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:175
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:321
 msgid "Group in the file name"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:181
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:327
 msgid "Day with a number"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:187
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:333
 msgid "Subject with an S prefix"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:193
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:339
 msgid "Group in a folder (any word)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:228
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:374
 msgid "Use"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:238
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:384
 #, python-brace-format
 msgid "E.g. {example}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:251
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:397
 msgid "Group pattern:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:256
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:402
 msgid "E.g. (Control|Treatment|Group\\d+) or (\\w+)_Group"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:274
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:420
 msgid "Day pattern:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:279
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:425
 #, python-brace-format
 msgid "E.g. Day(\\d+) or D(\\d+) or (\\d{4}-\\d{2}-\\d{2})"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:297
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:443
 msgid "Subject pattern:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:302
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:448
 msgid "E.g. S(\\d+) or Subject(\\d+) or Animal_(\\w+)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:324
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:470
 msgid "Test patterns:"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:340
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:486
 msgid "Test"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:356
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:513
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:678
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:502
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:659
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:815
 #, python-brace-format
 msgid "○ {label}: waiting"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:378
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:524
 msgid "Legend: ✓ matched • ✗ failed • ○ not defined"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:389
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:535
 msgid "Automatic preview (up to 15 paths)"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:402
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:548
 msgid "Path"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:479
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:625
 msgid "Clear All"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:494
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:640
 msgid "Empty Path"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:495
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:641
 msgid "Enter a path to test."
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:535
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:681
 msgid "Invalid Regex"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:536
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:682
 #, python-brace-format
 msgid ""
 "Invalid {label} pattern:\n"
@@ -12144,45 +12222,15 @@ msgid ""
 "Error: {error}"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:691
-msgid "✗ Enter a path to test"
-msgstr ""
-
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:696
-#, python-brace-format
-msgid "○ {label}: pattern not defined"
-msgstr ""
-
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:701
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:711
-#, python-brace-format
-msgid "✗ {label}: invalid regex - {error}"
-msgstr ""
-
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:717
-#, python-brace-format
-msgid "✗ {label}: enter a path"
-msgstr ""
-
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:723
-#, python-brace-format
-msgid "✓ {label}: '{value}'"
-msgstr ""
-
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:725
-#, python-brace-format
-msgid "✗ {label}: no match"
-msgstr ""
-
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:739
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:837
 msgid "Add videos in the previous step"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:768
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:866
 msgid "… 1 additional path"
 msgstr ""
 
-#: src/zebtrack/ui/wizard/custom_regex_dialog.py:770
+#: src/zebtrack/ui/wizard/custom_regex_dialog.py:868
 #, python-brace-format
 msgid "… {count} additional paths"
 msgstr ""

@@ -288,28 +288,31 @@ class ReportGeneratorActions:
 
         if os.path.exists(unified_dir):
             success = False
-            last_error = None
+            last_error: Exception | None = None
 
             # NOT ``for _ in ...``: ``_`` is the gettext callable in this module,
             # and rebinding it here would break every _() call further down.
             for _attempt in range(3):
                 try:
                     shutil.rmtree(unified_dir, onerror=on_rm_error)
-                    success = True
-                    break
                 except OSError as e:
                     last_error = e
                     time.sleep(0.5)
+                    continue
+                # ``on_rm_error`` swallows what it cannot fix, so rmtree "returns
+                # normally" even when a file is locked: the folder itself is the
+                # only proof that the deletion worked.
+                if not os.path.exists(unified_dir):
+                    success = True
+                    break
+                last_error = OSError(_("the folder still exists after the deletion attempt"))
+                time.sleep(0.5)
 
             if success:
                 log.info("project.delete_unified.success", path=unified_dir)
                 self.dialog_manager.show_info(
                     _("Success"), _("All unified reports have been deleted.")
                 )
-
-                widget = self._processing_reports_widget
-                if widget and hasattr(widget, "_update_button_states"):
-                    widget._update_button_states(pm.project_path)
             else:
                 log.warning("project.delete_unified.failed", error=str(last_error))
 
@@ -321,12 +324,12 @@ class ReportGeneratorActions:
                     _("Deletion Error"),
                     _("{message}\n\nError: {error}").format(message=msg, error=last_error),
                 )
+        else:
+            self.dialog_manager.show_info(
+                _("Warning"), _("There were no unified reports to delete.")
+            )
 
         # Always refresh button states regardless of success/failure
         widget = self._processing_reports_widget
         if widget and hasattr(widget, "_update_button_states"):
             widget._update_button_states(pm.project_path)
-        else:
-            self.dialog_manager.show_info(
-                _("Warning"), _("There were no unified reports to delete.")
-            )
