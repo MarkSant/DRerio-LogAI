@@ -1,4 +1,4 @@
-# A5 — Silent failures audit
+# A5 â€” Silent failures audit
 
 Audit of `src/zebtrack` at `b03e5546` for TASK-087 (register rows A5-01 and A5-02 in
 `docs/audits/2026-11_loose_ends.md`). Nothing under `src/` or `tests/` was changed. Every finding
@@ -8,6 +8,27 @@ Classification: `legitimate` (deliberate, with the reason), `should log` (harmle
 invisible), `hides a real failure` (a concrete trigger exists, stated in the scenario).
 Severity: `data` (wrong or missing research data), `ux` (the user gets no answer),
 `diagnostic` (only harder to debug).
+
+## Status of the `data` findings (2026-11-15)
+
+All seven findings classified `hides a real failure` / `data` are fixed on branch
+`worktree-cov-plugins-utils` (PR 717), each with a test that failed before the fix and a mutation
+block:
+
+| Finding | Fix | Commit |
+| --- | --- | --- |
+| A5-S-001 | `Recorder.stop_recording_multi_aquarium` raises one `RecorderError` naming every aquarium that failed, after stopping all of them | `b1a60ef5` |
+| A5-S-002 | `LiveSessionManagerMixin._finalize_recorder` keeps the error and shows it to the operator | `b1a60ef5` |
+| A5-S-003 | "Generate summaries" reports how many videos ended without a report and lists them | `03e4f9eb` |
+| A5-S-004 | The unified batch report registers the sessions it really aggregated and warns about the rest | `3d4e471f` |
+| A5-S-005 | A failed thigmotaxis or geotaxis adds a warning to the report | `876b7a39` |
+| A5-S-006 | A failing multi-aquarium detection is shown once per session | this change |
+| A5-S-007 | A recorder that does not start after the arena is shown to the operator | this change |
+
+Two limits of these fixes, on purpose: A5-S-006 and A5-S-007 tell the operator but do not stop the
+session by themselves (the caller runs on the processing thread, and stopping from there needs its
+own design), and A5-S-004 still builds the report from the sessions that exist. The `ux` and
+`diagnostic` findings below are not fixed.
 
 ## Summary
 

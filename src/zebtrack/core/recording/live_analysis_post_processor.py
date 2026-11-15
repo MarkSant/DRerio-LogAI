@@ -1206,6 +1206,62 @@ class LiveAnalysisPostProcessorMixin:
             )
         )
 
+    def _publish_recording_error(self, title: str, message: str) -> None:
+        """Show the operator an error about the recording of the running session.
+
+        Safe from the processing thread: the ``SHOW_ERROR`` handler marshals the
+        dialog to the Tk thread itself.
+        """
+        event_bus = getattr(self, "event_bus", None)
+        if not event_bus:
+            return
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+        event_bus.publish(
+            Event(
+                type=UIEvents.SHOW_ERROR,
+                data=payloads.MessagePayload(title=title, message=message),
+            )
+        )
+
+    def _report_recorder_start_failure(self, error: str) -> None:
+        """The recorder did not start after the arena was defined (audit A5-S-007).
+
+        Until 8.0 this was only logged: no timer was armed, the preview kept
+        running and the operator could believe the session was being recorded.
+        """
+        self._publish_recording_error(
+            _("Recording did not start"),
+            _(
+                "The recorder could not be started after the arena was defined: {error}\n\n"
+                "This session is NOT being recorded. Stop it and check the output "
+                "folder {folder}."
+            ).format(error=error, folder=self.current_output_dir),
+        )
+
+    def _report_multi_aquarium_detection_failure(self, error: str) -> None:
+        """Multi-aquarium detection is failing while the preview goes on (A5-S-006).
+
+        The fallback keeps the preview alive with the single detector, but the
+        recorder write sits inside the failing block, so nothing is saved for
+        those frames. The log gets one line per frame; the operator is told
+        once per session folder.
+        """
+        session = self.current_output_dir
+        if getattr(self, "_multi_aq_failure_reported_for", None) == session:
+            return
+        self._multi_aq_failure_reported_for = session
+        self._publish_recording_error(
+            _("Detections are not being recorded"),
+            _(
+                "Multi-aquarium detection failed: {error}\n\n"
+                "The preview keeps running, but the detections of this session are not "
+                "being saved while the error lasts. Stop the session and check the "
+                "aquarium zones."
+            ).format(error=error),
+        )
+
     def _start_recording_after_arena(self) -> None:
         """Start recorder and timer AFTER arena has been defined.
 
@@ -1225,6 +1281,7 @@ class LiveAnalysisPostProcessorMixin:
                 recorder_started = self._start_live_recorder(zone_data, f"{self._experiment_id}")
                 if not recorder_started:
                     log.error("live_camera_service.recorder_start_failed_after_arena")
+                    self._report_recorder_start_failure(_("the recorder refused to start"))
                     return
 
                 log.info(
@@ -1240,6 +1297,7 @@ class LiveAnalysisPostProcessorMixin:
                     error=str(e),
                     exc_info=True,
                 )
+                self._report_recorder_start_failure(str(e))
                 return
 
         # Start session timer NOW (after arena defined)
@@ -1458,5 +1516,6 @@ class LiveAnalysisPostProcessorMixin:
                 error=str(e),
                 exc_info=True,
             )
+            self._report_multi_aquarium_detection_failure(str(e))
             detections, _annotated = detector.detect(frame, "live")
             return detections

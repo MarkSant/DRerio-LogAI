@@ -897,3 +897,125 @@ class TestPostAnalysisEdges:
         _service, results = harness._run(tmp_path, monkeypatch, {"start": "not a condition"})
 
         assert any("analysis window" in w for w in results[0].validation_warnings)
+
+
+class TestRecordingProblemsReachTheOperator:
+    """Live paths that used to log an error and keep the preview running (A5-S-006, 007)."""
+
+    @staticmethod
+    def _host(tmp_path, detector=None):
+        host = _MultiHost(tmp_path, MagicMock(start_time=0.0), detector)
+        host_any: Any = host
+        host_any.event_bus = MagicMock()
+        host_any._session_duration_s = 30.0
+        host_any._resolve_session_multi_zone_data = lambda: None
+        host_any.timers = []
+        host_any._setup_session_timer = lambda duration, folder: host_any.timers.append(duration)
+        return host_any
+
+    @staticmethod
+    def _errors(host):
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        events = [call.args[0] for call in host.event_bus.publish.call_args_list]
+        return [event.data for event in events if event.type is UIEvents.SHOW_ERROR]
+
+    # -- A5-S-007: the recorder does not start after the arena is defined --------
+
+    def test_a_recorder_that_starts_runs_the_timer_and_reports_nothing(self, tmp_path):
+        host = self._host(tmp_path)
+        host._start_live_recorder = lambda zone_data, base_name: True
+
+        host._start_recording_after_arena()
+
+        assert host.timers == [30.0]
+        assert self._errors(host) == []
+
+    def test_a_recorder_that_refuses_to_start_is_shown_and_no_timer_runs(self, tmp_path):
+        host = self._host(tmp_path)
+        host._start_live_recorder = lambda zone_data, base_name: False
+
+        host._start_recording_after_arena()
+
+        assert host.timers == []
+        (error,) = self._errors(host)
+        assert error.title == "Recording did not start"
+        assert "NOT being recorded" in error.message
+        assert str(tmp_path) in error.message
+
+    def test_a_recorder_that_raises_is_shown_with_its_cause(self, tmp_path):
+        host = self._host(tmp_path)
+
+        def _raise(zone_data, base_name):
+            raise OSError("folder is read-only")
+
+        host._start_live_recorder = _raise
+
+        host._start_recording_after_arena()
+
+        assert host.timers == []
+        (error,) = self._errors(host)
+        assert "folder is read-only" in error.message
+
+    def test_a_start_failure_without_a_bus_still_returns(self, tmp_path):
+        host = self._host(tmp_path)
+        host.event_bus = None
+        host._start_live_recorder = lambda zone_data, base_name: False
+
+        host._start_recording_after_arena()
+
+        assert host.timers == []
+
+    # -- A5-S-006: multi-aquarium detection fails while the preview goes on ------
+
+    @staticmethod
+    def _failing_multi(host):
+        fake = MagicMock()
+        fake.detect_partitioned_optimized.side_effect = RuntimeError("tracker state broken")
+        host._multi_aq_detector = fake
+        return fake
+
+    def _frame_host(self, tmp_path):
+        import numpy as np
+
+        detector = MagicMock()
+        detector.detect.return_value = ([(1, 2, 3, 4, 0.9, 7, 1)], None)
+        host = self._host(tmp_path, detector)
+        self._failing_multi(host)
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        return host, frame
+
+    def test_a_failing_frame_still_feeds_the_preview_from_the_single_detector(self, tmp_path):
+        host, frame = self._frame_host(tmp_path)
+
+        detections = host._run_multi_aquarium_detection(frame, 5, SimpleNamespace(aquariums=[]))
+
+        assert detections == [(1, 2, 3, 4, 0.9, 7, 1)]
+
+    def test_the_operator_is_told_once_per_session_not_once_per_frame(self, tmp_path):
+        host, frame = self._frame_host(tmp_path)
+
+        for frame_number in range(5):
+            host._run_multi_aquarium_detection(frame, frame_number, SimpleNamespace(aquariums=[]))
+
+        (error,) = self._errors(host)
+        assert error.title == "Detections are not being recorded"
+        assert "tracker state broken" in error.message
+
+    def test_a_new_session_folder_is_told_again(self, tmp_path):
+        host, frame = self._frame_host(tmp_path)
+        host._run_multi_aquarium_detection(frame, 1, SimpleNamespace(aquariums=[]))
+
+        host.current_output_dir = tmp_path / "next_session"
+        host._run_multi_aquarium_detection(frame, 1, SimpleNamespace(aquariums=[]))
+
+        assert len(self._errors(host)) == 2
+
+    def test_a_frame_that_succeeds_reports_nothing(self, tmp_path):
+        host, frame = self._frame_host(tmp_path)
+        host._multi_aq_detector.detect_partitioned_optimized.side_effect = None
+        host._multi_aq_detector.detect_partitioned_optimized.return_value = {}
+
+        host._run_multi_aquarium_detection(frame, 1, SimpleNamespace(aquariums=[]))
+
+        assert self._errors(host) == []

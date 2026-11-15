@@ -4252,3 +4252,25 @@ _load_registry()"
         description: "sumario ilegivel deixa de ser devolvido a quem agrega (A5-S-004)"
         find: '                unreadable.append(summary_path)'
         replace: '                pass'
+
+  live_recording_problem_reports:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: refused-start-not-shown
+        description: "gravador que nao inicia apos a arena volta a so logar (A5-S-007)"
+        find: '                    self._report_recorder_start_failure(_("the recorder refused to start"))'
+        replace: '                    pass'
+      - id: start-exception-not-shown
+        description: "excecao ao iniciar o gravador apos a arena deixa de chegar ao operador (A5-S-007)"
+        find: '                self._report_recorder_start_failure(str(e))'
+        replace: '                pass'
+      - id: multi-failure-not-shown
+        description: "deteccao multi-aquario falhando deixa de ser avisada (A5-S-006)"
+        find: '            self._report_multi_aquarium_detection_failure(str(e))'
+        replace: '            pass'
+      - id: multi-failure-shown-every-frame
+        description: "o aviso de deteccao multi-aquario passa a abrir uma janela por frame"
+        find: '        if getattr(self, "_multi_aq_failure_reported_for", None) == session:'
+        replace: '        if False:'

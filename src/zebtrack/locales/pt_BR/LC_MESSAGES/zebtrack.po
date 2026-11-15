@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-15 01:46-0300\n"
+"POT-Creation-Date: 2026-11-15 06:42-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pt_BR\n"
@@ -995,8 +995,8 @@ msgid ""
 "\n"
 "{details}"
 msgstr ""
-"O relatório unificado foi montado com {used} de {total} sessões. As médias "
-"não incluem:\n"
+"O relatório unificado foi montado com {used} de {total} sessões. As "
+"médias não incluem:\n"
 "\n"
 "{details}"
 
@@ -2952,6 +2952,46 @@ msgstr ""
 #: src/zebtrack/core/recording/live_analysis_post_processor.py:1121
 msgid "Recording Completed"
 msgstr "Gravação Concluída"
+
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1235
+msgid "Recording did not start"
+msgstr "A gravação não começou"
+
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1237
+#, python-brace-format
+msgid ""
+"The recorder could not be started after the arena was defined: {error}\n"
+"\n"
+"This session is NOT being recorded. Stop it and check the output folder "
+"{folder}."
+msgstr ""
+"O gravador não pôde ser iniciado depois que a arena foi definida: {error}\n"
+"\n"
+"Esta sessão NÃO está sendo gravada. Pare-a e verifique a pasta de saída "
+"{folder}."
+
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1256
+msgid "Detections are not being recorded"
+msgstr "As detecções não estão sendo gravadas"
+
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1258
+#, python-brace-format
+msgid ""
+"Multi-aquarium detection failed: {error}\n"
+"\n"
+"The preview keeps running, but the detections of this session are not "
+"being saved while the error lasts. Stop the session and check the "
+"aquarium zones."
+msgstr ""
+"A detecção multi-aquário falhou: {error}\n"
+"\n"
+"O preview continua rodando, mas as detecções desta sessão não estão sendo "
+"salvas enquanto o erro durar. Pare a sessão e verifique as zonas dos "
+"aquários."
+
+#: src/zebtrack/core/recording/live_analysis_post_processor.py:1284
+msgid "the recorder refused to start"
+msgstr "o gravador se recusou a iniciar"
 
 # | msgid "" "Excellent system! Supports 4+ aquariums simultaneously at high "
 # | "performance."
