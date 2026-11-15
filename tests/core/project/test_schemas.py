@@ -1,6 +1,4 @@
-"""
-Extended unit tests for project schemas: ROITemplateSchema.
-"""
+"""Tests for core Pydantic schemas."""
 
 from __future__ import annotations
 
@@ -12,6 +10,47 @@ from zebtrack.core.project.schemas import (
     InvalidTemplateError,
     ROITemplateSchema,
 )
+
+
+def test_roi_template_schema_accepts_polygon():
+    schema = ROITemplateSchema(
+        version=1,
+        name="Test",
+        data={"polygon": [[0, 0], [1, 0], [1, 1]]},
+    )
+    assert schema.version == 1
+
+
+def test_roi_template_schema_accepts_rois():
+    schema = ROITemplateSchema(
+        version=1,
+        name="Test",
+        data={
+            "roi_polygons": [[[0, 0], [1, 0], [1, 1]]],
+            "roi_names": ["ROI1"],
+            "roi_colors": [[255, 0, 0]],
+        },
+    )
+    assert schema.data["roi_names"] == ["ROI1"]
+
+
+def test_roi_template_schema_rejects_missing_data():
+    with pytest.raises(ValueError, match="Template must contain"):
+        ROITemplateSchema(version=1, name="Test", data={})
+
+
+def test_roi_template_schema_rejects_partial_roi_keys():
+    with pytest.raises(ValueError, match="Template must contain"):
+        ROITemplateSchema(
+            version=1,
+            name="Test",
+            data={"roi_polygons": [[[0, 0], [1, 0], [1, 1]]]},
+        )
+
+
+def test_roi_template_schema_rejects_future_version():
+    with pytest.raises(ValueError, match="is not supported"):
+        ROITemplateSchema(version=2, name="Test", data={"polygon": [[0, 0], [1, 0]]})
 
 
 class TestAssetTypeEnum:

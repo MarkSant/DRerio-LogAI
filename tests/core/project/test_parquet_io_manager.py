@@ -302,7 +302,7 @@ class _Registry:
             save_project_fn=self.save_project,
         )
         kwargs.update(overrides)
-        return ParquetIOManager().import_parquets_from_wizard(config, strategy, scanned, **kwargs)
+        return ParquetIOManager().import_parquets_from_wizard(config, strategy, scanned, **kwargs)  # type: ignore[arg-type]
 
 
 class TestWizardImport:

@@ -2097,9 +2097,9 @@ class _FakeState:
 
 def _service(project_manager=None, model_service=None, settings=None) -> ProjectWorkflowService:
     return ProjectWorkflowService(
-        project_manager=project_manager or SimpleNamespace(project_data={}, project_path=None),
-        model_service=model_service or _FakeModelService(),
-        state_manager=_FakeState(),
+        project_manager=project_manager or SimpleNamespace(project_data={}, project_path=None),  # type: ignore[arg-type]
+        model_service=model_service or _FakeModelService(),  # type: ignore[arg-type]
+        state_manager=_FakeState(),  # type: ignore[arg-type]
         settings_obj=settings,
     )
 
@@ -2143,7 +2143,7 @@ class TestNormalisers:
         service = _service()
 
         assert service._build_pattern("X(\\d)", ["a"]) == "X(\\d)"
-        assert service._build_pattern(None, ["G.1", "", 3, "B"]) == "(G\\.1|B)"
+        assert service._build_pattern(None, ["G.1", "", 3, "B"]) == "(G\\.1|B)"  # type: ignore[list-item]
         assert service._build_pattern(None, []) is None
 
     def test_design_lookups(self):
@@ -2467,7 +2467,7 @@ class TestCreationSideEffects:
         }
         assert reloaded.project_data["behavioral_config"] == {"freezing": True}
         assert reloaded.project_data["live_session_defaults"] == {"selected_live_mode": "timed"}
-        (update,) = service.state_manager.updates
+        (update,) = service.state_manager.updates  # type: ignore[attr-defined]
         assert update["project_path"] == Path(pm.project_path)
 
     def test_runtime_defaults_fill_missing_values(self):
@@ -2509,7 +2509,7 @@ class TestPostCreationGuideCounts:
 
         guide = service.generate_post_creation_guide(wizard, check_suppression=False)
 
-        message = guide["message"]
+        message = guide["message"]  # type: ignore[index]
         assert "  • Total videos: 4" in message
         assert "  • With arena defined: 1" in message
         assert "  • With ROIs defined: 1" in message

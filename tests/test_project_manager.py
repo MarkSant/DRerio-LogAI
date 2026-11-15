@@ -1905,7 +1905,7 @@ class TestUpdateVideoMetadata:
 
         assert pm.update_video_metadata(video["path"], {"subject_entries": entries}) is True
 
-        meta = pm.find_video_entry(path=video["path"])["metadata"]
+        meta = pm.find_video_entry(path=video["path"])["metadata"]  # type: ignore[index]
         assert meta["subject_entries"] == [
             {"group": "A", "day": 2, "subject": "7", "aquarium_id": 0},
             {"group": "B", "day": None, "subject": "8", "aquarium_id": 5},
@@ -1922,8 +1922,8 @@ class TestUpdateVideoMetadata:
         )
 
         entry = pm.find_video_entry(path=video["path"])
-        assert entry["subject"] == "9"
-        assert entry["is_multi_subject"] is False
+        assert entry["subject"] == "9"  # type: ignore[index]
+        assert entry["is_multi_subject"] is False  # type: ignore[index]
         assert "metadata" not in _reloaded(pm)["batches"][0]["videos"][0]
 
     def test_clearing_subject_entries(self, tmp_path):
@@ -1934,8 +1934,8 @@ class TestUpdateVideoMetadata:
         assert pm.update_video_metadata(video["path"], {"subject_entries": []}) is True
 
         entry = pm.find_video_entry(path=video["path"])
-        assert not {"subject_entries", "is_multi_subject"} & set(entry["metadata"])
-        assert "subject_entries" not in entry
+        assert not {"subject_entries", "is_multi_subject"} & set(entry["metadata"])  # type: ignore[index]
+        assert "subject_entries" not in entry  # type: ignore[operator]
 
     def test_repeating_an_update_and_unknown_videos_report_no_change(self, tmp_path):
         video = _video(tmp_path, "v1.mp4", group="A")
@@ -1951,7 +1951,7 @@ class TestUpdateVideoMetadata:
         pm = _disk_project(tmp_path, first, second)
         saves: list[int] = []
         original_save = pm.save_project
-        pm.save_project = lambda: (saves.append(1), original_save())  # type: ignore[method-assign]
+        pm.save_project = lambda: (saves.append(1), original_save())  # type: ignore[func-returns-value, method-assign]
 
         count = pm.update_batch_video_metadata(
             [first["path"], Path(first["path"]), second["path"]], {"group": "B", "day": 4}
@@ -2000,21 +2000,21 @@ class TestHierarchyRemoval:
         video = _video(tmp_path, "multi.mp4", group="A", day=1, subject="2")
         pm = _disk_project(tmp_path, video)
         entry = pm.find_video_entry(path=video["path"])
-        entry["multi_aquarium_mode"] = True
-        entry["multi_aquarium_outputs"] = {
+        entry["multi_aquarium_mode"] = True  # type: ignore[index]
+        entry["multi_aquarium_outputs"] = {  # type: ignore[index]
             "0": {"subject_id": "1", "parquet_files": {"trajectory": "t0"}},
             "1": {"subject_id": "2", "parquet_files": {}},
         }
 
         assert pm.remove_subject("A", "1", "2", delete_files=False) == (1, 0)
 
-        assert list(entry["multi_aquarium_outputs"]) == ["0"]
+        assert list(entry["multi_aquarium_outputs"]) == ["0"]  # type: ignore[index]
         assert pm.find_video_entry(path=video["path"]) is entry
 
     def test_multi_subject_video_without_a_matching_aquarium_is_a_failure(self, tmp_path):
         video = _video(tmp_path, "multi.mp4", group="A", day=1, subject="5")
         pm = _disk_project(tmp_path, video)
-        pm.find_video_entry(path=video["path"])["multi_aquarium_outputs"] = {
+        pm.find_video_entry(path=video["path"])["multi_aquarium_outputs"] = {  # type: ignore[index]
             "0": {"subject_id": "1"},
             "1": {"subject_id": "2"},
         }
@@ -2045,8 +2045,8 @@ class TestAquariumScopes:
             ),
         )
         entry = pm.find_video_entry(path=video["path"])
-        entry["multi_aquarium_mode"] = True
-        entry["multi_aquarium_outputs"] = {
+        entry["multi_aquarium_mode"] = True  # type: ignore[index]
+        entry["multi_aquarium_outputs"] = {  # type: ignore[index]
             "0": {"subject_id": "S1", "parquet_files": {"trajectory": "t0"}},
             "1": {"subject_id": "S2", "parquet_files": {"trajectory": "t1", "summary": "s1"}},
         }
@@ -2070,7 +2070,7 @@ class TestAquariumScopes:
     def test_single_video_aquarium_flags_fall_back_to_the_entry(self, tmp_path):
         video = _video(tmp_path, "single.mp4")
         pm = _disk_project(tmp_path, video)
-        pm.find_video_entry(path=video["path"]).update(has_arena=True, has_trajectory=True)
+        pm.find_video_entry(path=video["path"]).update(has_arena=True, has_trajectory=True)  # type: ignore[union-attr]
 
         flags = pm.get_aquarium_asset_flags(video["path"], 0)
 
@@ -2098,7 +2098,7 @@ class TestAquariumScopes:
         assert pm.clear_aquarium_subject(path, 1, delete_analysis_data=False) is True
 
         aquarium = _reloaded_multi(pm, path).get_aquarium(1)
-        assert (aquarium.subject_id, aquarium.polygon) == ("", SQUARE)
+        assert (aquarium.subject_id, aquarium.polygon) == ("", SQUARE)  # type: ignore[union-attr]
         assert entry["multi_aquarium_outputs"]["1"]["subject_id"] == ""
         assert pm.clear_aquarium_subject(tmp_path / "ghost.mp4", 1) is False
 
@@ -2113,7 +2113,7 @@ class TestAquariumScopes:
 def _reloaded_multi(pm: ProjectManager, path: str) -> MultiAquariumZoneData:
     fresh = ProjectManager(settings_obj=None)
     fresh.load_project(pm.project_path)
-    return fresh.get_multi_aquarium_zone_data(path)
+    return fresh.get_multi_aquarium_zone_data(path)  # type: ignore[return-value]
 
 
 class TestFacadeAssets:
@@ -2121,8 +2121,8 @@ class TestFacadeAssets:
         video = _video(tmp_path, "v.mp4")
         pm = _disk_project(tmp_path, video)
         entry = pm.find_video_entry(path=video["path"])
-        entry.update(has_rois=True, has_trajectory=True, has_summary=True)
-        entry["parquet_files"] = {"trajectory": "t", "summary": "s"}
+        entry.update(has_rois=True, has_trajectory=True, has_summary=True)  # type: ignore[union-attr]
+        entry["parquet_files"] = {"trajectory": "t", "summary": "s"}  # type: ignore[index]
 
         assert pm.can_remove_asset(tmp_path / "ghost.mp4", "arena") == (
             False,
@@ -2171,10 +2171,10 @@ class TestFacadeAssets:
         video = _video(tmp_path, "v.mp4")
         pm = _disk_project(tmp_path, video)
         entry = pm.find_video_entry(path=video["path"])
-        entry["multi_aquarium_outputs"] = {"0": {}}
+        entry["multi_aquarium_outputs"] = {"0": {}}  # type: ignore[index]
         assert pm.is_multi_aquarium_video(video["path"]) is False
 
-        entry["multi_aquarium_outputs"]["1"] = {}
+        entry["multi_aquarium_outputs"]["1"] = {}  # type: ignore[index]
 
         assert pm.is_multi_aquarium_video(video["path"]) is True
 
@@ -2187,10 +2187,10 @@ class TestFacadeAssets:
         assert pm.get_last_zone_video() == ZoneManager.normalize_video_path(video["path"])
         clone = pm.clone_zone_data_from_video(Path(video["path"]))
         assert clone.polygon == SQUARE
-        assert pm._resolve_zone_entry(video["path"])[1]["polygon"] == SQUARE
-        exported = Path(pm.find_video_entry(path=video["path"])["parquet_files"]["arena"])
+        assert pm._resolve_zone_entry(video["path"])[1]["polygon"] == SQUARE  # type: ignore[index]
+        exported = Path(pm.find_video_entry(path=video["path"])["parquet_files"]["arena"])  # type: ignore[index]
         assert exported.name == "1_ProcessingArea_v.parquet"
-        assert exported.parent == Path(pm.project_path) / "Grupo_Sem_Grupo" / "Dia_Indefinido" / (
+        assert exported.parent == Path(pm.project_path) / "Grupo_Sem_Grupo" / "Dia_Indefinido" / (  # type: ignore[arg-type]
             "Sujeito_Indefinido"
         )
         assert pm.resolve_zone_parquet_candidates(video["path"]) == {"arena": str(exported)}

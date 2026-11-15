@@ -250,9 +250,9 @@ class TestPersistence:
             save_project_fn=lambda: saves.append(1),
         )
 
-        ZoneOrchestrationManager.persist_zone_data(ZoneData(), "v.mp4", tmp_path, **common)
-        ZoneOrchestrationManager.persist_zone_data(ZoneData(), None, None, **common)
-        ZoneOrchestrationManager.persist_zone_data(ZoneData(), None, tmp_path, **common)
+        ZoneOrchestrationManager.persist_zone_data(ZoneData(), "v.mp4", tmp_path, **common)  # type: ignore[arg-type]
+        ZoneOrchestrationManager.persist_zone_data(ZoneData(), None, None, **common)  # type: ignore[arg-type]
+        ZoneOrchestrationManager.persist_zone_data(ZoneData(), None, tmp_path, **common)  # type: ignore[arg-type]
 
         assert entry == {
             "path": "v.mp4",

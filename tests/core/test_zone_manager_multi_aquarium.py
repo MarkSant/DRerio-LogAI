@@ -511,7 +511,7 @@ ROI = [[20, 20], [40, 20], [40, 40]]
 
 
 def _norm(path) -> str:
-    return ZoneManager.normalize_video_path(path)
+    return ZoneManager.normalize_video_path(path)  # type: ignore[return-value]
 
 
 def _zone(polygon=ARENA, rois=(), names=(), colors=()) -> ZoneData:
@@ -565,7 +565,7 @@ class TestResolveZoneEntry:
 
     def test_unknown_video_returns_its_normalized_key_and_no_entry(self, tmp_path):
         video = tmp_path / "missing.mp4"
-        project = {"zones_by_video": {_norm(tmp_path / "other.mp4"): {}}}
+        project = {"zones_by_video": {_norm(tmp_path / "other.mp4"): {}}}  # type: ignore[var-annotated]
 
         assert ZoneManager().resolve_zone_entry(project, video) == (_norm(video), None)
 
@@ -587,7 +587,7 @@ class TestDeduplicateZoneKeys:
         assert zones == {preferred: {"keep": 1}, _norm(sibling): {"sibling": 1}}
 
     def test_without_a_preferred_key_nothing_is_touched(self, tmp_path):
-        zones = {"x": {}, "X": {}}
+        zones = {"x": {}, "X": {}}  # type: ignore[var-annotated]
         project = {"zones_by_video": zones}
 
         ZoneManager.deduplicate_zone_keys(project, None)
@@ -729,7 +729,7 @@ class TestSaveZoneDataMirror:
 
         expected = ZoneManager.zone_data_to_dict(_zone(rois=[ROI], names=["toca"]))
         assert project["detection_zones"] == expected
-        assert project["zones_by_video"][_norm(reference)] == expected
+        assert project["zones_by_video"][_norm(reference)] == expected  # type: ignore[index]
         assert (project["has_arena"], project["has_rois"]) == (True, True)
 
     def test_without_project_type_the_legacy_mirror_is_kept(self, tmp_path):
@@ -746,7 +746,7 @@ class TestSaveZoneDataMirror:
 
         ZoneManager().save_zone_data(project, _zone())
 
-        assert project["detection_zones"]["polygon"] == ARENA
+        assert project["detection_zones"]["polygon"] == ARENA  # type: ignore[index]
         assert project["zones_by_video"] == {}
 
     def test_save_uses_the_active_video_when_none_is_given(self, tmp_path):
@@ -757,18 +757,18 @@ class TestSaveZoneDataMirror:
 
         manager.save_zone_data(project, _zone(polygon=OTHER_ARENA))
 
-        assert project["zones_by_video"][_norm(video)]["polygon"] == OTHER_ARENA
+        assert project["zones_by_video"][_norm(video)]["polygon"] == OTHER_ARENA  # type: ignore[index]
         assert manager.get_last_zone_video(project) == _norm(video)
 
     def test_multi_aquarium_save_goes_to_its_registry_and_never_to_the_global(self, tmp_path):
         video = tmp_path / "two_tanks.mp4"
-        project = {"project_type": "live"}
+        project: dict = {"project_type": "live"}
         calls: list[int] = []
         data = MultiAquariumZoneData(
             aquariums=[AquariumData(id=0, polygon=ARENA), AquariumData(id=1, polygon=OTHER_ARENA)]
         )
 
-        ZoneManager().save_zone_data(project, data, video, persist_callback=lambda: calls.append(1))
+        ZoneManager().save_zone_data(project, data, video, persist_callback=lambda: calls.append(1))  # type: ignore[arg-type]
 
         assert project["detection_zones"] == {}
         assert [
@@ -792,7 +792,7 @@ class TestGetZoneDataAndClone:
 
         assert manager.get_zone_data(project, video).polygon == ARENA
         multi = manager.get_multi_aquarium_zone_data(project, video)
-        assert [aq.polygon for aq in multi.aquariums] == [ARENA, OTHER_ARENA]
+        assert [aq.polygon for aq in multi.aquariums] == [ARENA, OTHER_ARENA]  # type: ignore[union-attr]
 
     def test_no_target_and_no_active_video_serves_the_global(self):
         project = {"detection_zones": ZoneManager.zone_data_to_dict(_zone(polygon=OTHER_ARENA))}
@@ -806,7 +806,7 @@ class TestGetZoneDataAndClone:
         manager.save_zone_data(project, _zone(), video)
 
         clone = manager.clone_zone_data_from_video(project, video)
-        clone.polygon[0][0] = 999
+        clone.polygon[0][0] = 999  # type: ignore[index]
 
         assert clone.polygon[1:] == ARENA[1:]
         assert project["zones_by_video"][_norm(video)]["polygon"][0] == ARENA[0]
@@ -976,7 +976,7 @@ class TestLoadZonesFromParquet:
     def test_arena_and_rois_are_rebuilt_in_point_order_with_cycled_colors(self, tmp_path):
         arena = self._write(tmp_path / "1.parquet", {"x": [1, 2, 3], "y": [4, 5, 6]})
         names = [f"r{i}" for i in range(7)]
-        rows = {"roi_name": [], "point_index": [], "x": [], "y": []}
+        rows = {"roi_name": [], "point_index": [], "x": [], "y": []}  # type: ignore[var-annotated]
         for i, name in enumerate(names):
             for idx in (2, 0, 1):
                 rows["roi_name"].append(name)
@@ -989,11 +989,11 @@ class TestLoadZonesFromParquet:
             {"parquet_files": {"arena": arena, "rois": rois}}
         )
 
-        assert zone.polygon == [[1, 4], [2, 5], [3, 6]]
-        assert zone.roi_names == names
-        assert zone.roi_polygons[3] == [[30, 0], [31, 1], [32, 2]]
-        assert zone.roi_colors[0] == zone.roi_colors[6] == (0, 128, 0)
-        assert zone.roi_colors[1:6] == [
+        assert zone.polygon == [[1, 4], [2, 5], [3, 6]]  # type: ignore[union-attr]
+        assert zone.roi_names == names  # type: ignore[union-attr]
+        assert zone.roi_polygons[3] == [[30, 0], [31, 1], [32, 2]]  # type: ignore[union-attr]
+        assert zone.roi_colors[0] == zone.roi_colors[6] == (0, 128, 0)  # type: ignore[union-attr]
+        assert zone.roi_colors[1:6] == [  # type: ignore[union-attr]
             (255, 0, 0),
             (0, 0, 255),
             (0, 204, 204),
@@ -1009,7 +1009,7 @@ class TestLoadZonesFromParquet:
             {"parquet_files": {"arena": arena, "rois": rois}}
         )
 
-        assert (zone.polygon, zone.roi_polygons, zone.roi_names) == ([], [], [])
+        assert (zone.polygon, zone.roi_polygons, zone.roi_names) == ([], [], [])  # type: ignore[union-attr]
 
     def test_empty_rois_file_and_missing_arena_file(self, tmp_path):
         import pandas as pd
@@ -1066,19 +1066,19 @@ class TestMultiAquariumRegistryEdges:
             project = {"multi_aquarium_zones": {key: dict(serialized)}}
 
             assert (
-                manager.get_multi_aquarium_zone_data(project, lookup).aquariums[0].polygon == ARENA
+                manager.get_multi_aquarium_zone_data(project, lookup).aquariums[0].polygon == ARENA  # type: ignore[union-attr]
             )
 
             manager.clear_multi_aquarium_zone_data(project, lookup)
             assert project["multi_aquarium_zones"] == {}
 
     def test_unknown_video_with_registry_present_returns_none(self, tmp_path):
-        project = {"multi_aquarium_zones": {_norm(tmp_path / "a.mp4"): {"aquariums": []}}}
+        project = {"multi_aquarium_zones": {_norm(tmp_path / "a.mp4"): {"aquariums": []}}}  # type: ignore[var-annotated]
 
         assert ZoneManager().get_multi_aquarium_zone_data(project, tmp_path / "b.mp4") is None
 
     def test_clear_of_an_unknown_video_still_persists(self, tmp_path):
-        project = {"multi_aquarium_zones": {"x": {}}}
+        project = {"multi_aquarium_zones": {"x": {}}}  # type: ignore[var-annotated]
         calls: list[int] = []
 
         ZoneManager().clear_multi_aquarium_zone_data(

@@ -405,7 +405,7 @@ class TestBatchesAndWizardRegex:
         ProjectLifecycleManager.add_video_batch(project, [])
         assert project == {}
 
-        ProjectLifecycleManager.add_video_batch(project, ["C:\\v\\a.mp4"])
+        ProjectLifecycleManager.add_video_batch(project, ["C:\\v\\a.mp4"])  # type: ignore[list-item]
 
         (entry,) = project["batches"][0]["videos"]
         assert entry["path"] == Path("C:\\v\\a.mp4").as_posix()

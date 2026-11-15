@@ -375,7 +375,7 @@ class TestVideoBatches:
         added = VideoManager.add_video_batch(
             project,
             [
-                str(tmp_path / "plain.mp4"),
+                str(tmp_path / "plain.mp4"),  # type: ignore[list-item]
                 {
                     "path": video,
                     "has_complete_data": True,

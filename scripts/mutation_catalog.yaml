@@ -4224,3 +4224,251 @@ _load_registry()"
         description: "geotaxia que falha volta a sumir do relatorio sem aviso (A5-S-005)"
         find: '_("Geotaxis was requested but could not be computed: {error}").format('
         replace: 'str('
+
+  # ---------------------------------------------------------------------------
+  # core/project coverage (TASK-087)
+  # ---------------------------------------------------------------------------
+
+  zone_manager_mirror_and_identity:
+    source: src/zebtrack/core/project/zone_manager.py
+    tests:
+      - tests/core/test_zone_manager_multi_aquarium.py
+    mutations:
+      - id: every-save-mirrors
+        description: "projeto pre-gravado volta a espelhar a arena de um video no global"
+        find: 'return project_type.strip().lower() == "live"'
+        replace: 'return True'
+      - id: live-flags-not-at-root
+        description: "projeto live sem entrada de video deixa de gravar has_arena/has_rois na raiz"
+        find: '        if project_type == "live":'
+        replace: '        if False:'
+      - id: raw-key-not-found
+        description: "zona gravada sob outra grafia do caminho deixa de ser encontrada"
+        find: '                    return key, value'
+        replace: '                    pass'
+      - id: roi-colors-not-cycled
+        description: "ROIs carregadas do parquet perdem a paleta ciclica"
+        find: 'default_colors[i % len(default_colors)] for i in range(len(roi_names))'
+        replace: 'default_colors[0] for i in range(len(roi_names))'
+
+  video_manager_scan_and_status:
+    source: src/zebtrack/core/project/video_manager.py
+    tests:
+      - tests/core/project/test_video_manager.py
+    mutations:
+      - id: complete-with-any-asset
+        description: "video com so uma das tres pecas passa a contar como dado completo"
+        find: 'has_complete_data = has_arena and has_rois and has_trajectory'
+        replace: 'has_complete_data = has_arena or has_rois or has_trajectory'
+      - id: cancelled-marker-ignored
+        description: "sessao ao vivo descartada (.cancelled) volta a aparecer na fila"
+        find: 'return (Path(video_path).parent / ".cancelled").exists()'
+        replace: 'return False'
+      - id: data-not-processed
+        description: "video importado com trajetoria entra como pendente"
+        find: '"status": "processed" if has_data else "pending",'
+        replace: '"status": "pending",'
+      - id: reset-always-changes
+        description: "reset de status passa a acusar mudanca e salvar sem ter mudado nada"
+        find: 'if video.get("status") != to_status:'
+        replace: 'if True:'
+
+  output_registration_folders:
+    source: src/zebtrack/core/project/output_registration_manager.py
+    tests:
+      - tests/core/project/test_output_registration_manager.py
+    mutations:
+      - id: dia-prefix-not-parsed
+        description: "dia gravado como 'Dia 3' deixa de virar Dia_03"
+        find: 'if candidate_str.lower().startswith(("dia", "day")):'
+        replace: 'if False:'
+      - id: fractional-day-truncated
+        description: "dia fracionario passa a ser truncado para um dia inteiro"
+        find: 'if day_float.is_integer():'
+        replace: 'if True:'
+      - id: ghost-group-folder
+        description: "aquario sem grupo volta a criar Grupo_Sem_Grupo vazio"
+        find: 'group_missing = group is None or str(group).strip() == ""'
+        replace: 'group_missing = False'
+      - id: aquarium-id-ignored
+        description: "sem projeto, o id <stem>_aqN deixa de ganhar pasta propria"
+        find: 'if explicit_id and explicit_id != video_stem:'
+        replace: 'if False:'
+      - id: trajectory-not-processed
+        description: "video com trajetoria registrada continua com status antigo"
+        find: 'if video_entry.get("has_trajectory") and video_entry.get("status") != "processed":'
+        replace: 'if False:'
+
+  asset_manager_templates_and_removal:
+    source: src/zebtrack/core/project/asset_manager.py
+    tests:
+      - tests/core/project/test_asset_manager.py
+    mutations:
+      - id: slug-counter-skips
+        description: "slug colidente pula um numero"
+        find: 'slug = f"{base_slug}-{counter}"'
+        replace: 'slug = f"{base_slug}-{counter + 1}"'
+      - id: project-lookup-falls-to-global
+        description: "busca so no projeto passa a cair para o template global homonimo"
+        find: '            if location == "project":'
+        replace: '            if False:'
+      - id: multi-mode-kept
+        description: "remover o ultimo aquario deixa o video em modo multi-aquario"
+        find: '            video_entry.pop("multi_aquarium_mode", None)'
+        replace: '            pass'
+      - id: other-subjects-cleared
+        description: "limpar o sujeito de um aquario apaga o sujeito dos outros"
+        find: 'if int(raw_aq) == int(aquarium_id) and entry.get("subject"):'
+        replace: 'if entry.get("subject"):'
+      - id: summary-removal-allowed-empty
+        description: "remocao de relatorios inexistentes passa a ser permitida"
+        find: 'if asset == "summary" and not has_summary_outputs:'
+        replace: 'if False:'
+
+  project_manager_metadata_and_hierarchy:
+    source: src/zebtrack/core/project/project_manager.py
+    tests:
+      - tests/test_project_manager.py
+    mutations:
+      - id: single-entry-is-multi
+        description: "uma unica entrada de sujeito marca o video como multi-sujeito"
+        find: 'is_multi_subject = len(entries) > 1'
+        replace: 'is_multi_subject = len(entries) >= 1'
+      - id: multi-entries-pick-a-subject
+        description: "video multi-sujeito ganha o sujeito da primeira entrada"
+        find: 'if len(subject_entries) == 1'
+        replace: 'if len(subject_entries) >= 1'
+      - id: non-positive-day-kept
+        description: "dia 0 ou negativo passa a ser gravado"
+        find: 'return day if day > 0 else None'
+        replace: 'return day'
+      - id: multi-subject-video-deleted
+        description: "remover um sujeito de video multi-aquario apaga o video inteiro"
+        find: 'if ma_outputs and len(ma_outputs) > 1:'
+        replace: 'if False:'
+      - id: batch-edit-saves-without-project
+        description: "edicao em lote sem projeto aberto tenta salvar em disco"
+        find: 'if not changed_count or not self.project_path:'
+        replace: 'if not changed_count:'
+
+  metadata_manager_sessions_and_groups:
+    source: src/zebtrack/core/project/metadata_manager.py
+    tests:
+      - tests/core/project/test_metadata_manager.py
+    mutations:
+      - id: cancelled-session-completed
+        description: "sessao hierarquica cancelada passa a contar como concluida"
+        find: 'if (session_path / ".cancelled").exists():'
+        replace: 'if False:'
+      - id: arena-only-session-completed
+        description: "pasta so com a arena (gravacao abortada) conta como sessao concluida"
+        find: 'if any(session_path.glob("3_CoordMovimento_*.parquet")):'
+        replace: 'if any(session_path.glob("*.parquet")):'
+      - id: csv-nan-group
+        description: "linha sem grupo no metadata.csv vira um grupo 'nan'"
+        find: 'for g in metadata_df["group"].dropna().unique():'
+        replace: 'for g in metadata_df["group"].unique():'
+      - id: entry-overrides-csv
+        description: "o projeto sobrescreve o valor que o metadata.csv ja deu"
+        find: 'if val is not None and key not in meta:'
+        replace: 'if val is not None:'
+
+  parquet_io_wizard_import:
+    source: src/zebtrack/core/project/parquet_io_manager.py
+    tests:
+      - tests/core/project/test_parquet_io_manager.py
+    mutations:
+      - id: merge-keeps-colliding-name
+        description: "merge de ROIs duplica o nome em vez de renomear"
+        find: 'final_name = f"{roi_name}_imported{counter}"'
+        replace: 'final_name = roi_name'
+      - id: merge-reuses-taken-name
+        description: "merge reaproveita um nome _importedN ja usado"
+        find: 'while f"{roi_name}_imported{counter}" in existing_names:'
+        replace: 'while False:'
+      - id: merge-becomes-replace
+        description: "estrategia merge descarta as ROIs que o video ja tinha"
+        find: 'if roi_merge_strategy == "replace":'
+        replace: 'if roi_merge_strategy in ("replace", "merge"):'
+      - id: phantom-hierarchy
+        description: "copia de zonas recria Grupo_Sem_Grupo para alvo sem grupo"
+        find: 'LEGACY_NO_GROUP_DIRNAME not in hierarchical_path.parts'
+        replace: 'True'
+
+  zone_orchestration_sync:
+    source: src/zebtrack/core/project/zone_orchestration_manager.py
+    tests:
+      - tests/core/project/test_zone_orchestration_manager.py
+    mutations:
+      - id: two-point-arena
+        description: "aquario com arena de menos de 3 pontos marca has_arena"
+        find: 'if aq.polygon and len(aq.polygon) >= 3:'
+        replace: 'if aq.polygon:'
+      - id: disk-overwrites-complete-memory
+        description: "zonas completas em memoria sao sobrescritas pelo disco"
+        find: 'needs_sync = should_update or ('
+        replace: 'needs_sync = True or ('
+      - id: unregistered-video-not-added
+        description: "video multi-aquario fora dos lotes deixa de ser registrado"
+        find: '            if not video_entry:'
+        replace: '            if False:'
+
+  project_service_integrity:
+    source: src/zebtrack/core/project/project_service.py
+    tests:
+      - tests/core/test_project_service.py
+    mutations:
+      - id: hash-over-memory
+        description: "F2-P-005: hash volta a ser calculado sobre o dict em memoria"
+        find: 'json.loads(json.dumps(project_data, ensure_ascii=False))'
+        replace: 'project_data'
+
+  project_lifecycle_bounds:
+    source: src/zebtrack/core/project/project_lifecycle_manager.py
+    tests:
+      - tests/core/project/test_project_lifecycle_manager_extended.py
+    mutations:
+      - id: hundred-aquariums-refused
+        description: "o limite de 100 aquarios passa a recusar o proprio 100"
+        find: 'if num_aquariums > MAX_AQUARIUMS:'
+        replace: 'if num_aquariums >= MAX_AQUARIUMS:'
+      - id: camera-eleven-accepted
+        description: "indice de camera 11 passa a ser aceito"
+        find: 'if camera_index > 10:'
+        replace: 'if camera_index > 11:'
+      - id: snapshot-not-json
+        description: "snapshot de settings ilegivel passa a ser reportado como salvo"
+        find: 'except (OSError, TypeError, ValueError) as e:'
+        replace: 'except (OSError, TypeError) as e:'
+
+  project_workflow_enrichment:
+    source: src/zebtrack/core/project/project_workflow_service.py
+    tests:
+      - tests/core/test_project_workflow_service.py
+    mutations:
+      - id: numeric-day-not-normalized
+        description: "dia capturado como numero deixa de casar com DayNN do desenho"
+        find: 'matched_day = f"Day{int(matched_day):02d}"'
+        replace: 'matched_day = matched_day'
+      - id: single-mapping-is-multi
+        description: "video com um so sujeito mapeado vira multi-sujeito"
+        find: 'if len(file_subjects) > 1:'
+        replace: 'if len(file_subjects) >= 1:'
+      - id: out-of-band-threshold-kept
+        description: "limiar fora de 0-1 do assistente vira override do projeto"
+        find: 'if 0.0 <= value <= 1.0:'
+        replace: 'if True:'
+      - id: subject-not-zero-padded
+        description: "sujeito '3' deixa de virar S03"
+        find: 'return f"S{int(match.group(1)):02d}"'
+        replace: 'return f"S{match.group(1)}"'
+
+  roi_template_custom_destination:
+    source: src/zebtrack/core/project/roi_template_manager.py
+    tests:
+      - tests/core/project/test_roi_template_manager.py
+    mutations:
+      - id: file-path-used-as-folder
+        description: "caminho de arquivo escolhido vira uma pasta com esse nome"
+        find: 'if custom_path.is_dir():'
+        replace: 'if True:'

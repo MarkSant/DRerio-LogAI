@@ -484,8 +484,10 @@ class TestSessionDetailsAndGroups:
         csv = pd.DataFrame({"group": ["Csv", None, "Video"]})
 
         groups = MetadataManager.get_available_groups(
-            {"groups": ["Wizard", "", None]}, csv, lambda: videos
+            {"groups": ["Wizard", "", None]},
+            csv,
+            lambda: videos,  # type: ignore[arg-type, return-value]
         )
 
         assert groups == ["Csv", "Tank", "Video", "Wizard"]
-        assert MetadataManager.get_available_groups({}, None, lambda: None) == []
+        assert MetadataManager.get_available_groups({}, None, lambda: None) == []  # type: ignore[arg-type, return-value]
