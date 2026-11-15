@@ -27,6 +27,29 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
+def grid_layout(num_aquariums: int) -> tuple[int, int, int, int]:
+    """Return ``(columns, rows, window_width, window_height)`` for the preview.
+
+    2 columns up to 4 aquariums, 3 beyond; 400 px per column plus 40 px of
+    padding, 350 px per row plus 150 px for the controls.
+    """
+    cols = 2 if num_aquariums <= 4 else 3
+    rows = (num_aquariums + cols - 1) // cols
+    return cols, rows, 400 * cols + 40, 350 * rows + 150
+
+
+def progress_percent(elapsed_s: float, duration_s: float) -> float:
+    """Share of the planned duration already elapsed, clamped to 0-100."""
+    return max(0.0, min(100.0, (elapsed_s / duration_s) * 100.0))
+
+
+def format_mmss(seconds: float) -> str:
+    """Render a second count as ``MM:SS`` (minutes are not wrapped into hours)."""
+    minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    return f"{minutes:02d}:{secs:02d}"
+
+
 class MultiAquariumLivePreviewWindow:
     """Window showing live camera feed with multiple aquarium views."""
 
@@ -61,9 +84,7 @@ class MultiAquariumLivePreviewWindow:
 
         # Calculate window size based on aquarium count
         # Layout: 2 columns for 2-4 aquariums, 3 columns for 5-6
-        cols = 2 if num_aquariums <= 4 else 3
-        width = 400 * cols + 40  # 400px per aquarium + padding
-        height = 350 * ((num_aquariums + cols - 1) // cols) + 150  # rows * height + controls
+        _cols, _rows, width, height = grid_layout(num_aquariums)
 
         self.window.geometry(f"{width}x{height}")
         self.window.protocol("WM_DELETE_WINDOW", self._on_window_close)
@@ -132,7 +153,9 @@ class MultiAquariumLivePreviewWindow:
         marshal via ``root.after(0, window.update_recorded_count, n)``.
         """
         if self.recorded_frames_label is not None:
-            self.recorded_frames_label.config(text=f"Frames gravados: {int(recorded_count)}")
+            self.recorded_frames_label.config(
+                text=_("Recorded frames: {count}").format(count=int(recorded_count))
+            )
 
     def _create_ui(self) -> None:
         """Create the UI components."""
@@ -164,7 +187,7 @@ class MultiAquariumLivePreviewWindow:
         # Status label
         self.status_label = ttk.Label(
             info_frame,
-            text="Status: Inicializando...",
+            text=_("Status: {text}").format(text=_("Initializing...")),
             font=("Arial", 10),
         )
         self.status_label.pack(side=tk.LEFT, padx=10)
@@ -173,7 +196,7 @@ class MultiAquariumLivePreviewWindow:
         grid_frame = ttk.Frame(main_frame)
         grid_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
-        cols = 2 if self.num_aquariums <= 4 else 3
+        cols, rows, _width, _height = grid_layout(self.num_aquariums)
 
         for aq_id in range(self.num_aquariums):
             row = aq_id // cols
@@ -208,7 +231,7 @@ class MultiAquariumLivePreviewWindow:
         # Configure grid weights for even distribution
         for c in range(cols):
             grid_frame.columnconfigure(c, weight=1)
-        for r in range((self.num_aquariums + cols - 1) // cols):
+        for r in range(rows):
             grid_frame.rowconfigure(r, weight=1)
 
         # Session footer: clock labels + recorded frames + progress bar
@@ -223,13 +246,17 @@ class MultiAquariumLivePreviewWindow:
         )
         self.start_time_label.pack(side=tk.LEFT, padx=(0, 15))
 
-        self.stop_time_label = ttk.Label(clocks_row, text="Fim: --:--:--")
+        self.stop_time_label = ttk.Label(
+            clocks_row, text=_("End: {clock}").format(clock="--:--:--")
+        )
         self.stop_time_label.pack(side=tk.LEFT, padx=(0, 15))
 
-        self.eta_label = ttk.Label(clocks_row, text="ETA: --")
+        self.eta_label = ttk.Label(clocks_row, text=_("ETA: {eta}").format(eta="--"))
         self.eta_label.pack(side=tk.LEFT, padx=(0, 15))
 
-        self.recorded_frames_label = ttk.Label(clocks_row, text="Frames gravados: 0")
+        self.recorded_frames_label = ttk.Label(
+            clocks_row, text=_("Recorded frames: {count}").format(count=0)
+        )
         self.recorded_frames_label.pack(side=tk.LEFT)
 
         progress_mode = "determinate" if self.duration_s > 0 else "indeterminate"
@@ -316,7 +343,7 @@ class MultiAquariumLivePreviewWindow:
             color: Text color (default: black)
         """
         if self.status_label:
-            self.status_label.config(text=f"Status: {text}", foreground=color)
+            self.status_label.config(text=_("Status: {text}").format(text=text), foreground=color)
 
     def _update_timer(self) -> None:
         """Update timer display."""
@@ -327,16 +354,10 @@ class MultiAquariumLivePreviewWindow:
             elapsed = time.time() - self.start_time
             remaining = max(0, self.duration_s - elapsed)
 
-            elapsed_min = int(elapsed // 60)
-            elapsed_sec = int(elapsed % 60)
-            remaining_min = int(remaining // 60)
-            remaining_sec = int(remaining % 60)
-
             if self.timer_label:
                 self.timer_label.config(
-                    text=(
-                        f"Tempo: {elapsed_min:02d}:{elapsed_sec:02d} / "
-                        f"{remaining_min:02d}:{remaining_sec:02d}"
+                    text=_("Time: {elapsed} / {remaining}").format(
+                        elapsed=format_mmss(elapsed), remaining=format_mmss(remaining)
                     )
                 )
 
@@ -356,12 +377,11 @@ class MultiAquariumLivePreviewWindow:
         if self.progress_bar is None:
             return
         if self.duration_s > 0:
-            percent = max(0.0, min(100.0, (elapsed / self.duration_s) * 100.0))
-            self.progress_bar.config(value=percent)
+            self.progress_bar.config(value=progress_percent(elapsed, self.duration_s))
             if self.eta_label is not None:
-                self.eta_label.config(text=f"ETA: {self._format_eta(remaining)}")
+                self.eta_label.config(text=_("ETA: {eta}").format(eta=self._format_eta(remaining)))
         elif self.eta_label is not None:
-            self.eta_label.config(text="ETA: --")
+            self.eta_label.config(text=_("ETA: {eta}").format(eta="--"))
 
     def _on_stop_clicked(self) -> None:
         """Handle stop button click."""
@@ -372,7 +392,9 @@ class MultiAquariumLivePreviewWindow:
         if self.stop_button:
             self.stop_button.config(state=tk.DISABLED)
         if self.status_label:
-            self.status_label.config(text="Status: Parando...", foreground="orange")
+            self.status_label.config(
+                text=_("Status: {text}").format(text=_("Stopping...")), foreground="orange"
+            )
         self._freeze_stop_time()
 
         log.info("multi_aquarium_preview.stop_clicked")
@@ -383,7 +405,9 @@ class MultiAquariumLivePreviewWindow:
     def _freeze_stop_time(self) -> None:
         """Record stop clock + halt indeterminate progress animation."""
         if self.stop_time_label is not None:
-            self.stop_time_label.config(text=f"Fim: {self._format_clock(time.time())}")
+            self.stop_time_label.config(
+                text=_("End: {clock}").format(clock=self._format_clock(time.time()))
+            )
         if self.progress_bar is not None:
             try:
                 self.progress_bar.stop()
@@ -392,7 +416,7 @@ class MultiAquariumLivePreviewWindow:
             except Exception:  # pragma: no cover - defensive
                 log.debug("multi_aquarium_preview.progress_stop_failed")
         if self.eta_label is not None:
-            self.eta_label.config(text="ETA: --")
+            self.eta_label.config(text=_("ETA: {eta}").format(eta="--"))
 
     def _on_window_close(self) -> None:
         """Handle window close event."""
