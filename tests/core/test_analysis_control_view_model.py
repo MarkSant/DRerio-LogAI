@@ -875,6 +875,19 @@ def test_summaries_resolve_the_results_directory_by_path_and_metadata(summaries)
     }
 
 
+def _shown_errors(vm):
+    """(video, reason) pairs listed in the SHOW_ERROR messages, in order."""
+    pairs = []
+    for event in (c.args[0] for c in vm.ui_event_bus.publish.call_args_list):
+        if event.type != UIEvents.SHOW_ERROR:
+            continue
+        for line in event.data.message.splitlines():
+            if line.startswith("- "):
+                name, _sep, reason = line[2:].partition(": ")
+                pairs.append((name, reason))
+    return pairs
+
+
 def test_summaries_publish_progress_then_finish_and_refresh_the_tree(summaries):
     summaries.pm.entries["w.mp4"] = summaries.entry  # second video, same entry
     summaries.vm._generate_summaries_impl(["v.mp4", "w.mp4"])
@@ -896,7 +909,10 @@ def test_summaries_skip_a_video_the_project_does_not_know(summaries):
 
     assert summaries.service.analysis_calls == []
     assert summaries.pm.registered == []
-    assert _statuses(summaries.vm)[-1] == "Report generation finished."
+    assert _statuses(summaries.vm)[-1] == (
+        "Report generation finished: 1 of 1 video(s) without a report."
+    )
+    assert _shown_errors(summaries.vm) == [("ghost.mp4", "not registered in the project")]
 
 
 def test_summaries_skip_a_video_without_a_trajectory(summaries):
@@ -1037,7 +1053,11 @@ def test_one_failing_video_does_not_stop_the_batch(summaries):
 
     assert [c["video_path"] for c in summaries.service.analysis_calls] == ["w.mp4"]
     assert [r["video_path"] for r in summaries.pm.registered] == ["w.mp4"]
-    assert _statuses(summaries.vm)[-1] == "Report generation finished."
+    # The batch goes on, but it no longer ends as if nothing had happened (A5-S-003).
+    assert _statuses(summaries.vm)[-1] == (
+        "Report generation finished: 1 of 2 video(s) without a report."
+    )
+    assert [name for name, _reason in _shown_errors(summaries.vm)] == ["v.mp4"]
 
 
 def test_generate_parquet_summaries_hands_the_paths_to_a_daemon_thread(view_model):
@@ -1065,3 +1085,64 @@ def test_summaries_degrade_when_arena_coordinates_cannot_be_measured(summaries):
         1.0,
     )  # the y span raises before x is stored
     assert call["video_height_px"] == 720  # the 1.1 estimate fails on strings too
+
+
+# --- Videos that end without a report are named to the user (audit A5-S-003) ---
+
+
+def test_summaries_that_all_succeed_show_no_error(summaries):
+    summaries.vm._generate_summaries_impl(["v.mp4"])
+
+    assert _shown_errors(summaries.vm) == []
+    assert _statuses(summaries.vm)[-1] == "Report generation finished."
+
+
+def test_a_failing_video_is_named_and_the_others_still_get_their_report(summaries):
+    summaries.pm.entries["w.mp4"] = summaries.entry
+    calls = {"n": 0}
+    real = summaries.service.run_full_analysis_as_dto
+
+    def flaky(**kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ValueError("unreadable trajectory")
+        return real(**kwargs)
+
+    summaries.service.run_full_analysis_as_dto = flaky
+
+    summaries.vm._generate_summaries_impl(["v.mp4", "w.mp4"])
+
+    assert _shown_errors(summaries.vm) == [("v.mp4", "unreadable trajectory")]
+    assert _statuses(summaries.vm)[-1] == (
+        "Report generation finished: 1 of 2 video(s) without a report."
+    )
+    # The second video was still analysed and registered.
+    assert len(summaries.pm.registered) == 1
+
+
+def test_when_every_video_fails_the_run_does_not_claim_to_have_finished_cleanly(summaries):
+    def boom(**kwargs):
+        raise RuntimeError("analysis crashed")
+
+    summaries.service.run_full_analysis_as_dto = boom
+
+    summaries.vm._generate_summaries_impl(["v.mp4"])
+
+    assert "Report generation finished." not in _statuses(summaries.vm)
+    assert _shown_errors(summaries.vm) == [("v.mp4", "analysis crashed")]
+    assert summaries.pm.registered == []
+
+
+def test_a_video_without_a_trajectory_is_reported_with_that_reason(summaries):
+    (summaries.tmp_path / "3_CoordMovimento_exp1.parquet").unlink()
+
+    summaries.vm._generate_summaries_impl(["v.mp4"])
+
+    assert _shown_errors(summaries.vm) == [("v.mp4", "no trajectory file found")]
+
+
+def test_the_tree_is_refreshed_even_when_a_video_failed(summaries):
+    summaries.vm._generate_summaries_impl(["ghost.mp4"])
+
+    last = summaries.vm.ui_event_bus.publish.call_args.args[0]
+    assert last.type == UIEvents.UI_REFRESH_PROJECT_VIEWS

@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-14 20:57-0300\n"
+"POT-Creation-Date: 2026-11-14 21:02-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2911,13 +2911,38 @@ msgstr ""
 msgid "Cancelling the analysis in progress..."
 msgstr ""
 
-#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:305
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:308
 #, python-brace-format
 msgid "Generating report {current}/{total}..."
 msgstr ""
 
-#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:559
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:320
+msgid "not registered in the project"
+msgstr ""
+
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:352
+msgid "no trajectory file found"
+msgstr ""
+
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:570
 msgid "Report generation finished."
+msgstr ""
+
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:598
+#, python-brace-format
+msgid "Report generation finished: {failed} of {total} video(s) without a report."
+msgstr ""
+
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:607
+msgid "Reports not generated"
+msgstr ""
+
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:609
+#, python-brace-format
+msgid ""
+"No report was generated for {failed} of {total} video(s):\n"
+"\n"
+"{details}"
 msgstr ""
 
 #: src/zebtrack/core/viewmodels/hardware_status_view_model.py:187
