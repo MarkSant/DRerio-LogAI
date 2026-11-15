@@ -189,9 +189,15 @@ class ProjectService:
         # Update last modified timestamp
         project_data["last_modified"] = datetime.now().isoformat()
 
-        # Compute integrity hash
+        # Compute integrity hash over the data AS IT WILL BE READ BACK. JSON turns
+        # non-string keys into strings, and sort_keys orders ints numerically but
+        # strings lexically: hashing the in-memory dict made {2: .., 10: ..} hash
+        # differently from the {"10": .., "2": ..} that load_project_config sees,
+        # so the project failed its own integrity check on the next open.
         data_to_save = project_data.copy()
-        integrity_hash = self._compute_project_hash(project_data)
+        integrity_hash = self._compute_project_hash(
+            json.loads(json.dumps(project_data, ensure_ascii=False))
+        )
         data_to_save["_integrity_hash"] = integrity_hash
 
         try:

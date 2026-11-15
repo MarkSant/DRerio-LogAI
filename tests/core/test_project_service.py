@@ -604,3 +604,50 @@ class TestProjectServiceIntegration:
         final_data = service.load_project_config(str(project_path))
         for i in range(5):
             assert final_data[f"field_{i}"] == f"value_{i}"
+
+
+# ---------------------------------------------------------------------------
+# TASK-087: integrity hash round trip and template I/O failures.
+# ---------------------------------------------------------------------------
+
+
+class TestIntegrityRoundTrip:
+    def test_integer_keys_survive_a_save_and_load(self, tmp_path):
+        service = ProjectService()
+        data = {"outputs": {2: "a", 10: "b"}, "name": "p"}
+
+        service.save_project_config(tmp_path, data)
+        loaded = service.load_project_config(tmp_path)
+
+        assert loaded["outputs"] == {"2": "a", "10": "b"}
+        assert loaded["name"] == "p"
+
+
+class TestTemplateIOFailures:
+    def test_unwritable_template_raises(self, tmp_path):
+        service = ProjectService()
+        (tmp_path / "templates" / "t.json").mkdir(parents=True)
+
+        with pytest.raises(OSError):
+            service.save_roi_template(tmp_path, "t", {"a": 1})
+
+    def test_listing_failure_returns_nothing(self, tmp_path, monkeypatch):
+        service = ProjectService()
+        (tmp_path / "templates").mkdir()
+
+        def denied(self, pattern):
+            raise PermissionError("denied")
+
+        monkeypatch.setattr(Path, "glob", denied)
+
+        assert service.list_roi_templates(tmp_path) == []
+
+    def test_results_directory_partial_metadata(self, tmp_path):
+        service = ProjectService()
+
+        assert service.resolve_results_directory(tmp_path, {"day": "1/2"}) == (
+            tmp_path / "results" / "1_2"
+        )
+        assert service.resolve_results_directory(tmp_path, {"subject": " . "}) == (
+            tmp_path / "results" / "untitled"
+        )
