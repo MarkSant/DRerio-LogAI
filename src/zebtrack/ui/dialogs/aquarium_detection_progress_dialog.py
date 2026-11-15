@@ -29,6 +29,31 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
+THUMBNAIL_MAX_WIDTH = 400
+THUMBNAIL_MAX_HEIGHT = 300
+
+
+def thumbnail_geometry(
+    frame_width: int,
+    frame_height: int,
+    bbox: tuple[int, int, int, int] | None,
+) -> tuple[int, int, tuple[int, int, int, int] | None]:
+    """Fit a frame inside the thumbnail area and scale its bbox with it.
+
+    Returns:
+        ``(new_width, new_height, scaled_bbox)``; coordinates are truncated to
+        integers, ``scaled_bbox`` is None when ``bbox`` is None.
+
+    Raises:
+        ZeroDivisionError: for a frame with a zero side.
+    """
+    scale = min(THUMBNAIL_MAX_WIDTH / frame_width, THUMBNAIL_MAX_HEIGHT / frame_height)
+    new_w, new_h = int(frame_width * scale), int(frame_height * scale)
+    if bbox is None:
+        return new_w, new_h, None
+    x1, y1, x2, y2 = bbox
+    return new_w, new_h, (int(x1 * scale), int(y1 * scale), int(x2 * scale), int(y2 * scale))
+
 
 class AquariumDetectionProgressDialog(tk.Toplevel):
     """Progress dialog for automatic aquarium detection phase.
@@ -252,20 +277,13 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
         try:
             # Resize frame to fit thumbnail area (max 400x300)
             h, w = frame.shape[:2]
-            max_w, max_h = 400, 300
-            scale = min(max_w / w, max_h / h)
-            new_w, new_h = int(w * scale), int(h * scale)
+            new_w, new_h, scaled_bbox = thumbnail_geometry(w, h, bbox)
 
             resized = cv2.resize(frame, (new_w, new_h))
 
             # Draw bbox if provided
-            if bbox:
-                x1, y1, x2, y2 = bbox
-                # Scale bbox to thumbnail size
-                x1_s = int(x1 * scale)
-                y1_s = int(y1 * scale)
-                x2_s = int(x2 * scale)
-                y2_s = int(y2 * scale)
+            if scaled_bbox:
+                x1_s, y1_s, x2_s, y2_s = scaled_bbox
 
                 # Choose color based on validity
                 color = (0, 255, 0) if is_valid else (0, 165, 255)  # Green or Orange (BGR)
