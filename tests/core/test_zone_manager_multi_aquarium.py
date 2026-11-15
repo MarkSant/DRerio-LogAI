@@ -6,6 +6,8 @@ in project configurations.
 Coverage target: 80%+
 """
 
+from pathlib import Path
+
 import pytest
 
 from zebtrack.core.detection import AquariumData, MultiAquariumZoneData, ZoneData
@@ -496,3 +498,592 @@ class TestRoiNamesInProject:
         ZoneManager.roi_names_in_project(project_data)
 
         assert project_data == {}
+
+
+# ---------------------------------------------------------------------------
+# Single-zone registry: path identity, the global mirror, flags and parquets
+# (TASK-087). Every expected value below is derived from the inputs.
+# ---------------------------------------------------------------------------
+
+ARENA = [[10, 10], [110, 10], [110, 90], [10, 90]]
+OTHER_ARENA = [[0, 0], [50, 0], [50, 50]]
+ROI = [[20, 20], [40, 20], [40, 40]]
+
+
+def _norm(path) -> str:
+    return ZoneManager.normalize_video_path(path)
+
+
+def _zone(polygon=ARENA, rois=(), names=(), colors=()) -> ZoneData:
+    return ZoneData(
+        polygon=[list(p) for p in polygon],
+        roi_polygons=[list(map(list, r)) for r in rois],
+        roi_names=list(names),
+        roi_colors=list(colors),
+    )
+
+
+def _batch_project(project_type, *paths) -> dict:
+    return {
+        "project_type": project_type,
+        "batches": [{"videos": [{"path": str(p)} for p in paths]}],
+    }
+
+
+class TestResolveZoneEntry:
+    def test_no_video_resolves_to_nothing(self):
+        assert ZoneManager().resolve_zone_entry({}, None) == (None, None)
+        assert ZoneManager().resolve_zone_entry({}, "") == (None, None)
+
+    def test_normalized_key_is_returned_with_its_entry(self, tmp_path):
+        video = tmp_path / "Dia_1" / "a.mp4"
+        stored = {"polygon": ARENA}
+        project = {"zones_by_video": {_norm(video): stored}}
+
+        assert ZoneManager().resolve_zone_entry(project, video) == (_norm(video), stored)
+
+    def test_raw_key_spelled_differently_is_found_by_normalized_comparison(self, tmp_path):
+        video = tmp_path / "Dia_1" / "A.mp4"
+        raw_key = str(video).replace("/", "\\").upper()
+        stored = {"polygon": ARENA}
+        project = {"zones_by_video": {raw_key: stored}}
+
+        key, entry = ZoneManager().resolve_zone_entry(project, str(video))
+
+        assert key == raw_key
+        assert entry is stored
+
+    def test_exact_string_key_wins_when_normalization_differs(self, tmp_path):
+        relative = "relative/video.mp4"
+        stored = {"polygon": OTHER_ARENA}
+        project = {"zones_by_video": {str(Path(relative)): stored}}
+
+        key, entry = ZoneManager().resolve_zone_entry(project, relative)
+
+        assert key == str(Path(relative))
+        assert entry is stored
+
+    def test_unknown_video_returns_its_normalized_key_and_no_entry(self, tmp_path):
+        video = tmp_path / "missing.mp4"
+        project = {"zones_by_video": {_norm(tmp_path / "other.mp4"): {}}}
+
+        assert ZoneManager().resolve_zone_entry(project, video) == (_norm(video), None)
+
+
+class TestDeduplicateZoneKeys:
+    def test_other_spellings_of_the_preferred_path_are_removed(self, tmp_path):
+        video = tmp_path / "a.mp4"
+        sibling = tmp_path / "b.mp4"
+        preferred = _norm(video)
+        zones = {
+            preferred: {"keep": 1},
+            str(video).upper(): {"drop": 1},
+            _norm(sibling): {"sibling": 1},
+        }
+        project = {"zones_by_video": zones}
+
+        ZoneManager.deduplicate_zone_keys(project, preferred)
+
+        assert zones == {preferred: {"keep": 1}, _norm(sibling): {"sibling": 1}}
+
+    def test_without_a_preferred_key_nothing_is_touched(self, tmp_path):
+        zones = {"x": {}, "X": {}}
+        project = {"zones_by_video": zones}
+
+        ZoneManager.deduplicate_zone_keys(project, None)
+
+        assert zones == {"x": {}, "X": {}}
+
+
+class TestUpdateVideoZoneFlags:
+    def test_root_videos_dict_entry_gets_flags_and_is_reopened(self, tmp_path):
+        video = tmp_path / "v.mp4"
+        entry = {"path": str(video), "zones_finalized": True}
+        project = {"videos": {"id1": {"path": ""}, "id2": entry}}
+
+        ZoneManager.update_video_zone_flags(project, video, _zone(rois=[ROI], names=["r"]))
+
+        assert entry == {
+            "path": str(video),
+            "has_arena": True,
+            "has_rois": True,
+            "zones_finalized": False,
+        }
+
+    def test_batch_entry_is_matched_by_path_and_others_untouched(self, tmp_path):
+        target = tmp_path / "Dia_2" / "CECT_4" / "CECT_4.mp4"
+        homonym = tmp_path / "Dia_1" / "CECT_4" / "CECT_4.mp4"
+        project = _batch_project("pre-recorded", homonym, target)
+
+        ZoneManager.update_video_zone_flags(project, target, _zone())
+
+        day1, day2 = project["batches"][0]["videos"]
+        assert day1 == {"path": str(homonym)}
+        assert day2 == {
+            "path": str(target),
+            "has_arena": True,
+            "has_rois": False,
+            "zones_finalized": False,
+        }
+
+    def test_multi_aquarium_flags_come_from_any_aquarium(self, tmp_path):
+        video = tmp_path / "v.mp4"
+        project = _batch_project("pre-recorded", video)
+        data = MultiAquariumZoneData(
+            aquariums=[
+                AquariumData(id=0, polygon=ARENA),
+                AquariumData(id=1, roi_polygons=[ROI]),
+            ]
+        )
+
+        ZoneManager.update_video_zone_flags(project, video, data)
+
+        entry = project["batches"][0]["videos"][0]
+        assert (entry["has_arena"], entry["has_rois"]) == (True, True)
+
+    def test_live_project_without_entry_stores_flags_at_the_root(self, tmp_path):
+        project = {"project_type": "live", "batches": []}
+
+        ZoneManager.update_video_zone_flags(
+            project, tmp_path / "live_camera_reference_frame.png", _zone(polygon=[])
+        )
+
+        assert (project["has_arena"], project["has_rois"]) == (False, False)
+
+    def test_unregistered_video_in_a_pre_recorded_project_changes_nothing(self, tmp_path):
+        known = tmp_path / "known.mp4"
+        project = _batch_project("pre-recorded", known)
+
+        ZoneManager.update_video_zone_flags(project, tmp_path / "stranger.mp4", _zone())
+
+        assert project == _batch_project("pre-recorded", known)
+
+    def test_clearing_flags_with_none_zone_data(self, tmp_path):
+        video = tmp_path / "v.mp4"
+        project = _batch_project("pre-recorded", video)
+        project["batches"][0]["videos"][0].update(has_arena=True, has_rois=True)
+
+        ZoneManager.update_video_zone_flags(project, video, None)
+
+        entry = project["batches"][0]["videos"][0]
+        assert (entry["has_arena"], entry["has_rois"]) == (False, False)
+
+
+class TestShouldMirrorToGlobal:
+    @pytest.mark.parametrize(
+        ("project_type", "target", "expected"),
+        [
+            ("pre-recorded", None, True),
+            ("pre-recorded", "", True),
+            (None, "v.mp4", True),
+            ("   ", "v.mp4", True),
+            (3, "v.mp4", True),
+            ("live", "v.mp4", True),
+            ("  LIVE ", "v.mp4", True),
+            ("pre-recorded", "v.mp4", False),
+            ("batch", "v.mp4", False),
+        ],
+    )
+    def test_only_a_declared_non_live_project_with_a_target_skips_the_mirror(
+        self, project_type, target, expected
+    ):
+        project = {} if project_type is None else {"project_type": project_type}
+
+        assert ZoneManager.should_mirror_to_global(project, target) is expected
+
+
+class TestSaveZoneDataMirror:
+    def test_pre_recorded_save_keeps_the_previous_global_and_stores_per_video(self, tmp_path):
+        video = tmp_path / "Dia_1" / "a.mp4"
+        project = _batch_project("pre-recorded", video)
+        previous_global = ZoneManager.zone_data_to_dict(_zone(polygon=OTHER_ARENA))
+        project["detection_zones"] = previous_global
+        calls: list[str] = []
+
+        ZoneManager().save_zone_data(
+            project, _zone(), video, persist_callback=lambda: calls.append("saved")
+        )
+
+        assert project["detection_zones"] == previous_global
+        assert project["zones_by_video"] == {_norm(video): ZoneManager.zone_data_to_dict(_zone())}
+        assert project["batches"][0]["videos"][0]["has_arena"] is True
+        assert calls == ["saved"]
+
+    def test_pre_recorded_arena_of_one_video_does_not_become_another_videos_arena(self, tmp_path):
+        day1 = tmp_path / "Dia_1" / "CECT_4" / "CECT_4.mp4"
+        day2 = tmp_path / "Dia_2" / "CECT_4" / "CECT_4.mp4"
+        project = _batch_project("pre-recorded", day1, day2)
+        manager = ZoneManager()
+
+        manager.save_zone_data(project, _zone(), day2)
+
+        assert manager.get_zone_data(project, day2).polygon == ARENA
+        assert manager.get_zone_data(project, day1).polygon == []
+        assert manager.get_zone_data(project, day1, fallback_to_global=False).polygon == []
+
+    def test_live_save_mirrors_the_video_zones_into_the_global(self, tmp_path):
+        reference = tmp_path / "live_camera_reference_frame.png"
+        project = {"project_type": "live"}
+
+        ZoneManager().save_zone_data(project, _zone(rois=[ROI], names=["toca"]), reference)
+
+        expected = ZoneManager.zone_data_to_dict(_zone(rois=[ROI], names=["toca"]))
+        assert project["detection_zones"] == expected
+        assert project["zones_by_video"][_norm(reference)] == expected
+        assert (project["has_arena"], project["has_rois"]) == (True, True)
+
+    def test_without_project_type_the_legacy_mirror_is_kept(self, tmp_path):
+        video = tmp_path / "single.mp4"
+        project: dict = {}
+
+        ZoneManager().save_zone_data(project, _zone(), video)
+
+        assert project["detection_zones"]["polygon"] == ARENA
+        assert project["zones_by_video"][_norm(video)]["polygon"] == ARENA
+
+    def test_save_without_any_target_writes_only_the_global(self):
+        project = {"project_type": "pre-recorded"}
+
+        ZoneManager().save_zone_data(project, _zone())
+
+        assert project["detection_zones"]["polygon"] == ARENA
+        assert project["zones_by_video"] == {}
+
+    def test_save_uses_the_active_video_when_none_is_given(self, tmp_path):
+        video = tmp_path / "active.mp4"
+        project = {"project_type": "pre-recorded"}
+        manager = ZoneManager()
+        manager.set_active_zone_video(project, video)
+
+        manager.save_zone_data(project, _zone(polygon=OTHER_ARENA))
+
+        assert project["zones_by_video"][_norm(video)]["polygon"] == OTHER_ARENA
+        assert manager.get_last_zone_video(project) == _norm(video)
+
+    def test_multi_aquarium_save_goes_to_its_registry_and_never_to_the_global(self, tmp_path):
+        video = tmp_path / "two_tanks.mp4"
+        project = {"project_type": "live"}
+        calls: list[int] = []
+        data = MultiAquariumZoneData(
+            aquariums=[AquariumData(id=0, polygon=ARENA), AquariumData(id=1, polygon=OTHER_ARENA)]
+        )
+
+        ZoneManager().save_zone_data(project, data, video, persist_callback=lambda: calls.append(1))
+
+        assert project["detection_zones"] == {}
+        assert [
+            a["polygon"] for a in project["multi_aquarium_zones"][_norm(video)]["aquariums"]
+        ] == [
+            ARENA,
+            OTHER_ARENA,
+        ]
+        assert calls == [1]
+
+
+class TestGetZoneDataAndClone:
+    def test_aquarium_zero_shim_versus_the_full_multi_aquarium_data(self, tmp_path):
+        video = tmp_path / "two_tanks.mp4"
+        project: dict = {}
+        manager = ZoneManager()
+        data = MultiAquariumZoneData(
+            aquariums=[AquariumData(id=0, polygon=ARENA), AquariumData(id=1, polygon=OTHER_ARENA)]
+        )
+        manager.save_multi_aquarium_zone_data(project, video, data)
+
+        assert manager.get_zone_data(project, video).polygon == ARENA
+        multi = manager.get_multi_aquarium_zone_data(project, video)
+        assert [aq.polygon for aq in multi.aquariums] == [ARENA, OTHER_ARENA]
+
+    def test_no_target_and_no_active_video_serves_the_global(self):
+        project = {"detection_zones": ZoneManager.zone_data_to_dict(_zone(polygon=OTHER_ARENA))}
+
+        assert ZoneManager().get_zone_data(project).polygon == OTHER_ARENA
+
+    def test_clone_is_a_deep_copy(self, tmp_path):
+        video = tmp_path / "v.mp4"
+        project: dict = {}
+        manager = ZoneManager()
+        manager.save_zone_data(project, _zone(), video)
+
+        clone = manager.clone_zone_data_from_video(project, video)
+        clone.polygon[0][0] = 999
+
+        assert clone.polygon[1:] == ARENA[1:]
+        assert project["zones_by_video"][_norm(video)]["polygon"][0] == ARENA[0]
+
+    def test_has_zone_data_is_false_for_an_empty_stored_entry(self, tmp_path):
+        video = tmp_path / "v.mp4"
+        project = {"zones_by_video": {_norm(video): ZoneManager.zone_data_to_dict(ZoneData())}}
+        manager = ZoneManager()
+
+        assert manager.has_zone_data(project, video) is False
+        assert manager.has_zone_data(project, None) is False
+        project["zones_by_video"][_norm(video)]["roi_polygons"] = [ROI]
+        assert manager.has_zone_data(project, str(video)) is True
+
+
+class TestActiveVideoAndLastSource:
+    def test_activating_rekeys_a_raw_entry_and_loads_it_as_the_global(self, tmp_path):
+        video = tmp_path / "v.mp4"
+        raw_key = str(video).upper()
+        stored = ZoneManager.zone_data_to_dict(_zone(polygon=OTHER_ARENA))
+        project = {"zones_by_video": {raw_key: stored}}
+        manager = ZoneManager()
+
+        manager.set_active_zone_video(project, str(video))
+
+        assert project["zones_by_video"] == {_norm(video): stored}
+        assert project["detection_zones"] == stored
+        assert project["detection_zones"] is not stored
+        assert manager.get_active_zone_video() == _norm(video)
+        assert manager.get_last_zone_video(project) == _norm(video)
+
+    def test_activating_a_video_without_zones_empties_the_global(self, tmp_path):
+        project = {"detection_zones": ZoneManager.zone_data_to_dict(_zone())}
+        manager = ZoneManager()
+
+        manager.set_active_zone_video(project, tmp_path / "new.mp4")
+
+        assert project["detection_zones"] == ZoneManager.zone_data_to_dict(None)
+        assert manager.get_active_zone_video() == _norm(tmp_path / "new.mp4")
+
+    def test_none_clears_the_active_video(self, tmp_path):
+        manager = ZoneManager()
+        manager.set_active_zone_video({}, tmp_path / "v.mp4")
+
+        manager.set_active_zone_video({}, None)
+
+        assert manager.get_active_zone_video() is None
+
+    def test_reset_active_context_forgets_both_pointers(self, tmp_path):
+        project: dict = {}
+        manager = ZoneManager()
+        manager.save_zone_data(project, _zone(), tmp_path / "v.mp4")
+        manager.set_active_zone_video(project, tmp_path / "v.mp4")
+
+        manager.reset_active_context()
+
+        assert manager.get_active_zone_video() is None
+        assert manager._last_zone_source_video is None
+
+    def test_last_zone_video_skips_the_excluded_one(self, tmp_path):
+        first, second = tmp_path / "a.mp4", tmp_path / "b.mp4"
+        project: dict = {}
+        manager = ZoneManager()
+        manager.save_zone_data(project, _zone(), first)
+        manager.save_zone_data(project, _zone(), second)
+
+        assert manager.get_last_zone_video(project) == _norm(second)
+        assert manager.get_last_zone_video(project, exclude=str(second)) == _norm(first)
+        assert manager.get_last_zone_video({"zones_by_video": {}}) is None
+
+    def test_refresh_after_removal_falls_back_to_the_newest_remaining(self, tmp_path):
+        first, second, third = (tmp_path / f"{n}.mp4" for n in "abc")
+        project: dict = {}
+        manager = ZoneManager()
+        for video in (first, second, third):
+            manager.save_zone_data(project, _zone(), video)
+        del project["zones_by_video"][_norm(third)]
+
+        manager.refresh_last_zone_source(project, removed_path=str(third))
+
+        assert manager._last_zone_source_video == _norm(second)
+
+    def test_refresh_keeps_a_last_source_that_still_exists(self, tmp_path):
+        first, second = tmp_path / "a.mp4", tmp_path / "b.mp4"
+        project: dict = {}
+        manager = ZoneManager()
+        manager.save_zone_data(project, _zone(), first)
+        manager.save_zone_data(project, _zone(), second)
+        manager._last_zone_source_video = _norm(first)
+
+        manager.refresh_last_zone_source(project, removed_path=tmp_path / "other.mp4")
+
+        assert manager._last_zone_source_video == _norm(first)
+
+    def test_refresh_with_no_zones_left_clears_the_pointer(self, tmp_path):
+        manager = ZoneManager()
+        manager._last_zone_source_video = "gone"
+
+        manager.refresh_last_zone_source({"zones_by_video": {}})
+
+        assert manager._last_zone_source_video is None
+
+
+class TestClearZoneDataForVideo:
+    def test_clearing_the_active_video_resets_global_flags_and_persists(self, tmp_path):
+        video = tmp_path / "v.mp4"
+        keep = tmp_path / "keep.mp4"
+        project = _batch_project("live", video, keep)
+        manager = ZoneManager()
+        manager.save_zone_data(project, _zone(), keep)
+        manager.save_zone_data(project, _zone(), video)
+        manager.set_active_zone_video(project, video)
+        calls: list[int] = []
+
+        manager.clear_zone_data_for_video(
+            project, str(video), persist_callback=lambda: calls.append(1)
+        )
+
+        assert list(project["zones_by_video"]) == [_norm(keep)]
+        assert project["detection_zones"] == ZoneManager.zone_data_to_dict(None)
+        assert project["batches"][0]["videos"][0]["has_arena"] is False
+        assert manager.get_last_zone_video(project) == _norm(keep)
+        assert calls == [1]
+
+    def test_clearing_an_inactive_video_keeps_the_global(self, tmp_path):
+        video, active = tmp_path / "v.mp4", tmp_path / "active.mp4"
+        project: dict = {}
+        manager = ZoneManager()
+        manager.save_zone_data(project, _zone(), video)
+        manager.set_active_zone_video(project, active)
+        manager.save_zone_data(project, _zone(polygon=OTHER_ARENA))
+
+        manager.clear_zone_data_for_video(project, video)
+
+        assert project["detection_zones"]["polygon"] == OTHER_ARENA
+
+
+class TestUpdateMainPolygon:
+    def test_empty_project_data_raises(self):
+        with pytest.raises(ValueError):
+            ZoneManager().update_main_polygon({}, ARENA)
+
+    def test_polygon_replaces_the_active_video_arena_and_keeps_rois(self, tmp_path):
+        video = tmp_path / "v.mp4"
+        project = {"project_type": "pre-recorded"}
+        manager = ZoneManager()
+        manager.save_zone_data(project, _zone(rois=[ROI], names=["r"]), video)
+        manager.set_active_zone_video(project, video)
+        calls: list[int] = []
+
+        manager.update_main_polygon(project, OTHER_ARENA, persist_callback=lambda: calls.append(1))
+
+        stored = manager.get_zone_data(project, video)
+        assert stored.polygon == OTHER_ARENA
+        assert stored.roi_polygons == [ROI]
+        assert calls == [1]
+
+
+class TestLoadZonesFromParquet:
+    @staticmethod
+    def _write(path, rows):
+        import pandas as pd
+
+        pd.DataFrame(rows).to_parquet(path)
+        return str(path)
+
+    def test_arena_and_rois_are_rebuilt_in_point_order_with_cycled_colors(self, tmp_path):
+        arena = self._write(tmp_path / "1.parquet", {"x": [1, 2, 3], "y": [4, 5, 6]})
+        names = [f"r{i}" for i in range(7)]
+        rows = {"roi_name": [], "point_index": [], "x": [], "y": []}
+        for i, name in enumerate(names):
+            for idx in (2, 0, 1):
+                rows["roi_name"].append(name)
+                rows["point_index"].append(idx)
+                rows["x"].append(i * 10 + idx)
+                rows["y"].append(idx)
+        rois = self._write(tmp_path / "2.parquet", rows)
+
+        zone = ZoneManager.load_zones_from_parquet(
+            {"parquet_files": {"arena": arena, "rois": rois}}
+        )
+
+        assert zone.polygon == [[1, 4], [2, 5], [3, 6]]
+        assert zone.roi_names == names
+        assert zone.roi_polygons[3] == [[30, 0], [31, 1], [32, 2]]
+        assert zone.roi_colors[0] == zone.roi_colors[6] == (0, 128, 0)
+        assert zone.roi_colors[1:6] == [
+            (255, 0, 0),
+            (0, 0, 255),
+            (0, 204, 204),
+            (255, 0, 255),
+            (0, 255, 255),
+        ]
+
+    def test_files_with_the_wrong_columns_load_as_empty_zones(self, tmp_path):
+        arena = self._write(tmp_path / "1.parquet", {"a": [1], "b": [2]})
+        rois = self._write(tmp_path / "2.parquet", {"roi_name": ["r"], "x": [1]})
+
+        zone = ZoneManager.load_zones_from_parquet(
+            {"parquet_files": {"arena": arena, "rois": rois}}
+        )
+
+        assert (zone.polygon, zone.roi_polygons, zone.roi_names) == ([], [], [])
+
+    def test_empty_rois_file_and_missing_arena_file(self, tmp_path):
+        import pandas as pd
+
+        rois = tmp_path / "2.parquet"
+        pd.DataFrame({"roi_name": [], "point_index": [], "x": [], "y": []}).to_parquet(rois)
+
+        zone = ZoneManager.load_zones_from_parquet(
+            {"parquet_files": {"arena": str(tmp_path / "absent.parquet"), "rois": str(rois)}}
+        )
+
+        assert zone == ZoneData()
+
+    def test_no_zone_files_returns_none(self):
+        assert ZoneManager.load_zones_from_parquet({"path": "v.mp4", "parquet_files": {}}) is None
+        assert ZoneManager.load_zones_from_parquet({}) is None
+
+    def test_corrupt_parquet_returns_none(self, tmp_path):
+        broken = tmp_path / "1.parquet"
+        broken.write_bytes(b"not a parquet file")
+
+        assert (
+            ZoneManager.load_zones_from_parquet({"parquet_files": {"arena": str(broken)}}) is None
+        )
+
+
+class TestMultiAquariumRegistryEdges:
+    def test_failed_serialization_reports_false_and_stores_nothing(self, tmp_path):
+        project: dict = {}
+        broken = MultiAquariumZoneData(aquariums=[object()])  # type: ignore[list-item]
+
+        assert (
+            ZoneManager().save_multi_aquarium_zone_data(project, tmp_path / "v.mp4", broken)
+            is False
+        )
+        assert project["multi_aquarium_zones"] == {}
+
+    def test_saving_without_aquariums_leaves_the_single_zone_shim_alone(self, tmp_path):
+        video = tmp_path / "v.mp4"
+        project: dict = {}
+
+        assert ZoneManager().save_multi_aquarium_zone_data(project, video, MultiAquariumZoneData())
+        assert project["zones_by_video"] == {}
+        assert project["multi_aquarium_zones"][_norm(video)]["aquariums"] == []
+
+    def test_lookup_and_clear_reach_raw_and_differently_spelled_keys(self, tmp_path):
+        video = tmp_path / "v.mp4"
+        serialized = ZoneManager.multi_aquarium_zone_data_to_dict(
+            MultiAquariumZoneData(aquariums=[AquariumData(id=0, polygon=ARENA)])
+        )
+        manager = ZoneManager()
+        for key in (str(Path("rel/v.mp4")), str(video).upper()):
+            lookup = "rel/v.mp4" if key.startswith("rel") else str(video)
+            project = {"multi_aquarium_zones": {key: dict(serialized)}}
+
+            assert (
+                manager.get_multi_aquarium_zone_data(project, lookup).aquariums[0].polygon == ARENA
+            )
+
+            manager.clear_multi_aquarium_zone_data(project, lookup)
+            assert project["multi_aquarium_zones"] == {}
+
+    def test_unknown_video_with_registry_present_returns_none(self, tmp_path):
+        project = {"multi_aquarium_zones": {_norm(tmp_path / "a.mp4"): {"aquariums": []}}}
+
+        assert ZoneManager().get_multi_aquarium_zone_data(project, tmp_path / "b.mp4") is None
+
+    def test_clear_of_an_unknown_video_still_persists(self, tmp_path):
+        project = {"multi_aquarium_zones": {"x": {}}}
+        calls: list[int] = []
+
+        ZoneManager().clear_multi_aquarium_zone_data(
+            project, tmp_path / "b.mp4", persist_callback=lambda: calls.append(1)
+        )
+
+        assert project["multi_aquarium_zones"] == {"x": {}}
+        assert calls == [1]
