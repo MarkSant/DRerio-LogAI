@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-14 21:20-0300\n"
+"POT-Creation-Date: 2026-11-15 01:46-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -40,39 +40,39 @@ msgstr ""
 msgid "Geotaxis was requested but could not be computed: {error}"
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1423
+#: src/zebtrack/analysis/analysis_service.py:1434
 #: src/zebtrack/coordinators/ui_state_coordinator.py:710
 #, python-brace-format
 msgid "Starting processing for {count} videos..."
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1517
+#: src/zebtrack/analysis/analysis_service.py:1528
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:2082
 msgid "Analysis Error"
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1518
+#: src/zebtrack/analysis/analysis_service.py:1529
 #, python-brace-format
 msgid "An unexpected error occurred: {error}"
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1562
+#: src/zebtrack/analysis/analysis_service.py:1573
 #: src/zebtrack/coordinators/ui_state_coordinator.py:731
 msgid "Cancelled"
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1562
+#: src/zebtrack/analysis/analysis_service.py:1573
 msgid "Video analysis was cancelled."
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1566
+#: src/zebtrack/analysis/analysis_service.py:1577
 #, python-brace-format
 msgid ""
 "Analysis finished. Results saved to:\n"
 "{path}"
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1567
+#: src/zebtrack/analysis/analysis_service.py:1578
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:760
 #: src/zebtrack/coordinators/video_processing_coordinator.py:549
 #: src/zebtrack/ui/components/canvas/event_handler.py:792
@@ -85,7 +85,7 @@ msgstr ""
 msgid "Success"
 msgstr ""
 
-#: src/zebtrack/analysis/analysis_service.py:1569
+#: src/zebtrack/analysis/analysis_service.py:1580
 #: src/zebtrack/coordinators/_unified_report_mixin.py:237
 #: src/zebtrack/coordinators/progress_tracking_coordinator.py:540
 #: src/zebtrack/coordinators/recording_session_coordinator.py:657
@@ -774,6 +774,32 @@ msgstr ""
 #: src/zebtrack/ui/gui.py:909
 #: src/zebtrack/ui/wizard/design_editor_dialog.py:518
 msgid "Validation Error"
+msgstr ""
+
+#: src/zebtrack/coordinators/live_batch_coordinator.py:626
+msgid "Unified report is incomplete"
+msgstr ""
+
+#: src/zebtrack/coordinators/live_batch_coordinator.py:628
+#, python-brace-format
+msgid ""
+"The unified report was built from {used} of {total} sessions. Its means "
+"do not include:\n"
+"\n"
+"{details}"
+msgstr ""
+
+#: src/zebtrack/coordinators/live_batch_coordinator.py:695
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:320
+msgid "not registered in the project"
+msgstr ""
+
+#: src/zebtrack/coordinators/live_batch_coordinator.py:704
+msgid "no analysis summary found"
+msgstr ""
+
+#: src/zebtrack/coordinators/live_batch_coordinator.py:725
+msgid "summary file could not be read"
 msgstr ""
 
 #: src/zebtrack/coordinators/live_calibration_coordinator.py:436
@@ -2924,10 +2950,6 @@ msgstr ""
 #: src/zebtrack/core/viewmodels/analysis_control_view_model.py:308
 #, python-brace-format
 msgid "Generating report {current}/{total}..."
-msgstr ""
-
-#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:320
-msgid "not registered in the project"
 msgstr ""
 
 #: src/zebtrack/core/viewmodels/analysis_control_view_model.py:352

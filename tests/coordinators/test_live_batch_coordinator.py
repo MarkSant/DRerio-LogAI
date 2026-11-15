@@ -324,3 +324,94 @@ class TestCollectMultiAquariumOutputs:
         assert 0 in outputs
         assert outputs[0]["group"] == "G1"
         assert outputs[0]["subject_id"] == "S1"
+
+
+class TestUnifiedReportCountsWhatItContains:
+    """The unified report must not claim sessions it left out (audit A5-S-004)."""
+
+    @staticmethod
+    def _batch(tmp_path, names):
+        return BatchMetadata(
+            batch_id="b1",
+            group="G1",
+            day="1",
+            subject_id="S1",
+            session_paths=[tmp_path / name for name in names],
+            session_count=len(names),
+        )
+
+    @staticmethod
+    def _wire(coordinator, tmp_path, *, missing_entry=(), missing_summary=(), unreadable=()):
+        """Sessions are found unless named in one of the three failure sets."""
+        coordinator.project_manager.project_root = tmp_path
+
+        def find_entry(path):
+            name = Path(path).name
+            return None if name in missing_entry else {"name": name}
+
+        def resolve(entry):
+            name = entry["name"]
+            return None if name in missing_summary else tmp_path / f"{Path(name).stem}.xlsx"
+
+        coordinator.project_manager.find_video_entry.side_effect = find_entry
+        coordinator._resolve_summary_excel_path = resolve
+        coordinator.analysis_service.aggregate_session_summaries.return_value = [
+            tmp_path / f"{Path(name).stem}.xlsx" for name in unreadable
+        ]
+
+    @staticmethod
+    def _warnings(coordinator):
+        events = [call.args[0] for call in coordinator.event_bus.publish.call_args_list]
+        return [event for event in events if event.type is UIEvents.SHOW_WARNING]
+
+    @staticmethod
+    def _registered_count(coordinator):
+        return coordinator.project_manager.register_batch_outputs.call_args.kwargs["session_count"]
+
+    def test_a_complete_batch_registers_every_session_and_warns_nobody(self, coordinator, tmp_path):
+        self._wire(coordinator, tmp_path)
+
+        assert coordinator._generate_unified_report(self._batch(tmp_path, ["a.mp4", "b.mp4"]))
+
+        assert self._registered_count(coordinator) == 2
+        assert self._warnings(coordinator) == []
+
+    def test_a_session_without_summary_is_not_counted_and_is_named(self, coordinator, tmp_path):
+        self._wire(coordinator, tmp_path, missing_summary={"b.mp4"})
+        batch = self._batch(tmp_path, ["a.mp4", "b.mp4", "c.mp4"])
+
+        assert coordinator._generate_unified_report(batch)
+
+        # Only the two that have a summary reach the aggregation...
+        (paths, _output), _kwargs = (
+            coordinator.analysis_service.aggregate_session_summaries.call_args
+        )
+        assert [p.name for p in paths] == ["a.xlsx", "c.xlsx"]
+        # ...and that is the count recorded, not the batch size of three.
+        assert self._registered_count(coordinator) == 2
+        (warning,) = self._warnings(coordinator)
+        assert "2 of 3 sessions" in warning.data.message
+        assert "- b.mp4: no analysis summary found" in warning.data.message
+        assert "a.mp4" not in warning.data.message
+
+    def test_an_unknown_video_and_an_unreadable_summary_are_both_left_out(
+        self, coordinator, tmp_path
+    ):
+        self._wire(coordinator, tmp_path, missing_entry={"a.mp4"}, unreadable={"c.mp4"})
+        batch = self._batch(tmp_path, ["a.mp4", "b.mp4", "c.mp4", "d.mp4"])
+
+        assert coordinator._generate_unified_report(batch)
+
+        assert self._registered_count(coordinator) == 2
+        (warning,) = self._warnings(coordinator)
+        assert "2 of 4 sessions" in warning.data.message
+        assert "- a.mp4: not registered in the project" in warning.data.message
+        assert "- c.xlsx: summary file could not be read" in warning.data.message
+
+    def test_without_a_bus_the_count_is_still_the_real_one(self, coordinator, tmp_path):
+        coordinator.event_bus = None
+        self._wire(coordinator, tmp_path, missing_summary={"b.mp4"})
+
+        assert coordinator._generate_unified_report(self._batch(tmp_path, ["a.mp4", "b.mp4"]))
+
+        assert self._registered_count(coordinator) == 1

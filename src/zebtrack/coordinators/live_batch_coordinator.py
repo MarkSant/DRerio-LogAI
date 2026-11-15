@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from zebtrack.i18n import _
 from zebtrack.utils.report_files import find_summary_excel_file, has_summary_excel_output
 
 if TYPE_CHECKING:
@@ -602,6 +603,35 @@ class LiveBatchCoordinator:
                 return batch
         return None
 
+    def _report_sessions_left_out(
+        self, batch: BatchMetadata, left_out: list[tuple[str, str]], total: int
+    ) -> None:
+        """Warn that the unified report was built from fewer sessions than the batch has."""
+        self.logger.warning(
+            "live_batch.unified_report.sessions_left_out",
+            batch_id=batch.batch_id,
+            left_out=[name for name, _reason in left_out],
+            total=total,
+        )
+        if not self.event_bus:
+            return
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+        details = "\n".join(f"- {name}: {reason}" for name, reason in left_out)
+        self.event_bus.publish(
+            Event(
+                type=UIEvents.SHOW_WARNING,
+                data=payloads.MessagePayload(
+                    title=_("Unified report is incomplete"),
+                    message=_(
+                        "The unified report was built from {used} of {total} sessions. "
+                        "Its means do not include:\n\n{details}"
+                    ).format(used=total - len(left_out), total=total, details=details),
+                ),
+            )
+        )
+
     def _generate_unified_report(self, batch: BatchMetadata) -> bool:
         """Generate unified report for batch.
 
@@ -653,6 +683,8 @@ class LiveBatchCoordinator:
 
             # Collect summaries for aggregation
             all_summaries = []
+            # (session file, reason) for every session left out of the workbook.
+            left_out: list[tuple[str, str]] = []
             for video_path in video_paths:
                 video_entry = self.project_manager.find_video_entry(path=video_path)
                 if not video_entry:
@@ -660,6 +692,7 @@ class LiveBatchCoordinator:
                         "live_batch.unified_report.video_not_found",
                         video_path=video_path,
                     )
+                    left_out.append((Path(video_path).name, _("not registered in the project")))
                     continue
 
                 summary_path = self._resolve_summary_excel_path(video_entry)
@@ -668,6 +701,7 @@ class LiveBatchCoordinator:
                         "live_batch.unified_report.no_analysis",
                         video_path=video_path,
                     )
+                    left_out.append((Path(video_path).name, _("no analysis summary found")))
                     continue
 
                 all_summaries.append(summary_path)
@@ -681,13 +715,26 @@ class LiveBatchCoordinator:
 
             # Aggregate summaries into unified Excel
             unified_excel = unified_dir / f"UnifiedReport_{batch.batch_id}.xlsx"
-            self.analysis_service.aggregate_session_summaries(all_summaries, unified_excel)
+            unreadable = self.analysis_service.aggregate_session_summaries(
+                all_summaries, unified_excel
+            )
+            # Only a real list counts: a caller that returns nothing (older
+            # service, test double) means every summary was read.
+            if isinstance(unreadable, list):
+                left_out.extend(
+                    (Path(path).name, _("summary file could not be read")) for path in unreadable
+                )
+            aggregated_count = len(video_paths) - len(left_out)
+            if left_out:
+                self._report_sessions_left_out(batch, left_out, len(video_paths))
 
             # Register unified output
             self.project_manager.register_batch_outputs(
                 batch_id=batch.batch_id,
                 unified_excel=str(unified_excel),
-                session_count=batch.session_count,
+                # What the workbook actually contains: until 8.0 this was the
+                # batch size, so a report built from 4 sessions claimed 5.
+                session_count=aggregated_count,
                 group=batch.group,
                 day=batch.day,
                 subject_id=batch.subject_id,

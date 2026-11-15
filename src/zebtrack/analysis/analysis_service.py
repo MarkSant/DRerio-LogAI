@@ -929,12 +929,19 @@ class AnalysisService:
 
         return results
 
-    def aggregate_session_summaries(self, summary_paths: list[Path], output_path: Path) -> None:
+    def aggregate_session_summaries(
+        self, summary_paths: list[Path], output_path: Path
+    ) -> list[Path]:
         """Aggregate individual session summaries into unified Excel.
 
         Args:
             summary_paths: List of individual summary Excel files
             output_path: Path for unified output
+
+        Returns:
+            The summaries that could not be read and were therefore left out.
+            The workbook is still written from the others; the caller must
+            report the gap, because every mean in it is over fewer sessions.
         """
         self.log.info(
             "analysis_service.aggregate_summaries.start",
@@ -942,6 +949,7 @@ class AnalysisService:
         )
 
         all_data = []
+        unreadable: list[Path] = []
         for i, summary_path in enumerate(summary_paths, 1):
             try:
                 df = pd.read_excel(summary_path)
@@ -954,6 +962,7 @@ class AnalysisService:
                     summary_path=str(summary_path),
                     error=str(e),
                 )
+                unreadable.append(summary_path)
 
         if not all_data:
             raise ValueError("No valid summary data to aggregate")
@@ -1000,7 +1009,9 @@ class AnalysisService:
             "analysis_service.aggregate_summaries.success",
             output=str(output_path),
             total_rows=len(unified_df),
+            unreadable=len(unreadable),
         )
+        return unreadable
 
     # -------------------------------------------------------------------------
     # Analysis Orchestration Methods (Phase 1, Step 3)

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-14 21:20-0300\n"
+"POT-Creation-Date: 2026-11-15 01:46-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pt_BR\n"
@@ -49,35 +49,35 @@ msgid "Geotaxis was requested but could not be computed: {error}"
 msgstr "A geotaxia foi pedida mas não pôde ser calculada: {error}"
 
 # | msgid "Batch processing started: {count} video(s)."
-#: src/zebtrack/analysis/analysis_service.py:1423
+#: src/zebtrack/analysis/analysis_service.py:1434
 #: src/zebtrack/coordinators/ui_state_coordinator.py:710
 #, python-brace-format
 msgid "Starting processing for {count} videos..."
 msgstr "Iniciando processamento para {count} vídeos..."
 
 # | msgid "Analysis in Progress"
-#: src/zebtrack/analysis/analysis_service.py:1517
+#: src/zebtrack/analysis/analysis_service.py:1528
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:2082
 msgid "Analysis Error"
 msgstr "Erro na Análise"
 
-#: src/zebtrack/analysis/analysis_service.py:1518
+#: src/zebtrack/analysis/analysis_service.py:1529
 #, python-brace-format
 msgid "An unexpected error occurred: {error}"
 msgstr "Ocorreu um erro inesperado: {error}"
 
 # | msgid "Cancel"
-#: src/zebtrack/analysis/analysis_service.py:1562
+#: src/zebtrack/analysis/analysis_service.py:1573
 #: src/zebtrack/coordinators/ui_state_coordinator.py:731
 msgid "Cancelled"
 msgstr "Cancelado"
 
 # | msgid "The video analysis was cancelled."
-#: src/zebtrack/analysis/analysis_service.py:1562
+#: src/zebtrack/analysis/analysis_service.py:1573
 msgid "Video analysis was cancelled."
 msgstr "A análise de vídeo foi cancelada."
 
-#: src/zebtrack/analysis/analysis_service.py:1566
+#: src/zebtrack/analysis/analysis_service.py:1577
 #, python-brace-format
 msgid ""
 "Analysis finished. Results saved to:\n"
@@ -86,7 +86,7 @@ msgstr ""
 "Análise concluída. Resultados salvos em:\n"
 "{path}"
 
-#: src/zebtrack/analysis/analysis_service.py:1567
+#: src/zebtrack/analysis/analysis_service.py:1578
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:760
 #: src/zebtrack/coordinators/video_processing_coordinator.py:549
 #: src/zebtrack/ui/components/canvas/event_handler.py:792
@@ -100,7 +100,7 @@ msgid "Success"
 msgstr "Sucesso"
 
 # | msgid "Ready!"
-#: src/zebtrack/analysis/analysis_service.py:1569
+#: src/zebtrack/analysis/analysis_service.py:1580
 #: src/zebtrack/coordinators/_unified_report_mixin.py:237
 #: src/zebtrack/coordinators/progress_tracking_coordinator.py:540
 #: src/zebtrack/coordinators/recording_session_coordinator.py:657
@@ -982,6 +982,36 @@ msgstr "Peso Não Selecionado"
 #: src/zebtrack/ui/wizard/design_editor_dialog.py:518
 msgid "Validation Error"
 msgstr "Erro de Validação"
+
+#: src/zebtrack/coordinators/live_batch_coordinator.py:626
+msgid "Unified report is incomplete"
+msgstr "Relatório unificado incompleto"
+
+#: src/zebtrack/coordinators/live_batch_coordinator.py:628
+#, python-brace-format
+msgid ""
+"The unified report was built from {used} of {total} sessions. Its means "
+"do not include:\n"
+"\n"
+"{details}"
+msgstr ""
+"O relatório unificado foi montado com {used} de {total} sessões. As médias "
+"não incluem:\n"
+"\n"
+"{details}"
+
+#: src/zebtrack/coordinators/live_batch_coordinator.py:695
+#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:320
+msgid "not registered in the project"
+msgstr "não está registrado no projeto"
+
+#: src/zebtrack/coordinators/live_batch_coordinator.py:704
+msgid "no analysis summary found"
+msgstr "nenhum sumário de análise encontrado"
+
+#: src/zebtrack/coordinators/live_batch_coordinator.py:725
+msgid "summary file could not be read"
+msgstr "o arquivo de sumário não pôde ser lido"
 
 # | msgid "Polygon"
 # | msgid "Main Polygon"
@@ -3700,10 +3730,6 @@ msgstr "Cancelando análise em andamento..."
 #, python-brace-format
 msgid "Generating report {current}/{total}..."
 msgstr "Gerando relatório {current}/{total}..."
-
-#: src/zebtrack/core/viewmodels/analysis_control_view_model.py:320
-msgid "not registered in the project"
-msgstr "não está registrado no projeto"
 
 #: src/zebtrack/core/viewmodels/analysis_control_view_model.py:352
 msgid "no trajectory file found"

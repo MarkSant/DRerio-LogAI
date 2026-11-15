@@ -128,7 +128,6 @@ ALLOWED_UNPUBLISHED = frozenset(
         "PROCESSING_GENERATE_TRAJECTORIES",
         "PROCESSING_STATS_UPDATED",
         "RECORDING_TOGGLE",
-        "SHOW_WARNING",
         "SOCIAL_SUMMARY_UPDATED",
         "UI_NAVIGATE_FROM_ANALYSIS_VIEW",
         # o único publicador era o ControlPanelWidget morto (A2-D-009): o handler em

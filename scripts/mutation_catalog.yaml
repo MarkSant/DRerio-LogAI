@@ -4224,3 +4224,31 @@ _load_registry()"
         description: "geotaxia que falha volta a sumir do relatorio sem aviso (A5-S-005)"
         find: '_("Geotaxis was requested but could not be computed: {error}").format('
         replace: 'str('
+
+  unified_report_session_count:
+    source: src/zebtrack/coordinators/live_batch_coordinator.py
+    tests:
+      - tests/coordinators/test_live_batch_coordinator.py
+    mutations:
+      - id: batch-size-registered-as-aggregated
+        description: "relatorio unificado volta a declarar o tamanho do lote, nao o que agregou (A5-S-004)"
+        find: '                session_count=aggregated_count,'
+        replace: '                session_count=batch.session_count,'
+      - id: left-out-sessions-not-reported
+        description: "sessoes fora do relatorio unificado deixam de ser avisadas"
+        find: '            if left_out:'
+        replace: '            if False:'
+      - id: unreadable-summaries-ignored
+        description: "sumarios ilegiveis voltam a contar como agregados"
+        find: '            if isinstance(unreadable, list):'
+        replace: '            if False:'
+
+  aggregate_summaries_unreadable:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_aggregation.py
+    mutations:
+      - id: unreadable-summary-not-returned
+        description: "sumario ilegivel deixa de ser devolvido a quem agrega (A5-S-004)"
+        find: '                unreadable.append(summary_path)'
+        replace: '                pass'
