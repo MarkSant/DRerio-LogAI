@@ -366,3 +366,68 @@ class TestROITemplateManagerExtended:
         assert stats["kept"] == 1
         assert stats["removed"] == 1
         assert not bad_file.exists()
+
+
+# ---------------------------------------------------------------------------
+# TASK-087: save guards, custom destinations and a corrupt global folder.
+# ---------------------------------------------------------------------------
+
+
+class TestSaveTemplateDestinations:
+    def test_guards_name_the_missing_piece(self, roi_manager, tmp_path):
+        two_points = ZoneData(polygon=[[0, 0], [1, 1]], roi_polygons=[[[0, 0], [1, 0], [1, 1]]])
+
+        with pytest.raises(ValueError, match="at least 3 points"):
+            roi_manager.save_template("T", two_points)
+        with pytest.raises(ValueError, match="No ROI available"):
+            roi_manager.save_template("T", ZoneData(polygon=[[0, 0], [1, 0], [1, 1]]))
+        with pytest.raises(ValueError, match="project path is required"):
+            roi_manager.save_template("T", two_points, save_arena=False, save_location="project")
+        with pytest.raises(ValueError, match="custom path is required"):
+            roi_manager.save_template("T", two_points, save_arena=False, save_location="custom")
+        with pytest.raises(ValueError, match="Invalid save_location"):
+            roi_manager.save_template(
+                "T",
+                two_points,
+                save_arena=False,
+                save_location="remote",  # type: ignore[arg-type]
+            )
+
+    def test_custom_file_path_saves_next_to_it_and_refuses_to_overwrite(
+        self, roi_manager, tmp_path
+    ):
+        zone = ZoneData(roi_polygons=[[[0, 0], [1, 0], [1, 1]]], roi_names=["r"])
+        target = tmp_path / "out" / "chosen.json"
+
+        meta = roi_manager.save_template(
+            "Ação!", zone, save_arena=False, save_location="custom", custom_path=target, slug=""
+        )
+
+        saved = tmp_path / "out" / "acao.json"
+        assert meta["file"] == str(saved)
+        assert json.loads(saved.read_text(encoding="utf-8"))["data"] == {
+            "roi_polygons": [[[0, 0], [1, 0], [1, 1]]],
+            "roi_names": ["r"],
+            "roi_colors": [],
+        }
+        with pytest.raises(ValueError, match="already exists"):
+            roi_manager.save_template(
+                "Ação!",
+                zone,
+                save_arena=False,
+                save_location="custom",
+                custom_path=tmp_path / "out",
+                overwrite=False,
+            )
+
+    def test_unreadable_global_entries_are_skipped(self, roi_manager):
+        folder = roi_manager.global_templates_dir
+        (folder / "broken.json").write_text("{nope", encoding="utf-8")
+        (folder / "dir.json").mkdir()
+        (folder / "ok.json").write_text(
+            json.dumps({"name": "Ok", "data": {"roi_polygons": [[], []]}}), encoding="utf-8"
+        )
+
+        listed = roi_manager.list_global_templates()
+
+        assert [(t["name"], t["roi_count"]) for t in listed] == [("Ok", 2)]
