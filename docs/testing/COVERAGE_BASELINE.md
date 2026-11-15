@@ -22,13 +22,14 @@ Two things made the drift invisible:
 
 ## Current baseline
 
-Measured on 2026-08-19 at `e313a5ed` (mega-batch 32), before any cleanup.
+Measured by CI on 2026-11-14 at `ec86f146` (PR #717, the TASK-087 coverage campaign). The
+previous baseline, 2026-08-19 at `e313a5ed`, was 58.19 / 33.18 / 51.92 %.
 
 | Suite            | CI command                                             | Measured | Gate    |
 | ---------------- | ------------------------------------------------------ | -------- | ------- |
-| core (Linux)     | `pytest -m "not gui"`                                  | 58.19 %  | 57.0 %  |
-| GUI (Linux)      | `pytest -m gui -n0`                                    | 33.18 %  | 32.5 %  |
-| core (Windows)   | `pytest -m "not gui" --ignore=tests/ui`                | 51.92 %  | 51.0 %  |
+| core (Linux)     | `pytest -m "not gui"`                                  | 66.32 %  | 65.0 %  |
+| GUI (Linux)      | `pytest -m gui -n0`                                    | 36.12 %  | 35.5 %  |
+| core (Windows)   | `pytest -m "not gui" --ignore=tests/ui`                | 58.24 %  | 57.0 %  |
 
 The gate sits roughly one point below the measurement (0.7 pp for GUI, whose absolute headroom is
 smallest). That margin absorbs the platform differences between this measurement (Windows) and the
@@ -46,13 +47,17 @@ every test it has and move the core gate by one point. Packages that a focused c
 therefore get a floor of their own, checked right after the core suite on Linux:
 
 ```bash
-python scripts/coverage_summary.py coverage-core.xml --fail-under plugins=94 --fail-under utils=92
+python scripts/coverage_summary.py coverage-core.xml \
+    --fail-under plugins=94 --fail-under utils=92 \
+    --fail-under core.viewmodels=96 --fail-under core.video=94
 ```
 
 | Package    | Before (`b03e5546`) | Measured (2026-11-14) | Floor  |
 | ---------- | ------------------- | --------------------- | ------ |
 | `plugins`  | 70.9 %              | 96.7 %                | 94.0 % |
 | `utils`    | 66.4 %              | 97.5 %                | 92.0 % |
+| `core.viewmodels` | 63.7 %       | 99.2 %                | 96.0 % |
+| `core.video` | 80.1 %            | 97.3 %                | 94.0 % |
 
 A floor covers the package and its sub-packages, fails with exit code 1, and exits 2 when the
 package is not in the report at all — a typo must not pass as "nothing to check". The margin under
@@ -96,8 +101,7 @@ suite (`-m gui`) is what exercises them.
 
 `__init__.py` files are measured since 2026-11-14. They used to be omitted, which hid the lazy
 plugin registry and `utils.calculate_sha256`/`set_seed` from every number on this page. The global
-gates in the table above were **not** re-measured for that change — they were left where they were
-and should be raised from the first CI run that includes it (`gh run view <run-id> --log`).
+gates in the table above were re-measured by CI with that change included.
 
 ## Raising the gate
 
