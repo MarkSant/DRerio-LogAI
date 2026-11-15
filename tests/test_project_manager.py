@@ -1,3 +1,7 @@
+"""Extended unit tests for ProjectManager in core/project/project_manager.py."""
+
+from __future__ import annotations
+
 import json
 import os
 import shutil
@@ -6,18 +10,23 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
+import structlog
 
-from zebtrack.core.detection import ZoneData
+from zebtrack.core.detection import AquariumData, MultiAquariumZoneData, ZoneData
 from zebtrack.core.project.project_manager import (
     CONFIG_FILE_NAME,
     ProjectInvalidError,
     ProjectManager,
+    _threadsafe,
 )
 from zebtrack.core.project.zone_manager import ZoneManager
+from zebtrack.core.state_manager import StateManager
 from zebtrack.settings import load_settings
 
 
@@ -1235,3 +1244,956 @@ class TestProjectManager(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@pytest.fixture
+def project_manager(tmp_path):
+    settings = SimpleNamespace(tracking=SimpleNamespace(use_single_subject_tracker=True))
+    pm = ProjectManager(settings_obj=settings)
+    project_path = tmp_path / "project"
+    project_path.mkdir(parents=True, exist_ok=True)
+    pm.project_path = project_path
+    pm.project_data = {"batches": [], "zones_by_video": {}, "detection_zones": {}, "tracking": {}}
+    return pm
+
+
+def test_validate_project_parameters_bounds(project_manager):
+    with pytest.raises(ValueError):
+        project_manager._validate_project_parameters(
+            num_aquariums=0,
+            animals_per_aquarium=1,
+            aquarium_width_cm=1.0,
+            aquarium_height_cm=1.0,
+            analysis_interval_frames=10,
+            display_interval_frames=10,
+            camera_index=0,
+            project_type="Pre-recorded",
+            video_files=None,
+        )
+
+    project_manager._validate_project_parameters(
+        num_aquariums=1,
+        animals_per_aquarium=1,
+        aquarium_width_cm=0.0,
+        aquarium_height_cm=0.0,
+        analysis_interval_frames=10,
+        display_interval_frames=10,
+        camera_index=0,
+        project_type="Pre-recorded",
+        video_files=None,
+    )
+
+
+def test_apply_project_migrations_sets_tracking_default(project_manager):
+    loaded = {
+        "calibration": {},
+        "analysis_profiles": [],
+        "tracking": {"use_single_subject_tracker": None},
+    }
+    migrated_data, migrated, fields = project_manager._apply_project_migrations(
+        loaded,
+        structlog.get_logger().bind(test="migrations"),
+    )
+
+    assert migrated is True
+    assert "tracking.use_single_subject_tracker" in fields
+    assert migrated_data["tracking"]["use_single_subject_tracker"] is True
+    assert migrated_data["analysis_profiles"]
+
+
+def test_apply_project_migrations_normalizes_analysis_parameters(project_manager):
+    """Old projects get the dict, but NO invented values.
+
+    Stamping numbers here from the session settings would freeze the very leak
+    ``analysis_parameters`` exists to close: an ad-hoc run may already have
+    rewritten the shared object. Absent means "use the session baseline".
+    """
+    loaded: dict[str, Any] = {"calibration": {}, "analysis_profiles": [], "tracking": {}}
+
+    migrated_data, migrated, fields = project_manager._apply_project_migrations(
+        loaded,
+        structlog.get_logger().bind(test="analysis_parameters_migration"),
+    )
+
+    assert migrated is True
+    assert "analysis_parameters" in fields
+    assert migrated_data["analysis_parameters"] == {}
+
+
+def test_apply_project_migrations_keeps_declared_analysis_parameters(project_manager):
+    loaded = {
+        "calibration": {},
+        "analysis_profiles": [],
+        "tracking": {},
+        "analysis_parameters": {"freezing_vel_threshold": 3.25},
+    }
+
+    migrated_data, _migrated, fields = project_manager._apply_project_migrations(
+        loaded,
+        structlog.get_logger().bind(test="analysis_parameters_kept"),
+    )
+
+    assert migrated_data["analysis_parameters"] == {"freezing_vel_threshold": 3.25}
+    assert "analysis_parameters" not in fields
+
+
+def test_apply_project_migrations_repairs_hand_edited_analysis_parameters(project_manager):
+    """A JSON edited by hand can put anything there; readers need a dict."""
+    loaded = {
+        "calibration": {},
+        "analysis_profiles": [],
+        "tracking": {},
+        "analysis_parameters": "nonsense",
+    }
+
+    migrated_data, migrated, fields = project_manager._apply_project_migrations(
+        loaded,
+        structlog.get_logger().bind(test="analysis_parameters_repair"),
+    )
+
+    assert migrated is True
+    assert "analysis_parameters" in fields
+    assert migrated_data["analysis_parameters"] == {}
+
+
+def test_apply_project_migrations_initializes_slot_weights(project_manager):
+    loaded = {
+        "calibration": {},
+        "analysis_profiles": [],
+        "tracking": {},
+        "model_overrides": {
+            "active_weight": None,
+            "use_openvino": None,
+            "device": "AUTO",
+        },
+    }
+
+    migrated_data, migrated, fields = project_manager._apply_project_migrations(
+        loaded,
+        structlog.get_logger().bind(test="slot_weights_migration"),
+    )
+
+    assert migrated is True
+    assert "model_overrides" in fields
+    assert migrated_data["model_overrides"]["slot_weights"] == {}
+
+
+def test_load_zones_from_parquet_roundtrip(tmp_path):
+    arena_path = tmp_path / "arena.parquet"
+    rois_path = tmp_path / "rois.parquet"
+
+    pd.DataFrame({"x": [0, 1, 1, 0], "y": [0, 0, 1, 1]}).to_parquet(arena_path)
+    pd.DataFrame(
+        {
+            "roi_name": ["R1", "R1", "R2", "R2"],
+            "point_index": [0, 1, 0, 1],
+            "x": [10, 20, 30, 40],
+            "y": [10, 20, 30, 40],
+        }
+    ).to_parquet(rois_path)
+
+    video_info = {
+        "path": "video.mp4",
+        "parquet_files": {"arena": str(arena_path), "rois": str(rois_path)},
+    }
+
+    zone_data = ProjectManager.load_zones_from_parquet(video_info)
+
+    assert zone_data is not None
+    assert len(zone_data.polygon) == 4
+    assert zone_data.roi_names == ["R1", "R2"]
+    assert len(zone_data.roi_colors) == len(zone_data.roi_names)
+
+
+@patch.object(ProjectManager, "scan_input_paths")
+def test_copy_zone_parquet_files_updates_project_entry(scan_input_paths, project_manager, tmp_path):
+    arena_src = tmp_path / "src_arena.parquet"
+    rois_src = tmp_path / "src_rois.parquet"
+    pd.DataFrame({"x": [0, 1], "y": [0, 1]}).to_parquet(arena_src)
+    pd.DataFrame({"roi_name": ["R1"], "point_index": [0], "x": [1], "y": [1]}).to_parquet(rois_src)
+
+    scan_input_paths.return_value = [
+        {"path": "src.mp4", "parquet_files": {"arena": str(arena_src), "rois": str(rois_src)}},
+    ]
+
+    target_video_path = tmp_path / "videos" / "target.mp4"
+    video_entry = {
+        "path": str(target_video_path),
+        "metadata": {"group": "G1", "day": 2, "subject": "A"},
+    }
+    project_manager.project_data["batches"].append({"videos": [video_entry]})
+
+    copied = project_manager.copy_zone_parquet_files("src.mp4", str(target_video_path))
+
+    assert copied
+    parquet_map = video_entry.get("parquet_files")
+    assert isinstance(parquet_map, dict)
+    assert os.path.exists(parquet_map["arena"])
+    assert os.path.exists(parquet_map["rois"])
+
+    hierarchical_dir = project_manager.resolve_results_directory(
+        "target", video_path=str(target_video_path)
+    )
+    assert (hierarchical_dir / "1_ProcessingArea_target.parquet").exists()
+    assert (hierarchical_dir / "2_AreasOfInterest_target.parquet").exists()
+
+
+def test_get_completed_sessions_canonicalizes_group_names(project_manager):
+    """Grupos com espaço/caractere especial ("Tratamento 1") viram pasta
+    sanitizada ("Grupo_Tratamento_1"); o scan devolve "Tratamento_1". O
+    ProjectManager deve mapear de volta ao nome do projeto para que a grade de
+    progresso e o diálogo de bloco reconheçam a sessão como concluída.
+    """
+    project_manager.project_data["groups"] = ["Controle", "Tratamento 1"]
+
+    raw = {
+        (1, "Controle", "1"),
+        (1, "Tratamento_1", "2"),
+    }
+    with patch(
+        "zebtrack.core.project.metadata_manager.MetadataManager.get_completed_sessions",
+        return_value=raw,
+    ):
+        result = project_manager.get_completed_sessions()
+
+    assert (1, "Tratamento 1", "2") in result
+    assert (1, "Controle", "1") in result
+    assert (1, "Tratamento_1", "2") not in result
+
+
+def test_get_completed_sessions_without_groups_returns_raw(project_manager):
+    """Sem grupos definidos, retorna o resultado do scan inalterado."""
+    project_manager.project_data.pop("groups", None)
+    raw = {(1, "Qualquer", "1")}
+    with patch(
+        "zebtrack.core.project.metadata_manager.MetadataManager.get_completed_sessions",
+        return_value=raw,
+    ):
+        assert project_manager.get_completed_sessions() == raw
+
+
+# ---------------------------------------------------------------------------
+# detection_zones: espelho global do save por vídeo
+# ---------------------------------------------------------------------------
+#
+# ``detection_zones`` é o default do projeto que ``get_zone_data(
+# fallback_to_global=True)`` serve a qualquer vídeo sem zonas próprias.
+# Espelhar TODO save por vídeo nele é o que transformava a arena de um vídeo na
+# arena de todos os outros. Live continua precisando do espelho (uma câmera, uma
+# arena, e o .mp4 gravado não tem chave própria); pré-gravado, não.
+
+
+def _zone(polygon):
+    from zebtrack.core.detection import ZoneData
+
+    return ZoneData(polygon=list(polygon), roi_polygons=[], roi_names=[], roi_colors=[])
+
+
+ARENA_A = [[0, 0], [10, 0], [10, 10], [0, 10]]
+ARENA_B = [[5, 5], [20, 5], [20, 20], [5, 20]]
+
+
+def test_prerecorded_per_video_save_does_not_rewrite_global_default(project_manager):
+    """Projeto pré-gravado: salvar zonas de um vídeo não toca o default global."""
+    project_manager.project_data["project_type"] = "pre-recorded"
+
+    project_manager.save_zone_data(_zone(ARENA_A), "video_a.mp4", persist=False)
+
+    assert project_manager.project_data["detection_zones"] == {}
+    stored = project_manager.get_zone_data("video_a.mp4", fallback_to_global=False)
+    assert stored.polygon == ARENA_A
+
+
+def test_prerecorded_second_video_does_not_inherit_the_first_arena(project_manager):
+    """A regressão em si: abrir o vídeo B não pode devolver a arena do vídeo A.
+
+    Antes, o save de A escrevia ``detection_zones`` e o fallback global entregava
+    aquela geometria para B — a análise rodava e o relatório saía completo,
+    medido contra a arena errada.
+    """
+    project_manager.project_data["project_type"] = "pre-recorded"
+    project_manager.save_zone_data(_zone(ARENA_A), "video_a.mp4", persist=False)
+
+    inherited = project_manager.get_zone_data("video_b.mp4", fallback_to_global=True)
+
+    assert not inherited.polygon
+
+
+def test_live_project_still_mirrors_zones_into_the_global_default(project_manager):
+    """Contrato do fluxo live: uma arena para o projeto inteiro.
+
+    As zonas ficam sob a chave do ``live_camera_reference_frame.png`` e os
+    ``.mp4`` gravados não têm chave própria, então ``ZoneContextService``,
+    ``ValidationManager`` e a grade de sessões planejadas leem o global. Sem o
+    espelho, um projeto live esqueceria a calibração.
+    """
+    project_manager.project_data["project_type"] = "live"
+
+    project_manager.save_zone_data(_zone(ARENA_B), "live_camera_reference_frame.png", persist=False)
+
+    assert project_manager.project_data["detection_zones"]["polygon"] == ARENA_B
+    recorded = project_manager.get_zone_data("sessao_gravada.mp4", fallback_to_global=True)
+    assert recorded.polygon == ARENA_B
+
+
+def test_project_without_declared_type_keeps_legacy_mirror(project_manager):
+    """Vídeo único e live ad-hoc rodam sem ``project_type``: comportamento intacto."""
+    project_manager.project_data.pop("project_type", None)
+
+    project_manager.save_zone_data(_zone(ARENA_A), "avulso.mp4", persist=False)
+
+    assert project_manager.project_data["detection_zones"]["polygon"] == ARENA_A
+
+
+def test_save_without_target_video_is_still_the_global_save(project_manager):
+    """Sem vídeo alvo o save É o global — inclusive em projeto pré-gravado."""
+    project_manager.project_data["project_type"] = "pre-recorded"
+    project_manager.zone_manager.set_active_zone_video(project_manager.project_data, None)
+
+    project_manager.save_zone_data(_zone(ARENA_B), None, persist=False)
+
+    assert project_manager.project_data["detection_zones"]["polygon"] == ARENA_B
+
+
+class TestProjectManagerExtended:
+    def test_config_file_name_constant(self):
+        assert CONFIG_FILE_NAME == "project_config.json"
+
+    def test_initialization_with_dependencies(self):
+        state_mgr = StateManager()
+        settings_mock = MagicMock()
+        pm = ProjectManager(state_manager=state_mgr, settings_obj=settings_mock)
+
+        assert pm.state_manager is state_mgr
+        assert pm.settings is settings_mock
+        assert pm.project_path is None
+        assert pm.project_data == {}
+        assert pm._groups_cache_valid is False
+
+    def test_threadsafe_decorator(self):
+        class Dummy:
+            def __init__(self):
+                import threading
+
+                self._lock = threading.RLock()
+                self.calls = 0
+
+            @_threadsafe
+            def increment(self):
+                self.calls += 1
+                return self.calls
+
+        d = Dummy()
+        assert d.increment() == 1
+        assert d.increment() == 2
+
+    def test_save_roi_template_without_project_raises(self):
+        pm = ProjectManager()
+        pm.project_path = None
+        zone_data = ZoneData(polygon=[[0, 0], [100, 0], [100, 100], [0, 100]])
+
+        with pytest.raises(ValueError, match="Cannot save the template into the current project"):
+            pm.save_roi_template("my_template", zone_data, save_location="project")
+
+    def test_zone_data_to_and_from_dict_delegation(self):
+        pm = ProjectManager()
+        zone_data = ZoneData(
+            polygon=[[0, 0], [100, 0], [100, 100], [0, 100]],
+            roi_polygons=[[[10, 10], [20, 10], [20, 20], [10, 20]]],
+            roi_names=["zone1"],
+            roi_colors=[(255, 0, 0)],
+        )
+        serialized = pm._zone_data_to_dict(zone_data)
+        assert "polygon" in serialized or "arena" in serialized or "roi_polygons" in serialized
+
+        restored = pm._zone_data_from_dict(serialized)
+        assert restored is not None
+        assert len(restored.polygon) == 4
+        assert "zone1" in restored.roi_names
+
+
+class TestProjectManagerExtended2:
+    def test_constants(self):
+        assert CONFIG_FILE_NAME == "project_config.json"
+
+    def test_threadsafe_decorator(self):
+        class Dummy:
+            def __init__(self):
+                self._lock = MagicMock()
+                self.called = False
+
+            @_threadsafe
+            def safe_method(self, arg):
+                self.called = True
+                return arg * 2
+
+        d = Dummy()
+        res = d.safe_method(21)
+        assert res == 42
+        assert d.called is True
+        d._lock.__enter__.assert_called_once()
+        d._lock.__exit__.assert_called_once()
+
+    def test_save_roi_template_no_project_loaded_raises(self):
+        pm = ProjectManager()
+        pm.project_path = None
+        zone = ZoneData(polygon=[[0, 0], [10, 0], [10, 10], [0, 10]])
+
+        with pytest.raises(ValueError, match="no project loaded"):
+            pm.save_roi_template("MyTemplate", zone, save_location="project")
+
+    def test_zone_data_serialization_delegation(self):
+        pm = ProjectManager()
+        zone = ZoneData(
+            polygon=[[0, 0], [10, 0], [10, 10], [0, 10]],
+            roi_polygons=[[[1, 1], [2, 2], [1, 2]]],
+            roi_names=["R1"],
+        )
+        d = pm._zone_data_to_dict(zone)
+        assert "polygon" in d
+        assert "roi_names" in d
+
+        restored = pm._zone_data_from_dict(d)
+        assert list(restored.polygon) == [[0, 0], [10, 0], [10, 10], [0, 10]]
+        assert "R1" in list(restored.roi_names)
+
+    def test_get_aquarium_asset_flags_none_path(self):
+        pm = ProjectManager()
+        flags = pm.get_aquarium_asset_flags(None, 0)
+        assert flags["has_arena"] is False
+        assert flags["has_rois"] is False
+        assert flags["has_trajectory"] is False
+        assert flags["has_summary"] is False
+        assert flags["has_complete_data"] is False
+
+    def test_has_assets_none_path(self):
+        pm = ProjectManager()
+        pm.find_video_entry = MagicMock(return_value=None)  # type: ignore[method-assign]
+
+        assert pm.has_arena_data(None) is False
+        assert pm.has_roi_data(None) is False
+        assert pm.has_trajectory_data(None) is False
+        assert pm.has_summary_data(None) is False
+
+
+class TestProjectManagerExtended6:
+    def test_save_roi_template_no_project_raises(self):
+        pm = ProjectManager()
+        pm.project_path = None
+        zone_data = MagicMock()
+
+        with pytest.raises(ValueError, match="no project loaded"):
+            pm.save_roi_template("Template1", zone_data, save_location="project")
+
+    def test_project_manager_initial_cache_state(self):
+        pm = ProjectManager()
+        assert pm._groups_cache is None
+        assert pm._groups_cache_valid is False
+
+    def test_get_available_groups_cached(self):
+        pm = ProjectManager()
+        pm._groups_cache = ["Control", "Treated"]
+        pm._groups_cache_valid = True
+
+        assert pm.get_available_groups() == ["Control", "Treated"]
+
+    def test_invalidate_groups_cache(self):
+        pm = ProjectManager()
+        pm._groups_cache = ["Control", "Treated"]
+        pm._groups_cache_valid = True
+
+        pm.invalidate_groups_cache()
+        assert pm._groups_cache is None
+        assert pm._groups_cache_valid is False
+
+    def test_get_project_type(self):
+        pm = ProjectManager()
+        pm.project_data = {"project_type": "live"}
+        assert pm.get_project_type() == "live"
+
+        pm.project_data = {}
+        assert pm.get_project_type() is None
+
+
+class TestProjectManagerExtended7:
+    def test_is_multi_aquarium_video_none(self):
+        pm = ProjectManager()
+        assert pm.is_multi_aquarium_video(None) is False
+
+    def test_is_multi_aquarium_video_true(self):
+        pm = ProjectManager()
+        pm.zone_manager = MagicMock()
+        pm.zone_manager.is_multi_aquarium_video.return_value = True
+        assert pm.is_multi_aquarium_video("/videos/video1.mp4") is True
+
+    def test_get_aquarium_count_none(self):
+        pm = ProjectManager()
+        assert pm.get_aquarium_count(None) == 1
+
+    def test_get_aquarium_count_two(self):
+        pm = ProjectManager()
+        pm.zone_manager = MagicMock()
+        pm.zone_manager.get_aquarium_count.return_value = 2
+        assert pm.get_aquarium_count("/videos/video1.mp4") == 2
+
+    def test_clear_multi_aquarium_zone_data_none(self):
+        pm = ProjectManager()
+        pm.clear_multi_aquarium_zone_data(None)
+
+    def test_update_main_polygon_delegates_to_zone_manager(self):
+        pm = ProjectManager()
+        pm.zone_manager = MagicMock()
+        pm.project_data = {"zones": {}}
+
+        points = [(10, 10), (20, 20), (30, 10)]
+        pm.update_main_polygon(points)
+        pm.zone_manager.update_main_polygon.assert_called_once_with(
+            pm.project_data, points, persist_callback=pm.save_project
+        )
+
+
+class TestProjectManagerExtended8:
+    def test_register_multi_aquarium_outputs_empty(self):
+        pm = ProjectManager()
+        pm.project_data = {"outputs": {}}
+
+        pm.register_multi_aquarium_outputs("/videos/video1.mp4", {})
+        assert pm.project_data["outputs"] == {}
+
+    def test_project_manager_initial_state(self):
+        pm = ProjectManager()
+        assert pm.project_path is None
+        assert pm.project_data == {}
+        assert pm.metadata is None
+        assert pm._groups_cache is None
+        assert pm._groups_cache_valid is False
+
+    def test_list_roi_templates_delegates_to_asset_manager(self):
+        pm = ProjectManager()
+        pm.asset_manager = MagicMock()
+        pm.asset_manager.list_roi_templates.return_value = [{"name": "Template1"}]
+
+        res = pm.list_roi_templates(include_global=True)
+        assert res == [{"name": "Template1"}]
+        pm.asset_manager.list_roi_templates.assert_called_once_with(
+            pm.project_data, include_global=True
+        )
+
+    def test_clear_multi_aquarium_zone_data_none_safe(self):
+        pm = ProjectManager()
+        # Passing None should return immediately without accessing zone_manager
+        pm.clear_multi_aquarium_zone_data(None)
+
+
+class TestProjectManagerExtended9:
+    def test_update_main_polygon_delegates_to_zone_manager(self):
+        pm = ProjectManager()
+        pm.zone_manager = MagicMock()
+        pm.project_data = {}
+
+        points = [(0, 0), (10, 0), (10, 10), (0, 10)]
+        pm.update_main_polygon(points)
+
+        pm.zone_manager.update_main_polygon.assert_called_once_with(
+            pm.project_data, points, persist_callback=pm.save_project
+        )
+
+    def test_metadata_manager_initialized(self):
+        pm = ProjectManager()
+        assert pm.metadata_manager is not None
+        assert pm.lifecycle_manager is not None
+
+    def test_get_aquarium_count_none_safe(self):
+        pm = ProjectManager()
+        assert pm.get_aquarium_count(None) == 1
+
+
+class TestProjectManagerExtended10:
+    def test_project_manager_get_zone_data_delegation(self):
+        pm = ProjectManager()
+        pm.zone_manager = MagicMock()
+        pm.project_data = {"test": True}
+
+        pm.get_zone_data(video_path="/path/vid.mp4", fallback_to_global=False)
+        pm.zone_manager.get_zone_data.assert_called_once_with(
+            pm.project_data, video_path="/path/vid.mp4", fallback_to_global=False
+        )
+
+    def test_project_manager_get_multi_aquarium_zone_data_delegation(self):
+        pm = ProjectManager()
+        pm.zone_manager = MagicMock()
+        pm.project_data = {"test": True}
+
+        pm.get_multi_aquarium_zone_data(video_path="/path/vid.mp4")
+        pm.zone_manager.get_multi_aquarium_zone_data.assert_called_once_with(
+            pm.project_data, "/path/vid.mp4"
+        )
+
+    def test_project_manager_config_file_name_constant(self):
+        assert CONFIG_FILE_NAME == "project_config.json"
+
+    def test_project_manager_default_project_data(self):
+        pm = ProjectManager()
+        assert isinstance(pm.project_data, dict)
+        assert pm.asset_manager is not None
+        assert pm.zone_manager is not None
+
+
+# ---------------------------------------------------------------------------
+# TASK-087: a real project on disk, edited through the facade and reloaded.
+# ---------------------------------------------------------------------------
+
+
+SQUARE = [[0, 0], [10, 0], [10, 10], [0, 10]]
+
+
+def _disk_project(tmp_path, *videos: dict) -> ProjectManager:
+    pm = ProjectManager(settings_obj=None)
+    pm.create_new_project(
+        tmp_path / "proj", "Pre-recorded", video_files=list(videos), group_names=["A", "B"]
+    )
+    return pm
+
+
+def _reloaded(pm: ProjectManager) -> dict:
+    fresh = ProjectManager(settings_obj=None)
+    fresh.load_project(pm.project_path)
+    return fresh.project_data
+
+
+def _video(tmp_path, rel: str, **meta) -> dict:
+    path = (tmp_path / rel).as_posix()
+    return {"path": path, **meta}
+
+
+class TestUpdateVideoMetadata:
+    def test_group_and_day_update_is_persisted_with_the_last_session(self, tmp_path):
+        video = _video(tmp_path, "v1.mp4", group="A", day=1, subject="S1")
+        pm = _disk_project(tmp_path, video)
+
+        assert pm.update_video_metadata(video["path"], {"group": " B ", "day": "3"}) is True
+
+        entry = _reloaded(pm)["batches"][0]["videos"][0]
+        assert entry["metadata"] == {"group": "B", "group_id": "B", "day": 3, "subject": "S1"}
+        assert (entry["group"], entry["day"]) == ("B", 3)
+        assert (_reloaded(pm)["last_selected_day"], _reloaded(pm)["last_selected_group"]) == (
+            3,
+            "B",
+        )
+
+    def test_blank_values_remove_the_fields(self, tmp_path):
+        video = _video(tmp_path, "v1.mp4", group="A", day=2, subject="S1")
+        pm = _disk_project(tmp_path, video)
+
+        changed = pm.update_video_metadata(
+            Path(video["path"]), {"group": "", "day": 0, "subject": "  "}
+        )
+
+        assert changed is True
+        entry = _reloaded(pm)["batches"][0]["videos"][0]
+        assert "metadata" in entry and entry["metadata"] == {}
+        assert not {"group", "day", "subject"} & set(entry)
+
+    def test_subject_entries_set_multi_subject_and_clear_the_single_subject(self, tmp_path):
+        video = _video(tmp_path, "v1.mp4", subject="S1")
+        pm = _disk_project(tmp_path, video)
+        entries = [
+            {"group": " A ", "day": "2", "subject": " 7 "},
+            "junk",
+            {"group": "B", "day": -1, "subject": 8, "aquarium_id": 5},
+        ]
+
+        assert pm.update_video_metadata(video["path"], {"subject_entries": entries}) is True
+
+        meta = pm.find_video_entry(path=video["path"])["metadata"]  # type: ignore[index]
+        assert meta["subject_entries"] == [
+            {"group": "A", "day": 2, "subject": "7", "aquarium_id": 0},
+            {"group": "B", "day": None, "subject": "8", "aquarium_id": 5},
+        ]
+        assert meta["is_multi_subject"] is True
+        assert "subject" not in meta
+
+    def test_a_single_subject_entry_becomes_the_subject(self, tmp_path):
+        video = _video(tmp_path, "v1.mp4")
+        pm = _disk_project(tmp_path, video)
+
+        pm.update_video_metadata(
+            video["path"], {"subject_entries": [{"subject": "9"}]}, save_project=False
+        )
+
+        entry = pm.find_video_entry(path=video["path"])
+        assert entry["subject"] == "9"  # type: ignore[index]
+        assert entry["is_multi_subject"] is False  # type: ignore[index]
+        assert "metadata" not in _reloaded(pm)["batches"][0]["videos"][0]
+
+    def test_clearing_subject_entries(self, tmp_path):
+        video = _video(tmp_path, "v1.mp4")
+        pm = _disk_project(tmp_path, video)
+        pm.update_video_metadata(video["path"], {"subject_entries": [{"subject": "1"}, {}]})
+
+        assert pm.update_video_metadata(video["path"], {"subject_entries": []}) is True
+
+        entry = pm.find_video_entry(path=video["path"])
+        assert not {"subject_entries", "is_multi_subject"} & set(entry["metadata"])  # type: ignore[index]
+        assert "subject_entries" not in entry  # type: ignore[operator]
+
+    def test_repeating_an_update_and_unknown_videos_report_no_change(self, tmp_path):
+        video = _video(tmp_path, "v1.mp4", group="A")
+        pm = _disk_project(tmp_path, video)
+        pm.update_video_metadata(video["path"], {"group": "B"})
+
+        assert pm.update_video_metadata(video["path"], {"group": "B"}) is False
+        assert pm.update_video_metadata(tmp_path / "ghost.mp4", {"group": "B"}) is False
+
+    def test_batch_update_counts_unique_videos_and_saves_once(self, tmp_path):
+        first = _video(tmp_path, "v1.mp4", group="A")
+        second = _video(tmp_path, "v2.mp4", group="B")
+        pm = _disk_project(tmp_path, first, second)
+        saves: list[int] = []
+        original_save = pm.save_project
+        pm.save_project = lambda: (saves.append(1), original_save())  # type: ignore[func-returns-value, method-assign]
+
+        count = pm.update_batch_video_metadata(
+            [first["path"], Path(first["path"]), second["path"]], {"group": "B", "day": 4}
+        )
+
+        assert count == 2
+        assert saves == [1]
+        assert _reloaded(pm)["last_selected_day"] == 4
+        assert pm.update_batch_video_metadata([second["path"]], {"subject": "S3"}) == 1
+        assert saves == [1, 1]
+        pm.project_path = None
+        assert pm.update_batch_video_metadata([second["path"]], {"subject": "S4"}) == 1
+        assert saves == [1, 1]
+
+
+class TestHierarchyRemoval:
+    @staticmethod
+    def _videos(tmp_path):
+        return [
+            _video(tmp_path, "A1/s1.mp4", group="A", day=1, subject="1"),
+            _video(tmp_path, "A1/s2.mp4", group="A", day=1, subject="2"),
+            _video(tmp_path, "A2/s1.mp4", group="A", day=2, subject="1"),
+            _video(tmp_path, "B1/s1.mp4", group="B", day=1, subject="1"),
+        ]
+
+    def test_remove_subject_only_touches_that_group_day_and_subject(self, tmp_path):
+        pm = _disk_project(tmp_path, *self._videos(tmp_path))
+        groups_before = pm.get_available_groups()
+
+        assert pm.remove_subject("A", "1", "1", delete_files=False) == (1, 0)
+
+        remaining = [v["path"].rsplit("/", 2)[-2:] for v in _reloaded(pm)["batches"][0]["videos"]]
+        assert remaining == [["A1", "s2.mp4"], ["A2", "s1.mp4"], ["B1", "s1.mp4"]]
+        assert pm.get_available_groups() == groups_before == ["A", "B"]
+        assert pm.remove_subject("A", "9", "1", delete_files=False) == (0, 0)
+
+    def test_remove_day_and_group(self, tmp_path):
+        pm = _disk_project(tmp_path, *self._videos(tmp_path))
+
+        assert pm.remove_day("A", "1", delete_files=False) == (2, 0)
+        assert pm.remove_group("A", delete_files=False) == (1, 0)
+
+        assert [v["metadata"]["group"] for v in pm.get_all_videos()] == ["B"]
+
+    def test_multi_subject_video_loses_only_that_subjects_aquarium(self, tmp_path):
+        video = _video(tmp_path, "multi.mp4", group="A", day=1, subject="2")
+        pm = _disk_project(tmp_path, video)
+        entry = pm.find_video_entry(path=video["path"])
+        entry["multi_aquarium_mode"] = True  # type: ignore[index]
+        entry["multi_aquarium_outputs"] = {  # type: ignore[index]
+            "0": {"subject_id": "1", "parquet_files": {"trajectory": "t0"}},
+            "1": {"subject_id": "2", "parquet_files": {}},
+        }
+
+        assert pm.remove_subject("A", "1", "2", delete_files=False) == (1, 0)
+
+        assert list(entry["multi_aquarium_outputs"]) == ["0"]  # type: ignore[index]
+        assert pm.find_video_entry(path=video["path"]) is entry
+
+    def test_multi_subject_video_without_a_matching_aquarium_is_a_failure(self, tmp_path):
+        video = _video(tmp_path, "multi.mp4", group="A", day=1, subject="5")
+        pm = _disk_project(tmp_path, video)
+        pm.find_video_entry(path=video["path"])["multi_aquarium_outputs"] = {  # type: ignore[index]
+            "0": {"subject_id": "1"},
+            "1": {"subject_id": "2"},
+        }
+
+        assert pm.remove_subject("A", "1", "5", delete_files=False) == (0, 1)
+
+    def test_aquarium_lookup_by_subject_then_by_key(self):
+        entry = {"multi_aquarium_outputs": {"0": {"subject_id": "S7"}, "3": {}}}
+
+        assert ProjectManager._find_aquarium_for_subject(entry, "S7") == 0
+        assert ProjectManager._find_aquarium_for_subject(entry, "3") == 3
+        assert ProjectManager._find_aquarium_for_subject(entry, "x") is None
+        assert ProjectManager._find_aquarium_for_subject({}, "x") is None
+
+
+class TestAquariumScopes:
+    @staticmethod
+    def _two_tank_project(tmp_path):
+        video = _video(tmp_path, "tanks.mp4")
+        pm = _disk_project(tmp_path, video)
+        pm.save_multi_aquarium_zone_data(
+            video["path"],
+            MultiAquariumZoneData(
+                aquariums=[
+                    AquariumData(id=0, polygon=SQUARE, subject_id="S1"),
+                    AquariumData(id=1, polygon=SQUARE, roi_polygons=[SQUARE], subject_id="S2"),
+                ]
+            ),
+        )
+        entry = pm.find_video_entry(path=video["path"])
+        entry["multi_aquarium_mode"] = True  # type: ignore[index]
+        entry["multi_aquarium_outputs"] = {  # type: ignore[index]
+            "0": {"subject_id": "S1", "parquet_files": {"trajectory": "t0"}},
+            "1": {"subject_id": "S2", "parquet_files": {"trajectory": "t1", "summary": "s1"}},
+        }
+        return pm, video["path"], entry
+
+    def test_aquarium_flags_come_from_that_aquarium(self, tmp_path):
+        pm, path, _entry = self._two_tank_project(tmp_path)
+
+        assert pm.get_aquarium_asset_flags(path, 0) == {
+            "has_arena": True,
+            "has_rois": False,
+            "has_trajectory": True,
+            "has_summary": False,
+            "has_complete_data": False,
+        }
+        assert pm.get_aquarium_asset_flags(path, 1)["has_complete_data"] is True
+        assert pm.get_aquarium_asset_flags(None, 0)["has_arena"] is False
+        assert pm.is_multi_aquarium_video(path) is True
+        assert pm.get_aquarium_count(path) == 2
+
+    def test_single_video_aquarium_flags_fall_back_to_the_entry(self, tmp_path):
+        video = _video(tmp_path, "single.mp4")
+        pm = _disk_project(tmp_path, video)
+        pm.find_video_entry(path=video["path"]).update(has_arena=True, has_trajectory=True)  # type: ignore[union-attr]
+
+        flags = pm.get_aquarium_asset_flags(video["path"], 0)
+
+        assert (flags["has_arena"], flags["has_rois"], flags["has_trajectory"]) == (
+            True,
+            False,
+            True,
+        )
+
+    def test_removing_aquarium_scopes_down_to_none(self, tmp_path):
+        pm, path, entry = self._two_tank_project(tmp_path)
+
+        assert pm.remove_aquarium_scope(path, 1, delete_files=False) is True
+        multi = pm.get_multi_aquarium_zone_data(path)
+        assert [aq.id for aq in multi.aquariums] == [0]
+        assert list(entry["multi_aquarium_outputs"]) == ["0"]
+
+        assert pm.remove_aquarium_scope(path, 0, delete_files=False) is True
+        assert pm.get_multi_aquarium_zone_data(path) is None
+        assert pm.remove_aquarium_scope(tmp_path / "ghost.mp4", 0) is False
+
+    def test_clear_aquarium_subject_keeps_the_polygon(self, tmp_path):
+        pm, path, entry = self._two_tank_project(tmp_path)
+
+        assert pm.clear_aquarium_subject(path, 1, delete_analysis_data=False) is True
+
+        aquarium = _reloaded_multi(pm, path).get_aquarium(1)
+        assert (aquarium.subject_id, aquarium.polygon) == ("", SQUARE)  # type: ignore[union-attr]
+        assert entry["multi_aquarium_outputs"]["1"]["subject_id"] == ""
+        assert pm.clear_aquarium_subject(tmp_path / "ghost.mp4", 1) is False
+
+    def test_reset_analysis_data(self, tmp_path):
+        pm, path, entry = self._two_tank_project(tmp_path)
+
+        assert pm.reset_analysis_data(path, aquarium_id=1, delete_files=False) is True
+        assert entry["multi_aquarium_outputs"]["1"]["parquet_files"] == {}
+        assert pm.reset_analysis_data(tmp_path / "ghost.mp4") is False
+
+
+def _reloaded_multi(pm: ProjectManager, path: str) -> MultiAquariumZoneData:
+    fresh = ProjectManager(settings_obj=None)
+    fresh.load_project(pm.project_path)
+    return fresh.get_multi_aquarium_zone_data(path)  # type: ignore[return-value]
+
+
+class TestFacadeAssets:
+    def test_remove_asset_branches(self, tmp_path):
+        video = _video(tmp_path, "v.mp4")
+        pm = _disk_project(tmp_path, video)
+        entry = pm.find_video_entry(path=video["path"])
+        entry.update(has_rois=True, has_trajectory=True, has_summary=True)  # type: ignore[union-attr]
+        entry["parquet_files"] = {"trajectory": "t", "summary": "s"}  # type: ignore[index]
+
+        assert pm.can_remove_asset(tmp_path / "ghost.mp4", "arena") == (
+            False,
+            "Video not found in the project.",
+        )
+        assert pm.remove_asset(tmp_path / "ghost.mp4", "rois") is False
+        assert pm.remove_asset(video["path"], "summary", delete_files=False) is True
+        assert pm.remove_asset(video["path"], "trajectory", delete_files=False) is True
+        assert pm.remove_asset(video["path"], "rois", delete_files=False) is True
+        saved = _reloaded(pm)["batches"][0]["videos"][0]
+        assert (saved["has_rois"], saved["has_trajectory"], saved["has_summary"]) == (
+            False,
+            False,
+            False,
+        )
+        assert pm.remove_asset(video["path"], "video", delete_files=False) is True
+        assert _reloaded(pm)["batches"][0]["videos"] == []
+
+    def test_small_delegates(self, tmp_path):
+        video = _video(tmp_path, "v.mp4", group="A")
+        pm = _disk_project(tmp_path, video)
+
+        assert pm.get_project_type() == "Pre-recorded"
+        assert pm.resolve_group_name("1", ["G01", "G02"]) == "G01"
+        assert pm.get_multi_aquarium_zone_data(None) is None
+        assert pm.is_multi_aquarium_video(None) is False
+        assert pm.get_aquarium_count(None) == 1
+        assert pm.get_aquarium_count(video["path"]) == 0
+        pm.save_multi_aquarium_zone_data(None, MultiAquariumZoneData())
+        pm.clear_multi_aquarium_zone_data(None)
+        assert "multi_aquarium_zones" not in pm.project_data
+        assert pm.get_analysis_profiles()[0]["name"] == "default"
+        assert pm.resolve_analysis_profile({"group": "A"})["name"] == "default"
+        assert ProjectManager._normalize_detector_thresholds({"conf_threshold": "0.4"}) == {
+            "confidence_threshold": 0.4
+        }
+        assert pm.load_zones_from_parquet({"parquet_files": {}}) is None
+        pm.save_last_session_details(5, "B")
+        assert pm.get_last_session_details() == (5, "B")
+        assert (_reloaded(pm)["last_selected_day"], _reloaded(pm)["last_selected_group"]) == (
+            5,
+            "B",
+        )
+
+    def test_multi_aquarium_outputs_make_a_video_multi(self, tmp_path):
+        video = _video(tmp_path, "v.mp4")
+        pm = _disk_project(tmp_path, video)
+        entry = pm.find_video_entry(path=video["path"])
+        entry["multi_aquarium_outputs"] = {"0": {}}  # type: ignore[index]
+        assert pm.is_multi_aquarium_video(video["path"]) is False
+
+        entry["multi_aquarium_outputs"]["1"] = {}  # type: ignore[index]
+
+        assert pm.is_multi_aquarium_video(video["path"]) is True
+
+    def test_zone_facade_round_trip(self, tmp_path):
+        video = _video(tmp_path, "v.mp4")
+        pm = _disk_project(tmp_path, video)
+        pm.save_zone_data(ZoneData(polygon=SQUARE), video["path"])
+
+        assert pm.has_zone_data(video["path"]) is True
+        assert pm.get_last_zone_video() == ZoneManager.normalize_video_path(video["path"])
+        clone = pm.clone_zone_data_from_video(Path(video["path"]))
+        assert clone.polygon == SQUARE
+        assert pm._resolve_zone_entry(video["path"])[1]["polygon"] == SQUARE  # type: ignore[index]
+        exported = Path(pm.find_video_entry(path=video["path"])["parquet_files"]["arena"])  # type: ignore[index]
+        assert exported.name == "1_ProcessingArea_v.parquet"
+        assert exported.parent == Path(pm.project_path) / "Grupo_Sem_Grupo" / "Dia_Indefinido" / (  # type: ignore[arg-type]
+            "Sujeito_Indefinido"
+        )
+        assert pm.resolve_zone_parquet_candidates(video["path"]) == {"arena": str(exported)}
+
+        pm.clear_multi_aquarium_zone_data(video["path"])
+        assert pm.has_zone_data(video["path"]) is False
