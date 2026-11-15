@@ -4210,3 +4210,17 @@ _load_registry()"
         description: "erro de uma sessao anterior vaza para a seguinte"
         find: '        self._recorder_stop_error: str | None = None'
         replace: '        self._recorder_stop_error = getattr(self, "_recorder_stop_error", None)'
+
+  analysis_failed_metric_warnings:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_service.py
+    mutations:
+      - id: failed-thigmotaxis-not-reported
+        description: "tigmotaxia que falha volta a sumir do relatorio sem aviso (A5-S-005)"
+        find: '_("Thigmotaxis was requested but could not be computed: {error}").format('
+        replace: 'str('
+      - id: failed-geotaxis-not-reported
+        description: "geotaxia que falha volta a sumir do relatorio sem aviso (A5-S-005)"
+        find: '_("Geotaxis was requested but could not be computed: {error}").format('
+        replace: 'str('

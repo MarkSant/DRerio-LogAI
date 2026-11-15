@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: DRerio LogAI VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-14 21:02-0300\n"
+"POT-Creation-Date: 2026-11-14 21:20-0300\n"
 "PO-Revision-Date: 2026-08-08 21:41-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pt_BR\n"
@@ -38,36 +38,46 @@ msgstr ""
 "(curvas_acentuadas) agrupam todos os animais e devem ser lidas com "
 "cautela."
 
+#: src/zebtrack/analysis/analysis_service.py:552
+#, python-brace-format
+msgid "Thigmotaxis was requested but could not be computed: {error}"
+msgstr "A tigmotaxia foi pedida mas não pôde ser calculada: {error}"
+
+#: src/zebtrack/analysis/analysis_service.py:582
+#, python-brace-format
+msgid "Geotaxis was requested but could not be computed: {error}"
+msgstr "A geotaxia foi pedida mas não pôde ser calculada: {error}"
+
 # | msgid "Batch processing started: {count} video(s)."
-#: src/zebtrack/analysis/analysis_service.py:1412
+#: src/zebtrack/analysis/analysis_service.py:1423
 #: src/zebtrack/coordinators/ui_state_coordinator.py:710
 #, python-brace-format
 msgid "Starting processing for {count} videos..."
 msgstr "Iniciando processamento para {count} vídeos..."
 
 # | msgid "Analysis in Progress"
-#: src/zebtrack/analysis/analysis_service.py:1506
+#: src/zebtrack/analysis/analysis_service.py:1517
 #: src/zebtrack/coordinators/live_camera_session_coordinator.py:2082
 msgid "Analysis Error"
 msgstr "Erro na Análise"
 
-#: src/zebtrack/analysis/analysis_service.py:1507
+#: src/zebtrack/analysis/analysis_service.py:1518
 #, python-brace-format
 msgid "An unexpected error occurred: {error}"
 msgstr "Ocorreu um erro inesperado: {error}"
 
 # | msgid "Cancel"
-#: src/zebtrack/analysis/analysis_service.py:1551
+#: src/zebtrack/analysis/analysis_service.py:1562
 #: src/zebtrack/coordinators/ui_state_coordinator.py:731
 msgid "Cancelled"
 msgstr "Cancelado"
 
 # | msgid "The video analysis was cancelled."
-#: src/zebtrack/analysis/analysis_service.py:1551
+#: src/zebtrack/analysis/analysis_service.py:1562
 msgid "Video analysis was cancelled."
 msgstr "A análise de vídeo foi cancelada."
 
-#: src/zebtrack/analysis/analysis_service.py:1555
+#: src/zebtrack/analysis/analysis_service.py:1566
 #, python-brace-format
 msgid ""
 "Analysis finished. Results saved to:\n"
@@ -76,7 +86,7 @@ msgstr ""
 "Análise concluída. Resultados salvos em:\n"
 "{path}"
 
-#: src/zebtrack/analysis/analysis_service.py:1556
+#: src/zebtrack/analysis/analysis_service.py:1567
 #: src/zebtrack/coordinators/model_diagnostics_coordinator.py:760
 #: src/zebtrack/coordinators/video_processing_coordinator.py:549
 #: src/zebtrack/ui/components/canvas/event_handler.py:792
@@ -90,7 +100,7 @@ msgid "Success"
 msgstr "Sucesso"
 
 # | msgid "Ready!"
-#: src/zebtrack/analysis/analysis_service.py:1558
+#: src/zebtrack/analysis/analysis_service.py:1569
 #: src/zebtrack/coordinators/_unified_report_mixin.py:237
 #: src/zebtrack/coordinators/progress_tracking_coordinator.py:540
 #: src/zebtrack/coordinators/recording_session_coordinator.py:657
@@ -3708,7 +3718,9 @@ msgstr "Geração de relatórios concluída."
 #: src/zebtrack/core/viewmodels/analysis_control_view_model.py:598
 #, python-brace-format
 msgid "Report generation finished: {failed} of {total} video(s) without a report."
-msgstr "Geração de relatórios concluída: {failed} de {total} vídeo(s) sem relatório."
+msgstr ""
+"Geração de relatórios concluída: {failed} de {total} vídeo(s) sem "
+"relatório."
 
 #: src/zebtrack/core/viewmodels/analysis_control_view_model.py:607
 msgid "Reports not generated"

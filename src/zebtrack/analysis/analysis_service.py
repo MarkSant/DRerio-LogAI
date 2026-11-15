@@ -544,8 +544,15 @@ class AnalysisService:
                 report["comportamento_geral"]["thigmotaxis_avg_dist"] = (
                     b_analyzer.calculate_thigmotaxis_index(method="average_distance")
                 )
+            # except Exception justified: one metric failing must not cost the
+            # whole report, but the report has to say the metric is missing
             except Exception as e:
                 self.log.warning("analysis.thigmotaxis.failed", error=str(e))
+                validation_warnings.append(
+                    _("Thigmotaxis was requested but could not be computed: {error}").format(
+                        error=e
+                    )
+                )
 
         # Calculate Geotaxis (side view only, #631): it measures depth, and a
         # video filmed from above has no bottom. ``geotaxis_applies`` is the one
@@ -568,8 +575,12 @@ class AnalysisService:
                         method="zone_time", num_zones=int(num_zones), bottom_zones=int(bottom_zones)
                     )
                 )
+            # except Exception justified: same as thigmotaxis above
             except Exception as e:
                 self.log.warning("analysis.geotaxis.failed", error=str(e))
+                validation_warnings.append(
+                    _("Geotaxis was requested but could not be computed: {error}").format(error=e)
+                )
 
         # 3. If ROIs are provided, perform ROI analysis and append to the report
         # (the analyser was built above, from the resolved rule: the debounce
