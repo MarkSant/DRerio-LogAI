@@ -3260,7 +3260,7 @@ msgstr ""
 
 #: src/zebtrack/ui/ui_coordinator.py:823
 #, python-brace-format
-msgid "Detecting aquarium: frame {frame}/100"
+msgid "Detecting aquarium: frame {frame}/{total}"
 msgstr ""
 
 #: src/zebtrack/ui/ui_coordinator.py:877

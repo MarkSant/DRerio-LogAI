@@ -4795,3 +4795,73 @@ _load_registry()"
         description: "uma segunda desconexao abre outro dialogo modal sem fechar o primeiro"
         find: '                self._close_camera_disconnect_dialog()'
         replace: '                pass'
+
+  ui_coordinator_aquarium_detection_dialog:
+    source: src/zebtrack/ui/ui_coordinator.py
+    tests:
+      - tests/ui/test_ui_coordinator_helpers.py
+    mutations:
+      - id: dialog-sized-by-a-constant
+        description: "F2-UI-008: o dialogo volta a nascer com 100 quadros em vez do max_frames do payload"
+        find: '                            max_frames=total,'
+        replace: '                            max_frames=100,'
+      - id: last-frame-off-by-one
+        description: "o ultimo quadro da fase (contador 0-based) nao fecha o dialogo"
+        find: 'phase_done = frame_number + 1 >= total'
+        replace: 'phase_done = frame_number >= total'
+      - id: zero-max-accepted
+        description: "um max_frames zero e aceito e a fase ja nasce encerrada"
+        find: 'or total <= 0:'
+        replace: 'or total < 0:'
+      - id: bool-max-accepted
+        description: "um max_frames booleano e tratado como numero de quadros"
+        find: 'if not isinstance(total, int) or isinstance(total, bool) or total <= 0:'
+        replace: 'if not isinstance(total, int) or total <= 0:'
+      - id: default-length-changed
+        description: "o comprimento padrao do dialogo sem max_frames muda"
+        find: 'AQUARIUM_DETECTION_DEFAULT_FRAMES = 100'
+        replace: 'AQUARIUM_DETECTION_DEFAULT_FRAMES = 50'
+      - id: watchdog-too-short
+        description: "o cao de guarda fecha o dialogo em meio segundo"
+        find: 'AQUARIUM_DETECTION_STALE_MS = 5000'
+        replace: 'AQUARIUM_DETECTION_STALE_MS = 500'
+      - id: final-frame-reopens
+        description: "um evento do ultimo quadro reabre um dialogo recem fechado"
+        find: 'if self.root and self._aquarium_detection_dialog is None and not phase_done:'
+        replace: 'if self.root and self._aquarium_detection_dialog is None:'
+      - id: creation-not-rechecked-on-tk-thread
+        description: "dois eventos que chegam antes da thread do Tk abrem dois dialogos"
+        find: '                    if self._aquarium_detection_dialog is None:'
+        replace: '                    if True:'
+      - id: update-without-dialog
+        description: "evento sem dialogo aberto tenta atualizar None"
+        find: "                    if dialog is None:\n                        return"
+        replace: "                    if dialog is None:\n                        pass"
+      - id: last-frame-never-closes
+        description: "o dialogo so fecha pelo cao de guarda, nunca no ultimo quadro"
+        find: '                    if phase_done:'
+        replace: '                    if False:'
+      - id: watchdog-never-armed
+        description: "nenhum evento arma o cao de guarda"
+        find: '                        self._arm_aquarium_detection_watchdog()'
+        replace: '                        pass'
+      - id: watchdog-restart-stacks
+        description: "cada evento empilha um novo cao de guarda sem cancelar o anterior"
+        find: "        self._cancel_aquarium_detection_watchdog()\n        if self.root:\n            self._aquarium_detection_watchdog_id"
+        replace: "        if self.root:\n            self._aquarium_detection_watchdog_id"
+      - id: watchdog-closes-nothing
+        description: "quando o cao de guarda dispara nao fecha o dialogo"
+        find: 'AQUARIUM_DETECTION_STALE_MS, self._close_aquarium_detection_dialog'
+        replace: 'AQUARIUM_DETECTION_STALE_MS, lambda: None'
+      - id: close-leaves-watchdog
+        description: "fechar o dialogo deixa o cao de guarda armado"
+        find: "        self._cancel_aquarium_detection_watchdog()\n        dialog, self._aquarium_detection_dialog"
+        replace: "        dialog, self._aquarium_detection_dialog"
+      - id: status-bar-counts-to-a-constant
+        description: "a barra de status volta a contar contra 100"
+        find: 'frame=frame_number, total=total'
+        replace: 'frame=frame_number, total=100'
+      - id: missing-frame-number-raises
+        description: "payload sem numero de quadro derruba o manipulador"
+        find: 'frame_number = _payload_get(event_data, "frame_number", 0) or 0'
+        replace: 'frame_number = _payload_get(event_data, "frame_number", 0)'

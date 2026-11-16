@@ -4035,8 +4035,8 @@ msgstr "Câmera reconectada (gap: {seconds:.1f}s)"
 
 #: src/zebtrack/ui/ui_coordinator.py:823
 #, python-brace-format
-msgid "Detecting aquarium: frame {frame}/100"
-msgstr "Detectando aquário: frame {frame}/100"
+msgid "Detecting aquarium: frame {frame}/{total}"
+msgstr "Detectando aquário: frame {frame}/{total}"
 
 # | msgid "Remove the trajectory generated for this video?"
 # | msgid "Reports generated for {count} videos."
