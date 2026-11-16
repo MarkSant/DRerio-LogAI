@@ -32,43 +32,45 @@ Only the boundaries a headless test cannot cross:
 * the PROCESS boundary — ``_WorkerProcess.start`` runs ``run()`` in this process
   (``is_alive``/``join`` follow suit). Spawning would re-import the module tree
   in the child, where the deterministic detector cannot be injected;
-* the MODEL — ``_initialize_detector`` returns a ``Detector`` around
-  ``GoldenDeterministicPlugin`` (no weights, no inference variance), built with
-  the settings snapshot the coordinator handed to the worker;
+* the MODEL — the YOLO plugin class the worker imports becomes
+  ``GoldenDeterministicPlugin`` (no weights, no inference variance); the rest of
+  ``_initialize_detector`` runs for real;
 * the worker's ``configure_logging`` — it would reconfigure structlog for the
   whole test session and write ``analysis_worker.log`` into the cwd.
+
+Zones are saved exactly as the Zones tab saves them (raw pixels, no source
+size), with ``camera.desired_*`` equal to the video size — the configuration in
+which this flow is correct today. With the shipped 1280x720 reference the arena
+is mis-scaled: see the A8-002 test at the bottom and A8-001 in
+``test_flow_e2e_single_video.py``.
 
 Runs in CI's default job (no ``slow``/``gui`` marker).
 """
 
 from __future__ import annotations
 
-import threading
 from pathlib import Path
-from typing import Any, cast
-from unittest.mock import MagicMock
+from typing import Any
 
 import pandas as pd
 import pytest
 
+from tests.helpers.flow_e2e import (
+    build_processing_coordinator,
+    flow_settings,
+    make_zone,
+    run_worker_in_process,
+    wait_for_processing,
+)
 from tests.helpers.prerecorded_pipeline import (
     HEIGHT,
     TRAJECTORY_COLUMNS,
     WIDTH,
-    GoldenDeterministicPlugin,
-    load_pristine_settings,
     write_golden_video,
 )
-from zebtrack.analysis.analysis_service import AnalysisService
-from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
-from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
-from zebtrack.core.detection import Detector, ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.core.project.project_manager import ProjectManager
-from zebtrack.core.state_manager import StateManager
-from zebtrack.core.video import processing_worker as processing_worker_module
-from zebtrack.core.video.video_classification_service import VideoClassificationService
-from zebtrack.core.video.video_selection_service import VideoSelectionService
-from zebtrack.core.video.video_validation_service import VideoValidationService
+from zebtrack.settings import Settings
 
 pytestmark = pytest.mark.integration
 
@@ -86,81 +88,14 @@ ROI_A = [(40, 40), (320, 40), (320, 440), (40, 440)]
 ROI_B = [(320, 40), (460, 40), (460, 440), (320, 440)]
 
 
-def _zone(arena: list[tuple[int, int]], roi: list[tuple[int, int]], name: str) -> ZoneData:
-    return ZoneData(
-        polygon=[list(p) for p in arena],
-        roi_polygons=[[list(p) for p in roi]],
-        roi_names=[name],
-        roi_colors=[(255, 0, 0)],
-        metadata={"source_video_width": WIDTH, "source_video_height": HEIGHT},
-    )
-
-
 def _entry(pm: ProjectManager, path: str) -> dict[str, Any]:
     entry = pm.find_video_entry(path=path)
     assert entry is not None, f"{path} is not in the project"
     return entry
 
 
-def _run_worker_in_process(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the real ``_WorkerProcess`` loop, minus the process and the model."""
-    worker_cls = processing_worker_module._WorkerProcess
-
-    def _start(self: Any) -> None:
-        self.run()
-
-    def _initialize_detector(self: Any) -> Detector:
-        return Detector(
-            plugin=GoldenDeterministicPlugin(),
-            base_width=WIDTH,
-            base_height=HEIGHT,
-            settings_obj=self.config.settings,
-        )
-
-    monkeypatch.setattr(worker_cls, "start", _start)
-    monkeypatch.setattr(worker_cls, "is_alive", lambda self: False)
-    monkeypatch.setattr(worker_cls, "join", lambda self, timeout=None: None)
-    monkeypatch.setattr(worker_cls, "_initialize_detector", _initialize_detector)
-    monkeypatch.setattr("zebtrack.logging_config.configure_logging", lambda *args, **kwargs: None)
-
-
-def _build_coordinator(
-    project_manager: ProjectManager, settings: Any
-) -> VideoProcessingCoordinator:
-    state_manager = StateManager()
-    coordinator = VideoProcessingCoordinator(
-        state_manager=state_manager,
-        project_manager=project_manager,
-        detector_service=MagicMock(name="detector_service"),
-        # None = resolve the weight from the settings (no registry on disk);
-        # the detector itself is replaced at the model boundary anyway.
-        weight_manager=cast(Any, None),
-        settings_obj=settings,
-        settings_baseline=settings,
-        ui_coordinator=MagicMock(name="ui_coordinator"),
-        ui_state_controller=MagicMock(name="ui_state_controller"),
-        cancel_event=threading.Event(),
-        video_selection_service=VideoSelectionService(),
-        video_validation_service=VideoValidationService(),
-        video_classification_service=VideoClassificationService(),
-        event_bus=None,
-        view=None,
-        root=None,
-    )
-    coordinator._report_coordinator = ReportGenerationCoordinator(
-        state_manager=state_manager,
-        project_manager=project_manager,
-        settings_obj=settings,
-        settings_baseline=settings,
-        analysis_service=AnalysisService(settings_obj=settings),
-    )
-    return coordinator
-
-
-@pytest.fixture(scope="module")
-def project_run(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
-    """Create the project, process both videos once, and hand back what is needed."""
-    root = tmp_path_factory.mktemp("flow_prerecorded_project")
+def _run_project(root: Path, settings: Settings, zones: dict[int, ZoneData]) -> dict[str, Any]:
+    """Create the project in ``root``, process both days, return what the tests read."""
     videos = {}
     for day in (1, 2):
         path = root / "videos" / f"Dia_{day}" / STEM / f"{STEM}.mp4"
@@ -172,8 +107,7 @@ def project_run(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
         videos[day] = path
 
     with pytest.MonkeyPatch.context() as monkeypatch:
-        _run_worker_in_process(monkeypatch)
-        settings = load_pristine_settings()
+        run_worker_in_process(monkeypatch)
         project_dir = root / "project"
         pm = ProjectManager(settings_obj=settings)
         pm.create_new_project(
@@ -188,15 +122,12 @@ def project_run(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
             ],
         )
         stored = {day: _entry(pm, str(videos[day]))["path"] for day in (1, 2)}
-        pm.save_zone_data(_zone(ARENA_A, ROI_A, "Esquerda"), stored[1])
-        pm.save_zone_data(_zone(ARENA_B, ROI_B, "Faixa"), stored[2])
+        for day, zone in zones.items():
+            pm.save_zone_data(zone, stored[day])
 
-        coordinator = _build_coordinator(pm, settings)
+        coordinator = build_processing_coordinator(pm, settings)
         coordinator.process_pending_project_videos([stored[1], stored[2]])
-        thread = coordinator.processing_thread
-        assert thread is not None, "the coordinator never started the worker"
-        thread.join(timeout=300)
-        assert not thread.is_alive(), "the processing monitor did not finish"
+        wait_for_processing(coordinator)
 
     return {
         "project_dir": project_dir,
@@ -208,6 +139,16 @@ def project_run(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
             for day in (1, 2)
         },
     }
+
+
+@pytest.fixture(scope="module")
+def project_run(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+    """Process both days once, with zones shaped exactly like the Zones tab saves them."""
+    return _run_project(
+        tmp_path_factory.mktemp("flow_prerecorded_project"),
+        flow_settings(),
+        {1: make_zone(ARENA_A, ROI_A, "Esquerda"), 2: make_zone(ARENA_B, ROI_B, "Faixa")},
+    )
 
 
 def test_each_day_lands_in_its_own_group_day_subject_folder(project_run: dict) -> None:
@@ -293,3 +234,32 @@ def test_identity_is_the_path_even_for_byte_identical_videos(project_run: dict) 
     assert entries[0] is not entries[1]
     assert entries[0]["sha256"] == entries[1]["sha256"]
     assert [e["metadata"]["day"] for e in entries] == [1, 2]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "A8-002: _load_zones_for_eligible_videos rebuilds the per-video zone dict "
+        "without 'metadata', so source_video_width/height never reach the project "
+        "worker; it then scales raw-pixel zones from camera.desired (1280x720)."
+    ),
+)
+def test_project_worker_receives_the_zone_source_size(tmp_path: Path) -> None:
+    """Zones that DO state their source size must be scaled from it.
+
+    Shipped camera reference (1280x720), a 640x480 video, and day 1's arena
+    saved WITH ``source_video_width/height = 640x480``. The worker honours that
+    metadata when it arrives (``_resolve_zone_source_dimensions``), so the
+    subject's walk to x = 500 px must survive the arena filter. Today the batch
+    path strips the metadata and the arena is shrunk to half its size.
+    """
+    run = _run_project(
+        tmp_path,
+        flow_settings(camera_matches_video=False),
+        {
+            1: make_zone(ARENA_A, ROI_A, "Esquerda", source_size=(WIDTH, HEIGHT)),
+            2: make_zone(ARENA_A, ROI_A, "Esquerda", source_size=(WIDTH, HEIGHT)),
+        },
+    )
+    day1 = pd.read_parquet(run["folders"][1] / f"3_CoordMovimento_{STEM}.parquet")
+    assert day1["x_center_px"].max() > 400
