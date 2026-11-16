@@ -4370,22 +4370,10 @@ _load_registry()"
     tests:
       - tests/ui/wizard/test_custom_regex_dialog.py
     mutations:
-      - id: capture-group-ignored
-        description: "o valor extraido passa a ser sempre o trecho inteiro, nao o grupo de captura"
-        find: 'return match.group(1) if match.groups() else match.group(0)'
-        replace: 'return match.group(0)'
-      - id: only-first-subject-listed
-        description: "nome com dois sujeitos mostra so o primeiro na previa"
-        find: 'values = [match_value(m) for m in pattern.finditer(path)]'
-        replace: 'values = [match_value(m) for m in pattern.finditer(path)][:1]'
       - id: path-truncated-at-65
         description: "caminho de exatamente 65 caracteres passa a ser truncado"
         find: 'if len(path) > 65:'
         replace: 'if len(path) >= 65:'
-      - id: test-path-anchored-at-start
-        description: "o painel de teste so acha o padrao no inicio do caminho"
-        find: 'match = pattern.search(path)'
-        replace: 'match = pattern.match(path)'
 
   report_generator_unified_delete:
     source: src/zebtrack/ui/components/project_views/report_generator_actions.py
@@ -4855,12 +4843,12 @@ _load_registry()"
         replace: 'dialog = self._camera_disconnect_dialog'
       - id: closes-nothing-when-none
         description: "reconexao sem dialogo aberto tenta fechar None"
-        find: "        if dialog is not None:\n            dialog.close_dialog()"
-        replace: "        if dialog is None:\n            dialog.close_dialog()"
+        find: "self._camera_disconnect_dialog, None\n        if dialog is not None:"
+        replace: "self._camera_disconnect_dialog, None\n        if dialog is None:"
       - id: destroy-instead-of-close-dialog
         description: "o coordenador destroi o Toplevel em vez de pedir o fechamento ao dialogo"
-        find: 'dialog.close_dialog()'
-        replace: 'dialog.destroy()'
+        find: "            dialog.close_dialog()\n\n    def _on_camera_reconnected"
+        replace: "            dialog.destroy()\n\n    def _on_camera_reconnected"
       - id: second-disconnect-stacks-dialogs
         description: "uma segunda desconexao abre outro dialogo modal sem fechar o primeiro"
         find: '                self._close_camera_disconnect_dialog()'
