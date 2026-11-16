@@ -5038,3 +5038,295 @@ _load_registry()"
         description: "importacao do dia volta a diferenciar maiusculas e a ignorar o grupo"
         find: '            matched_day = search_value(day_pattern, path_text)'
         replace: '            matched_day = (lambda m: m and m.group(0))(__import__("re").search(day_pattern, path_text))'
+
+  camera_connection_handler:
+    source: src/zebtrack/core/recording/camera_connection_handler.py
+    tests:
+      - tests/core/recording/test_camera_connection_handler_extended.py
+    mutations:
+      - id: gap-at-threshold-is-disconnect
+        description: "um intervalo exatamente igual ao limiar passa a contar como desconexao"
+        find: 'if gap_duration > self._camera_disconnect_threshold_s and not self._camera_disconnected:'
+        replace: 'if gap_duration >= self._camera_disconnect_threshold_s and not self._camera_disconnected:'
+      - id: wrong-device-accepted
+        description: "camera que abriu em outro indice passa a ser aceita"
+        find: 'if actual_camera_index != camera_index:'
+        replace: 'if False:'
+      - id: resolution-not-forced
+        description: "a sessao deixa de forcar 1280 px de largura"
+        find: 'temp_settings.camera.desired_width = 1280'
+        replace: 'temp_settings.camera.desired_width = 1920'
+      - id: closed-gap-reopened
+        description: "reconexao reescreve o fim de um intervalo ja fechado"
+        find: 'if self._disconnect_gaps and self._disconnect_gaps[-1][1] is None:'
+        replace: 'if self._disconnect_gaps:'
+      - id: wait-stops-session
+        description: "escolher aguardar no dialogo encerra a sessao"
+        find: 'elif action == "stop":'
+        replace: 'elif action in ("stop", "wait"):'
+      - id: warmup-never-times-out
+        description: "aquecimento ignora o teto de 5 s e le os 50 quadros sempre"
+        find: 'if time.time() - warmup_start > warmup_timeout:'
+        replace: 'if False:'
+      - id: pause-not-recorded
+        description: "pausa do gravador nao fica registrada e a retomada nunca acontece"
+        find: 'self._recording_paused = True'
+        replace: 'self._recording_paused = False'
+      - id: dict-payload-ignored
+        description: "payload em dict deixa de ser lido"
+        find: 'if isinstance(payload, dict):'
+        replace: 'if False:'
+
+  live_session_manager_lifecycle:
+    source: src/zebtrack/core/recording/live_session_manager.py
+    tests:
+      - tests/core/recording/test_live_session_manager_extended.py
+    mutations:
+      - id: half-duration-threshold-moved
+        description: "parada automatica aos 29 s de 60 s deixa de ser lida como desistencia"
+        find: 'threshold_s = max(5.0, self._session_duration_s * 0.5)'
+        replace: 'threshold_s = max(5.0, self._session_duration_s * 0.4)'
+      - id: five-second-floor-lowered
+        description: "sessao curta perde o piso de 5 s da heuristica de desistencia"
+        find: 'threshold_s = max(5.0, self._session_duration_s * 0.5)'
+        replace: 'threshold_s = max(3.0, self._session_duration_s * 0.5)'
+      - id: exactly-half-is-cancelled
+        description: "parar exatamente na metade passa a descartar a sessao"
+        find: '                if elapsed_s >= threshold_s:'
+        replace: '                if elapsed_s > threshold_s:'
+      - id: many-animals-single-subject
+        description: "aquario com varios animais liga o modo sujeito unico"
+        find: 'use_single_subject = self._animals_per_aquarium == 1'
+        replace: 'use_single_subject = True'
+      - id: old-detector-kept-on-config-change
+        description: "trocar OpenVINO/peso reaproveita o detector antigo"
+        find: '                self.detector_service.detector = None'
+        replace: '                pass'
+      - id: timer-in-wrong-unit
+        description: "temporizador da sessao agendado em decimos de segundo"
+        find: 'self.timer_id = self.root.after(int(duration_s * 1000), on_timer_expired)'
+        replace: 'self.timer_id = self.root.after(int(duration_s * 100), on_timer_expired)'
+      - id: lag-band-two-seconds
+        description: "atraso de exatamente 2 s ainda e reportado como 'Recording OK'"
+        find: 'if lag_seconds < 2.0:'
+        replace: 'if lag_seconds <= 2.0:'
+      - id: lag-band-five-seconds
+        description: "atraso de exatamente 5 s deixa de ser 'far behind'"
+        find: 'elif lag_seconds < 5.0:'
+        replace: 'elif lag_seconds <= 5.0:'
+      - id: drop-message-always-singular
+        description: "doze quadros perdidos aparecem como '1 frame dropped'"
+        find: 'if self._dropped_frames_video == 1'
+        replace: 'if self._dropped_frames_video >= 1'
+      - id: detector-context-not-restored
+        description: "o detector fica em 'tracking' depois da sessao"
+        find: 'self.detector_service.detector.set_context(self._saved_detector_context)'
+        replace: 'pass'
+      - id: progress-fraction-halved
+        description: "barra de progresso da gravacao anda na metade da velocidade"
+        find: 'fraction = min(1.0, elapsed / duration_s) if duration_s > 0 else 0.0'
+        replace: 'fraction = min(1.0, elapsed / duration_s / 2) if duration_s > 0 else 0.0'
+      - id: recorder-refusal-ignored
+        description: "gravador que recusa abrir deixa a sessao seguir sem gravar"
+        find: '                    if not recorder_started:'
+        replace: '                    if False:'
+      - id: countdown-sleep-skipped
+        description: "contagem regressiva sem Tk deixa de esperar"
+        find: '                time.sleep(countdown_seconds)'
+        replace: '                pass'
+
+  live_camera_service_facade:
+    source: src/zebtrack/core/recording/live_camera_service.py
+    tests:
+      - tests/core/test_live_camera_service_utils.py
+    mutations:
+      - id: detections-getter-aliases
+        description: "quem le as ultimas deteccoes recebe a lista interna e pode altera-la"
+        find: 'return list(self._last_detections)'
+        replace: 'return self._last_detections'
+      - id: detections-setter-aliases
+        description: "a lista do chamador vira o estado interno"
+        find: 'self._last_detections = list(detections)'
+        replace: 'self._last_detections = detections'
+      - id: preferred-mode-by-value
+        description: "modo preferido do assistente passa a ser lido pelo valor, nao pelo nome"
+        find: 'self._preferred_mode = LiveCameraMode[mode]'
+        replace: 'self._preferred_mode = LiveCameraMode(mode)'
+      - id: exit-does-not-stop-workers
+        description: "sair do with deixa as threads sem o sinal de parada"
+        find: '            self.exit_event.set()'
+        replace: '            pass'
+      - id: exit-swallows-exceptions
+        description: "__exit__ engole a excecao de quem usou o servico"
+        find: '        return False'
+        replace: '        return True'
+      - id: baseline-always-live-settings
+        description: "a copia pristina das settings e ignorada"
+        find: 'settings_baseline if settings_baseline is not None else settings_obj'
+        replace: 'settings_obj'
+
+  recording_service_session:
+    source: src/zebtrack/core/recording/recording_service.py
+    tests:
+      - tests/core/test_recording_service.py
+    mutations:
+      - id: subject-key-renamed
+        description: "o sujeito da sessao vai para uma chave que o projeto nao le"
+        find: 'metadata_to_save["subject"] = context['
+        replace: 'metadata_to_save["cobaia"] = context['
+      - id: timed-stop-in-wrong-unit
+        description: "parada temporizada agendada em decimos de segundo"
+        find: 'duration_ms = int(duration_s * 1000)'
+        replace: 'duration_ms = int(duration_s * 100)'
+      - id: countdown-not-centred
+        description: "janela da contagem deslocada para fora do centro"
+        find: 'pos_x = (self.root.winfo_screenwidth() // 2) - (win_w // 2)'
+        replace: 'pos_x = (self.root.winfo_screenwidth() // 2) - win_w'
+      - id: countdown-one-second-short
+        description: "a contagem termina no 1 em vez do 0"
+        find: 'if seconds_left <= 0:'
+        replace: 'if seconds_left <= 1:'
+      - id: countdown-skips-numbers
+        description: "a contagem pula de dois em dois"
+        find: 'self.root.after(1000, lambda: update_timer(seconds_left - 1))'
+        replace: 'self.root.after(1000, lambda: update_timer(seconds_left - 2))'
+      - id: zero-countdown-shown
+        description: "contagem de 0 s ainda abre a janela"
+        find: 'use_countdown = bool(project_data.get("use_countdown")) and countdown_s > 0'
+        replace: 'use_countdown = bool(project_data.get("use_countdown"))'
+      - id: box-off-by-one
+        description: "cobaia 3 aciona a caixa 4 do Arduino"
+        find: 'return int(cobaia)'
+        replace: 'return int(cobaia) + 1'
+      - id: countdown-window-left-open
+        description: "a janela da contagem fica aberta depois que a gravacao comeca"
+        find: '            if countdown_window.winfo_exists():'
+        replace: '            if False:'
+
+  live_camera_mode_selector:
+    source: src/zebtrack/core/recording/live_camera_mode.py
+    tests:
+      - tests/core/recording/test_live_camera_mode_extended.py
+    mutations:
+      - id: capacity-boundary-excluded
+        description: "pedir exatamente a capacidade deixa de ser tempo real"
+        find: 'if can_realtime and requested_aquariums <= max_supported:'
+        replace: 'if can_realtime and requested_aquariums < max_supported:'
+      - id: zero-capacity-is-partial
+        description: "capacidade zero cai no ramo de suporte parcial"
+        find: 'if can_realtime and requested_aquariums > max_supported > 0:'
+        replace: 'if can_realtime and requested_aquariums > max_supported >= 0:'
+      - id: singular-for-two
+        description: "capacidade 2 aparece como '1 aquarium'"
+        find: 'if max_supported == 1'
+        replace: 'if max_supported <= 2'
+      - id: plan-ids-one-based
+        description: "ids do plano sequencial deslocados em um"
+        find: '"experiment_id": f"{base_experiment_id}_aquarium_{aq_idx}",'
+        replace: '"experiment_id": f"{base_experiment_id}_aquarium_{aq_idx + 1}",'
+      - id: plan-notes-zero-based
+        description: "notas do plano comecam em 'Session 0'"
+        find: 'index=aq_idx + 1, total=total_aquariums'
+        replace: 'index=aq_idx, total=total_aquariums'
+      - id: one-aquarium-is-multi
+        description: "um aquario so e recomendado como multi-aquario"
+        find: 'if requested_aquariums > 1'
+        replace: 'if requested_aquariums >= 1'
+
+  live_completion_subject_count:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: multi-raw-nunique
+        description: "A4-02: o total multi-aquario volta a contar ids crus"
+        find: '            total_tracks += self._count_live_subjects(df)'
+        replace: '            total_tracks += int(df["track_id"].nunique())'
+      - id: single-raw-nunique
+        description: "A4-02: o dialogo de conclusao volta a contar ids crus"
+        find: '                unique_tracks = self._count_live_subjects(df)'
+        replace: '                unique_tracks = df["track_id"].nunique()'
+      - id: screening-ignored
+        description: "a triagem de trilhas curtas deixa de valer para a contagem"
+        find: '        return count_subjects(df if screening is None else screening.trajectory)'
+        replace: '        return count_subjects(df)'
+      - id: short-track-threshold-zero
+        description: "limiar de trilha curta zerado: um glitch de uma linha vira animal"
+        find: '            df, min_track_duration_s=min_track_duration_from(self.settings)'
+        replace: '            df, min_track_duration_s=0.0'
+
+  live_post_processor_flow:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: aquarium-folder-not-offset
+        description: "aquarium_1 passa a ser o aquario de id 1"
+        find: 'aq_id = int(aq_suffix) - 1'
+        replace: 'aq_id = int(aq_suffix)'
+      - id: unnumbered-folder-accepted
+        description: "pasta aquarium_x derruba a coleta das trajetorias"
+        find: 'if not aq_suffix.isdigit():'
+        replace: 'if False:'
+      - id: arena-mean-not-median
+        description: "uma deteccao espuria do aquario desloca a arena (media em vez de mediana)"
+        find: 'x1 = int(np.median(bboxes_array[:, 0]))'
+        replace: 'x1 = int(np.mean(bboxes_array[:, 0]))'
+      - id: fallback-arena-half-frame
+        description: "arena padrao sem deteccao vira metade do quadro em vez de um terco"
+        find: 'area_ratio = 3.0'
+        replace: 'area_ratio = 2.0'
+      - id: adhoc-arena-persisted
+        description: "sessao sem projeto tenta persistir a arena em disco"
+        find: 'should_persist = bool(self.project_manager.project_path)'
+        replace: 'should_persist = True'
+      - id: freezing-override-ignored
+        description: "limiar de freezing da sessao nao chega a analise"
+        find: 'if "freezing_velocity_threshold" in self._analysis_params:'
+        replace: 'if False:'
+      - id: summary-not-attached
+        description: "o .xlsx de cada aquario nao e registrado no projeto"
+        find: '            if summary_path:'
+        replace: '            if False:'
+      - id: no-detections-message-lost
+        description: "sessao sem deteccoes aparece como falha da analise"
+        find: 'elif reason == "no_detections":'
+        replace: 'elif reason == "error":'
+      - id: aquarium-metadata-dropped
+        description: "grupo/sujeito/dia do aquario deixam de ir para o registro"
+        find: '            if multi_zone_data is not None:'
+        replace: '            if False:'
+
+  live_aquarium_detection_phase:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_frame_processing_pipeline_extended.py
+    mutations:
+      - id: warmup-longer
+        description: "o aquecimento passa a engolir o quadro 30"
+        find: 'if frame_number < 30:'
+        replace: 'if frame_number < 35:'
+      - id: cadence-changed
+        description: "a busca do aquario deixa de olhar um quadro a cada 5"
+        find: 'if frame_number % 5 != 0:'
+        replace: 'if frame_number % 3 != 0:'
+      - id: min-area-raised
+        description: "um aquario que ocupa 64% do quadro passa a ser recusado"
+        find: 'min_ratio = 0.10'
+        replace: 'min_ratio = 0.70'
+      - id: fallback-after-eleven
+        description: "a arena padrao demora um quadro a mais para chegar"
+        find: 'self._aquarium_detection_frames >= 10'
+        replace: 'self._aquarium_detection_frames >= 11'
+      - id: needs-five-tanks
+        description: "quatro deteccoes do aquario nao bastam mais para definir a arena"
+        find: 'or len(self._detected_aquarium_bboxes) >= 4'
+        replace: 'or len(self._detected_aquarium_bboxes) >= 5'
+      - id: tank-threshold-raised
+        description: "a busca do aquario usa o limiar de confianca do animal"
+        find: 'detections, _annotated = detector.detect(frame, "live", conf_threshold=0.05)'
+        replace: 'detections, _annotated = detector.detect(frame, "live", conf_threshold=0.25)'
+      - id: any-class-is-the-tank
+        description: "um animal grande vira a arena"
+        find: 'if class_id == target_class_id:'
+        replace: 'if True:'

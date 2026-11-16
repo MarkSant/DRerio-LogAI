@@ -458,7 +458,7 @@ class LiveAnalysisPostProcessorMixin:
             aquarium_data_map[aq_id] = (df, aquarium)
             total_frames += int(df["frame"].nunique())
             total_detections += len(df)
-            total_tracks += int(df["track_id"].nunique()) if "track_id" in df.columns else 0
+            total_tracks += self._count_live_subjects(df)
 
         if not aquarium_data_map:
             if self.project_manager.project_path and outputs_by_aquarium:
@@ -867,7 +867,7 @@ class LiveAnalysisPostProcessorMixin:
                 # Finalize
                 total_frames = df["frame"].nunique()
                 total_detections = len(df)
-                unique_tracks = df["track_id"].nunique() if "track_id" in df.columns else 0
+                unique_tracks = self._count_live_subjects(df)
 
                 if self.root:
                     stats = {
@@ -893,6 +893,24 @@ class LiveAnalysisPostProcessorMixin:
         )
         analysis_thread.start()
         log.info("live_camera_service.post_analysis_thread_started")
+
+    def _count_live_subjects(self, df: pd.DataFrame) -> int:
+        """How many animals the completion dialog reports (A4-02).
+
+        The report's own reading, never ``df["track_id"].nunique()``: rows
+        without a ``track_id`` and tracks shorter than ``min_track_duration_s``
+        are screened by ``screen_window_subjects`` (the screening the report and
+        the analysis window run), then ``count_subjects`` counts what is left. A
+        raw ``nunique()`` showed a one-row ByteTrack glitch as a second animal
+        and an all-unidentified trajectory as zero.
+        """
+        from zebtrack.analysis.track_significance import count_subjects, min_track_duration_from
+        from zebtrack.analysis.window_observations import screen_window_subjects
+
+        screening = screen_window_subjects(
+            df, min_track_duration_s=min_track_duration_from(self.settings)
+        )
+        return count_subjects(df if screening is None else screening.trajectory)
 
     @staticmethod
     def _format_generated_files(output_dir: Path) -> str:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
@@ -1019,3 +1020,593 @@ class TestRecordingProblemsReachTheOperator:
         host._run_multi_aquarium_detection(frame, 1, SimpleNamespace(aquariums=[]))
 
         assert self._errors(host) == []
+
+
+# ---------------------------------------------------------------------------
+# A4-02: the "tracks" figure of the completion dialog is the report's count of
+# animals (count_subjects over the screened trajectory), not a raw nunique().
+# ---------------------------------------------------------------------------
+
+
+def _trajectory_rows(track_rows: dict[Any, list[float]], *, x0: float = 10.0):
+    """Rows for each ``track_id`` at the given timestamps (frame = index + 1)."""
+    import pandas as pd
+
+    rows = []
+    for track_id, stamps in track_rows.items():
+        for t in stamps:
+            rows.append(
+                {
+                    "timestamp": t,
+                    "frame": round(t * 10) + 1,
+                    "track_id": track_id,
+                    "x1": x0,
+                    "y1": 10.0,
+                    "x2": x0 + 10,
+                    "y2": 20.0,
+                    "confidence": 0.9,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+_ONE_SECOND = [round(0.1 * i, 1) for i in range(10)]  # 10 rows over 0.9 s
+
+
+def _analysis_service_double() -> MagicMock:
+    service = MagicMock()
+    service.collect_analysis_parameters.return_value = {
+        "freezing_vel_threshold": 0.5,
+        "freezing_min_duration": 1.0,
+        "smoothing_window_length": 5,
+        "smoothing_polyorder": 2,
+        "behavioral_config": {},
+    }
+    service.run_full_analysis_as_dto.return_value = SimpleNamespace(validation_warnings=[])
+    service.resolve_roi_rule.return_value = None
+    return service
+
+
+def _completion_args(host: Any) -> tuple:
+    """``(output_dir, success, stats, reason)`` scheduled on the Tk root."""
+    args = host.root.after.call_args.args
+    assert args[0] == 0
+    assert args[1] == host._show_completion_message
+    return tuple(args[2:]) + (None,) * (6 - len(args))
+
+
+class TestCompletionTrackCount:
+    def _run_single(self, tmp_path, monkeypatch, df):
+        from unittest.mock import patch
+
+        output_dir = tmp_path / "live_20261116_090000"
+        output_dir.mkdir()
+        df.to_parquet(output_dir / "3_CoordMovimento_adhoc_exp.parquet")
+        host = PostAnalysisHost(output_dir, project_data={}, analysis_params={})
+        host.root = MagicMock()
+        host._build_post_analysis_service = _analysis_service_double  # type: ignore[method-assign]
+        monkeypatch.setattr(
+            "zebtrack.core.recording.live_analysis_post_processor.threading.Thread",
+            _ImmediateThread,
+        )
+        with (
+            patch("zebtrack.analysis.reporters.ExcelReporter"),
+            patch("zebtrack.analysis.reporters.WordReporter"),
+            patch("zebtrack.analysis.reporters.ReporterContext"),
+        ):
+            host._on_session_complete(output_dir, keep_data=True)
+        return host
+
+    def test_a_one_row_glitch_is_not_counted_as_an_animal(self, tmp_path, monkeypatch):
+        # Track 1 lasts a second; track 7 is a single row (0.1 s < 0.5 s).
+        df = _trajectory_rows({1: _ONE_SECOND, 7: [0.4]})
+
+        host = self._run_single(tmp_path, monkeypatch, df)
+
+        _out, success, stats, _reason = _completion_args(host)[:4]
+        assert success is True
+        assert stats["tracks"] == 1
+        # Frames and detections still describe the raw recording.
+        assert stats["detections"] == 11
+
+    def test_rows_without_any_id_are_one_subject(self, tmp_path, monkeypatch):
+        df = _trajectory_rows({float("nan"): _ONE_SECOND})
+
+        host = self._run_single(tmp_path, monkeypatch, df)
+
+        assert _completion_args(host)[2]["tracks"] == 1
+
+    def test_two_real_animals_are_two(self, tmp_path, monkeypatch):
+        df = _trajectory_rows({1: _ONE_SECOND, 2: _ONE_SECOND})
+
+        host = self._run_single(tmp_path, monkeypatch, df)
+
+        assert _completion_args(host)[2]["tracks"] == 2
+
+    def test_multi_aquarium_total_counts_animals_not_ids(self, tmp_path, monkeypatch):
+        from unittest.mock import patch
+
+        output_dir = tmp_path / "live_20261116_100000"
+        output_dir.mkdir()
+        (output_dir / "adhoc_exp.mp4").write_bytes(b"")
+        tracks = {
+            0: {1: _ONE_SECOND, 5: [0.3]},  # one fish + a one-row glitch
+            1: {1001: _ONE_SECOND},
+        }
+        for aq_id, by_track in tracks.items():
+            folder = output_dir / f"aquarium_{aq_id + 1}"
+            folder.mkdir()
+            _trajectory_rows(by_track).to_parquet(
+                folder / f"3_CoordMovimento_adhoc_exp_aquarium_{aq_id + 1}.parquet"
+            )
+        host = PostAnalysisHost(
+            output_dir,
+            project_data={"calibration": {"pixelcm_x": 12.0, "pixelcm_y": 12.0}},
+            analysis_params={},
+        )
+        host.root = MagicMock()
+        pm: Any = host.project_manager
+        pm.get_multi_aquarium_zone_data.return_value = _two_aquariums()
+        service = _analysis_service_double()
+        service.run_multi_aquarium_analysis.return_value = {
+            0: SimpleNamespace(validation_warnings=[]),
+            1: SimpleNamespace(validation_warnings=[]),
+        }
+        host._build_post_analysis_service = lambda: service  # type: ignore[method-assign]
+        monkeypatch.setattr(
+            "zebtrack.core.recording.live_analysis_post_processor.threading.Thread",
+            _ImmediateThread,
+        )
+        reports = {0: {"summary_path": "a.xlsx", "report_path": "a.docx"}}
+        with patch(
+            "zebtrack.analysis.reporters.export_multi_aquarium_reports", return_value=reports
+        ):
+            host._on_session_complete(output_dir, keep_data=True)
+
+        _out, success, stats, _reason = _completion_args(host)[:4]
+        assert success is True
+        assert stats == {"frames": 20, "detections": 21, "tracks": 2}
+
+
+# ---------------------------------------------------------------------------
+# Completion message, zone lookup, multi-aquarium registration edges.
+# ---------------------------------------------------------------------------
+
+
+class TestCompletionMessage:
+    @staticmethod
+    def _host(tmp_path) -> PostAnalysisHost:
+        host = PostAnalysisHost(tmp_path, project_data={}, analysis_params={})
+        host.event_bus = MagicMock()
+        return host
+
+    @staticmethod
+    def _shown(host) -> Any:
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        (call,) = host.event_bus.publish.call_args_list
+        event = call.args[0]
+        assert event.type == UIEvents.UI_SHOW_INFO
+        return event.data
+
+    def test_success_lists_stats_and_the_files_on_disk(self, tmp_path):
+        (tmp_path / "3_CoordMovimento_exp.parquet").write_bytes(b"x")
+        (tmp_path / "4_Relatorio_exp.docx").write_bytes(b"x")
+        host = self._host(tmp_path)
+
+        host._show_completion_message(
+            tmp_path, True, {"frames": 120, "detections": 118, "tracks": 1}
+        )
+
+        data = self._shown(host)
+        assert data.title == "Analysis Completed"
+        assert "Frames processed: 120" in data.message
+        assert "Total detections: 118" in data.message
+        assert "Unique tracks: 1" in data.message
+        assert "3_CoordMovimento_exp.parquet" in data.message
+        assert "4_Relatorio_exp.docx" in data.message
+        assert str(tmp_path) in data.message
+
+    def test_no_detections_has_its_own_title(self, tmp_path):
+        host = self._host(tmp_path)
+
+        host._show_completion_message(tmp_path, False, None, "no_detections")
+
+        data = self._shown(host)
+        assert data.title == "Analysis Completed - No Detections"
+        assert "no detection was found" in data.message
+
+    def test_failure_points_at_the_raw_data(self, tmp_path):
+        host = self._host(tmp_path)
+
+        host._show_completion_message(tmp_path, False, None, "error")
+
+        data = self._shown(host)
+        assert data.title == "Recording Completed"
+        assert "automatic analysis failed" in data.message
+        # An empty folder lists no files at all.
+        assert "Files generated" not in data.message
+
+    def test_success_without_stats_is_reported_as_a_failure(self, tmp_path):
+        host = self._host(tmp_path)
+
+        host._show_completion_message(tmp_path, True, None)
+
+        assert self._shown(host).title == "Recording Completed"
+
+    def test_without_bus_nothing_is_published(self, tmp_path):
+        host = PostAnalysisHost(tmp_path, project_data={}, analysis_params={})
+
+        host._show_completion_message(tmp_path, True, {"frames": 1, "detections": 1, "tracks": 1})
+
+    def test_unlistable_folder_still_produces_a_message(self, tmp_path, monkeypatch):
+        import zebtrack.utils.report_files as report_files
+
+        def _deny(_folder):
+            raise PermissionError("share dropped")
+
+        monkeypatch.setattr(report_files, "list_session_outputs", _deny)
+
+        assert LiveAnalysisPostProcessorMixin._format_generated_files(tmp_path) == ""
+
+
+class TestZoneLookup:
+    def test_reference_frame_needs_a_project(self, tmp_path):
+        host = PostAnalysisHost(tmp_path, project_data={}, analysis_params={})
+        assert host._resolve_live_reference_frame_path() is None
+
+        host.project_manager.project_path = str(tmp_path)
+        assert host._resolve_live_reference_frame_path() == (
+            tmp_path / "live_camera_reference_frame.png"
+        )
+
+        host.project_manager = None  # type: ignore[assignment]
+        assert host._resolve_live_reference_frame_path() is None
+
+    def test_multi_zones_fall_back_to_the_reference_frame_key(self, tmp_path):
+        host = PostAnalysisHost(tmp_path, project_data={}, analysis_params={})
+        host.project_manager.project_path = str(tmp_path)
+        zones = _two_aquariums()
+        reference = tmp_path / "live_camera_reference_frame.png"
+        pm: Any = host.project_manager
+        pm.get_multi_aquarium_zone_data.side_effect = lambda key: (
+            zones if Path(key) == reference else None
+        )
+
+        assert host._resolve_live_multi_aquarium_zone_data(tmp_path / "v.mp4") is zones
+
+    def test_multi_zones_without_project_are_none(self, tmp_path):
+        host = PostAnalysisHost(tmp_path, project_data={}, analysis_params={})
+        pm: Any = host.project_manager
+        pm.get_multi_aquarium_zone_data.return_value = None
+
+        assert host._resolve_live_multi_aquarium_zone_data(tmp_path / "v.mp4") is None
+        host.project_manager = None  # type: ignore[assignment]
+        assert host._resolve_live_multi_aquarium_zone_data(tmp_path / "v.mp4") is None
+
+    def test_collect_skips_what_is_not_an_aquarium_trajectory(self, tmp_path):
+        host = PostAnalysisHost(tmp_path, project_data={}, analysis_params={})
+        assert host._collect_multi_aquarium_trajectory_outputs(tmp_path / "missing") == {}
+
+        (tmp_path / "aquarium_x").mkdir()  # not numbered, even with a trajectory inside
+        (tmp_path / "aquarium_x" / "3_CoordMovimento_s.parquet").write_bytes(b"x")
+        (tmp_path / "aquarium_2").mkdir()  # numbered but empty
+        (tmp_path / "aquarium_3").write_text("a file, not a folder", encoding="utf-8")
+        (tmp_path / "aquarium_1").mkdir()
+        trajectory = tmp_path / "aquarium_1" / "3_CoordMovimento_s_aquarium_1.parquet"
+        trajectory.write_bytes(b"x")
+
+        outputs = host._collect_multi_aquarium_trajectory_outputs(tmp_path)
+
+        # Folder N holds aquarium id N - 1.
+        assert outputs == {
+            0: {"results_dir": tmp_path / "aquarium_1", "trajectory_path": trajectory}
+        }
+
+    def test_project_views_refresh_carries_the_reason(self, tmp_path):
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        host = PostAnalysisHost(tmp_path, project_data={}, analysis_params={})
+        host._publish_project_views_refresh("ignored without a bus")
+        host.event_bus = MagicMock()
+
+        host._publish_project_views_refresh("Live analysis complete")
+
+        (call,) = host.event_bus.publish.call_args_list
+        assert call.args[0].type == UIEvents.UI_REFRESH_PROJECT_VIEWS
+        assert call.args[0].data.reason == "Live analysis complete"
+
+
+class TestPostAnalysisFlow:
+    """``_on_session_complete`` branches around the analysis itself."""
+
+    def _host(self, tmp_path, monkeypatch, *, analysis_params=None):
+        output_dir = tmp_path / "live_20261116_110000"
+        output_dir.mkdir()
+        host = PostAnalysisHost(output_dir, project_data={}, analysis_params=analysis_params or {})
+        host.root = MagicMock()
+        monkeypatch.setattr(
+            "zebtrack.core.recording.live_analysis_post_processor.threading.Thread",
+            _ImmediateThread,
+        )
+        return host, output_dir
+
+    def test_second_completion_is_ignored(self, tmp_path, monkeypatch):
+        host, output_dir = self._host(tmp_path, monkeypatch)
+        host._analysis_completed = True
+
+        host._on_session_complete(output_dir)
+
+        assert host.stopped_with == []
+        host.root.after.assert_not_called()
+
+    def test_no_trajectory_reports_failure(self, tmp_path, monkeypatch):
+        host, output_dir = self._host(tmp_path, monkeypatch)
+        host._build_post_analysis_service = MagicMock()  # type: ignore[method-assign]
+
+        host._on_session_complete(output_dir)
+
+        host._build_post_analysis_service.assert_not_called()
+        assert host.root.after.call_args.args[2:] == (output_dir, False)
+
+    def test_an_analysis_crash_reports_error(self, tmp_path, monkeypatch):
+        host, output_dir = self._host(tmp_path, monkeypatch)
+        _write_trajectory(output_dir)
+
+        def _boom():
+            raise RuntimeError("analysis service unavailable")
+
+        host._build_post_analysis_service = _boom  # type: ignore[method-assign]
+
+        host._on_session_complete(output_dir)
+
+        assert host.root.after.call_args.args[2:] == (output_dir, False, None, "error")
+
+    def test_session_overrides_reach_the_analysis(self, tmp_path, monkeypatch):
+        from unittest.mock import patch
+
+        params = {
+            "freezing_velocity_threshold": 0.8,
+            "freezing_min_duration_s": 2.5,
+            "smoothing_window_length": 9,
+            "smoothing_polyorder": 3,
+            "behavioral_analysis": {"thigmotaxis_margin_cm": 1.5},
+            "group": "Controle",
+            "day": 3,
+            "subject_id": "S07",
+        }
+        host, output_dir = self._host(tmp_path, monkeypatch, analysis_params=params)
+        _write_trajectory(output_dir)
+        service = _analysis_service_double()
+        host._build_post_analysis_service = lambda: service  # type: ignore[method-assign]
+
+        with (
+            patch("zebtrack.analysis.reporters.ExcelReporter"),
+            patch("zebtrack.analysis.reporters.WordReporter"),
+            patch("zebtrack.analysis.reporters.ReporterContext"),
+        ):
+            host._on_session_complete(output_dir)
+
+        kwargs = service.run_full_analysis_as_dto.call_args.kwargs
+        assert kwargs["freezing_vel_threshold"] == 0.8
+        assert kwargs["freezing_min_duration"] == 2.5
+        assert kwargs["smoothing_window_length"] == 9
+        assert kwargs["smoothing_polyorder"] == 3
+        assert kwargs["behavioral_config"] == {"thigmotaxis_margin_cm": 1.5}
+        assert (kwargs["metadata"]["group"], kwargs["metadata"]["day"]) == ("Controle", 3)
+        assert kwargs["metadata"]["subject_id"] == "S07"
+        registered = host.project_manager.register_processing_outputs.call_args.kwargs
+        assert registered["summary_excel"].endswith("4_Relatorio_adhoc_exp.xlsx")
+        assert registered["report_path"].endswith("4_Relatorio_adhoc_exp.docx")
+        assert registered["group"] == "Controle"
+
+
+class TestMultiAquariumRegistrationEdges:
+    """When the per-aquarium analysis cannot run, the outputs are still registered."""
+
+    def _session(self, tmp_path, tracks):
+        output_dir = tmp_path / "live_20261116_120000"
+        output_dir.mkdir()
+        (output_dir / "adhoc_exp.mp4").write_bytes(b"")
+        for aq_id, by_track in tracks.items():
+            folder = output_dir / f"aquarium_{aq_id + 1}"
+            folder.mkdir()
+            _trajectory_rows(by_track).to_parquet(
+                folder / f"3_CoordMovimento_adhoc_exp_aquarium_{aq_id + 1}.parquet"
+            )
+        return output_dir
+
+    def _run(self, tmp_path, monkeypatch, *, zones, tracks, reports=None, project=True):
+        from unittest.mock import patch
+
+        output_dir = self._session(tmp_path, tracks)
+        host = PostAnalysisHost(output_dir, project_data={}, analysis_params={})
+        host.root = MagicMock()
+        host.event_bus = MagicMock()
+        pm: Any = host.project_manager
+        pm.project_path = str(tmp_path) if project else None
+        pm.get_multi_aquarium_zone_data.return_value = zones
+        service = _analysis_service_double()
+        service.run_multi_aquarium_analysis.return_value = {0: None, 1: None}
+        host._build_post_analysis_service = lambda: service  # type: ignore[method-assign]
+        monkeypatch.setattr(
+            "zebtrack.core.recording.live_analysis_post_processor.threading.Thread",
+            _ImmediateThread,
+        )
+        with patch(
+            "zebtrack.analysis.reporters.export_multi_aquarium_reports",
+            return_value=reports or {},
+        ):
+            host._on_session_complete(output_dir, keep_data=True)
+        return host, service, output_dir
+
+    def test_missing_zones_register_raw_outputs_and_report_failure(self, tmp_path, monkeypatch):
+        host, service, output_dir = self._run(
+            tmp_path, monkeypatch, zones=None, tracks={0: {1: _ONE_SECOND}}
+        )
+
+        service.run_multi_aquarium_analysis.assert_not_called()
+        registered = host.project_manager.register_multi_aquarium_outputs.call_args.kwargs
+        entry = registered["outputs_by_aquarium"][0]
+        assert entry["results_dir"] == str(output_dir / "aquarium_1")
+        assert "group" not in entry  # no zones, no experimental metadata
+        assert host.root.after.call_args.args[2:] == (output_dir, False, None, "error")
+
+    def test_missing_zones_without_project_registers_nothing_multi(self, tmp_path, monkeypatch):
+        host, _service, _out = self._run(
+            tmp_path, monkeypatch, zones=None, tracks={0: {1: _ONE_SECOND}}, project=False
+        )
+
+        host.project_manager.register_multi_aquarium_outputs.assert_not_called()
+        # The session itself is registered all the same (Reports tab).
+        host.project_manager.register_processing_outputs.assert_called_once()
+
+    def test_unconfigured_and_empty_aquariums_are_skipped(self, tmp_path, monkeypatch):
+        import pandas as pd
+
+        zones = _two_aquariums()
+        zones.aquariums = zones.aquariums[:1]  # aquarium 1 has no configuration
+        output_dir = self._session(tmp_path, {1: {1001: _ONE_SECOND}})
+        folder = output_dir / "aquarium_1"
+        folder.mkdir()
+        pd.DataFrame(columns=["timestamp", "frame", "track_id"]).to_parquet(
+            folder / "3_CoordMovimento_adhoc_exp_aquarium_1.parquet"
+        )
+        from unittest.mock import patch
+
+        host = PostAnalysisHost(output_dir, project_data={}, analysis_params={})
+        host.root = MagicMock()
+        pm: Any = host.project_manager
+        pm.project_path = str(tmp_path)
+        pm.get_multi_aquarium_zone_data.return_value = zones
+        service = _analysis_service_double()
+        host._build_post_analysis_service = lambda: service  # type: ignore[method-assign]
+        monkeypatch.setattr(
+            "zebtrack.core.recording.live_analysis_post_processor.threading.Thread",
+            _ImmediateThread,
+        )
+        with patch("zebtrack.analysis.reporters.export_multi_aquarium_reports"):
+            host._on_session_complete(output_dir, keep_data=True)
+
+        service.run_multi_aquarium_analysis.assert_not_called()
+        registered = pm.register_multi_aquarium_outputs.call_args.kwargs["outputs_by_aquarium"]
+        assert sorted(registered) == [0, 1]
+        assert registered[0]["group"] == "G"  # configured aquarium keeps its metadata
+        assert "group" not in registered[1]
+
+    def test_no_reports_still_register_the_trajectories(self, tmp_path, monkeypatch):
+        host, service, output_dir = self._run(
+            tmp_path,
+            monkeypatch,
+            zones=_two_aquariums(),
+            tracks={0: {1: _ONE_SECOND}, 1: {1001: _ONE_SECOND}},
+        )
+
+        service.run_multi_aquarium_analysis.assert_called_once()
+        registered = host.project_manager.register_multi_aquarium_outputs.call_args.kwargs
+        assert sorted(registered["outputs_by_aquarium"]) == [0, 1]
+        assert host.root.after.call_args.args[2:] == (output_dir, False, None, "error")
+
+    def test_reports_are_attached_per_aquarium(self, tmp_path, monkeypatch):
+        reports = {
+            0: {"summary_path": "aq1.xlsx", "report_path": "aq1.docx"},
+            1: {"summary_path": "aq2.xlsx"},
+        }
+        host, _service, _out = self._run(
+            tmp_path,
+            monkeypatch,
+            zones=_two_aquariums(),
+            tracks={0: {1: _ONE_SECOND}, 1: {1001: _ONE_SECOND}},
+            reports=reports,
+        )
+
+        outputs = host.project_manager.register_multi_aquarium_outputs.call_args.kwargs[
+            "outputs_by_aquarium"
+        ]
+        assert outputs[0]["parquet_files"]["summary_excel"] == "aq1.xlsx"
+        assert outputs[0]["parquet_files"]["report_docx"] == "aq1.docx"
+        assert outputs[1]["parquet_files"]["summary_excel"] == "aq2.xlsx"
+        assert "report_docx" not in outputs[1]["parquet_files"]
+        assert outputs[1]["subject_id"] == "S02"
+        refresh = [
+            c.args[0].data.reason
+            for c in host.event_bus.publish.call_args_list
+            if getattr(c.args[0].data, "reason", None)
+        ]
+        assert "Live multi-aquarium analysis complete" in refresh
+
+
+class TestArenaFallbackAndMultiDetection:
+    def test_without_detections_the_arena_is_a_centred_third_of_the_frame(self):
+        service = DummyPostProcessor(project_data={}, polygon=None, analysis_params={})
+        service._actual_width = 600
+        service._actual_height = 400
+        service._detected_aquarium_bboxes = []
+        service.detector_service = MagicMock()
+        service.camera = SimpleNamespace(actual_width=600, actual_height=400)  # type: ignore[assignment]
+        service._arena_defined_event = MagicMock()
+        service._animals_per_aquarium = 2
+        service.project_manager.project_path = "/p"
+
+        service._define_arena_from_detections()
+
+        pm: Any = service.project_manager
+        (zone,) = pm.save_zone_data.call_args.args
+        # side = sqrt(600 * 400 / 3) = 282.84..., centred on (300, 200).
+        assert zone.polygon == [[158, 58], [441, 58], [441, 341], [158, 341]]
+        assert pm.save_zone_data.call_args.kwargs["persist"] is True
+        service.detector_service.configure_zones.assert_called_once_with(
+            zone_data=zone, width=600, height=400
+        )
+        service.detector_service.detector.set_single_subject_mode.assert_called_once_with(False)
+        assert service._aquarium_detection_phase is False
+
+    def test_median_of_the_detected_boxes_is_the_arena(self):
+        service = DummyPostProcessor(project_data={}, polygon=None, analysis_params={})
+        service._actual_width = 640
+        service._actual_height = 480
+        service._detected_aquarium_bboxes = [
+            (10, 20, 300, 400),
+            (12, 18, 310, 390),
+            (90, 90, 90, 90),
+        ]
+        service.detector_service = MagicMock()
+        service.camera = None
+        service._arena_defined_event = MagicMock()
+        service._animals_per_aquarium = 1
+        service.project_manager.project_path = None
+
+        service._define_arena_from_detections()
+
+        pm: Any = service.project_manager
+        (zone,) = pm.save_zone_data.call_args.args
+        assert zone.polygon == [[12, 20], [300, 20], [300, 390], [12, 390]]
+        assert pm.save_zone_data.call_args.kwargs["persist"] is False
+
+    def test_recorder_without_partitioned_writer_gets_flat_rows(self, tmp_path):
+        import numpy as np
+
+        detector = MagicMock()
+        host = _MultiHost(tmp_path, recorder=None, detector=detector)
+        recorder = SimpleNamespace(start_time=1.0, rows=[])
+        recorder.write_detection_data = lambda ts, frame, dets: recorder.rows.append(  # type: ignore[attr-defined]
+            (frame, list(dets))
+        )
+        host.recorder = recorder
+        multi = MagicMock()
+        multi.detect_partitioned_optimized.return_value = {0: ["a"], 1: ["b", "c"]}
+        host._multi_aq_detector = multi
+
+        flat = host._run_multi_aquarium_detection(
+            np.zeros((4, 4, 3), dtype=np.uint8), 9, SimpleNamespace(aquariums=[])
+        )
+
+        assert flat == ["a", "b", "c"]
+        assert recorder.rows == [(9, ["a", "b", "c"])]  # type: ignore[attr-defined]
+
+    def test_without_detector_nothing_is_detected(self, tmp_path):
+        import numpy as np
+
+        host = _MultiHost(tmp_path, recorder=None, detector=None)
+
+        assert host._run_multi_aquarium_detection(np.zeros((4, 4, 3)), 1, SimpleNamespace()) == []
