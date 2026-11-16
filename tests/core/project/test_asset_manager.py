@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from zebtrack.core.detection import ZoneData
-from zebtrack.core.project.asset_manager import AssetManager
+from zebtrack.core.project.asset_manager import ZONE_PARQUET_PREFIXES, AssetManager
 from zebtrack.core.project.zone_manager import ZoneManager
 
 
@@ -887,32 +887,60 @@ class TestRemovalOnRealFiles:
         assert not results.exists() and not aq_dir.exists() and not aq_file.exists()
         assert project_data["batches"][0]["videos"] == []
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "F2-P-001: remove_video_entry(delete_files=True) rmtree()s the video's PARENT "
-            "folder, so removing one pre-recorded video deletes every sibling video kept "
-            "in the same folder (asset_manager.py:978)."
-        ),
-    )
-    def test_removing_one_video_keeps_its_sibling_in_the_same_folder(self, tmp_path):
-        folder = tmp_path / "videos"
-        folder.mkdir()
-        removed, sibling = folder / "a.mp4", folder / "b.mp4"
-        removed.write_bytes(b"a")
-        sibling.write_bytes(b"b")
-        project_data = {"batches": [{"videos": [{"path": str(removed)}, {"path": str(sibling)}]}]}
-
-        AssetManager.__new__(AssetManager).remove_video_entry(
-            str(removed),
-            {"path": str(removed)},
+    @staticmethod
+    def _remove(video, project_data):
+        return AssetManager.__new__(AssetManager).remove_video_entry(
+            str(video),
+            {"path": str(video)},
             True,
             project_data=project_data,
             clear_zone_data_fn=lambda p: None,
             refresh_last_zone_source_fn=lambda removed_path: None,
         )
 
+    def test_removing_one_video_keeps_its_sibling_in_the_same_folder(self, tmp_path):
+        # F2-P-001: the parent folder used to be rmtree()d, taking every sibling with it.
+        folder = tmp_path / "videos"
+        folder.mkdir()
+        removed, sibling = folder / "a.mp4", folder / "b.mp4"
+        removed.write_bytes(b"a")
+        sibling.write_bytes(b"b")
+        own_zones = [folder / f"{prefix}a.parquet" for prefix in ZONE_PARQUET_PREFIXES]
+        sibling_zones = [folder / f"{prefix}b.parquet" for prefix in ZONE_PARQUET_PREFIXES]
+        for zone_file in own_zones + sibling_zones:
+            zone_file.write_bytes(b"z")
+        project_data = {"batches": [{"videos": [{"path": str(removed)}, {"path": str(sibling)}]}]}
+
+        changed = self._remove(removed, project_data)
+
+        assert changed is True
+        assert not removed.exists()
+        assert [z.name for z in own_zones if z.exists()] == []
         assert sibling.exists()
+        assert [z.name for z in sibling_zones if z.exists()] == [z.name for z in sibling_zones]
+        assert project_data["batches"][0]["videos"] == [{"path": str(sibling)}]
+
+    def test_a_folder_left_empty_by_the_removal_is_deleted(self, tmp_path):
+        folder = tmp_path / "Sujeito_01"
+        folder.mkdir()
+        video = folder / "S1.mp4"
+        video.write_bytes(b"v")
+        (folder / "2_AreasOfInterest_S1.parquet").write_bytes(b"z")
+
+        self._remove(video, {"batches": []})
+
+        assert not folder.exists()
+        assert tmp_path.exists()
+
+    def test_a_video_in_the_project_root_never_takes_the_project_with_it(self, tmp_path):
+        video = tmp_path / "S1.mp4"
+        video.write_bytes(b"v")
+        config = tmp_path / "project_config.json"
+        config.write_text("{}")
+
+        self._remove(video, {"batches": []})
+
+        assert config.read_text() == "{}"
 
 
 class TestAquariumScopedRemoval:

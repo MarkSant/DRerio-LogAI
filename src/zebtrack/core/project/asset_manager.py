@@ -12,7 +12,6 @@ to reduce the God Object pattern and improve maintainability.
 
 from __future__ import annotations
 
-import glob
 import json
 import os
 import re
@@ -31,6 +30,10 @@ from zebtrack.core.project.types import AssetType
 from zebtrack.i18n import _
 
 log = structlog.get_logger()
+
+# Zone parquet prefixes a video can have next to it: the arena, the ROIs, and the ROI
+# prefix older versions wrote. Matched by exact name with the video stem, never globbed.
+ZONE_PARQUET_PREFIXES: tuple[str, ...] = ("1_ProcessingArea_", "2_AreasOfInterest_", "2_ZonasROI_")
 
 
 class AssetManager:
@@ -966,18 +969,23 @@ class AssetManager:
                             error=str(e),
                         )
 
-            # Delete zone parquets and results folder
+            # Delete THIS video's zone parquets next to it, then the folder only if
+            # nothing else is left in it. A pre-recorded project registers videos where
+            # they already are, so one folder usually holds several videos (or is the
+            # project root): an rmtree here deleted every sibling (F2-P-001). A live
+            # session folder is removed above through its registered results_dir.
             video_dir = Path(video_path).parent
             if video_dir.exists():
-                for pattern in ["1_ProcessingArea_*.parquet", "2_ZonasROI_*.parquet"]:
-                    for zone_file in glob.glob(str(video_dir / pattern)):
-                        self.delete_file_if_exists(zone_file)
+                stem = Path(video_path).stem
+                for prefix in ZONE_PARQUET_PREFIXES:
+                    if self.delete_file_if_exists(video_dir / f"{prefix}{stem}.parquet"):
+                        changed = True
 
-                # Force delete subject folder
                 try:
-                    shutil.rmtree(video_dir, ignore_errors=True)
-                    log.info("project_manager.video_folder_deleted", folder=str(video_dir))
-                    changed = True
+                    if video_dir.is_dir() and not any(video_dir.iterdir()):
+                        video_dir.rmdir()
+                        log.info("project_manager.video_folder_deleted", folder=str(video_dir))
+                        changed = True
                 except OSError as e:
                     log.warning("project_manager.folder_cleanup_failed", error=str(e))
 

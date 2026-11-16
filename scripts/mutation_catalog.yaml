@@ -4678,3 +4678,20 @@ _load_registry()"
         description: "caminho de arquivo escolhido vira uma pasta com esse nome"
         find: 'if custom_path.is_dir():'
         replace: 'if True:'
+  asset_manager_video_removal_scope:
+    source: src/zebtrack/core/project/asset_manager.py
+    tests:
+      - tests/core/project/test_asset_manager.py
+    mutations:
+      - id: folder-rmtree-again
+        description: "F2-P-001: remover um video volta a apagar a pasta inteira com os irmaos"
+        find: '                    if video_dir.is_dir() and not any(video_dir.iterdir()):'
+        replace: '                    if video_dir.is_dir() and not shutil.rmtree(video_dir):'
+      - id: zone-prefix-glob-everyone
+        description: "parquets de zona de todos os videos da pasta sao apagados"
+        find: 'video_dir / f"{prefix}{stem}.parquet"'
+        replace: 'next(iter(sorted(video_dir.glob(f"{prefix}*.parquet"), reverse=True)), None)'
+      - id: empty-folder-kept
+        description: "pasta que ficou vazia nao e removida"
+        find: '                        video_dir.rmdir()'
+        replace: '                        pass'
