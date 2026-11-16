@@ -10,7 +10,7 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 __ID:__ TASK-087
 __Agent:__ Claude Code (Fable 5.2)
-__Status:__ In progress 🚧
+__Status:__ Completed ✅ (PR #717, draft; what is left is the maintainer's decision, listed below)
 __Branch:__ worktree-cov-plugins-utils (a partir de `main`, b03e5546)
 __Description:__
 Aumentar a cobertura de testes começando por `src/zebtrack/plugins` e `src/zebtrack/utils`, e
@@ -25,11 +25,25 @@ Frentes, na ordem:
 - [x] Fase 1 — `plugins/` e `utils/` a ≥ 85 % de linha: decidir o código morto local, fundir os 15
   arquivos `*_extended`, fakes compartilhados de backend, `openvino_detector.py`,
   `hardware_benchmark.py`, blocos novos no catálogo de mutação.
-- [ ] A1 — eventos: publicações por string, guarda cega aos wrappers e às direções inversas.
-- [ ] A2/A3 — código morto e DI.
-- [ ] A4/A5 — fonte única, corretude científica e falhas silenciosas.
-- [ ] Fase 2 — restante do código, por risco (lógica não-UI primeiro, depois diálogos em 0 %).
-- [ ] A6–A8 — threads/Tk, configuração e documentação defasadas, fluxos ponta a ponta.
+- [x] A1 — eventos: publicações por string, guarda cega aos wrappers e às direções inversas.
+- [x] A2/A3 — código morto e DI (dois lotes removidos; cauda de 267 funções lida e proposta).
+- [x] A4/A5 — fonte única, corretude científica e falhas silenciosas.
+- [x] Fase 2 — `core/viewmodels`, `core/video`, `core/project`, `core/recording` e diálogos de UI.
+- [x] A6–A8 — threads/Tk, configuração e documentação, um teste ponta a ponta por fluxo.
+
+Resultado (CI em `008f3271`, antes das frentes de recording/UI/A8): core 68,87 %, GUI 37,23 %,
+Windows 59,91 %; gates 68,0 / 36,5 / 59,0; pisos por pacote `plugins` 94, `utils` 92,
+`core.viewmodels` 96, `core.video` 94, `core.project` 95. `core/recording` subiu de 83,0 % para
+95,4 % (medição do agente; piso a fixar quando o CI medir).
+
+Decisões do mantenedor pendentes (cada uma com evidência em `docs/audits/2026-11_loose_ends.md`):
+
+- A8-001/A8-002: contrato de coordenadas das zonas (o `CLAUDE.md` diz "referência",
+  `COORDINATE_SYSTEMS.md` e a aba Zonas usam pixels do vídeo); vídeos fora de
+  `camera.desired_*` perdem detecções em silêncio.
+- A8-004: qual janela de preview abrir numa sessão ao vivo com dois aquários.
+- A2-08 (lote seguro de 163 funções), A3-02/A3-03 (registros e campos não lidos), A1-02..04: remoções.
+- A6-02..A6-11: bloqueios do Tk restantes, cada um com a menor correção proposta.
 
 Regra da campanha: código morto é decidido ANTES de ganhar teste, e apagar é decisão do
 mantenedor — o registro traz a evidência e nada sai sem aprovação.
