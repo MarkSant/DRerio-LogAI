@@ -46,7 +46,7 @@ de vídeo único e um de projeto. São a referência de comparação dos passos 
 Rode antes e depois de cada mudança em caminho ao vivo:
 
 ```bash
-pytest tests/integration/test_flow_isolation.py tests/integration/test_prerecorded_golden.py tests/quality/test_shared_settings_mutations.py -m "" -q
+pytest tests/integration/test_flow_isolation.py tests/integration/test_prerecorded_golden.py tests/quality/test_shared_settings_mutations.py tests/integration/test_flow_e2e_prerecorded_project.py tests/integration/test_flow_e2e_single_video.py tests/integration/test_flow_e2e_live_project.py tests/integration/test_flow_e2e_live_adhoc.py -m "" -q
 ```
 
 | Arquivo | O que reprova |
@@ -54,6 +54,18 @@ pytest tests/integration/test_flow_isolation.py tests/integration/test_prerecord
 | `test_prerecorded_golden.py` | Os números do pré-gravado mudaram |
 | `test_flow_isolation.py` | Uma execução ao vivo mudou o que o pré-gravado calcula |
 | `test_shared_settings_mutations.py` | Apareceu uma escrita NOVA no `Settings` compartilhado |
+| `test_flow_e2e_prerecorded_project.py` | O projeto pré-gravado deixou de gravar em `Grupo/Dia/Sujeito` por vídeo, o dia 2 sobrescreveu o dia 1, um vídeo usou a arena de outro, ou o relatório não foi registrado na entrada certa |
+| `test_flow_e2e_single_video.py` | O vídeo único saiu de `<stem>_results/` ao lado do vídeo ou criou um projeto |
+| `test_flow_e2e_live_project.py` | A sessão ao vivo de projeto saiu de `Grupo/Dia/Sujeito/live_<ts>/`, o ledger não tem uma linha por quadro capturado, ou o projeto não registrou a sessão (grade de Progresso) |
+| `test_flow_e2e_live_adhoc.py` | A sessão avulsa saiu da pasta escolhida, o ledger/MP4 perdeu quadros, ou algo foi escrito num projeto |
+
+Os quatro `test_flow_e2e_*` dirigem os pontos de entrada de produção de cada
+fluxo (coordenadores, worker, `LiveCameraService`, pós-análise) e trocam só o
+hardware: câmera roteirizada, plugin determinístico, processo do worker rodando
+em processo (`tests/helpers/flow_e2e.py`, `tests/helpers/live_flow.py`). Rodam no
+job padrão do CI. Os `xfail(strict=True)` marcados `A8-00N` são defeitos
+conhecidos: quando um deles passar, o `strict` reprova e o marcador deve sair
+junto com a correção. Detalhes em `docs/audits/2026-11_A8_flows.md`.
 
 Se o golden ficar vermelho, há duas leituras e elas pedem ações opostas:
 
