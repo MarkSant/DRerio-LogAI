@@ -196,7 +196,9 @@ def build_container(context: ContainerContext) -> punq.Container:
 
     container.register(
         ProjectService,
-        factory=lambda: ProjectService(),
+        # ProjectManager owns the instance that actually does the project I/O;
+        # the container hands out that one instead of a second, unused copy (A3-01).
+        factory=lambda: _resolve(container, ProjectManager).project_service,
         scope=punq.Scope.singleton,
     )
     container.register(

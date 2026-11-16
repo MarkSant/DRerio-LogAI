@@ -205,7 +205,8 @@ class ApplicationBootstrapper:
     def _init_services(self):
         """Initialize all service layer components."""
         # Core services
-        project_service = ProjectService()
+        # The ProjectManager's own instance: it is the one doing the project I/O (A3-01).
+        project_service = self.deps.project_manager.project_service
         analysis_service = (
             self.deps.analysis_service
             if self.deps.analysis_service is not None

@@ -33,6 +33,7 @@ from zebtrack.core.di_registrations import (
     _resolve,
     build_container,
 )
+from zebtrack.core.project.project_manager import ProjectManager
 from zebtrack.core.project.project_service import ProjectService
 from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
 from zebtrack.core.services.model_override_service import ModelOverrideService
@@ -100,7 +101,11 @@ class TestDiRegistrationsExtended:
             assert _resolve(container, VideoValidationService) is not None
             assert _resolve(container, VideoClassificationService) is not None
             assert _resolve(container, ProjectWorkflowService) is not None
-            assert _resolve(container, ProjectService) is not None
+            # One ProjectService: the ProjectManager's, which does the I/O (A3-01).
+            assert (
+                _resolve(container, ProjectService)
+                is _resolve(container, ProjectManager).project_service
+            )
             assert _resolve(container, AnalysisService) is not None
 
     def test_build_container_resolves_coordinators(self, container_context: ContainerContext):

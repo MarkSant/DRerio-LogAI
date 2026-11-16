@@ -110,7 +110,10 @@ class TestApplicationBootstrapperExtended:
         bootstrapper = ApplicationBootstrapper(dependencies=mock_deps)
         bootstrapper._init_services()
 
-        assert "project_service" in bootstrapper._services
+        # The ProjectManager's own instance, not a third copy (A3-01).
+        assert (
+            bootstrapper._services["project_service"] is mock_deps.project_manager.project_service
+        )
         assert "analysis_service" in bootstrapper._services
         assert "video_classification_service" in bootstrapper._services
         assert "video_selection_service" in bootstrapper._services
