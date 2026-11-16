@@ -5316,8 +5316,8 @@ _load_registry()"
         replace: 'min_ratio = 0.70'
       - id: fallback-after-eleven
         description: "a arena padrao demora um quadro a mais para chegar"
-        find: 'self._aquarium_detection_frames >= 10'
-        replace: 'self._aquarium_detection_frames >= 11'
+        find: 'AQUARIUM_DETECTION_FRAMES = 10'
+        replace: 'AQUARIUM_DETECTION_FRAMES = 11'
       - id: needs-five-tanks
         description: "quatro deteccoes do aquario nao bastam mais para definir a arena"
         find: 'or len(self._detected_aquarium_bboxes) >= 4'
@@ -5330,3 +5330,12 @@ _load_registry()"
         description: "um animal grande vira a arena"
         find: 'if class_id == target_class_id:'
         replace: 'if True:'
+  live_aquarium_detection_total:
+    source: src/zebtrack/core/recording/live_camera_service.py
+    tests:
+      - tests/core/test_live_camera_service_utils.py
+    mutations:
+      - id: announced-total-diverges
+        description: "F2-UI-008: o servico volta a anunciar 300 quadros enquanto o laco para em 10"
+        find: '        self._aquarium_detection_max_frames: int = AQUARIUM_DETECTION_FRAMES'
+        replace: '        self._aquarium_detection_max_frames: int = 300'

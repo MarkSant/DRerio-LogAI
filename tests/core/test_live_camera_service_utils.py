@@ -772,3 +772,15 @@ def test_context_manager_exit_tolerates_a_broken_output_dir_lookup(
 
     assert live_camera_service.__exit__(None, None, None) is False
     assert live_camera_service.exit_event.is_set()
+
+
+def test_the_announced_detection_total_is_the_frame_the_loop_stops_at(live_camera_service):
+    """F2-UI-008 (producer side): the service announced 300 while the loop ended at 10.
+
+    The status text and AQUARIUM_DETECTION_PROGRESS carry
+    ``_aquarium_detection_max_frames`` as the phase's total; the loop must end on
+    that same number, or the dialog waits for frames that never come.
+    """
+    from zebtrack.core.recording.frame_processing_pipeline import AQUARIUM_DETECTION_FRAMES
+
+    assert live_camera_service._aquarium_detection_max_frames == AQUARIUM_DETECTION_FRAMES

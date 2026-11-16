@@ -25,7 +25,10 @@ from typing import TYPE_CHECKING, Any, Literal
 import structlog
 
 from zebtrack.core.recording.camera_connection_handler import CameraConnectionMixin
-from zebtrack.core.recording.frame_processing_pipeline import FrameProcessingMixin
+from zebtrack.core.recording.frame_processing_pipeline import (
+    AQUARIUM_DETECTION_FRAMES,
+    FrameProcessingMixin,
+)
 from zebtrack.core.recording.live_analysis_post_processor import LiveAnalysisPostProcessorMixin
 from zebtrack.core.recording.live_session_manager import LiveSessionManagerMixin
 
@@ -208,7 +211,7 @@ class LiveCameraService(
         # Aquarium detection phase state
         self._aquarium_detection_phase: bool = False
         self._aquarium_detection_frames: int = 0
-        self._aquarium_detection_max_frames: int = 300  # Standard: 300 frames (10s)
+        self._aquarium_detection_max_frames: int = AQUARIUM_DETECTION_FRAMES
         self._detected_aquarium_bboxes: list[
             tuple[int, int, int, int]
         ] = []  # Collect multiple detections

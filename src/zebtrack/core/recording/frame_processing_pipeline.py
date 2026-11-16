@@ -42,6 +42,12 @@ log = structlog.get_logger()
 # declared on ``ArduinoSettings``.
 DEFAULT_ARDUINO_EXIT_GRACE_FRAMES = 2
 
+# Analysed frames (every 5th camera frame) the aquarium-detection phase looks at
+# before falling back to the default arena. The SAME number ends the loop and is
+# announced as the phase's total (status text, AQUARIUM_DETECTION_PROGRESS
+# max_frames): the dialog was told 300 while the loop stopped at 10 (F2-UI-008).
+AQUARIUM_DETECTION_FRAMES = 10
+
 
 class VideoFrameMeta(NamedTuple):
     """Metadados que viajam com o frame até a thread de vídeo.
@@ -983,7 +989,7 @@ class FrameProcessingMixin:
 
                     # Check if detection phase is complete
                     if (
-                        self._aquarium_detection_frames >= 10
+                        self._aquarium_detection_frames >= self._aquarium_detection_max_frames
                         or len(self._detected_aquarium_bboxes) >= 4
                     ):
                         log.info(

@@ -27,6 +27,7 @@ from zebtrack.core.conditions import (
 )
 from zebtrack.core.conditions.presets import external_trigger_preset
 from zebtrack.core.recording.frame_processing_pipeline import (
+    AQUARIUM_DETECTION_FRAMES,
     DEFAULT_ARDUINO_EXIT_GRACE_FRAMES,
     FrameProcessingMixin,
     VideoFrameMeta,
@@ -1481,7 +1482,7 @@ class _AquariumPhaseHarness(_LoopHarness):
         harness.preview_window = MagicMock()
         self._aquarium_detection_phase = True
         self._aquarium_detection_frames = 0
-        self._aquarium_detection_max_frames = 300
+        self._aquarium_detection_max_frames = AQUARIUM_DETECTION_FRAMES
         self._detected_aquarium_bboxes: list = []
         self._analysis_params = {"experiment_id": "CECT_4"}
         self.arena_defined = 0
@@ -1541,8 +1542,8 @@ class TestAquariumDetectionPhase:
         assert h._aquarium_detection_frames == 2
         messages = h.preview_messages()
         assert "⏳ Stabilizing image... (5/30)" in messages
-        assert "🔍 Detecting aquarium... (0/300)" in messages
-        assert "🔍 Detecting aquarium... (1/300)" in messages
+        assert "🔍 Detecting aquarium... (0/10)" in messages
+        assert "🔍 Detecting aquarium... (1/10)" in messages
 
     def test_only_large_boxes_of_the_aquarium_class_are_collected(self, tmp_path):
         h = _AquariumPhaseHarness(tmp_path, {30: [_TANK, _SPECK, _FISH, (1, 2, 3)]})
