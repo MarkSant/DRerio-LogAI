@@ -340,7 +340,7 @@ jobs:
       - name: "Run core tests (Linux - with xvfb)"
         if: runner.os == 'Linux' && matrix.suite == 'core'
         run: |
-          xvfb-run --auto-servernum poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=65.0 --timeout=300 --timeout-method=thread
+          xvfb-run --auto-servernum poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=68.0 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       # The gate above is one number for ~60 000 statements: a whole package can
@@ -353,7 +353,7 @@ jobs:
       - name: "Per-package coverage floors (Linux)"
         if: runner.os == 'Linux' && matrix.suite == 'core'
         run: |
-          poetry run python scripts/coverage_summary.py coverage-core.xml --fail-under plugins=94 --fail-under utils=92 --fail-under core.viewmodels=96 --fail-under core.video=94
+          poetry run python scripts/coverage_summary.py coverage-core.xml --fail-under plugins=94 --fail-under utils=92 --fail-under core.viewmodels=96 --fail-under core.video=94 --fail-under core.project=95
 
       # Coverage proves a line ran; only a failing assertion proves it is checked.
       # This breaks the silently-degrading contracts on purpose and fails the job
@@ -389,14 +389,14 @@ jobs:
       - name: "Run GUI tests (Linux - with xvfb)"
         if: runner.os == 'Linux' && matrix.suite == 'gui'
         run: |
-          xvfb-run --auto-servernum poetry run pytest -m gui -n0 --reruns 2 --reruns-delay 1 --cov=zebtrack --cov-report=xml:coverage-gui.xml --cov-fail-under=35.5 --timeout=300 --timeout-method=thread
+          xvfb-run --auto-servernum poetry run pytest -m gui -n0 --reruns 2 --reruns-delay 1 --cov=zebtrack --cov-report=xml:coverage-gui.xml --cov-fail-under=36.5 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       - name: "Run tests (Windows)"
         if: runner.os == 'Windows' && matrix.suite == 'core'
         run: |
           $Env:ZEBTRACK_HEADLESS_TESTS = "1"
-          poetry run pytest -m "not gui" --ignore=tests/ui --ignore=tests/ui/test_aquarium_dialogs.py --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=57.0 --timeout=300 --timeout-method=thread
+          poetry run pytest -m "not gui" --ignore=tests/ui --ignore=tests/ui/test_aquarium_dialogs.py --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=59.0 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       - name: Upload Codecov core coverage (Linux)
