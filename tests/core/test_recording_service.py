@@ -6,6 +6,7 @@ Tests recording session lifecycle, Arduino integration, timed recording,
 and state management coordination.
 """
 
+import tkinter as tk
 from typing import Any, cast
 from unittest.mock import Mock, patch
 
@@ -935,6 +936,304 @@ class TestRecordingServiceCountdownFailures:
 
                 # Callback should be called immediately (or after zero updates)
                 # Implementation may vary, but countdown should complete
+
+
+class _FakeWindow:
+    """Toplevel stand-in; the WM hints can be made to fail like a tiling WM."""
+
+    def __init__(self, _parent: Any, *, hostile_wm: bool = False) -> None:
+        self.hostile_wm = hostile_wm
+        self.exists = True
+        self.destroyed = 0
+        self.geometry_spec = ""
+
+    def overrideredirect(self, _flag: bool) -> None:
+        if self.hostile_wm:
+            raise tk.TclError("overrideredirect unsupported")
+
+    def attributes(self, *_args: Any) -> None:
+        if self.hostile_wm:
+            raise tk.TclError("-topmost unsupported")
+
+    def geometry(self, spec: str) -> None:
+        self.geometry_spec = spec
+
+    def winfo_exists(self) -> bool:
+        return self.exists
+
+    def destroy(self) -> None:
+        self.destroyed += 1
+        self.exists = False
+
+
+class _FakeLabel:
+    def __init__(self, _parent: Any, **_kwargs: Any) -> None:
+        self.texts: list[str] = []
+        self.fail = False
+
+    def pack(self, **_kwargs: Any) -> None:
+        pass
+
+    def config(self, *, text: str) -> None:
+        if self.fail:
+            raise tk.TclError("label destroyed")
+        self.texts.append(text)
+
+
+class _ManualRoot:
+    """Root whose ``after`` queue is run by the test, one tick at a time."""
+
+    def __init__(self) -> None:
+        self.queue: list[tuple[int, Any]] = []
+
+    def after(self, ms: int, func: Any) -> str:
+        self.queue.append((ms, func))
+        return f"after#{len(self.queue)}"
+
+    def winfo_screenwidth(self) -> int:
+        return 1920
+
+    def winfo_screenheight(self) -> int:
+        return 1080
+
+    def tick(self) -> None:
+        _ms, func = self.queue.pop(0)
+        func()
+
+
+class TestCountdownWindow:
+    """``_run_countdown`` driven tick by tick through a fake Tk root."""
+
+    @pytest.fixture
+    def countdown(self, mock_controller, mock_state_manager, mock_project_manager, monkeypatch):
+        from zebtrack.core.recording import recording_service as rs_module
+
+        created: dict[str, Any] = {}
+
+        def _toplevel(parent: Any) -> _FakeWindow:
+            created["window"] = _FakeWindow(parent, hostile_wm=created.get("hostile", False))
+            return created["window"]
+
+        def _label(parent: Any, **kwargs: Any) -> _FakeLabel:
+            created["label"] = _FakeLabel(parent, **kwargs)
+            return created["label"]
+
+        monkeypatch.setattr(rs_module, "Toplevel", _toplevel)
+        monkeypatch.setattr(rs_module, "Label", _label)
+        root = _ManualRoot()
+        service = RecordingService(
+            controller=mock_controller,
+            state_manager=mock_state_manager,
+            project_manager=mock_project_manager,
+            root=cast(Any, root),
+        )
+        return service, root, created
+
+    def test_counts_down_each_second_then_runs_callback_once(self, countdown):
+        service, root, created = countdown
+        calls: list[str] = []
+
+        service._run_countdown(3, lambda: calls.append("go"))
+
+        label, window = created["label"], created["window"]
+        assert label.texts == ["3"]
+        assert root.queue[0][0] == 1000
+        root.tick()
+        root.tick()
+        assert label.texts == ["3", "2", "1"]
+        assert calls == []
+        root.tick()  # reaches 0
+        assert calls == ["go"]
+        assert window.destroyed == 1
+        assert root.queue == []
+
+    def test_window_is_centred_on_screen(self, countdown):
+        service, _root, created = countdown
+
+        service._run_countdown(2, lambda: None)
+
+        # (1920 // 2 - 100, 1080 // 2 - 100) for a 200 x 200 window.
+        assert created["window"].geometry_spec == "200x200+860+440"
+
+    def test_hostile_window_manager_does_not_abort_the_countdown(self, countdown):
+        service, root, created = countdown
+        created["hostile"] = True
+        calls: list[str] = []
+
+        service._run_countdown(1, lambda: calls.append("go"))
+        root.tick()
+
+        assert calls == ["go"]
+
+    def test_window_closed_mid_countdown_never_starts_the_recording(self, countdown):
+        # F2-R-O: the countdown window has no close button (overrideredirect),
+        # but if it disappears anyway the recording silently never starts.
+        service, root, created = countdown
+        calls: list[str] = []
+
+        service._run_countdown(2, lambda: calls.append("go"))
+        created["window"].exists = False
+        root.tick()
+
+        assert calls == []
+        assert root.queue == []
+
+    def test_root_dropped_mid_countdown_starts_immediately(self, countdown):
+        service, root, created = countdown
+        calls: list[str] = []
+
+        service._run_countdown(3, lambda: calls.append("go"))
+        service.root = None
+        root.tick()  # "2" is shown, then there is no root left to schedule on
+
+        assert created["label"].texts == ["3", "2"]
+        assert calls == ["go"]
+        assert created["window"].destroyed == 1
+
+    def test_tcl_error_while_counting_still_starts_the_recording(self, countdown, monkeypatch):
+        service, _root, created = countdown
+        calls: list[str] = []
+
+        def _toplevel_label_fails(_parent: Any, **_kwargs: Any) -> _FakeLabel:
+            label = _FakeLabel(_parent)
+            label.fail = True
+            created["label"] = label
+            return label
+
+        from zebtrack.core.recording import recording_service as rs_module
+
+        monkeypatch.setattr(rs_module, "Label", _toplevel_label_fails)
+
+        service._run_countdown(3, lambda: calls.append("go"))
+
+        assert calls == ["go"]
+
+    def test_countdown_through_schedule_recording_starts_the_session(self, countdown):
+        service, root, _created = countdown
+        started: list[str] = []
+        service.start_session = lambda ctx, pd, src: started.append(src)  # type: ignore[method-assign]
+
+        service.schedule_recording(
+            {}, {"use_countdown": True, "countdown_duration_s": "2"}, trigger_source="grid"
+        )
+        assert started == []
+        root.tick()
+        root.tick()
+
+        assert started == ["grid"]
+
+
+class TestRecordingMetadataAndArduino:
+    def test_session_metadata_is_written_next_to_the_recording(
+        self, recording_service, mock_controller, tmp_path
+    ):
+        import json
+
+        mock_controller.recorder.start_recording.return_value = True
+        context = {
+            "folder_name": "Dia_2_Controle_4",
+            "output_folder": str(tmp_path),
+            "camera_width": 1280,
+            "camera_height": 720,
+            "day": 2,
+            "group": "Controle",
+            "cobaia": "4",
+        }
+
+        recording_service.start_session(context, {}, "manual")
+
+        saved = json.loads((tmp_path / "_recording_metadata.json").read_text(encoding="utf-8"))
+        # The subject is persisted under ``subject``, the key ProjectManager reads.
+        assert saved == {"day": 2, "group": "Controle", "subject": "4"}
+
+    def test_no_session_keys_writes_no_metadata(self, recording_service, mock_controller, tmp_path):
+        mock_controller.recorder.start_recording.return_value = True
+        context = {
+            "folder_name": "adhoc",
+            "output_folder": str(tmp_path),
+            "camera_width": 640,
+            "camera_height": 480,
+        }
+
+        recording_service.start_session(context, {}, "manual")
+
+        assert not (tmp_path / "_recording_metadata.json").exists()
+
+    def test_non_numeric_subject_sends_no_arduino_command(
+        self, recording_service, mock_controller, tmp_path
+    ):
+        mock_controller.recorder.start_recording.return_value = True
+        context = {
+            "folder_name": "s",
+            "output_folder": str(tmp_path),
+            "camera_width": 640,
+            "camera_height": 480,
+            "arduino_enabled": True,
+            "day": 1,
+            "group": "G",
+            "cobaia": "A3",
+        }
+
+        recording_service.start_session(context, {}, "manual")
+
+        mock_controller.arduino_manager.send_command.assert_not_called()
+
+    def test_numeric_subject_drives_its_box(self, recording_service, mock_controller, tmp_path):
+        mock_controller.recorder.start_recording.return_value = True
+        context = {
+            "folder_name": "s",
+            "output_folder": str(tmp_path),
+            "camera_width": 640,
+            "camera_height": 480,
+            "arduino_enabled": True,
+            "day": 1,
+            "group": "G",
+            "cobaia": "3",
+        }
+
+        recording_service.start_session(context, {}, "external")
+
+        mock_controller.arduino_manager.send_command.assert_called_once_with(
+            3, source="external-start"
+        )
+
+    def test_timed_recording_schedules_stop_in_milliseconds(
+        self, recording_service, mock_controller, mock_root, tmp_path
+    ):
+        mock_controller.recorder.start_recording.return_value = True
+        context = {
+            "folder_name": "s",
+            "output_folder": str(tmp_path),
+            "camera_width": 640,
+            "camera_height": 480,
+        }
+
+        recording_service.start_session(
+            context, {"use_timed_recording": True, "recording_duration_s": 2.5}, "manual"
+        )
+
+        stop_cb = recording_service._ui_callbacks["stop_recording_callback"]
+        mock_root.after.assert_called_once_with(2500, stop_cb)
+        assert recording_service.timed_recording_job == "job_id_123"
+
+    def test_timed_recording_without_stop_callback_schedules_nothing(
+        self, recording_service, mock_controller, mock_root, tmp_path
+    ):
+        mock_controller.recorder.start_recording.return_value = True
+        del recording_service._ui_callbacks["stop_recording_callback"]
+        context = {
+            "folder_name": "s",
+            "output_folder": str(tmp_path),
+            "camera_width": 640,
+            "camera_height": 480,
+        }
+
+        recording_service.start_session(
+            context, {"use_timed_recording": True, "recording_duration_s": 10}, "manual"
+        )
+
+        mock_root.after.assert_not_called()
+        assert recording_service.timed_recording_job is None
 
 
 if __name__ == "__main__":

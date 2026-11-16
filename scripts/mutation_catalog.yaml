@@ -4791,3 +4791,101 @@ _load_registry()"
         description: "contagem regressiva sem Tk deixa de esperar"
         find: '                time.sleep(countdown_seconds)'
         replace: '                pass'
+
+  live_camera_service_facade:
+    source: src/zebtrack/core/recording/live_camera_service.py
+    tests:
+      - tests/core/test_live_camera_service_utils.py
+    mutations:
+      - id: detections-getter-aliases
+        description: "quem le as ultimas deteccoes recebe a lista interna e pode altera-la"
+        find: 'return list(self._last_detections)'
+        replace: 'return self._last_detections'
+      - id: detections-setter-aliases
+        description: "a lista do chamador vira o estado interno"
+        find: 'self._last_detections = list(detections)'
+        replace: 'self._last_detections = detections'
+      - id: preferred-mode-by-value
+        description: "modo preferido do assistente passa a ser lido pelo valor, nao pelo nome"
+        find: 'self._preferred_mode = LiveCameraMode[mode]'
+        replace: 'self._preferred_mode = LiveCameraMode(mode)'
+      - id: exit-does-not-stop-workers
+        description: "sair do with deixa as threads sem o sinal de parada"
+        find: '            self.exit_event.set()'
+        replace: '            pass'
+      - id: exit-swallows-exceptions
+        description: "__exit__ engole a excecao de quem usou o servico"
+        find: '        return False'
+        replace: '        return True'
+      - id: baseline-always-live-settings
+        description: "a copia pristina das settings e ignorada"
+        find: 'settings_baseline if settings_baseline is not None else settings_obj'
+        replace: 'settings_obj'
+
+  recording_service_session:
+    source: src/zebtrack/core/recording/recording_service.py
+    tests:
+      - tests/core/test_recording_service.py
+    mutations:
+      - id: subject-key-renamed
+        description: "o sujeito da sessao vai para uma chave que o projeto nao le"
+        find: 'metadata_to_save["subject"] = context['
+        replace: 'metadata_to_save["cobaia"] = context['
+      - id: timed-stop-in-wrong-unit
+        description: "parada temporizada agendada em decimos de segundo"
+        find: 'duration_ms = int(duration_s * 1000)'
+        replace: 'duration_ms = int(duration_s * 100)'
+      - id: countdown-not-centred
+        description: "janela da contagem deslocada para fora do centro"
+        find: 'pos_x = (self.root.winfo_screenwidth() // 2) - (win_w // 2)'
+        replace: 'pos_x = (self.root.winfo_screenwidth() // 2) - win_w'
+      - id: countdown-one-second-short
+        description: "a contagem termina no 1 em vez do 0"
+        find: 'if seconds_left <= 0:'
+        replace: 'if seconds_left <= 1:'
+      - id: countdown-skips-numbers
+        description: "a contagem pula de dois em dois"
+        find: 'self.root.after(1000, lambda: update_timer(seconds_left - 1))'
+        replace: 'self.root.after(1000, lambda: update_timer(seconds_left - 2))'
+      - id: zero-countdown-shown
+        description: "contagem de 0 s ainda abre a janela"
+        find: 'use_countdown = bool(project_data.get("use_countdown")) and countdown_s > 0'
+        replace: 'use_countdown = bool(project_data.get("use_countdown"))'
+      - id: box-off-by-one
+        description: "cobaia 3 aciona a caixa 4 do Arduino"
+        find: 'return int(cobaia)'
+        replace: 'return int(cobaia) + 1'
+      - id: countdown-window-left-open
+        description: "a janela da contagem fica aberta depois que a gravacao comeca"
+        find: '            if countdown_window.winfo_exists():'
+        replace: '            if False:'
+
+  live_camera_mode_selector:
+    source: src/zebtrack/core/recording/live_camera_mode.py
+    tests:
+      - tests/core/recording/test_live_camera_mode_extended.py
+    mutations:
+      - id: capacity-boundary-excluded
+        description: "pedir exatamente a capacidade deixa de ser tempo real"
+        find: 'if can_realtime and requested_aquariums <= max_supported:'
+        replace: 'if can_realtime and requested_aquariums < max_supported:'
+      - id: zero-capacity-is-partial
+        description: "capacidade zero cai no ramo de suporte parcial"
+        find: 'if can_realtime and requested_aquariums > max_supported > 0:'
+        replace: 'if can_realtime and requested_aquariums > max_supported >= 0:'
+      - id: singular-for-two
+        description: "capacidade 2 aparece como '1 aquarium'"
+        find: 'if max_supported == 1'
+        replace: 'if max_supported <= 2'
+      - id: plan-ids-one-based
+        description: "ids do plano sequencial deslocados em um"
+        find: '"experiment_id": f"{base_experiment_id}_aquarium_{aq_idx}",'
+        replace: '"experiment_id": f"{base_experiment_id}_aquarium_{aq_idx + 1}",'
+      - id: plan-notes-zero-based
+        description: "notas do plano comecam em 'Session 0'"
+        find: 'index=aq_idx + 1, total=total_aquariums'
+        replace: 'index=aq_idx, total=total_aquariums'
+      - id: one-aquarium-is-multi
+        description: "um aquario so e recomendado como multi-aquario"
+        find: 'if requested_aquariums > 1'
+        replace: 'if requested_aquariums >= 1'
