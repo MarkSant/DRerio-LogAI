@@ -4695,3 +4695,69 @@ _load_registry()"
         description: "pasta que ficou vazia nao e removida"
         find: '                        video_dir.rmdir()'
         replace: '                        pass'
+
+  multi_aquarium_preview_update_frame:
+    source: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py
+    tests:
+      - tests/ui/dialogs/test_multi_aquarium_live_preview_window.py
+    mutations:
+      - id: crop-left-edge-not-clipped
+        description: "F2-UI-002: regiao que passa da borda esquerda do quadro nao e recortada"
+        find: 'x1, x2 = max(0, x1), min(width, x2)'
+        replace: 'x1, x2 = x1, x2'
+      - id: crop-top-edge-not-clipped
+        description: "regiao que passa da borda de cima do quadro nao e recortada"
+        find: 'y1, y2 = max(0, y1), min(height, y2)'
+        replace: 'y1, y2 = y1, y2'
+      - id: zero-width-region-has-a-crop
+        description: "regiao de largura zero vira um recorte vazio em vez de nenhum"
+        find: 'if x2 <= x1 or y2 <= y1:'
+        replace: 'if x2 < x1 or y2 < y1:'
+      - id: crop-origin-lost
+        description: "o recorte nao informa onde comeca no quadro"
+        find: 'return frame[y1:y2, x1:x2], x1, y1'
+        replace: 'return frame[y1:y2, x1:x2], 0, 0'
+      - id: centre-is-top-left-corner
+        description: "a deteccao pertence ao painel pelo canto e nao pelo centro"
+        find: 'cx = (detection[0] + detection[2]) / 2.0'
+        replace: 'cx = detection[0]'
+      - id: seam-goes-to-the-left-panel
+        description: "o centro exatamente na divisa vai para o painel da esquerda"
+        find: 'return region[0] <= cx < region[2] and region[1] <= cy < region[3]'
+        replace: 'return region[0] < cx <= region[2] and region[1] <= cy < region[3]'
+      - id: stopped-window-still-draws
+        description: "janela parada continua desenhando quadros"
+        find: "        if self.is_stopped:\n            return\n\n        if recorded_count is not None:"
+        replace: "        if recorded_count is not None:"
+      - id: recorded-count-ignored-when-given
+        description: "o contador de quadros gravados so atualiza quando NAO vem"
+        find: 'if recorded_count is not None:'
+        replace: 'if recorded_count is None:'
+      - id: no-region-shows-the-shared-frame
+        description: "sem regiao o painel pinta direto no quadro compartilhado com o gravador"
+        find: 'view = frame.copy()'
+        replace: 'view = frame'
+      - id: region-crop-painted-in-place
+        description: "com regiao o painel pinta direto no quadro compartilhado"
+        find: 'view = crop.copy()'
+        replace: 'view = crop'
+      - id: no-region-shows-no-detections
+        description: "painel sem regiao nao recebe nenhuma deteccao"
+        find: 'own: list[Sequence[float]] = list(detections)'
+        replace: 'own: list[Sequence[float]] = []'
+      - id: every-detection-in-every-panel
+        description: "cada painel recebe todas as deteccoes do quadro"
+        find: 'own = [d for d in detections if detection_belongs_to_region(d, region)]'
+        replace: 'own = list(detections)'
+      - id: box-not-translated-to-crop
+        description: "a caixa e desenhada nas coordenadas do quadro, nao do recorte"
+        find: 'cv2.rectangle(view, (x1 - x_off, y1 - y_off), (x2 - x_off, y2 - y_off), GREEN, 2)'
+        replace: 'cv2.rectangle(view, (x1, y1), (x2, y2), GREEN, 2)'
+      - id: panel-count-is-whole-frame
+        description: "o rotulo de cada painel mostra o total do quadro"
+        find: 'views[aquarium_id] = (view, len(own))'
+        replace: 'views[aquarium_id] = (view, len(detections))'
+      - id: empty-region-aborts-the-others
+        description: "um aquario fora do quadro derruba o desenho dos demais"
+        find: "            if cropped is None:\n                continue"
+        replace: "            if cropped is None:\n                break"

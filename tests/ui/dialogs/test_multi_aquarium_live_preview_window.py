@@ -2,24 +2,29 @@
 
 The clock is injected (the module's ``time`` is replaced by a fake whose ``time()``
 a test advances by hand) and ``after`` is replaced by a recorder, so nothing here
-depends on wall-clock time. ``update_recorded_count`` and ``update_aquarium_frame``
-are not tested: the dead-code audit (A2-D-329, A2-D-330) found no caller for them.
+depends on wall-clock time. ``update_aquarium_frame`` is exercised through ``update_frame``
+(F2-UI-002), the entry point the live pipeline calls.
 """
 
 from __future__ import annotations
 
+import inspect
 import time as real_time
 import tkinter as tk
 import types
 from tkinter import ttk
 from typing import Any, cast
 
+import numpy as np
 import pytest
 import structlog
 
 from zebtrack.ui.dialogs import multi_aquarium_live_preview_window as window_module
 from zebtrack.ui.dialogs.multi_aquarium_live_preview_window import (
     MultiAquariumLivePreviewWindow,
+    build_panel_views,
+    crop_to_region,
+    detection_belongs_to_region,
     format_mmss,
     grid_layout,
     progress_percent,
@@ -374,17 +379,214 @@ class TestStatusAndDestroy:
         assert [e["event"] for e in logs] == ["multi_aquarium_preview.destroy_failed"]
 
 
-@pytest.mark.gui
-class TestPipelineContract:
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "F2-UI-002: FrameProcessingPipeline calls preview_window.update_frame("
-            "frame, detections, recorded_count) on whatever window "
-            "camera_connection_handler built; the multi-aquarium window has no "
-            "update_frame (its update_aquarium_frame has no caller), so a two-aquarium "
-            "live session raises AttributeError per displayed frame and draws no video."
-        ),
+def _split_frame() -> np.ndarray:
+    """100x200 BGR frame: left half pure blue, right half pure red."""
+    frame = np.zeros((100, 200, 3), dtype=np.uint8)
+    frame[:, :100] = (255, 0, 0)
+    frame[:, 100:] = (0, 0, 255)
+    return frame
+
+
+TWO_PANELS = {0: (0, 0, 100, 100), 1: (100, 0, 200, 100)}
+
+
+class TestBuildPanelViews:
+    """F2-UI-002: what each aquarium panel shows for the whole camera frame."""
+
+    def test_each_panel_gets_its_own_region_of_the_frame(self):
+        views = build_panel_views(_split_frame(), [], TWO_PANELS, [0, 1])
+
+        left, right = views[0][0], views[1][0]
+        assert left.shape == (100, 100, 3)
+        assert right.shape == (100, 100, 3)
+        assert (left == (255, 0, 0)).all()
+        assert (right == (0, 0, 255)).all()
+
+    def test_detections_go_to_the_panel_holding_their_centre_in_crop_coordinates(self):
+        frame = _split_frame()
+
+        # centre (20, 20) -> aquarium 0; centre (140, 40) -> aquarium 1.
+        views = build_panel_views(
+            frame, [(10, 10, 30, 30, 0.9), (120, 20, 160, 60, 0.8)], TWO_PANELS, [0, 1]
+        )
+
+        (left, left_count), (right, right_count) = views[0], views[1]
+        assert (left_count, right_count) == (1, 1)
+        # box corner (10, 10) is (10, 10) in the left crop; the right box starts at frame
+        # x=120, which is x=20 in the right crop.
+        assert tuple(left[10, 10]) == (0, 255, 0)
+        assert tuple(right[20, 20]) == (0, 255, 0)
+        assert tuple(right[10, 10]) == (0, 0, 255)  # nothing is drawn where no box is
+        # The frame is shared with the recorder: it must not be painted on.
+        assert tuple(frame[10, 10]) == (255, 0, 0)
+        assert tuple(frame[20, 120]) == (0, 0, 255)
+
+    def test_a_detection_centred_on_the_seam_belongs_to_the_right_hand_panel(self):
+        views = build_panel_views(_split_frame(), [(90, 10, 110, 30, 0.5)], TWO_PANELS, [0, 1])
+
+        assert (views[0][1], views[1][1]) == (0, 1)
+
+    def test_a_detection_is_placed_by_its_centre_not_its_corner(self):
+        # x1 = 40 is inside aquarium 0 but the centre x = 130 is inside aquarium 1.
+        views = build_panel_views(_split_frame(), [(40, 10, 220, 30, 0.5)], TWO_PANELS, [0, 1])
+
+        assert (views[0][1], views[1][1]) == (0, 1)
+
+    def test_an_aquarium_without_a_region_shows_the_whole_frame_and_every_detection(self):
+        frame = _split_frame()
+
+        views = build_panel_views(
+            frame, [(10, 10, 30, 30, 0.9), (120, 20, 160, 60, 0.8)], {}, [0, 1]
+        )
+
+        for aquarium_id in (0, 1):
+            shown, count = views[aquarium_id]
+            assert shown.shape == (100, 200, 3)
+            assert count == 2
+            assert tuple(shown[10, 10]) == (0, 255, 0)
+            assert tuple(shown[20, 120]) == (0, 255, 0)
+        assert tuple(frame[10, 10]) == (255, 0, 0)  # the shared frame stays untouched
+
+    def test_a_region_outside_the_frame_is_left_out_and_the_others_still_draw(self):
+        regions = {0: (300, 0, 400, 100), 1: (0, 0, 100, 100)}
+
+        views = build_panel_views(_split_frame(), [], regions, [0, 1])
+
+        assert sorted(views) == [1]
+
+    def test_a_region_hanging_over_the_edge_is_clipped_to_the_frame(self):
+        views = build_panel_views(_split_frame(), [], {0: (150, -20, 260, 70)}, [0])
+
+        assert views[0][0].shape == (70, 50, 3)  # rows 0..70, columns 150..200
+
+    def test_only_the_requested_aquariums_are_produced(self):
+        assert build_panel_views(_split_frame(), [], TWO_PANELS, [1]).keys() == {1}
+
+
+class _PanelRecorder:
+    """Stands in for the panel and footer writers: keeps what ``update_frame`` asked for."""
+
+    def __init__(self) -> None:
+        self.panels: dict[int, tuple[np.ndarray, int]] = {}
+        self.counts: list[int] = []
+
+    def panel(self, aquarium_id: int, frame: np.ndarray, num_detections: int = 0) -> None:
+        self.panels[aquarium_id] = (frame, num_detections)
+
+    def count(self, recorded_count: int) -> None:
+        self.counts.append(recorded_count)
+
+
+def _host(recorder: _PanelRecorder, *, stopped: bool = False) -> Any:
+    """The attributes ``update_frame`` reads, without building a Tk window."""
+    return types.SimpleNamespace(
+        is_stopped=stopped,
+        aquarium_canvases={0: object(), 1: object()},
+        aquarium_regions=TWO_PANELS,
+        update_aquarium_frame=recorder.panel,
+        update_recorded_count=recorder.count,
     )
-    def test_the_window_offers_the_update_frame_the_pipeline_calls(self):
-        assert callable(getattr(MultiAquariumLivePreviewWindow, "update_frame", None))
+
+
+class TestUpdateFrame:
+    """F2-UI-002: ``update_frame(frame, detections, recorded_count)`` is what the live
+    pipeline calls on whichever window the camera handler built."""
+
+    def test_the_signature_matches_the_single_aquarium_window_the_pipeline_was_written_for(self):
+        from zebtrack.ui.dialogs.live_preview_window import LivePreviewWindow
+
+        ours = list(inspect.signature(MultiAquariumLivePreviewWindow.update_frame).parameters)
+        theirs = list(inspect.signature(LivePreviewWindow.update_frame).parameters)
+
+        assert ours == theirs == ["self", "frame", "detections", "recorded_count"]
+
+    def test_every_panel_is_refreshed_with_its_view_and_count(self):
+        recorder = _PanelRecorder()
+
+        MultiAquariumLivePreviewWindow.update_frame(
+            _host(recorder), _split_frame(), [(120, 20, 160, 60, 0.8)], 7
+        )
+
+        assert sorted(recorder.panels) == [0, 1]
+        assert recorder.panels[0][0].shape == (100, 100, 3)
+        assert [recorder.panels[0][1], recorder.panels[1][1]] == [0, 1]
+        assert recorder.counts == [7]
+
+    def test_the_recorded_count_is_optional_and_detections_may_be_none(self):
+        recorder = _PanelRecorder()
+
+        MultiAquariumLivePreviewWindow.update_frame(_host(recorder), _split_frame(), None)
+
+        assert recorder.counts == []
+        assert [recorder.panels[0][1], recorder.panels[1][1]] == [0, 0]
+
+    def test_a_zero_recorded_count_is_still_shown(self):
+        recorder = _PanelRecorder()
+
+        MultiAquariumLivePreviewWindow.update_frame(_host(recorder), _split_frame(), [], 0)
+
+        assert recorder.counts == [0]
+
+    def test_a_stopped_window_draws_and_counts_nothing(self):
+        recorder = _PanelRecorder()
+
+        MultiAquariumLivePreviewWindow.update_frame(
+            _host(recorder, stopped=True), _split_frame(), [], 9
+        )
+
+        assert recorder.panels == {}
+        assert recorder.counts == []
+
+
+@pytest.mark.gui
+class TestUpdateFrameOnScreen:
+    def test_real_panels_receive_the_picture_the_count_and_the_footer(self, tkinter_root, clock):
+        preview, _after = _build(tkinter_root, num_aquariums=2)
+        preview.aquarium_regions = dict(TWO_PANELS)
+
+        preview.update_frame(_split_frame(), [(120, 20, 160, 60, 0.8)], 3)
+
+        assert sorted(preview.aquarium_photo_images) == [0, 1]
+        assert str(preview.aquarium_labels[0].cget("text")) == "Detections: 0"
+        assert str(preview.aquarium_labels[1].cget("text")) == "Detections: 1"
+        assert "Recorded frames: 3" in _texts(preview, ttk.Label)
+
+    def test_the_regions_can_be_given_when_the_window_is_built(self, tkinter_root, clock):
+        preview = MultiAquariumLivePreviewWindow(
+            parent=tkinter_root,
+            camera_index=0,
+            num_aquariums=2,
+            duration_s=10.0,
+            aquarium_regions=TWO_PANELS,
+        )
+        preview.window.after = _AfterRecorder()  # type: ignore[method-assign, assignment]
+
+        assert preview.aquarium_regions == TWO_PANELS
+
+
+class TestRegionHelpers:
+    def test_crop_returns_the_clipped_view_and_its_origin(self):
+        frame = np.arange(10 * 20 * 3, dtype=np.uint8).reshape(10, 20, 3)
+
+        crop, x_off, y_off = crop_to_region(frame, (-5, 2, 8, 50))  # type: ignore[misc]
+
+        assert (x_off, y_off) == (0, 2)
+        assert crop.shape == (8, 8, 3)
+        assert (crop == frame[2:10, 0:8]).all()
+
+    @pytest.mark.parametrize("region", [(5, 5, 5, 9), (5, 5, 9, 5), (30, 0, 40, 5), (0, 20, 5, 30)])
+    def test_an_empty_or_outside_region_has_no_crop(self, region):
+        assert crop_to_region(np.zeros((10, 20, 3), dtype=np.uint8), region) is None
+
+    @pytest.mark.parametrize(
+        ("detection", "expected"),
+        [
+            ((0, 0, 20, 20), True),  # centre (10, 10)
+            ((80, 80, 120, 120), False),  # centre (100, 100): the far edge is exclusive
+            ((0, 0, 10, 10), True),  # centre (5, 5): the near edge is inclusive
+            ((-20, 0, 0, 20), False),  # centre x = -10
+            ((10, 80, 30, 120), False),  # centre y = 100
+        ],
+    )
+    def test_membership_uses_the_centre_with_an_inclusive_near_edge(self, detection, expected):
+        assert detection_belongs_to_region(detection, (5, 5, 100, 100)) is expected
