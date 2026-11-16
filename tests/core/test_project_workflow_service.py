@@ -2525,3 +2525,33 @@ class TestPostCreationGuideCounts:
             < message.index("2. Process")
             < message.index("Generate reports")
         )
+
+
+class TestImportPatternRule(unittest.TestCase):
+    """F2-UI-003/009: the import applies the same rule as the dialog and detection step.
+
+    With an alternation, the value is the first group that TOOK PART in the match;
+    taking group 1 regardless returned ``None`` and crashed on ``.lower()`` /
+    ``.isdigit()``. The search stays case-insensitive.
+    """
+
+    def setUp(self):
+        self.service = ProjectWorkflowService(
+            project_manager=Mock(), model_service=Mock(), state_manager=Mock()
+        )
+
+    def test_alternated_groups_take_the_group_that_matched(self):
+        path = "C:/exp/g7/d3/s4.mp4"
+        metadata: dict = {}
+        enriched: dict = {}
+
+        group = self.service._extract_group(metadata, enriched, path, r"Grupo_(\w+)|G(\d+)", {})
+        day = self.service._extract_day(metadata, enriched, path, r"Dia_(\d+)|D(\d+)", {})
+        subject = self.service._extract_subject(
+            metadata, enriched, path, r"Sujeito_(\d+)|S(\d+)", {}, group
+        )
+
+        assert group == "7"
+        assert day == "Day03"
+        assert subject == self.service._normalise_subject_id("4")
+        assert (metadata["group"], metadata["day"]) == ("7", "Day03")

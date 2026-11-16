@@ -5025,3 +5025,16 @@ _load_registry()"
         description: "F2-UI-003: o valor mostrado e o grupo 1 mesmo quando ele nao participou"
         find: 'value = search_value(pattern, path)'
         replace: 'value = (lambda m: m.group(1) if m and m.groups() else None)(pattern.search(path))'
+  pattern_match_import_caller:
+    source: src/zebtrack/core/project/project_workflow_service.py
+    tests:
+      - tests/core/test_project_workflow_service.py
+    mutations:
+      - id: group-first-group-regardless
+        description: "F2-UI-009: a importacao volta a pegar o grupo 1 mesmo fora da alternancia"
+        find: '            matched_group = search_value(group_pattern, path_text)'
+        replace: '            matched_group = (lambda m: m and (m.group(1) if m.groups() else m.group(0)))(__import__("re").search(group_pattern, path_text, 2))'
+      - id: day-case-sensitive
+        description: "importacao do dia volta a diferenciar maiusculas e a ignorar o grupo"
+        find: '            matched_day = search_value(day_pattern, path_text)'
+        replace: '            matched_day = (lambda m: m and m.group(0))(__import__("re").search(day_pattern, path_text))'

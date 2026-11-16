@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import structlog
 
 from zebtrack.core.exceptions import ProjectInvalidError
+from zebtrack.core.services.pattern_match import search_value
 from zebtrack.core.services.weight_manager import TARGET_AQUARIUM, TARGET_ZEBRAFISH, VALID_METHODS
 from zebtrack.i18n import _
 
@@ -1580,15 +1581,13 @@ class ProjectWorkflowService:
         group_display_names: dict | None = None,
     ) -> str | None:
         """Extract group metadata from path string."""
-        import re
-
         path_text = str(path_str)
 
         group_id = metadata.get("group") or enriched.get("group")
         if not group_id and group_pattern:
-            match = re.search(group_pattern, path_text, re.IGNORECASE)
-            if match:
-                matched_group = match.group(1) if match.groups() else match.group(0)
+            # Same rule as the pattern dialog and the detection step (F2-UI-003/009).
+            matched_group = search_value(group_pattern, path_text)
+            if matched_group is not None:
                 lookup_key = matched_group.lower()
                 group_id = group_lookup.get(lookup_key, matched_group)
 
@@ -1621,15 +1620,12 @@ class ProjectWorkflowService:
         day_lookup: dict,
     ) -> str | None:
         """Extract day metadata from path string."""
-        import re
-
         path_text = str(path_str)
 
         day_value = metadata.get("day") or enriched.get("day")
         if not day_value and day_pattern:
-            match = re.search(day_pattern, path_text, re.IGNORECASE)
-            if match:
-                matched_day = match.group(1) if match.groups() else match.group(0)
+            matched_day = search_value(day_pattern, path_text)
+            if matched_day is not None:
                 if isinstance(matched_day, str) and matched_day.isdigit():
                     matched_day = f"Day{int(matched_day):02d}"
                 lookup_key = matched_day.lower()
@@ -1655,15 +1651,12 @@ class ProjectWorkflowService:
         group_id: str | None,
     ) -> str | None:
         """Extract subject metadata from path string."""
-        import re
-
         path_text = str(path_str)
 
         subject_value = metadata.get("subject") or enriched.get("subject")
         if not subject_value and subject_pattern:
-            match = re.search(subject_pattern, path_text, re.IGNORECASE)
-            if match:
-                matched_subject = match.group(1) if match.groups() else match.group(0)
+            matched_subject = search_value(subject_pattern, path_text)
+            if matched_subject is not None:
                 normalised = self._normalise_subject_id(matched_subject)
                 subject_value = normalised
 
