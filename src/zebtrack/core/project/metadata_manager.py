@@ -210,6 +210,10 @@ class MetadataManager:
 
         log.info("project.detector_state.save.start", config=detector_config)
 
+        # Read before last_updated is stamped in: an empty config means "clear the
+        # threshold overrides", and the stamp would make it look non-empty (F2-P-002).
+        clears_overrides = not detector_config
+
         if "last_updated" not in detector_config:
             detector_config["last_updated"] = datetime.now().isoformat()
 
@@ -221,7 +225,7 @@ class MetadataManager:
             merged = dict(overrides.get("detector_parameters") or {})
             merged.update(normalized_thresholds)
             overrides["detector_parameters"] = merged
-        elif not detector_config:
+        elif clears_overrides:
             overrides.pop("detector_parameters", None)
 
         if project_path:

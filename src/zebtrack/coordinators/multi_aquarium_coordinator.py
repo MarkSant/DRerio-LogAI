@@ -341,8 +341,11 @@ class MultiAquariumCoordinator(BaseCoordinator):
                                     subject_pattern=custom_patterns.get("subject_pattern"),
                                 )
                                 if combined_pattern:
+                                    # enabled=False: the dialog reads only the regex;
+                                    # enabled with no aquarium configs fails validation
+                                    # and dropped the prefill (F2-P-003).
                                     multi_aquarium_config = MultiAquariumData(
-                                        enabled=True,
+                                        enabled=False,
                                         regex_pattern=combined_pattern,
                                         regex_group_field="group",
                                         regex_subject_field="subject",

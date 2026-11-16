@@ -4,6 +4,7 @@ Extended unit tests for ZoneOrchestrationManager in project/zone_orchestration_m
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -177,14 +178,6 @@ class TestSyncFromDisk:
         assert entry["has_rois"] is True and "has_arena" not in entry
         assert entry["parquet_files"] == {"rois": str(res / "2_AreasOfInterest_v.parquet")}
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "F2-P-004: sync_active_zone_video saves the disk zones over the memory ones "
-            "instead of merging them, so an in-memory arena is lost when only the ROI "
-            "parquet is on disk (zone_orchestration_manager.py:103)."
-        ),
-    )
     def test_rois_on_disk_keep_the_arena_already_in_memory(self, tmp_path):
         self._write_rois(tmp_path)
         zones = _Zones()
@@ -194,6 +187,29 @@ class TestSyncFromDisk:
 
         loaded = zones.get(tmp_path / "v.mp4", fallback_to_global=False)
         assert (loaded.polygon, len(loaded.roi_polygons)) == (SQ, 1)
+
+    def test_merge_keeps_memory_rois_and_takes_the_missing_arena_from_disk(self):
+        tri = [[0, 0], [5, 0], [0, 5]]
+        memory = ZoneData(roi_polygons=[tri], roi_names=["mem"], roi_colors=[(1, 2, 3)])
+        disk = ZoneData(
+            polygon=SQ,
+            roi_polygons=[SQ],
+            roi_names=["disk"],
+            roi_colors=[(9, 9, 9)],
+            metadata={"src": "disk", "k": 1},
+        )
+
+        merged = ZoneOrchestrationManager.merge_disk_into_memory(
+            replace(memory, metadata={"k": 2}), disk
+        )
+
+        assert merged.polygon == SQ
+        assert (merged.roi_polygons, merged.roi_names, merged.roi_colors) == (
+            [tri],
+            ["mem"],
+            [(1, 2, 3)],
+        )
+        assert merged.metadata == {"src": "disk", "k": 2}
 
     def test_complete_memory_is_not_overwritten_by_disk(self, tmp_path):
         self._write_rois(tmp_path)

@@ -10,6 +10,7 @@ to avoid circular imports.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -36,7 +37,7 @@ class ZoneOrchestrationManager:
 
     @staticmethod
     def sync_active_zone_video(
-        video_path_str: str,
+        video_path_str: Path | str,
         *,
         find_video_entry_fn: Callable,
         resolve_results_directory_fn: Callable,
@@ -51,6 +52,7 @@ class ZoneOrchestrationManager:
         directory and merges them into memory when the current in-memory data
         is incomplete.
         """
+        video_path_str = str(video_path_str)
         video_entry = find_video_entry_fn(path=video_path_str)
         metadata = video_entry.get("metadata") if video_entry else None
         experiment_id = Path(video_path_str).stem
@@ -100,7 +102,10 @@ class ZoneOrchestrationManager:
                     "project.set_active.syncing_memory_from_disk",
                     video=video_path_str,
                 )
-                save_zone_data_fn(loaded_zones, video_path=video_path_str, persist=False)
+                merged_zones = ZoneOrchestrationManager.merge_disk_into_memory(
+                    current_zones, loaded_zones
+                )
+                save_zone_data_fn(merged_zones, video_path=video_path_str, persist=False)
 
                 if video_entry:
                     video_entry.setdefault("parquet_files", {}).update(found_parquets)
@@ -112,6 +117,29 @@ class ZoneOrchestrationManager:
         # except Exception justified: pandas parquet I/O — heterogeneous data errors
         except Exception as e:
             log.warning("project.set_active.load_failed", error=str(e))
+
+    @staticmethod
+    def merge_disk_into_memory(current: ZoneData, loaded: ZoneData) -> ZoneData:
+        """Fill only the parts the in-memory zones lack with the ones read from disk.
+
+        The arena and the ROI set are independent parts: whatever is already in memory
+        (the user's latest edit) wins, and the disk only supplies a missing part. Saving
+        the disk zones whole lost an in-memory arena whenever only the ROI parquet
+        existed on disk (F2-P-004).
+        """
+        merged = loaded
+        if current.polygon:
+            merged = replace(merged, polygon=current.polygon)
+        if current.roi_polygons:
+            merged = replace(
+                merged,
+                roi_polygons=current.roi_polygons,
+                roi_names=current.roi_names,
+                roi_colors=current.roi_colors,
+            )
+        if current.metadata:
+            merged = replace(merged, metadata={**loaded.metadata, **current.metadata})
+        return merged
 
     # ------------------------------------------------------------------
     # save_zone_data persistence
@@ -175,7 +203,7 @@ class ZoneOrchestrationManager:
 
     @staticmethod
     def persist_multi_aquarium_zone_data(
-        video_path: str,
+        video_path: Path | str,
         multi_data: MultiAquariumZoneData,
         project_path: Path | None,
         *,
@@ -190,6 +218,7 @@ class ZoneOrchestrationManager:
         Exports AQ0 parquet for backward compatibility, updates video entry
         flags, adds the video to batches if missing, then persists.
         """
+        video_path = str(video_path)
         if not multi_data.aquariums:
             if persist and project_path:
                 save_project_fn()
@@ -298,7 +327,7 @@ class ZoneOrchestrationManager:
 
     @staticmethod
     def clear_zone_data_for_video(
-        video_path: str,
+        video_path: Path | str,
         project_data: dict[str, Any],
         *,
         get_active_zone_video_fn: Callable[[], str | None],
@@ -316,6 +345,7 @@ class ZoneOrchestrationManager:
             get_active_zone_video_fn: Returns the currently active zone video.
             save_project_fn: Optional persistence callback.
         """
+        video_path = str(video_path)
         from zebtrack.core.detection import ZoneData
         from zebtrack.core.project.zone_manager import ZoneManager
 

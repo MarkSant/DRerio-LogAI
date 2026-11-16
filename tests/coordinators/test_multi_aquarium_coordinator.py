@@ -195,6 +195,43 @@ def test_run_aquarium_detection_multi_success(mock_detector_class, coordinator):
     assert UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG in called_types
 
 
+@patch("zebtrack.core.detection.aquarium_detector.AquariumDetector")
+def test_wizard_regex_reaches_the_assignment_dialog(mock_detector_class, coordinator):
+    # F2-P-003: the fallback config was built enabled=True with no aquarium configs,
+    # failed validation, and the dialog got None (no group/day/subject prefill).
+    import numpy as np
+
+    detector = mock_detector_class.return_value
+    square = np.array([[0, 0], [10, 0], [10, 10], [0, 10]])
+    detector.detect_multiple_aquariums.return_value = [square, square]
+    detector.get_last_source_dimensions.return_value = (800, 600)
+    coordinator.weight_manager.get_weight_path_by_method.return_value = "model.pt"
+    coordinator.project_manager.find_video_entry.return_value = None
+    coordinator.project_manager.project_data = {
+        "_wizard_metadata": {
+            "custom_regex_patterns": {
+                "group_pattern": r"G(\d+)",
+                "day_pattern": r"D(\d+)",
+                "subject_pattern": r"S(\d+)",
+            }
+        }
+    }
+
+    coordinator.run_aquarium_detection("G2_D3_S4--G5_D3_S6.mp4", multi_aquarium=True, count=2)
+
+    dialog_payloads = [
+        call[0][0].data
+        for call in coordinator.event_bus.publish.call_args_list
+        if call[0][0].type == UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG
+    ]
+    assert len(dialog_payloads) == 1
+    config = dialog_payloads[0].multi_aquarium_config
+    assert config.extract_metadata("G2_D3_S4--G5_D3_S6.mp4") == [
+        {"group": "2", "subject": "4", "day": "3"},
+        {"group": "5", "subject": "6", "day": "3"},
+    ]
+
+
 def test_handle_multi_auto_detect(coordinator):
     payload = {"video_path": "test.mp4", "expected_count": 4, "method": "contour"}
 

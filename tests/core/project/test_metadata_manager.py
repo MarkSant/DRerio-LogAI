@@ -395,14 +395,6 @@ class TestDetectorStateClearing:
         }
         assert project["detector_config"]["last_updated"] == "t"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "F2-P-002: save_detector_state({}) stamps last_updated into the dict before "
-            "testing it, so the 'empty config clears detector_parameters' branch "
-            "(metadata_manager.py:224) can never run and stale thresholds survive."
-        ),
-    )
     def test_saving_an_empty_detector_config_clears_the_threshold_overrides(self):
         project = {"model_overrides": {"detector_parameters": {"nms_threshold": 0.4}}}
 
@@ -411,6 +403,20 @@ class TestDetectorStateClearing:
         )
 
         assert "detector_parameters" not in project["model_overrides"]
+
+    def test_saving_a_config_without_thresholds_keeps_the_overrides(self):
+        # F2-P-002 counterpart: only an EMPTY config clears; a config that merely has
+        # no threshold keys must leave the project's overrides alone.
+        project = {"model_overrides": {"detector_parameters": {"nms_threshold": 0.4}}}
+
+        MetadataManager.save_detector_state(
+            {"plugin_name": "yolo"},
+            project_data=project,
+            project_path=None,
+            save_project_fn=lambda: None,
+        )
+
+        assert project["model_overrides"]["detector_parameters"] == {"nms_threshold": 0.4}
 
 
 class TestCompletedSessionsOnDisk:

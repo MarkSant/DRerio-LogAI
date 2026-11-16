@@ -289,8 +289,11 @@ class OutputRegistrationManager:
                         subject_pattern=patterns.get("subject_pattern"),
                     )
                     if combined:
+                        # enabled=False: only the regex is used here, and an enabled
+                        # model without its 2 aquarium configs fails validation, which
+                        # silently disabled this whole fallback (F2-P-003).
                         temp_config = MultiAquariumData(
-                            enabled=True, regex_pattern=combined, aquarium_configs=[]
+                            enabled=False, regex_pattern=combined, aquarium_configs=[]
                         )
                         filename = Path(video_path).name
                         matches = temp_config.extract_metadata(filename)

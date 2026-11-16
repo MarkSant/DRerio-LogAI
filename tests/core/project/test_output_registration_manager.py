@@ -269,15 +269,6 @@ class TestDeriveProcessingMetadata:
             "group_id": "A",
         }
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "F2-P-003: the wizard-regex fallback builds MultiAquariumData(enabled=True, "
-            "aquarium_configs=[]), which the model rejects ('requires exactly 2 aquarium "
-            "configurations'); the ValidationError is swallowed as ValueError, so the "
-            "regex never fills group/day/subject (output_registration_manager.py:292)."
-        ),
-    )
     def test_entry_values_and_the_wizard_regex_fill_the_gaps(self):
         project = {"_wizard_metadata": {"custom_regex_patterns": REGEX_PATTERNS}}
 
