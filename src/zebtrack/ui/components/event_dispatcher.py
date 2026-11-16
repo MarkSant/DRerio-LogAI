@@ -672,10 +672,14 @@ class EventDispatcher:
                 )
             ),
         )
+        # Published from StateManager observers, which run on its thread pool:
+        # every subscriber below that touches a widget is marshalled (A6-09).
         event_bus.subscribe(
             UIEvents.UI_UPDATE_OPENVINO_STATUS,
-            lambda d: gui.weight_hardware_manager.update_openvino_status_display(
-                str(_payload_get(d, "status")) if _payload_get(d, "status") else "Unknown"
+            lambda d: self._run_on_ui_thread(
+                lambda: gui.weight_hardware_manager.update_openvino_status_display(
+                    str(_payload_get(d, "status")) if _payload_get(d, "status") else "Unknown"
+                )
             ),
         )
         event_bus.subscribe(
@@ -717,7 +721,8 @@ class EventDispatcher:
         # View Navigation & Modes
         def _handle_navigate_to_analysis(d):
             log.info("event_dispatcher.navigate_to_analysis_view.received")
-            gui.analysis_view_controller.start_analysis_view_mode()
+            # Published by the StateManager observer pool (A6-09).
+            self._run_on_ui_thread(gui.analysis_view_controller.start_analysis_view_mode)
 
         log.info(
             "event_dispatcher.subscribing_navigation",
@@ -756,14 +761,19 @@ class EventDispatcher:
         )
 
         # Zone Updates
+        # Both are published by the StateManager observer pool on every project
+        # open/close, so they are marshalled onto the Tk thread (A6-09).
         event_bus.subscribe(
             UIEvents.UI_REDRAW_ZONES,
-            lambda d: gui.canvas_manager.redraw_zones_from_project_data(
-                _payload_get(d, "zone_data")
+            lambda d: self._run_on_ui_thread(
+                lambda: gui.canvas_manager.redraw_zones_from_project_data(
+                    _payload_get(d, "zone_data")
+                )
             ),
         )
         event_bus.subscribe(
-            UIEvents.UI_UPDATE_ZONE_LIST, lambda d: gui.canvas_manager.update_zone_listbox()
+            UIEvents.UI_UPDATE_ZONE_LIST,
+            lambda d: self._run_on_ui_thread(gui.canvas_manager.update_zone_listbox),
         )
 
         # Weight Management Interactive Requests

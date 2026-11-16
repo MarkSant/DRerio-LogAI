@@ -4743,3 +4743,25 @@ _load_registry()"
         description: "metadados do disco vencem os da memoria"
         find: '            merged = replace(merged, metadata={**loaded.metadata, **current.metadata})'
         replace: '            merged = replace(merged, metadata={**current.metadata, **loaded.metadata})'
+  event_dispatcher_observer_marshalling:
+    source: src/zebtrack/ui/components/event_dispatcher.py
+    tests:
+      - tests/ui/components/test_event_dispatcher_extended.py
+    mutations:
+      - id: zone-list-on-pool-thread
+        description: "A6-09: lista de zonas preenchida da thread do pool do StateManager"
+        find: '            lambda d: self._run_on_ui_thread(gui.canvas_manager.update_zone_listbox),'
+        replace: '            lambda d: gui.canvas_manager.update_zone_listbox(),'
+      - id: navigation-on-pool-thread
+        description: "A6-09: troca para a vista de analise feita fora da thread do Tk"
+        find: '            self._run_on_ui_thread(gui.analysis_view_controller.start_analysis_view_mode)'
+        replace: '            gui.analysis_view_controller.start_analysis_view_mode()'
+  live_config_hardware_probe_once:
+    source: src/zebtrack/ui/wizard/live_config_step.py
+    tests:
+      - tests/ui/wizard/test_live_config_step.py
+    mutations:
+      - id: probe-every-visit
+        description: "A6-01: a sondagem de hardware volta a travar o Tk a cada visita ao passo"
+        find: '        if self.hardware_report is not None:'
+        replace: '        if False:'

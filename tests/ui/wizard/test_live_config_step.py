@@ -353,3 +353,47 @@ class TestPickDefaultArduinoPort:
             self._port("COM6", "ARDUINO LEONARDO", False),
         ]
         assert _picked_device(ports) == "COM6"
+
+
+def test_hardware_is_probed_once_per_wizard_and_retried_after_a_failure(monkeypatch):
+    """A6-01: the probe blocks the Tk thread (0.5 s cpu sample + GPU probe).
+
+    It used to run on every Back/Next into the step; now one report is kept,
+    and only a failed probe (no report) is tried again on the next visit. The
+    real method runs on a plain object: it reads only ``settings_obj`` and
+    ``hardware_report``, and an EXCELLENT report opens no dialog.
+    """
+    from types import SimpleNamespace
+
+    from zebtrack.ui.wizard import live_config_step as module
+    from zebtrack.utils.hardware_capability import MultiAquariumCapability
+
+    report = SimpleNamespace(
+        capability=MultiAquariumCapability.EXCELLENT,
+        max_aquariums_recommended=2,
+        can_process_realtime=True,
+    )
+    outcomes: list[Any] = [RuntimeError("no GPU driver")]
+    calls: list[str] = []
+
+    class _Detector:
+        def __init__(self, settings_obj):
+            pass
+
+        def assess_capability(self):
+            calls.append("probe")
+            outcome = outcomes.pop(0) if outcomes else report
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+    monkeypatch.setattr(module, "HardwareCapabilityDetector", _Detector)
+    step = SimpleNamespace(settings_obj=object(), hardware_report=None)
+
+    LiveConfigStep._detect_hardware_capability(step)  # type: ignore[arg-type]
+    assert step.hardware_report is None
+    for _visit in range(3):
+        LiveConfigStep._detect_hardware_capability(step)  # type: ignore[arg-type]
+
+    assert calls == ["probe", "probe"]
+    assert step.hardware_report is report

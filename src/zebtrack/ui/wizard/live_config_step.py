@@ -532,7 +532,14 @@ class LiveConfigStep(WizardStep):
 
         Runs hardware assessment and stores report for later validation.
         Shows warning if hardware is insufficient for real-time processing.
+
+        Runs once per wizard: the probe blocks the Tk thread (``cpu_percent`` samples
+        for 0.5 s, plus the torch/OpenVINO GPU probe) and used to run, with its
+        warning dialog, on every Back/Next into this step (A6-01). A failed probe
+        leaves no report, so the next visit tries again.
         """
+        if self.hardware_report is not None:
+            return
         try:
             # Use injected settings_obj
             if not self.settings_obj:
