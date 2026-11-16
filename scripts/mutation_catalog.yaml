@@ -4695,3 +4695,41 @@ _load_registry()"
         description: "pasta que ficou vazia nao e removida"
         find: '                        video_dir.rmdir()'
         replace: '                        pass'
+
+  camera_connection_handler:
+    source: src/zebtrack/core/recording/camera_connection_handler.py
+    tests:
+      - tests/core/recording/test_camera_connection_handler_extended.py
+    mutations:
+      - id: gap-at-threshold-is-disconnect
+        description: "um intervalo exatamente igual ao limiar passa a contar como desconexao"
+        find: 'if gap_duration > self._camera_disconnect_threshold_s and not self._camera_disconnected:'
+        replace: 'if gap_duration >= self._camera_disconnect_threshold_s and not self._camera_disconnected:'
+      - id: wrong-device-accepted
+        description: "camera que abriu em outro indice passa a ser aceita"
+        find: 'if actual_camera_index != camera_index:'
+        replace: 'if False:'
+      - id: resolution-not-forced
+        description: "a sessao deixa de forcar 1280 px de largura"
+        find: 'temp_settings.camera.desired_width = 1280'
+        replace: 'temp_settings.camera.desired_width = 1920'
+      - id: closed-gap-reopened
+        description: "reconexao reescreve o fim de um intervalo ja fechado"
+        find: 'if self._disconnect_gaps and self._disconnect_gaps[-1][1] is None:'
+        replace: 'if self._disconnect_gaps:'
+      - id: wait-stops-session
+        description: "escolher aguardar no dialogo encerra a sessao"
+        find: 'elif action == "stop":'
+        replace: 'elif action in ("stop", "wait"):'
+      - id: warmup-never-times-out
+        description: "aquecimento ignora o teto de 5 s e le os 50 quadros sempre"
+        find: 'if time.time() - warmup_start > warmup_timeout:'
+        replace: 'if False:'
+      - id: pause-not-recorded
+        description: "pausa do gravador nao fica registrada e a retomada nunca acontece"
+        find: 'self._recording_paused = True'
+        replace: 'self._recording_paused = False'
+      - id: dict-payload-ignored
+        description: "payload em dict deixa de ser lido"
+        find: 'if isinstance(payload, dict):'
+        replace: 'if False:'
