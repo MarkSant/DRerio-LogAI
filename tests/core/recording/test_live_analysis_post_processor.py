@@ -1019,3 +1019,149 @@ class TestRecordingProblemsReachTheOperator:
         host._run_multi_aquarium_detection(frame, 1, SimpleNamespace(aquariums=[]))
 
         assert self._errors(host) == []
+
+
+# ---------------------------------------------------------------------------
+# A4-02: the "tracks" figure of the completion dialog is the report's count of
+# animals (count_subjects over the screened trajectory), not a raw nunique().
+# ---------------------------------------------------------------------------
+
+
+def _trajectory_rows(track_rows: dict[Any, list[float]], *, x0: float = 10.0):
+    """Rows for each ``track_id`` at the given timestamps (frame = index + 1)."""
+    import pandas as pd
+
+    rows = []
+    for track_id, stamps in track_rows.items():
+        for t in stamps:
+            rows.append(
+                {
+                    "timestamp": t,
+                    "frame": round(t * 10) + 1,
+                    "track_id": track_id,
+                    "x1": x0,
+                    "y1": 10.0,
+                    "x2": x0 + 10,
+                    "y2": 20.0,
+                    "confidence": 0.9,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+_ONE_SECOND = [round(0.1 * i, 1) for i in range(10)]  # 10 rows over 0.9 s
+
+
+def _analysis_service_double() -> MagicMock:
+    service = MagicMock()
+    service.collect_analysis_parameters.return_value = {
+        "freezing_vel_threshold": 0.5,
+        "freezing_min_duration": 1.0,
+        "smoothing_window_length": 5,
+        "smoothing_polyorder": 2,
+        "behavioral_config": {},
+    }
+    service.run_full_analysis_as_dto.return_value = SimpleNamespace(validation_warnings=[])
+    service.resolve_roi_rule.return_value = None
+    return service
+
+
+def _completion_args(host: Any) -> tuple:
+    """``(output_dir, success, stats, reason)`` scheduled on the Tk root."""
+    args = host.root.after.call_args.args
+    assert args[0] == 0
+    assert args[1] == host._show_completion_message
+    return tuple(args[2:]) + (None,) * (6 - len(args))
+
+
+class TestCompletionTrackCount:
+    def _run_single(self, tmp_path, monkeypatch, df):
+        from unittest.mock import patch
+
+        output_dir = tmp_path / "live_20261116_090000"
+        output_dir.mkdir()
+        df.to_parquet(output_dir / "3_CoordMovimento_adhoc_exp.parquet")
+        host = PostAnalysisHost(output_dir, project_data={}, analysis_params={})
+        host.root = MagicMock()
+        host._build_post_analysis_service = _analysis_service_double  # type: ignore[method-assign]
+        monkeypatch.setattr(
+            "zebtrack.core.recording.live_analysis_post_processor.threading.Thread",
+            _ImmediateThread,
+        )
+        with (
+            patch("zebtrack.analysis.reporters.ExcelReporter"),
+            patch("zebtrack.analysis.reporters.WordReporter"),
+            patch("zebtrack.analysis.reporters.ReporterContext"),
+        ):
+            host._on_session_complete(output_dir, keep_data=True)
+        return host
+
+    def test_a_one_row_glitch_is_not_counted_as_an_animal(self, tmp_path, monkeypatch):
+        # Track 1 lasts a second; track 7 is a single row (0.1 s < 0.5 s).
+        df = _trajectory_rows({1: _ONE_SECOND, 7: [0.4]})
+
+        host = self._run_single(tmp_path, monkeypatch, df)
+
+        _out, success, stats, _reason = _completion_args(host)[:4]
+        assert success is True
+        assert stats["tracks"] == 1
+        # Frames and detections still describe the raw recording.
+        assert stats["detections"] == 11
+
+    def test_rows_without_any_id_are_one_subject(self, tmp_path, monkeypatch):
+        df = _trajectory_rows({float("nan"): _ONE_SECOND})
+
+        host = self._run_single(tmp_path, monkeypatch, df)
+
+        assert _completion_args(host)[2]["tracks"] == 1
+
+    def test_two_real_animals_are_two(self, tmp_path, monkeypatch):
+        df = _trajectory_rows({1: _ONE_SECOND, 2: _ONE_SECOND})
+
+        host = self._run_single(tmp_path, monkeypatch, df)
+
+        assert _completion_args(host)[2]["tracks"] == 2
+
+    def test_multi_aquarium_total_counts_animals_not_ids(self, tmp_path, monkeypatch):
+        from unittest.mock import patch
+
+        output_dir = tmp_path / "live_20261116_100000"
+        output_dir.mkdir()
+        (output_dir / "adhoc_exp.mp4").write_bytes(b"")
+        tracks = {
+            0: {1: _ONE_SECOND, 5: [0.3]},  # one fish + a one-row glitch
+            1: {1001: _ONE_SECOND},
+        }
+        for aq_id, by_track in tracks.items():
+            folder = output_dir / f"aquarium_{aq_id + 1}"
+            folder.mkdir()
+            _trajectory_rows(by_track).to_parquet(
+                folder / f"3_CoordMovimento_adhoc_exp_aquarium_{aq_id + 1}.parquet"
+            )
+        host = PostAnalysisHost(
+            output_dir,
+            project_data={"calibration": {"pixelcm_x": 12.0, "pixelcm_y": 12.0}},
+            analysis_params={},
+        )
+        host.root = MagicMock()
+        pm: Any = host.project_manager
+        pm.get_multi_aquarium_zone_data.return_value = _two_aquariums()
+        service = _analysis_service_double()
+        service.run_multi_aquarium_analysis.return_value = {
+            0: SimpleNamespace(validation_warnings=[]),
+            1: SimpleNamespace(validation_warnings=[]),
+        }
+        host._build_post_analysis_service = lambda: service  # type: ignore[method-assign]
+        monkeypatch.setattr(
+            "zebtrack.core.recording.live_analysis_post_processor.threading.Thread",
+            _ImmediateThread,
+        )
+        reports = {0: {"summary_path": "a.xlsx", "report_path": "a.docx"}}
+        with patch(
+            "zebtrack.analysis.reporters.export_multi_aquarium_reports", return_value=reports
+        ):
+            host._on_session_complete(output_dir, keep_data=True)
+
+        _out, success, stats, _reason = _completion_args(host)[:4]
+        assert success is True
+        assert stats == {"frames": 20, "detections": 21, "tracks": 2}

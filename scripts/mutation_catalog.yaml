@@ -4889,3 +4889,25 @@ _load_registry()"
         description: "um aquario so e recomendado como multi-aquario"
         find: 'if requested_aquariums > 1'
         replace: 'if requested_aquariums >= 1'
+
+  live_completion_subject_count:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: multi-raw-nunique
+        description: "A4-02: o total multi-aquario volta a contar ids crus"
+        find: '            total_tracks += self._count_live_subjects(df)'
+        replace: '            total_tracks += int(df["track_id"].nunique())'
+      - id: single-raw-nunique
+        description: "A4-02: o dialogo de conclusao volta a contar ids crus"
+        find: '                unique_tracks = self._count_live_subjects(df)'
+        replace: '                unique_tracks = df["track_id"].nunique()'
+      - id: screening-ignored
+        description: "a triagem de trilhas curtas deixa de valer para a contagem"
+        find: '        return count_subjects(df if screening is None else screening.trajectory)'
+        replace: '        return count_subjects(df)'
+      - id: short-track-threshold-zero
+        description: "limiar de trilha curta zerado: um glitch de uma linha vira animal"
+        find: '            df, min_track_duration_s=min_track_duration_from(self.settings)'
+        replace: '            df, min_track_duration_s=0.0'
