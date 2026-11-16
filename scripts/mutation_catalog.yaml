@@ -4733,3 +4733,61 @@ _load_registry()"
         description: "payload em dict deixa de ser lido"
         find: 'if isinstance(payload, dict):'
         replace: 'if False:'
+
+  live_session_manager_lifecycle:
+    source: src/zebtrack/core/recording/live_session_manager.py
+    tests:
+      - tests/core/recording/test_live_session_manager_extended.py
+    mutations:
+      - id: half-duration-threshold-moved
+        description: "parada automatica aos 29 s de 60 s deixa de ser lida como desistencia"
+        find: 'threshold_s = max(5.0, self._session_duration_s * 0.5)'
+        replace: 'threshold_s = max(5.0, self._session_duration_s * 0.4)'
+      - id: five-second-floor-lowered
+        description: "sessao curta perde o piso de 5 s da heuristica de desistencia"
+        find: 'threshold_s = max(5.0, self._session_duration_s * 0.5)'
+        replace: 'threshold_s = max(3.0, self._session_duration_s * 0.5)'
+      - id: exactly-half-is-cancelled
+        description: "parar exatamente na metade passa a descartar a sessao"
+        find: '                if elapsed_s >= threshold_s:'
+        replace: '                if elapsed_s > threshold_s:'
+      - id: many-animals-single-subject
+        description: "aquario com varios animais liga o modo sujeito unico"
+        find: 'use_single_subject = self._animals_per_aquarium == 1'
+        replace: 'use_single_subject = True'
+      - id: old-detector-kept-on-config-change
+        description: "trocar OpenVINO/peso reaproveita o detector antigo"
+        find: '                self.detector_service.detector = None'
+        replace: '                pass'
+      - id: timer-in-wrong-unit
+        description: "temporizador da sessao agendado em decimos de segundo"
+        find: 'self.timer_id = self.root.after(int(duration_s * 1000), on_timer_expired)'
+        replace: 'self.timer_id = self.root.after(int(duration_s * 100), on_timer_expired)'
+      - id: lag-band-two-seconds
+        description: "atraso de exatamente 2 s ainda e reportado como 'Recording OK'"
+        find: 'if lag_seconds < 2.0:'
+        replace: 'if lag_seconds <= 2.0:'
+      - id: lag-band-five-seconds
+        description: "atraso de exatamente 5 s deixa de ser 'far behind'"
+        find: 'elif lag_seconds < 5.0:'
+        replace: 'elif lag_seconds <= 5.0:'
+      - id: drop-message-always-singular
+        description: "doze quadros perdidos aparecem como '1 frame dropped'"
+        find: 'if self._dropped_frames_video == 1'
+        replace: 'if self._dropped_frames_video >= 1'
+      - id: detector-context-not-restored
+        description: "o detector fica em 'tracking' depois da sessao"
+        find: 'self.detector_service.detector.set_context(self._saved_detector_context)'
+        replace: 'pass'
+      - id: progress-fraction-halved
+        description: "barra de progresso da gravacao anda na metade da velocidade"
+        find: 'fraction = min(1.0, elapsed / duration_s) if duration_s > 0 else 0.0'
+        replace: 'fraction = min(1.0, elapsed / duration_s / 2) if duration_s > 0 else 0.0'
+      - id: recorder-refusal-ignored
+        description: "gravador que recusa abrir deixa a sessao seguir sem gravar"
+        find: '                    if not recorder_started:'
+        replace: '                    if False:'
+      - id: countdown-sleep-skipped
+        description: "contagem regressiva sem Tk deixa de esperar"
+        find: '                time.sleep(countdown_seconds)'
+        replace: '                pass'
