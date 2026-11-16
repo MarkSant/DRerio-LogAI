@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import MagicMock
 
 from zebtrack.ui.wizard.detection_step import DetectionStep, _method_labels
@@ -95,3 +96,56 @@ class TestDetectionStepExtended2:
         assert "Treated" in groups
         assert "Day03" in days
         assert "S5" in subjects["Treated"]
+
+
+class TestIndividualPatternsFollowTheImportRule:
+    """F2-UI-003 / F2-UI-009: same case and same value rule as the project import."""
+
+    PATTERNS: ClassVar[dict[str, str]] = {
+        "group_pattern": r"(Controle|Tratamento)",
+        "day_pattern": r"Dia_(\d+)|D(\d+)",
+        "subject_pattern": r"CECT_(\d+)",
+    }
+
+    def _run(self, name: str):
+        step = object.__new__(DetectionStep)
+        groups: set[str] = set()
+        days: set[str] = set()
+        subjects: dict[str, set[str]] = {}
+        results = step._process_path_with_individual_patterns(
+            name, self.PATTERNS, groups, days, subjects
+        )
+        return results, groups, days, subjects
+
+    def test_a_name_in_another_case_is_detected(self):
+        results, groups, days, subjects = self._run("controle_cect_4_dia_2.mp4")
+
+        assert results == [{"group": "controle", "day": "Day02", "subject": "S04"}]
+        assert groups == {"controle"}
+        assert days == {"Day02"}
+        assert subjects == {"controle": {"S04"}}
+
+    def test_an_alternation_of_groups_uses_the_group_that_matched(self):
+        results, _groups, days, _subjects = self._run("Tratamento_CECT_7_D3.mp4")
+
+        assert results == [{"group": "Tratamento", "day": "Day03", "subject": "S07"}]
+        assert days == {"Day03"}
+
+    def test_every_subject_of_a_multi_subject_name_is_listed_whatever_its_case(self):
+        results, _groups, _days, subjects = self._run("Controle_Dia_1_CECT_1--cect_2.mp4")
+
+        assert [r["subject"] for r in results or []] == ["S01", "S02"]
+        assert subjects == {"Controle": {"S01", "S02"}}
+
+    def test_a_name_without_a_day_keeps_the_group_with_an_empty_day(self):
+        results, groups, days, _subjects = self._run("Controle_CECT_4.mp4")
+
+        assert results == [{"group": "Controle", "day": "", "subject": "S04"}]
+        assert groups == {"Controle"}
+        assert days == set()
+
+    def test_a_name_without_the_group_is_not_recognised(self):
+        results, groups, days, subjects = self._run("video_Dia_2.mp4")
+
+        assert results is None
+        assert (groups, days, subjects) == (set(), set(), {})

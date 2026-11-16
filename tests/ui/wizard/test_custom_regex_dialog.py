@@ -24,7 +24,6 @@ from zebtrack.ui.wizard.custom_regex_dialog import (
     compile_patterns,
     evaluate_path,
     match_path_rows,
-    match_value,
 )
 
 GROUP = r"(Controle|Tratamento)"
@@ -36,37 +35,6 @@ def _compile(**patterns: str) -> tuple[dict[str, re.Pattern[str]], dict[str, str
     return compile_patterns(patterns)
 
 
-class TestMatchValue:
-    def test_takes_the_first_capture_group_when_there_is_one(self):
-        match = re.search(r"Dia_(\d+)", "Controle_Dia_2.mp4")
-        assert match is not None
-        assert match_value(match) == "2"
-
-    def test_takes_the_whole_match_when_the_pattern_has_no_group(self):
-        match = re.search(r"Control|Treatment", "Video_Treatment_Day1.mp4")
-        assert match is not None
-        assert match_value(match) == "Treatment"
-
-    def test_a_named_group_counts_as_a_group(self):
-        match = re.search(r"Dia_(?P<day>\d+)", "Dia_12.mp4")
-        assert match is not None
-        assert match_value(match) == "12"
-
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "F2-UI-003: with an alternation of groups, Dia_(\\d+)|D(\\d+) on 'D3.mp4' "
-            "matches through the SECOND group; group(1) is None, so the preview shows "
-            "'None' as the matched day (the wizard's detection step then calls "
-            ".isdigit() on None). The first participating group is the value."
-        ),
-    )
-    def test_a_group_that_did_not_participate_is_skipped(self):
-        match = re.search(r"Dia_(\d+)|D(\d+)", "D3.mp4")
-        assert match is not None
-        assert match_value(match) == "3"
-
-
 class TestCompilePatterns:
     def test_blank_patterns_are_left_out_and_others_are_stripped(self):
         compiled, errors = compile_patterns({"group": "  (A|B) ", "day": "   ", "subject": ""})
@@ -74,6 +42,11 @@ class TestCompilePatterns:
         assert list(compiled) == ["group"]
         assert compiled["group"].pattern == "(A|B)"
         assert errors == {}
+
+    def test_compiled_patterns_ignore_case_like_the_project_import(self):
+        compiled, _errors = compile_patterns({"day": r"Dia_(\d+)"})
+
+        assert compiled["day"].flags & re.IGNORECASE
 
     def test_an_invalid_pattern_is_reported_under_its_own_key(self):
         compiled, errors = compile_patterns({"group": "(", "day": r"D(\d+)"})
@@ -84,6 +57,22 @@ class TestCompilePatterns:
 
 
 class TestMatchPathRows:
+    def test_rows_match_ignoring_case_and_use_the_group_that_took_part(self):
+        compiled, errors = _compile(group=GROUP, day=r"Dia_(\d+)|D(\d+)", subject=SUBJECT)
+
+        rows = match_path_rows("controle_cect_4_d3.mp4", compiled, errors)
+
+        assert rows == [
+            {"path": "controle_cect_4_d3.mp4", "group": "controle", "day": "3", "subject": "4"}
+        ]
+
+    def test_every_match_of_a_multi_subject_name_is_a_row_whatever_its_case(self):
+        compiled, errors = _compile(subject=r"S(\d+)")
+
+        rows = match_path_rows("g1_d1_s1--g1_d1_S2.mp4", compiled, errors)
+
+        assert [row["subject"] for row in rows] == ["1", "2"]
+
     def test_one_name_gives_one_row_with_group_day_and_subject(self):
         compiled, errors = _compile(group=GROUP, day=DAY, subject=SUBJECT)
 
@@ -207,10 +196,17 @@ class TestEvaluatePath:
 
         assert result["day"] == "✗ Day: no match"
 
-    def test_the_search_is_case_sensitive(self):
-        result = self._eval("controle_cect_4_dia_2.mp4", day=DAY)
+    def test_the_search_ignores_case_like_the_project_import(self):
+        result = self._eval("controle_cect_4_dia_2.mp4", group=GROUP, day=DAY, subject=SUBJECT)
 
-        assert result["day"] == "✗ Day: no match"
+        assert result["group"] == "✓ Group: 'controle'"
+        assert result["day"] == "✓ Day: '2'"
+        assert result["subject"] == "✓ Subject: '4'"
+
+    def test_an_alternation_of_groups_shows_the_group_that_matched(self):
+        result = self._eval("D3.mp4", day=r"Dia_(\d+)|D(\d+)")
+
+        assert result["day"] == "✓ Day: '3'"
 
     def test_the_pattern_may_match_anywhere_in_a_folder_path(self):
         result = self._eval("D:/exp/Tratamento/Dia 3/CECT_9.mp4", group=GROUP, day=DAY)
@@ -235,6 +231,11 @@ class TestEvaluatePath:
 
     def test_a_pattern_not_compiled_yet_is_compiled_on_the_fly(self):
         result = evaluate_path("Dia_2.mp4", {"group": "", "day": DAY, "subject": ""}, {}, {})
+
+        assert result["day"] == "✓ Day: '2'"
+
+    def test_a_pattern_not_compiled_yet_is_also_case_insensitive(self):
+        result = evaluate_path("dia_2.mp4", {"group": "", "day": DAY, "subject": ""}, {}, {})
 
         assert result["day"] == "✓ Day: '2'"
 

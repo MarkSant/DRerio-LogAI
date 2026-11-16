@@ -4865,3 +4865,93 @@ _load_registry()"
         description: "payload sem numero de quadro derruba o manipulador"
         find: 'frame_number = _payload_get(event_data, "frame_number", 0) or 0'
         replace: 'frame_number = _payload_get(event_data, "frame_number", 0)'
+
+  pattern_match_rule:
+    source: src/zebtrack/core/services/pattern_match.py
+    tests:
+      - tests/core/services/test_pattern_match.py
+    mutations:
+      - id: pattern-flags-dropped
+        description: "F2-UI-009: o padrao do usuario volta a ser sensivel a maiusculas"
+        find: 'USER_PATTERN_FLAGS = re.IGNORECASE'
+        replace: 'USER_PATTERN_FLAGS = 0'
+      - id: precompiled-pattern-opts-out
+        description: "um padrao compilado sem a flag escapa da regra"
+        find: '        if pattern.flags & USER_PATTERN_FLAGS:'
+        replace: '        if True:'
+      - id: recompile-loses-other-flags
+        description: "recompilar com a flag perde as outras flags do padrao"
+        find: 're.compile(pattern.pattern, pattern.flags | USER_PATTERN_FLAGS)'
+        replace: 're.compile(pattern.pattern, USER_PATTERN_FLAGS)'
+      - id: first-group-even-if-absent
+        description: "F2-UI-003: o valor e o grupo 1 mesmo quando ele nao participou"
+        find: '        if group is not None:'
+        replace: '        if True:'
+      - id: empty-group-skipped
+        description: "um grupo que casou a string vazia e tratado como ausente"
+        find: '        if group is not None:'
+        replace: '        if group:'
+      - id: whole-match-fallback-empty
+        description: "sem grupo participante o valor deixa de ser o casamento inteiro"
+        find: '    return match.group(0)'
+        replace: '    return ""'
+      - id: no-match-is-empty-string
+        description: "sem casamento devolve string vazia em vez de None"
+        find: 'return None if match is None else match_value(match)'
+        replace: 'return "" if match is None else match_value(match)'
+      - id: search-anchored-at-start
+        description: "a busca passa a exigir o casamento no inicio do texto"
+        find: 'match = compile_user_pattern(pattern).search(text)'
+        replace: 'match = compile_user_pattern(pattern).match(text)'
+      - id: finditer-first-only
+        description: "so o primeiro casamento de um nome multi-sujeito e devolvido"
+        find: 'for m in compile_user_pattern(pattern).finditer(text)]'
+        replace: 'for m in list(compile_user_pattern(pattern).finditer(text))[:1]]'
+
+  pattern_match_detection_step_caller:
+    source: src/zebtrack/ui/wizard/detection_step.py
+    tests:
+      - tests/ui/wizard/test_detection_step_extended.py
+    mutations:
+      - id: group-search-case-sensitive-again
+        description: "F2-UI-009: o passo de deteccao busca o grupo sem ignorar maiusculas"
+        find: 'group = search_value(group_pattern, str(path_str))'
+        replace: 'group = (lambda m: m.group(0) if m else None)(re.search(group_pattern, str(path_str)))'
+      - id: day-takes-group-one-again
+        description: "F2-UI-003: o dia volta a ser o grupo 1 mesmo quando nao participou"
+        find: 'day = search_value(day_pattern, str(path_str))'
+        replace: 'day = (lambda m: m.group(1) if m else None)(re.search(day_pattern, str(path_str)))'
+      - id: subjects-case-sensitive-again
+        description: "os sujeitos do nome multi-sujeito voltam a ser buscados sem ignorar maiusculas"
+        find: 'for val in finditer_values(subject_pattern, str(path_str)):'
+        replace: 'for val in re.findall(subject_pattern, str(path_str)):'
+      - id: missing-day-crashes
+        description: "nome sem dia derruba a deteccao com None.isdigit()"
+        find: 'if day is not None and day.isdigit():'
+        replace: 'if day.isdigit():'
+      - id: unmatched-group-recognised
+        description: "nome sem o grupo e reconhecido como design"
+        find: '        if group is None:'
+        replace: '        if group is not None:'
+
+  pattern_match_dialog_caller:
+    source: src/zebtrack/ui/wizard/custom_regex_dialog.py
+    tests:
+      - tests/ui/wizard/test_custom_regex_dialog.py
+    mutations:
+      - id: dialog-compiles-case-sensitive
+        description: "F2-UI-009: a previa do dialogo compila os padroes sem ignorar maiusculas"
+        find: 'compiled[key] = compile_user_pattern(pattern)'
+        replace: 'compiled[key] = re.compile(pattern)'
+      - id: dialog-on-the-fly-invalid-pattern-ignored
+        description: "um padrao invalido compilado na hora deixa de ser reportado"
+        find: 'pattern = compile_user_pattern(pattern_str)'
+        replace: 'pattern = re.compile("x")'
+      - id: dialog-rows-whole-match
+        description: "as linhas da previa mostram o casamento inteiro em vez do valor"
+        find: 'values = finditer_values(pattern, path)'
+        replace: 'values = [m.group(0) for m in pattern.finditer(path)]'
+      - id: dialog-value-is-group-one
+        description: "F2-UI-003: o valor mostrado e o grupo 1 mesmo quando ele nao participou"
+        find: 'value = search_value(pattern, path)'
+        replace: 'value = (lambda m: m.group(1) if m and m.groups() else None)(pattern.search(path))'
