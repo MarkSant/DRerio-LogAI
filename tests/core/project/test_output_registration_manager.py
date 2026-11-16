@@ -486,9 +486,11 @@ class TestMultiAquariumRegistration:
 
         assert entry["status"] == "processed" and entry["has_trajectory"] is True
         assert entry["has_summary"] is True
+        # Stored through Path(...).as_posix(): separators normalised on Windows,
+        # left alone on POSIX, where a backslash is part of the name.
         assert entry["multi_aquarium_outputs"]["0"] == {
-            "results_dir": "C:/r0",
-            "parquet_files": {"trajectory": "C:/t0", "x": None},
+            "results_dir": Path("C:\\r0").as_posix(),
+            "parquet_files": {"trajectory": Path("C:\\t0").as_posix(), "x": None},
             "group": "",
             "subject_id": "",
             "day": 1,

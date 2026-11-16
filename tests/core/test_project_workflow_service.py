@@ -7,6 +7,7 @@ opening, configuration, and post-creation guide generation.
 
 from __future__ import annotations
 
+import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -2205,6 +2206,10 @@ class TestEnrichVideos:
         assert (video["metadata"]["group"], video["metadata"]["day"]) == ("Outro", 9)
         assert video["metadata"]["day_label"] == "09"
 
+    @pytest.mark.skipif(
+        sys.platform != "win32",
+        reason="backslash and case equivalence of paths only holds on Windows",
+    )
     def test_multi_subject_mapping_found_through_a_windows_key(self):
         path = "C:/v/G1_D1_S1--G1_D1_S2.mp4"
         entries = [

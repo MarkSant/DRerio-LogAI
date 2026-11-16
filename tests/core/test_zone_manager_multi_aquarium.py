@@ -6,6 +6,7 @@ in project configurations.
 Coverage target: 80%+
 """
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -542,6 +543,10 @@ class TestResolveZoneEntry:
 
         assert ZoneManager().resolve_zone_entry(project, video) == (_norm(video), stored)
 
+    @pytest.mark.skipif(
+        sys.platform != "win32",
+        reason="backslash and case equivalence of paths only holds on Windows",
+    )
     def test_raw_key_spelled_differently_is_found_by_normalized_comparison(self, tmp_path):
         video = tmp_path / "Dia_1" / "A.mp4"
         raw_key = str(video).replace("/", "\\").upper()

@@ -873,6 +873,55 @@ def _objects_path(folder, base="base"):
     return folder / f"3c_Objetos_{base}.parquet"
 
 
+class _RecorderLogSpy:
+    """Stand-in for ``io.recorder.log`` that records every call it receives.
+
+    ``structlog.testing.capture_logs`` reads through the GLOBAL structlog
+    configuration, which other tests reconfigure; depending on the run order
+    the two assertions below saw an empty list (Windows CI, 2026-11-15) while
+    passing alone. Spying on the module logger itself does not depend on any
+    global state.
+    """
+
+    def __init__(self, entries: list[dict] | None = None, **context) -> None:
+        self.entries: list[dict] = [] if entries is None else entries
+        self._context = context
+
+    def bind(self, **kw) -> "_RecorderLogSpy":
+        # A bound child writes to the SAME list, with its context merged in.
+        return _RecorderLogSpy(self.entries, **{**self._context, **kw})
+
+    def _record(self, level: str, event: str, **kw) -> None:
+        self.entries.append({"event": event, "log_level": level, **self._context, **kw})
+
+    def debug(self, event: str, **kw) -> None:
+        self._record("debug", event, **kw)
+
+    def info(self, event: str, **kw) -> None:
+        self._record("info", event, **kw)
+
+    def warning(self, event: str, **kw) -> None:
+        self._record("warning", event, **kw)
+
+    def error(self, event: str, **kw) -> None:
+        self._record("error", event, **kw)
+
+    def critical(self, event: str, **kw) -> None:
+        self._record("critical", event, **kw)
+
+    def exception(self, event: str, **kw) -> None:
+        self._record("error", event, **kw)
+
+
+def _spy_on_recorder_log(monkeypatch) -> list[dict]:
+    """Install a fresh spy as ``io.recorder.log``; return its live entry list."""
+    from zebtrack.io import recorder as recorder_module
+
+    spy = _RecorderLogSpy()
+    monkeypatch.setattr(recorder_module, "log", spy)
+    return spy.entries
+
+
 class TestObjectSidecar:
     def test_columns_order_and_types_follow_adr_010(self, objects_recorder):
         import pyarrow.parquet as pq
@@ -1061,10 +1110,10 @@ class TestObjectSidecar:
         assert metadata.class_names == {}
         assert metadata.analysis_interval_frames is None
 
-    def test_write_failure_degrades_and_removes_the_partial_file(self, objects_recorder):
+    def test_write_failure_degrades_and_removes_the_partial_file(
+        self, objects_recorder, monkeypatch
+    ):
         from unittest.mock import patch
-
-        from structlog.testing import capture_logs
 
         from zebtrack.io import recorder as recorder_module
 
@@ -1074,10 +1123,8 @@ class TestObjectSidecar:
         recorder._flush_object_data(force=True)
         assert _objects_path(folder).exists()
 
-        with (
-            capture_logs() as logs,
-            patch.object(recorder_module, "build_object_table", side_effect=OSError("disk full")),
-        ):
+        logs = _spy_on_recorder_log(monkeypatch)
+        with patch.object(recorder_module, "build_object_table", side_effect=OSError("disk full")):
             recorder.write_object_data(0.1, 1, 0.1, [])
             recorder._flush_object_data(force=True)
 
@@ -1188,8 +1235,6 @@ class TestStaleSidecarCleanup:
     def test_an_unremovable_stale_file_only_warns(self, tmp_path, monkeypatch):
         from pathlib import Path
 
-        from structlog.testing import capture_logs
-
         from zebtrack.core.detection import ZoneData
 
         folder = tmp_path / "session"
@@ -1204,10 +1249,10 @@ class TestStaleSidecarCleanup:
         monkeypatch.setattr(Path, "unlink", locked)
         recorder = Recorder(settings_obj=_objects_settings(enabled=False))
 
-        with capture_logs() as logs:
-            started = recorder.start_recording(
-                folder, 100, 100, ZoneData(), is_video_file=True, base_name="base"
-            )
+        logs = _spy_on_recorder_log(monkeypatch)
+        started = recorder.start_recording(
+            folder, 100, 100, ZoneData(), is_video_file=True, base_name="base"
+        )
         recorder.stop_recording()
 
         assert started is True
