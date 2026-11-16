@@ -4953,3 +4953,37 @@ _load_registry()"
         description: "grupo/sujeito/dia do aquario deixam de ir para o registro"
         find: '            if multi_zone_data is not None:'
         replace: '            if False:'
+
+  live_aquarium_detection_phase:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_frame_processing_pipeline_extended.py
+    mutations:
+      - id: warmup-longer
+        description: "o aquecimento passa a engolir o quadro 30"
+        find: 'if frame_number < 30:'
+        replace: 'if frame_number < 35:'
+      - id: cadence-changed
+        description: "a busca do aquario deixa de olhar um quadro a cada 5"
+        find: 'if frame_number % 5 != 0:'
+        replace: 'if frame_number % 3 != 0:'
+      - id: min-area-raised
+        description: "um aquario que ocupa 64% do quadro passa a ser recusado"
+        find: 'min_ratio = 0.10'
+        replace: 'min_ratio = 0.70'
+      - id: fallback-after-eleven
+        description: "a arena padrao demora um quadro a mais para chegar"
+        find: 'self._aquarium_detection_frames >= 10'
+        replace: 'self._aquarium_detection_frames >= 11'
+      - id: needs-five-tanks
+        description: "quatro deteccoes do aquario nao bastam mais para definir a arena"
+        find: 'or len(self._detected_aquarium_bboxes) >= 4'
+        replace: 'or len(self._detected_aquarium_bboxes) >= 5'
+      - id: tank-threshold-raised
+        description: "a busca do aquario usa o limiar de confianca do animal"
+        find: 'detections, _annotated = detector.detect(frame, "live", conf_threshold=0.05)'
+        replace: 'detections, _annotated = detector.detect(frame, "live", conf_threshold=0.25)'
+      - id: any-class-is-the-tank
+        description: "um animal grande vira a arena"
+        find: 'if class_id == target_class_id:'
+        replace: 'if True:'

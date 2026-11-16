@@ -1444,3 +1444,154 @@ class TestLiveOverlayClassRoles:
 
     def test_no_detector_publishes_none(self):
         assert self._Pipeline(None)._live_overlay_class_roles() is None
+
+
+# ---------------------------------------------------------------------------
+# Aquarium detection phase (no predefined arena), driven through the REAL loop.
+# ---------------------------------------------------------------------------
+
+
+class _AquariumDetector:
+    """Returns the scripted boxes for each frame it is actually asked about."""
+
+    aquarium_class_id = 0
+
+    def __init__(self, script):
+        self.script = script  # frame -> list of 7-tuples
+        self.asked: list[int] = []
+        self.thresholds: list[float | None] = []
+        self.frame_times: list[float | None] = []
+        self.current = 0
+
+    def set_frame_time(self, t):
+        self.frame_times.append(t)
+
+    def detect(self, frame, context, conf_threshold=None):
+        self.asked.append(self.current)
+        self.thresholds.append(conf_threshold)
+        return list(self.script.get(self.current, [])), None
+
+
+class _AquariumPhaseHarness(_LoopHarness):
+    def __init__(self, tmp_path, script):
+        super().__init__(tmp_path)
+        self.aq_detector = _AquariumDetector(script)
+        harness: Any = self
+        harness.detector_service = SimpleNamespace(detector=self.aq_detector)
+        harness.preview_window = MagicMock()
+        self._aquarium_detection_phase = True
+        self._aquarium_detection_frames = 0
+        self._aquarium_detection_max_frames = 300
+        self._detected_aquarium_bboxes: list = []
+        self._analysis_params = {"experiment_id": "CECT_4"}
+        self.arena_defined = 0
+        self.recording_started = 0
+
+    def _define_arena_from_detections(self):
+        self.arena_defined += 1
+        self._aquarium_detection_phase = False
+
+    def _start_recording_after_arena(self):
+        self.recording_started += 1
+
+    def run_frames(self, numbers):
+        frame = np.zeros((10, 10, 3), dtype=np.uint8)  # area 100 -> 10 px minimum
+        items = [(n, frame, T0 + n) for n in numbers]
+        harness: Any = self
+        original_get = _ScriptedQueue(items, self.exit_event).get
+
+        def _get(timeout=None):
+            item = original_get(timeout)
+            self.aq_detector.current = item[0]
+            return item
+
+        harness.frame_queue = SimpleNamespace(get=_get)
+        self._processing_loop()
+
+    def preview_messages(self):
+        root: Any = self.root
+        return [args[0] for fn, args in root.calls if args and isinstance(args[0], str)]
+
+    def progress_events(self):
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        bus: Any = self.event_bus
+        return [
+            c.args[0].data
+            for c in bus.publish.call_args_list
+            if c.args[0].type == UIEvents.AQUARIUM_DETECTION_PROGRESS
+        ]
+
+
+_TANK = (0, 0, 8, 8, 0.9, 1, 0)  # area 64 >= 10 % of 100
+_SPECK = (0, 0, 3, 3, 0.9, 2, 0)  # area 9 < 10 % of 100
+_FISH = (0, 0, 8, 8, 0.9, 3, 1)  # large, but not the aquarium class
+
+
+class TestAquariumDetectionPhase:
+    def test_warmup_and_off_cadence_frames_never_reach_the_detector(self, tmp_path):
+        h = _AquariumPhaseHarness(tmp_path, {})
+
+        h.run_frames([5, 29, 30, 31, 34, 35])
+
+        assert h.aq_detector.asked == [30, 35]
+        # A low threshold: the tank is looked for, not the animal.
+        assert h.aq_detector.thresholds == [0.05, 0.05]
+        assert h.aq_detector.frame_times == [T0 + 30, T0 + 35]
+        assert h._aquarium_detection_frames == 2
+        messages = h.preview_messages()
+        assert "⏳ Stabilizing image... (5/30)" in messages
+        assert "🔍 Detecting aquarium... (0/300)" in messages
+        assert "🔍 Detecting aquarium... (1/300)" in messages
+
+    def test_only_large_boxes_of_the_aquarium_class_are_collected(self, tmp_path):
+        h = _AquariumPhaseHarness(tmp_path, {30: [_TANK, _SPECK, _FISH, (1, 2, 3)]})
+
+        h.run_frames([30])
+
+        assert h._detected_aquarium_bboxes == [(0, 0, 8, 8)]
+        events = h.progress_events()
+        assert [(e.detected_bbox, e.is_valid) for e in events] == [
+            ((0, 0, 8, 8), True),
+            ((0, 0, 3, 3), False),
+        ]
+        assert events[0].valid_count == 1
+        assert events[0].experiment_id == "CECT_4"
+        # One shared snapshot per frame, not one copy per detection.
+        assert events[0].frame_image is events[1].frame_image
+
+    def test_four_tanks_define_the_arena_and_start_recording(self, tmp_path):
+        script = {n: [_TANK] for n in (30, 35, 40, 45)}
+        h = _AquariumPhaseHarness(tmp_path, script)
+
+        h.run_frames([30, 35, 40, 45])
+
+        assert h.arena_defined == 1
+        assert h.recording_started == 1
+        assert h._aquarium_detection_frames == 4
+        assert h.preview_messages()[-1] == "● Recording"
+
+    def test_ten_frames_without_a_tank_fall_back_to_the_default_arena(self, tmp_path):
+        h = _AquariumPhaseHarness(tmp_path, {})
+
+        h.run_frames([30 + 5 * i for i in range(9)])
+        assert h.arena_defined == 0
+
+        h.exit_event.clear()
+        h.run_frames([75])
+
+        assert h.arena_defined == 1
+        assert h._detected_aquarium_bboxes == []
+
+    def test_the_detection_threshold_comes_from_the_settings(self, tmp_path):
+        h = _AquariumPhaseHarness(tmp_path, {30: [_TANK]})
+        harness: Any = h
+        harness.settings = SimpleNamespace(
+            detection_zones=SimpleNamespace(min_aquarium_area_ratio=0.9)
+        )
+
+        h.run_frames([30])
+
+        # 64 % of the frame is below a 90 % minimum.
+        assert h._detected_aquarium_bboxes == []
+        assert [e.is_valid for e in h.progress_events()] == [False]
