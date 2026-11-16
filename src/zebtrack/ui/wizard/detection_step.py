@@ -20,6 +20,7 @@ from typing import Any
 import structlog
 
 from zebtrack.core.project.project_manager import ProjectManager
+from zebtrack.core.services.pattern_match import finditer_values, search_value
 from zebtrack.i18n import _
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
@@ -513,26 +514,22 @@ class DetectionStep(WizardStep):
             return None
 
         try:
-            group_match = re.search(group_pattern, str(path_str))
+            group = search_value(group_pattern, str(path_str))
         except re.error as e:
             log.error("wizard.detection.custom_regex.group_error", error=str(e))
             return None
 
-        if not group_match:
+        if group is None:
             return None
-
-        group = group_match.group(1) if group_match.groups() else group_match.group(0)
 
         # --- days ------------------------------------------------------------
         day = None
         day_pattern = patterns.get("day_pattern")
         if day_pattern:
             try:
-                day_match = re.search(day_pattern, str(path_str))
-                if day_match:
-                    day = day_match.group(1) if day_match.groups() else day_match.group(0)
-                    if day.isdigit():
-                        day = f"Day{day.zfill(2)}"
+                day = search_value(day_pattern, str(path_str))
+                if day is not None and day.isdigit():
+                    day = f"Day{day.zfill(2)}"
             except re.error as e:
                 log.error("wizard.detection.custom_regex.day_error", error=str(e))
 
@@ -541,8 +538,7 @@ class DetectionStep(WizardStep):
         subject_pattern = patterns.get("subject_pattern")
         if subject_pattern:
             try:
-                for sub_match in re.finditer(subject_pattern, str(path_str)):
-                    val = sub_match.group(1) if sub_match.groups() else sub_match.group(0)
+                for val in finditer_values(subject_pattern, str(path_str)):
                     if val.isdigit():
                         val = f"S{val.zfill(2)}"
                     if val not in subjects:

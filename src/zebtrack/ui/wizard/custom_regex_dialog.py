@@ -23,6 +23,11 @@ from tkinter.simpledialog import Dialog
 
 import structlog
 
+from zebtrack.core.services.pattern_match import (
+    compile_user_pattern,
+    finditer_values,
+    search_value,
+)
 from zebtrack.i18n import _
 
 log = structlog.get_logger()
@@ -43,14 +48,6 @@ def _field_labels() -> dict[str, str]:
 PATTERN_KEYS = ("group", "day", "subject")
 
 
-def match_value(match: re.Match[str]) -> str:
-    """The value a pattern extracted: its first capture group, else the whole match.
-
-    Same rule the wizard's detection step applies to the saved patterns.
-    """
-    return match.group(1) if match.groups() else match.group(0)
-
-
 def compile_patterns(
     patterns: Mapping[str, str],
 ) -> tuple[dict[str, re.Pattern[str]], dict[str, str]]:
@@ -69,7 +66,7 @@ def compile_patterns(
         if not pattern:
             continue
         try:
-            compiled[key] = re.compile(pattern)
+            compiled[key] = compile_user_pattern(pattern)
         except re.error as exc:
             errors[key] = str(exc)
     return compiled, errors
@@ -102,7 +99,7 @@ def match_path_rows(
             found[key].append("-")
             continue
 
-        values = [match_value(m) for m in pattern.finditer(path)]
+        values = finditer_values(pattern, path)
         found[key].extend(values if values else ["-"])
 
     max_matches = max(len(values) for values in found.values())
@@ -164,7 +161,7 @@ def evaluate_path(
         pattern = compiled.get(key)
         if not pattern:
             try:
-                pattern = re.compile(pattern_str)
+                pattern = compile_user_pattern(pattern_str)
             except re.error as exc:
                 results[key] = _("✗ {label}: invalid regex - {error}").format(
                     label=label, error=exc
@@ -175,9 +172,9 @@ def evaluate_path(
             results[key] = _("✗ {label}: enter a path").format(label=label)
             continue
 
-        match = pattern.search(path)
-        if match:
-            results[key] = _("✓ {label}: '{value}'").format(label=label, value=match_value(match))
+        value = search_value(pattern, path)
+        if value is not None:
+            results[key] = _("✓ {label}: '{value}'").format(label=label, value=value)
         else:
             results[key] = _("✗ {label}: no match").format(label=label)
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 import tkinter as tk
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from tkinter import ttk
 from typing import TYPE_CHECKING
 
@@ -25,6 +25,9 @@ if TYPE_CHECKING:
     pass
 
 log = structlog.get_logger()
+
+#: Detection box colour (BGR), the same green ``LivePreviewWindow`` draws.
+GREEN = (0, 255, 0)
 
 
 def grid_layout(num_aquariums: int) -> tuple[int, int, int, int]:
@@ -50,6 +53,67 @@ def format_mmss(seconds: float) -> str:
     return f"{minutes:02d}:{secs:02d}"
 
 
+Region = tuple[int, int, int, int]
+
+
+def crop_to_region(frame: np.ndarray, region: Region) -> tuple[np.ndarray, int, int] | None:
+    """Crop ``frame`` to ``region`` (``x1, y1, x2, y2`` in frame pixels).
+
+    The region is clipped to the frame. Returns ``(crop, x_offset, y_offset)`` where the
+    offsets are the crop's origin in frame coordinates, or ``None`` when the clipped
+    region is empty (an aquarium entirely outside the frame).
+    """
+    height, width = frame.shape[:2]
+    x1, y1, x2, y2 = region
+    x1, x2 = max(0, x1), min(width, x2)
+    y1, y2 = max(0, y1), min(height, y2)
+    if x2 <= x1 or y2 <= y1:
+        return None
+    return frame[y1:y2, x1:x2], x1, y1
+
+
+def detection_belongs_to_region(detection: Sequence[float], region: Region) -> bool:
+    """Whether a ``(x1, y1, x2, y2, ...)`` detection has its centre inside ``region``."""
+    cx = (detection[0] + detection[2]) / 2.0
+    cy = (detection[1] + detection[3]) / 2.0
+    return region[0] <= cx < region[2] and region[1] <= cy < region[3]
+
+
+def build_panel_views(
+    frame: np.ndarray,
+    detections: Sequence[Sequence[float]],
+    regions: Mapping[int, Region],
+    aquarium_ids: Sequence[int],
+) -> dict[int, tuple[np.ndarray, int]]:
+    """Work out what each aquarium panel shows: ``{aquarium_id: (BGR view, detection count)}``.
+
+    An aquarium with a region gets that crop of ``frame`` and the detections whose centre
+    lies in it, boxes drawn in the crop's coordinates; one without a region gets the whole
+    frame and every detection. ``frame`` is shared with the recorder and is never painted
+    on. An aquarium whose region falls outside the frame is left out of the result.
+    """
+    views: dict[int, tuple[np.ndarray, int]] = {}
+    for aquarium_id in aquarium_ids:
+        region = regions.get(aquarium_id)
+        if region is None:
+            view = frame.copy()
+            x_off = y_off = 0
+            own: list[Sequence[float]] = list(detections)
+        else:
+            cropped = crop_to_region(frame, region)
+            if cropped is None:
+                continue
+            crop, x_off, y_off = cropped
+            view = crop.copy()
+            own = [d for d in detections if detection_belongs_to_region(d, region)]
+
+        for det in own:
+            x1, y1, x2, y2 = (int(v) for v in det[:4])
+            cv2.rectangle(view, (x1 - x_off, y1 - y_off), (x2 - x_off, y2 - y_off), GREEN, 2)
+        views[aquarium_id] = (view, len(own))
+    return views
+
+
 class MultiAquariumLivePreviewWindow:
     """Window showing live camera feed with multiple aquarium views."""
 
@@ -60,6 +124,7 @@ class MultiAquariumLivePreviewWindow:
         num_aquariums: int,
         duration_s: float,
         on_stop_callback: Callable[[], None] | None = None,
+        aquarium_regions: Mapping[int, Region] | None = None,
     ):
         """Initialize multi-aquarium preview window.
 
@@ -69,12 +134,16 @@ class MultiAquariumLivePreviewWindow:
             num_aquariums: Number of aquariums to display
             duration_s: Maximum duration in seconds
             on_stop_callback: Callback when user stops or time expires
+            aquarium_regions: Optional ``{aquarium_id: (x1, y1, x2, y2)}`` in camera-frame
+                pixels. ``update_frame`` crops each aquarium's panel to its region; an
+                aquarium without a region shows the whole camera frame.
         """
         self.parent = parent
         self.camera_index = camera_index
         self.num_aquariums = num_aquariums
         self.duration_s = duration_s
         self.on_stop_callback = on_stop_callback
+        self.aquarium_regions: dict[int, Region] = dict(aquarium_regions or {})
 
         # Window setup
         self.window = tk.Toplevel(parent)
@@ -281,6 +350,35 @@ class MultiAquariumLivePreviewWindow:
             command=self._on_stop_clicked,
         )
         self.stop_button.pack(side=tk.RIGHT, padx=5)
+
+    def update_frame(
+        self,
+        frame: np.ndarray,
+        detections: Sequence[Sequence[float]] | None = None,
+        recorded_count: int | None = None,
+    ) -> None:
+        """Entry point the live pipeline calls on every displayed frame (F2-UI-002).
+
+        Same signature as ``LivePreviewWindow.update_frame``: the pipeline hands over the
+        WHOLE camera frame, every detection of the frame and the recorded-frame count.
+        Each aquarium panel gets its own region of the frame with the detections whose
+        centre lies in it (drawn in the crop's coordinates); an aquarium without a
+        configured region shows the whole frame and every detection.
+
+        Threading: must run on the Tk main thread (the pipeline marshals it via
+        ``root.after(0, ...)``).
+        """
+        if self.is_stopped:
+            return
+
+        if recorded_count is not None:
+            self.update_recorded_count(recorded_count)
+
+        views = build_panel_views(
+            frame, detections or [], self.aquarium_regions, list(self.aquarium_canvases)
+        )
+        for aquarium_id, (view, num_detections) in views.items():
+            self.update_aquarium_frame(aquarium_id, view, num_detections)
 
     def update_aquarium_frame(
         self,

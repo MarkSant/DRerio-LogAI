@@ -4765,3 +4765,263 @@ _load_registry()"
         description: "A6-01: a sondagem de hardware volta a travar o Tk a cada visita ao passo"
         find: '        if self.hardware_report is not None:'
         replace: '        if False:'
+
+  multi_aquarium_preview_update_frame:
+    source: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py
+    tests:
+      - tests/ui/dialogs/test_multi_aquarium_live_preview_window.py
+    mutations:
+      - id: crop-left-edge-not-clipped
+        description: "F2-UI-002: regiao que passa da borda esquerda do quadro nao e recortada"
+        find: 'x1, x2 = max(0, x1), min(width, x2)'
+        replace: 'x1, x2 = x1, x2'
+      - id: crop-top-edge-not-clipped
+        description: "regiao que passa da borda de cima do quadro nao e recortada"
+        find: 'y1, y2 = max(0, y1), min(height, y2)'
+        replace: 'y1, y2 = y1, y2'
+      - id: zero-width-region-has-a-crop
+        description: "regiao de largura zero vira um recorte vazio em vez de nenhum"
+        find: 'if x2 <= x1 or y2 <= y1:'
+        replace: 'if x2 < x1 or y2 < y1:'
+      - id: crop-origin-lost
+        description: "o recorte nao informa onde comeca no quadro"
+        find: 'return frame[y1:y2, x1:x2], x1, y1'
+        replace: 'return frame[y1:y2, x1:x2], 0, 0'
+      - id: centre-is-top-left-corner
+        description: "a deteccao pertence ao painel pelo canto e nao pelo centro"
+        find: 'cx = (detection[0] + detection[2]) / 2.0'
+        replace: 'cx = detection[0]'
+      - id: seam-goes-to-the-left-panel
+        description: "o centro exatamente na divisa vai para o painel da esquerda"
+        find: 'return region[0] <= cx < region[2] and region[1] <= cy < region[3]'
+        replace: 'return region[0] < cx <= region[2] and region[1] <= cy < region[3]'
+      - id: stopped-window-still-draws
+        description: "janela parada continua desenhando quadros"
+        find: "        if self.is_stopped:\n            return\n\n        if recorded_count is not None:"
+        replace: "        if recorded_count is not None:"
+      - id: recorded-count-ignored-when-given
+        description: "o contador de quadros gravados so atualiza quando NAO vem"
+        find: 'if recorded_count is not None:'
+        replace: 'if recorded_count is None:'
+      - id: no-region-shows-the-shared-frame
+        description: "sem regiao o painel pinta direto no quadro compartilhado com o gravador"
+        find: 'view = frame.copy()'
+        replace: 'view = frame'
+      - id: region-crop-painted-in-place
+        description: "com regiao o painel pinta direto no quadro compartilhado"
+        find: 'view = crop.copy()'
+        replace: 'view = crop'
+      - id: no-region-shows-no-detections
+        description: "painel sem regiao nao recebe nenhuma deteccao"
+        find: 'own: list[Sequence[float]] = list(detections)'
+        replace: 'own: list[Sequence[float]] = []'
+      - id: every-detection-in-every-panel
+        description: "cada painel recebe todas as deteccoes do quadro"
+        find: 'own = [d for d in detections if detection_belongs_to_region(d, region)]'
+        replace: 'own = list(detections)'
+      - id: box-not-translated-to-crop
+        description: "a caixa e desenhada nas coordenadas do quadro, nao do recorte"
+        find: 'cv2.rectangle(view, (x1 - x_off, y1 - y_off), (x2 - x_off, y2 - y_off), GREEN, 2)'
+        replace: 'cv2.rectangle(view, (x1, y1), (x2, y2), GREEN, 2)'
+      - id: panel-count-is-whole-frame
+        description: "o rotulo de cada painel mostra o total do quadro"
+        find: 'views[aquarium_id] = (view, len(own))'
+        replace: 'views[aquarium_id] = (view, len(detections))'
+      - id: empty-region-aborts-the-others
+        description: "um aquario fora do quadro derruba o desenho dos demais"
+        find: "            if cropped is None:\n                continue"
+        replace: "            if cropped is None:\n                break"
+
+  ui_coordinator_camera_disconnect_dialog:
+    source: src/zebtrack/ui/ui_coordinator.py
+    tests:
+      - tests/ui/test_ui_coordinator_helpers.py
+    mutations:
+      - id: dialog-reference-not-kept
+        description: "F2-UI-007: o coordenador nao guarda o dialogo que abriu, entao nada o fecha"
+        find: 'self._camera_disconnect_dialog = CameraDisconnectRecoveryDialog('
+        replace: '_discarded = CameraDisconnectRecoveryDialog('
+      - id: reconnect-does-not-close
+        description: "a reconexao da camera nao fecha o dialogo que esta esperando"
+        find: 'self._safe_ui_call(self._close_camera_disconnect_dialog)'
+        replace: 'pass'
+      - id: close-on-the-event-thread
+        description: "o dialogo e fechado direto na thread do barramento, nao na thread do Tk"
+        find: 'self._safe_ui_call(self._close_camera_disconnect_dialog)'
+        replace: 'self._close_camera_disconnect_dialog()'
+      - id: reference-survives-the-close
+        description: "depois de fechar, o coordenador continua com o dialogo morto"
+        find: 'dialog, self._camera_disconnect_dialog = self._camera_disconnect_dialog, None'
+        replace: 'dialog = self._camera_disconnect_dialog'
+      - id: closes-nothing-when-none
+        description: "reconexao sem dialogo aberto tenta fechar None"
+        find: "        if dialog is not None:\n            dialog.close_dialog()"
+        replace: "        if dialog is None:\n            dialog.close_dialog()"
+      - id: destroy-instead-of-close-dialog
+        description: "o coordenador destroi o Toplevel em vez de pedir o fechamento ao dialogo"
+        find: 'dialog.close_dialog()'
+        replace: 'dialog.destroy()'
+      - id: second-disconnect-stacks-dialogs
+        description: "uma segunda desconexao abre outro dialogo modal sem fechar o primeiro"
+        find: '                self._close_camera_disconnect_dialog()'
+        replace: '                pass'
+
+  ui_coordinator_aquarium_detection_dialog:
+    source: src/zebtrack/ui/ui_coordinator.py
+    tests:
+      - tests/ui/test_ui_coordinator_helpers.py
+    mutations:
+      - id: dialog-sized-by-a-constant
+        description: "F2-UI-008: o dialogo volta a nascer com 100 quadros em vez do max_frames do payload"
+        find: '                            max_frames=total,'
+        replace: '                            max_frames=100,'
+      - id: last-frame-off-by-one
+        description: "o ultimo quadro da fase (contador 0-based) nao fecha o dialogo"
+        find: 'phase_done = frame_number + 1 >= total'
+        replace: 'phase_done = frame_number >= total'
+      - id: zero-max-accepted
+        description: "um max_frames zero e aceito e a fase ja nasce encerrada"
+        find: 'or total <= 0:'
+        replace: 'or total < 0:'
+      - id: bool-max-accepted
+        description: "um max_frames booleano e tratado como numero de quadros"
+        find: 'if not isinstance(total, int) or isinstance(total, bool) or total <= 0:'
+        replace: 'if not isinstance(total, int) or total <= 0:'
+      - id: default-length-changed
+        description: "o comprimento padrao do dialogo sem max_frames muda"
+        find: 'AQUARIUM_DETECTION_DEFAULT_FRAMES = 100'
+        replace: 'AQUARIUM_DETECTION_DEFAULT_FRAMES = 50'
+      - id: watchdog-too-short
+        description: "o cao de guarda fecha o dialogo em meio segundo"
+        find: 'AQUARIUM_DETECTION_STALE_MS = 5000'
+        replace: 'AQUARIUM_DETECTION_STALE_MS = 500'
+      - id: final-frame-reopens
+        description: "um evento do ultimo quadro reabre um dialogo recem fechado"
+        find: 'if self.root and self._aquarium_detection_dialog is None and not phase_done:'
+        replace: 'if self.root and self._aquarium_detection_dialog is None:'
+      - id: creation-not-rechecked-on-tk-thread
+        description: "dois eventos que chegam antes da thread do Tk abrem dois dialogos"
+        find: '                    if self._aquarium_detection_dialog is None:'
+        replace: '                    if True:'
+      - id: update-without-dialog
+        description: "evento sem dialogo aberto tenta atualizar None"
+        find: "                    if dialog is None:\n                        return"
+        replace: "                    if dialog is None:\n                        pass"
+      - id: last-frame-never-closes
+        description: "o dialogo so fecha pelo cao de guarda, nunca no ultimo quadro"
+        find: '                    if phase_done:'
+        replace: '                    if False:'
+      - id: watchdog-never-armed
+        description: "nenhum evento arma o cao de guarda"
+        find: '                        self._arm_aquarium_detection_watchdog()'
+        replace: '                        pass'
+      - id: watchdog-restart-stacks
+        description: "cada evento empilha um novo cao de guarda sem cancelar o anterior"
+        find: "        self._cancel_aquarium_detection_watchdog()\n        if self.root:\n            self._aquarium_detection_watchdog_id"
+        replace: "        if self.root:\n            self._aquarium_detection_watchdog_id"
+      - id: watchdog-closes-nothing
+        description: "quando o cao de guarda dispara nao fecha o dialogo"
+        find: 'AQUARIUM_DETECTION_STALE_MS, self._close_aquarium_detection_dialog'
+        replace: 'AQUARIUM_DETECTION_STALE_MS, lambda: None'
+      - id: close-leaves-watchdog
+        description: "fechar o dialogo deixa o cao de guarda armado"
+        find: "        self._cancel_aquarium_detection_watchdog()\n        dialog, self._aquarium_detection_dialog"
+        replace: "        dialog, self._aquarium_detection_dialog"
+      - id: status-bar-counts-to-a-constant
+        description: "a barra de status volta a contar contra 100"
+        find: 'frame=frame_number, total=total'
+        replace: 'frame=frame_number, total=100'
+      - id: missing-frame-number-raises
+        description: "payload sem numero de quadro derruba o manipulador"
+        find: 'frame_number = _payload_get(event_data, "frame_number", 0) or 0'
+        replace: 'frame_number = _payload_get(event_data, "frame_number", 0)'
+
+  pattern_match_rule:
+    source: src/zebtrack/core/services/pattern_match.py
+    tests:
+      - tests/core/services/test_pattern_match.py
+    mutations:
+      - id: pattern-flags-dropped
+        description: "F2-UI-009: o padrao do usuario volta a ser sensivel a maiusculas"
+        find: 'USER_PATTERN_FLAGS = re.IGNORECASE'
+        replace: 'USER_PATTERN_FLAGS = 0'
+      - id: precompiled-pattern-opts-out
+        description: "um padrao compilado sem a flag escapa da regra"
+        find: '        if pattern.flags & USER_PATTERN_FLAGS:'
+        replace: '        if True:'
+      - id: recompile-loses-other-flags
+        description: "recompilar com a flag perde as outras flags do padrao"
+        find: 're.compile(pattern.pattern, pattern.flags | USER_PATTERN_FLAGS)'
+        replace: 're.compile(pattern.pattern, USER_PATTERN_FLAGS)'
+      - id: first-group-even-if-absent
+        description: "F2-UI-003: o valor e o grupo 1 mesmo quando ele nao participou"
+        find: '        if group is not None:'
+        replace: '        if True:'
+      - id: empty-group-skipped
+        description: "um grupo que casou a string vazia e tratado como ausente"
+        find: '        if group is not None:'
+        replace: '        if group:'
+      - id: whole-match-fallback-empty
+        description: "sem grupo participante o valor deixa de ser o casamento inteiro"
+        find: '    return match.group(0)'
+        replace: '    return ""'
+      - id: no-match-is-empty-string
+        description: "sem casamento devolve string vazia em vez de None"
+        find: 'return None if match is None else match_value(match)'
+        replace: 'return "" if match is None else match_value(match)'
+      - id: search-anchored-at-start
+        description: "a busca passa a exigir o casamento no inicio do texto"
+        find: 'match = compile_user_pattern(pattern).search(text)'
+        replace: 'match = compile_user_pattern(pattern).match(text)'
+      - id: finditer-first-only
+        description: "so o primeiro casamento de um nome multi-sujeito e devolvido"
+        find: 'for m in compile_user_pattern(pattern).finditer(text)]'
+        replace: 'for m in list(compile_user_pattern(pattern).finditer(text))[:1]]'
+
+  pattern_match_detection_step_caller:
+    source: src/zebtrack/ui/wizard/detection_step.py
+    tests:
+      - tests/ui/wizard/test_detection_step_extended.py
+    mutations:
+      - id: group-search-case-sensitive-again
+        description: "F2-UI-009: o passo de deteccao busca o grupo sem ignorar maiusculas"
+        find: 'group = search_value(group_pattern, str(path_str))'
+        replace: 'group = (lambda m: m.group(0) if m else None)(re.search(group_pattern, str(path_str)))'
+      - id: day-takes-group-one-again
+        description: "F2-UI-003: o dia volta a ser o grupo 1 mesmo quando nao participou"
+        find: 'day = search_value(day_pattern, str(path_str))'
+        replace: 'day = (lambda m: m.group(1) if m else None)(re.search(day_pattern, str(path_str)))'
+      - id: subjects-case-sensitive-again
+        description: "os sujeitos do nome multi-sujeito voltam a ser buscados sem ignorar maiusculas"
+        find: 'for val in finditer_values(subject_pattern, str(path_str)):'
+        replace: 'for val in re.findall(subject_pattern, str(path_str)):'
+      - id: missing-day-crashes
+        description: "nome sem dia derruba a deteccao com None.isdigit()"
+        find: 'if day is not None and day.isdigit():'
+        replace: 'if day.isdigit():'
+      - id: unmatched-group-recognised
+        description: "nome sem o grupo e reconhecido como design"
+        find: '        if group is None:'
+        replace: '        if group is not None:'
+
+  pattern_match_dialog_caller:
+    source: src/zebtrack/ui/wizard/custom_regex_dialog.py
+    tests:
+      - tests/ui/wizard/test_custom_regex_dialog.py
+    mutations:
+      - id: dialog-compiles-case-sensitive
+        description: "F2-UI-009: a previa do dialogo compila os padroes sem ignorar maiusculas"
+        find: 'compiled[key] = compile_user_pattern(pattern)'
+        replace: 'compiled[key] = re.compile(pattern)'
+      - id: dialog-on-the-fly-invalid-pattern-ignored
+        description: "um padrao invalido compilado na hora deixa de ser reportado"
+        find: 'pattern = compile_user_pattern(pattern_str)'
+        replace: 'pattern = re.compile("x")'
+      - id: dialog-rows-whole-match
+        description: "as linhas da previa mostram o casamento inteiro em vez do valor"
+        find: 'values = finditer_values(pattern, path)'
+        replace: 'values = [m.group(0) for m in pattern.finditer(path)]'
+      - id: dialog-value-is-group-one
+        description: "F2-UI-003: o valor mostrado e o grupo 1 mesmo quando ele nao participou"
+        find: 'value = search_value(pattern, path)'
+        replace: 'value = (lambda m: m.group(1) if m and m.groups() else None)(pattern.search(path))'
