@@ -4911,3 +4911,45 @@ _load_registry()"
         description: "limiar de trilha curta zerado: um glitch de uma linha vira animal"
         find: '            df, min_track_duration_s=min_track_duration_from(self.settings)'
         replace: '            df, min_track_duration_s=0.0'
+
+  live_post_processor_flow:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: aquarium-folder-not-offset
+        description: "aquarium_1 passa a ser o aquario de id 1"
+        find: 'aq_id = int(aq_suffix) - 1'
+        replace: 'aq_id = int(aq_suffix)'
+      - id: unnumbered-folder-accepted
+        description: "pasta aquarium_x derruba a coleta das trajetorias"
+        find: 'if not aq_suffix.isdigit():'
+        replace: 'if False:'
+      - id: arena-mean-not-median
+        description: "uma deteccao espuria do aquario desloca a arena (media em vez de mediana)"
+        find: 'x1 = int(np.median(bboxes_array[:, 0]))'
+        replace: 'x1 = int(np.mean(bboxes_array[:, 0]))'
+      - id: fallback-arena-half-frame
+        description: "arena padrao sem deteccao vira metade do quadro em vez de um terco"
+        find: 'area_ratio = 3.0'
+        replace: 'area_ratio = 2.0'
+      - id: adhoc-arena-persisted
+        description: "sessao sem projeto tenta persistir a arena em disco"
+        find: 'should_persist = bool(self.project_manager.project_path)'
+        replace: 'should_persist = True'
+      - id: freezing-override-ignored
+        description: "limiar de freezing da sessao nao chega a analise"
+        find: 'if "freezing_velocity_threshold" in self._analysis_params:'
+        replace: 'if False:'
+      - id: summary-not-attached
+        description: "o .xlsx de cada aquario nao e registrado no projeto"
+        find: '            if summary_path:'
+        replace: '            if False:'
+      - id: no-detections-message-lost
+        description: "sessao sem deteccoes aparece como falha da analise"
+        find: 'elif reason == "no_detections":'
+        replace: 'elif reason == "error":'
+      - id: aquarium-metadata-dropped
+        description: "grupo/sujeito/dia do aquario deixam de ir para o registro"
+        find: '            if multi_zone_data is not None:'
+        replace: '            if False:'
