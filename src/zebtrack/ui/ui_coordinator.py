@@ -33,6 +33,9 @@ if TYPE_CHECKING:
     from zebtrack.ui.dialogs.aquarium_detection_progress_dialog import (
         AquariumDetectionProgressDialog,
     )
+    from zebtrack.ui.dialogs.camera_disconnect_recovery_dialog import (
+        CameraDisconnectRecoveryDialog,
+    )
 
 log = structlog.get_logger().bind(component="ui.ui_coordinator")
 
@@ -138,6 +141,10 @@ class UICoordinator:
 
         # v2.2.0: Progress dialog for aquarium detection
         self._aquarium_detection_dialog: AquariumDetectionProgressDialog | None = None
+
+        # F2-UI-007: the camera-disconnect dialog stays open while the user waits for the
+        # camera; the coordinator keeps it so CAMERA_RECONNECTED can close it.
+        self._camera_disconnect_dialog: CameraDisconnectRecoveryDialog | None = None
 
         # Setup subscriptions to all relevant events
         self._setup_subscriptions()
@@ -692,7 +699,10 @@ class UICoordinator:
                         ),
                     )
 
-                CameraDisconnectRecoveryDialog(
+                # A second disconnect before the first dialog went away must not stack a
+                # second modal grab on top of it.
+                self._close_camera_disconnect_dialog()
+                self._camera_disconnect_dialog = CameraDisconnectRecoveryDialog(
                     parent=self.root,
                     gap_duration_s=gap_duration,
                     experiment_id=experiment_id,
@@ -710,10 +720,23 @@ class UICoordinator:
             )
             self._errors_count += 1
 
+    def _close_camera_disconnect_dialog(self) -> None:
+        """Close the camera-disconnect dialog, if one is open (Tk main thread only).
+
+        After "wait" the dialog keeps its modal grab and ignores every further click (its
+        window-close button is a no-op once an action was taken), so this is the only way
+        it goes away. Closing one the user already dismissed (resume/stop destroy it) is
+        harmless: ``close_dialog`` swallows the already-destroyed error.
+        """
+        dialog, self._camera_disconnect_dialog = self._camera_disconnect_dialog, None
+        if dialog is not None:
+            dialog.close_dialog()
+
     def _on_camera_reconnected(self, event_data: payloads.EventPayload) -> None:
         """Handle camera reconnected event.
 
-        Logs reconnection and optionally shows toast notification.
+        Closes the disconnect dialog that is still waiting for the camera, then logs the
+        reconnection and updates the status bar.
 
         Args:
             event_data: Event payload with gap_duration_s, total_gaps, etc.
@@ -727,6 +750,8 @@ class UICoordinator:
                 gap_duration_s=gap_duration,
                 total_gaps=total_gaps,
             )
+
+            self._safe_ui_call(self._close_camera_disconnect_dialog)
 
             # Update status synchronizer if available
             if self.state_synchronizer:

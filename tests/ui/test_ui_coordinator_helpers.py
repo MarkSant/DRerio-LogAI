@@ -1,6 +1,8 @@
 """Tests for UICoordinator helper behaviors."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from zebtrack.ui.event_bus_v2 import UIEvents
 from zebtrack.ui.ui_coordinator import UICoordinator
@@ -124,3 +126,105 @@ def test_on_external_trigger_notice_cleared_calls_dialog():
     coordinator._on_external_trigger_notice_cleared({})
 
     dialog_manager.clear_external_trigger_notice.assert_called_once()
+
+
+# --- F2-UI-007: the camera-disconnect dialog must go away when the camera is back -------------
+
+RECOVERY_DIALOG = (
+    "zebtrack.ui.dialogs.camera_disconnect_recovery_dialog.CameraDisconnectRecoveryDialog"
+)
+
+
+def _immediate_root() -> MagicMock:
+    """A Tk root whose ``after(0, f)`` runs ``f`` at once (the main loop, collapsed)."""
+    root = MagicMock()
+    root.after.side_effect = lambda _delay, func, *args: func(*args)
+    return root
+
+
+def _disconnect(experiment_id: str = "E1") -> dict:
+    return {"gap_duration_s": 4.0, "experiment_id": experiment_id}
+
+
+def test_reconnect_closes_the_dialog_the_disconnect_opened():
+    coordinator = UICoordinator(event_bus=MagicMock(), root=_immediate_root())
+
+    with patch(RECOVERY_DIALOG) as dialog_cls:
+        coordinator._on_camera_disconnect(_disconnect())
+        dialog_cls.return_value.close_dialog.assert_not_called()
+
+        coordinator._on_camera_reconnected({"gap_duration_s": 6.5, "total_gaps": 1})
+
+    dialog_cls.assert_called_once()
+    dialog_cls.return_value.close_dialog.assert_called_once_with()
+
+
+def test_a_second_reconnect_has_no_dialog_left_to_close():
+    coordinator = UICoordinator(event_bus=MagicMock(), root=_immediate_root())
+
+    with patch(RECOVERY_DIALOG) as dialog_cls:
+        coordinator._on_camera_disconnect(_disconnect())
+        coordinator._on_camera_reconnected({"gap_duration_s": 6.5, "total_gaps": 1})
+        coordinator._on_camera_reconnected({"gap_duration_s": 0.0, "total_gaps": 1})
+
+    dialog_cls.return_value.close_dialog.assert_called_once_with()
+
+
+def test_reconnect_without_any_dialog_is_harmless():
+    coordinator = UICoordinator(event_bus=MagicMock(), root=_immediate_root())
+
+    coordinator._on_camera_reconnected({"gap_duration_s": 1.0, "total_gaps": 1})
+
+    assert coordinator.get_statistics() == {"events_handled": 1, "errors_count": 0}
+
+
+def test_a_new_disconnect_closes_the_previous_dialog_before_opening_its_own():
+    coordinator = UICoordinator(event_bus=MagicMock(), root=_immediate_root())
+    first, second = MagicMock(name="first"), MagicMock(name="second")
+
+    with patch(RECOVERY_DIALOG, side_effect=[first, second]):
+        coordinator._on_camera_disconnect(_disconnect("E1"))
+        first.close_dialog.assert_not_called()
+        coordinator._on_camera_disconnect(_disconnect("E2"))
+        first.close_dialog.assert_called_once_with()
+        second.close_dialog.assert_not_called()
+        coordinator._on_camera_reconnected({"gap_duration_s": 1.0, "total_gaps": 2})
+
+    second.close_dialog.assert_called_once_with()
+
+
+def test_the_dialog_is_closed_on_the_tk_thread_not_the_event_bus_thread():
+    root = MagicMock()
+    coordinator = UICoordinator(event_bus=MagicMock(), root=root)
+    dialog = MagicMock()
+    coordinator._camera_disconnect_dialog = dialog
+
+    coordinator._on_camera_reconnected({"gap_duration_s": 1.0, "total_gaps": 1})
+
+    dialog.close_dialog.assert_not_called()  # only scheduled, as a worker thread would
+    scheduled = [call.args[1] for call in root.after.call_args_list if call.args[0] == 0]
+    for func in scheduled:
+        func()
+    dialog.close_dialog.assert_called_once_with()
+
+
+@pytest.mark.gui
+def test_the_real_dialog_the_user_told_to_wait_is_gone_after_the_reconnect(tkinter_root):
+    event_bus = MagicMock()
+    coordinator = UICoordinator(event_bus=event_bus, root=tkinter_root)
+
+    coordinator._on_camera_disconnect(_disconnect())
+    tkinter_root.update()
+    dialog = coordinator._camera_disconnect_dialog
+    assert dialog is not None
+    assert dialog.winfo_exists()
+
+    dialog._on_wait()  # the user chose "wait": the dialog now ignores every further action
+    dialog._on_stop()
+    assert dialog.winfo_exists()
+
+    coordinator._on_camera_reconnected({"gap_duration_s": 6.5, "total_gaps": 1})
+    tkinter_root.update()
+
+    assert not dialog.winfo_exists()
+    assert coordinator._camera_disconnect_dialog is None

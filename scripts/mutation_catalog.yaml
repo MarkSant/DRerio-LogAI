@@ -4761,3 +4761,37 @@ _load_registry()"
         description: "um aquario fora do quadro derruba o desenho dos demais"
         find: "            if cropped is None:\n                continue"
         replace: "            if cropped is None:\n                break"
+
+  ui_coordinator_camera_disconnect_dialog:
+    source: src/zebtrack/ui/ui_coordinator.py
+    tests:
+      - tests/ui/test_ui_coordinator_helpers.py
+    mutations:
+      - id: dialog-reference-not-kept
+        description: "F2-UI-007: o coordenador nao guarda o dialogo que abriu, entao nada o fecha"
+        find: 'self._camera_disconnect_dialog = CameraDisconnectRecoveryDialog('
+        replace: '_discarded = CameraDisconnectRecoveryDialog('
+      - id: reconnect-does-not-close
+        description: "a reconexao da camera nao fecha o dialogo que esta esperando"
+        find: 'self._safe_ui_call(self._close_camera_disconnect_dialog)'
+        replace: 'pass'
+      - id: close-on-the-event-thread
+        description: "o dialogo e fechado direto na thread do barramento, nao na thread do Tk"
+        find: 'self._safe_ui_call(self._close_camera_disconnect_dialog)'
+        replace: 'self._close_camera_disconnect_dialog()'
+      - id: reference-survives-the-close
+        description: "depois de fechar, o coordenador continua com o dialogo morto"
+        find: 'dialog, self._camera_disconnect_dialog = self._camera_disconnect_dialog, None'
+        replace: 'dialog = self._camera_disconnect_dialog'
+      - id: closes-nothing-when-none
+        description: "reconexao sem dialogo aberto tenta fechar None"
+        find: "        if dialog is not None:\n            dialog.close_dialog()"
+        replace: "        if dialog is None:\n            dialog.close_dialog()"
+      - id: destroy-instead-of-close-dialog
+        description: "o coordenador destroi o Toplevel em vez de pedir o fechamento ao dialogo"
+        find: 'dialog.close_dialog()'
+        replace: 'dialog.destroy()'
+      - id: second-disconnect-stacks-dialogs
+        description: "uma segunda desconexao abre outro dialogo modal sem fechar o primeiro"
+        find: '                self._close_camera_disconnect_dialog()'
+        replace: '                pass'
