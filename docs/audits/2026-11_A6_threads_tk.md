@@ -292,7 +292,9 @@ Top three, in order of how often the user meets them:
 
 ### A6-S1 — Legacy `VideoProcessingService` path publishes frames from the monitor thread
 
-- Where: `core/video/progress_notifier.py:153` and :231, `core/video/tracking_session_runner.py:153`,
+- Where: `core/video/progress_notifier.py:231` (live `_make_progress_callback`; the :153 twin is
+  inside `create_progress_callback`, which has no caller, see A2-D-199 in
+  `docs/audits/2026-11_A2_tail_review.md`), `core/video/tracking_session_runner.py:153`,
   `core/video/video_context_factory.py:165`, :177 publish `UI_DISPLAY_FRAME`,
   `UI_UPDATE_DETECTION_OVERLAY` and `UI_UPDATE_ANALYSIS_TASK_STATUS`. Their subscribers
   (`event_dispatcher.py:625`, :629, :746) are unmarshalled: `canvas_manager.update_video_frame`
