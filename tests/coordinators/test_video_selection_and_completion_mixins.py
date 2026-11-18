@@ -182,6 +182,31 @@ class TestLoadZonesForEligibleVideos:
             assert zd["polygon"] == [[0, 0], [100, 100]]
             coordinator.project_manager.save_zone_data.assert_called_once()
 
+    def test_load_zones_standard_video_keeps_the_source_size(self, coordinator):
+        """A8-002: the worker needs ``source_video_width/height`` to scale the zone."""
+        coordinator.project_manager.get_multi_aquarium_zone_data.return_value = None
+        coordinator.project_manager.resolve_results_directory.return_value = Path("/results")
+        metadata = {"source_video_width": 320, "source_video_height": 240}
+        mock_zone = ZoneData(
+            polygon=[[20, 20], [300, 20], [300, 220]],
+            roi_polygons=[],
+            roi_names=[],
+            roi_colors=[],
+            metadata=metadata,
+        )
+
+        with patch(
+            "zebtrack.core.project.project_manager.ProjectManager.load_zones_from_parquet",
+            return_value=mock_zone,
+        ):
+            eligible: list[dict[str, Any]] = [{"path": "video1.mp4", "has_arena": True}]
+            coordinator._load_zones_for_eligible_videos(eligible)
+
+        zd = cast(dict[str, Any], eligible[0]["zone_data"])
+        assert zd["metadata"] == metadata
+        # A copy: the worker payload must not alias the project's ZoneData.
+        assert zd["metadata"] is not mock_zone.metadata
+
 
 class TestExplodeSequentialTasks:
     def test_explode_single_aquarium(self, coordinator):

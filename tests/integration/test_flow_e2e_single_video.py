@@ -149,21 +149,13 @@ def test_the_video_is_registered_only_in_memory(single_run: dict) -> None:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "A8-001: single-aquarium zones are saved in raw video pixels with no source "
-        "size, and the worker scales them from camera.desired_width/height; a video "
-        "whose resolution differs from the camera reference gets a wrong arena."
-    ),
-)
 def test_arena_is_honoured_when_the_video_is_not_the_camera_size(tmp_path: Path) -> None:
-    """Shipped camera reference (1280x720) and a 640x480 video.
+    """Shipped camera reference (1280x720) and a 640x480 video (A8-001).
 
     The user drew the arena on THIS video's frame (``canvas_to_video``), and the
-    report reads it as raw pixels. The worker instead treats it as 1280x720
-    reference coordinates and halves it, so the subject's walk to x = 500 px is
-    filtered out as "outside the arena" while the run reports success.
+    report reads it as raw pixels. Until A8-001 the worker treated it as 1280x720
+    reference coordinates and halved it, so the subject's walk to x = 500 px was
+    filtered out as "outside the arena" while the run reported success.
     """
     run = _run_single_video(tmp_path, flow_settings(camera_matches_video=False))
     df = pd.read_parquet(run["results"] / f"3_CoordMovimento_{STEM}.parquet")

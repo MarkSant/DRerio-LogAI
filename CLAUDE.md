@@ -174,7 +174,15 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
 
 ### 🗺️ Zones, ROI & Coordinates
 
-- Zones stored in reference coordinates (`camera.desired_width × camera.desired_height`). **Must call `Detector.set_zones()` after video dimensions known** to rescale.
+- **Zones are stored in the raw pixels of the video (or camera frame) they were drawn on**:
+  the Zones tab converts clicks with `VideoDisplay.canvas_to_video`, and the report and the
+  trajectory read them as raw pixels. `camera.desired_width × desired_height` is the LIVE
+  camera's resolution, **never** a coordinate base for a pre-recorded file. The batch worker
+  scales a zone from its stated `metadata["source_video_width/height"]` when present, else
+  from the video's own size (`_WorkerProcess._default_single_zone_source_to_video`, A8-001);
+  the project batch must carry `metadata` to the worker (A8-002). **Still call
+  `Detector.set_zones()` after video dimensions are known**, with the detector's base set to
+  that source size.
 - Arena: "4 corners OR center" logic.
 - ROI modes: `centroid_in`, `centroid_in_on_buffered_roi`, `bbox_intersects`, `seg_overlap`.
 - **`seg_overlap` needs masks that only exist if they were RECORDED.** It reads the

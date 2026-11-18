@@ -948,6 +948,38 @@ class _WorkerProcess(multiprocessing.Process):
         return None, None
 
     @staticmethod
+    def _default_single_zone_source_to_video(
+        zone_data: ZoneData | MultiAquariumZoneData,
+        *,
+        source_width: int | None,
+        source_height: int | None,
+        actual_width: int,
+        actual_height: int,
+    ) -> tuple[int | None, int | None]:
+        """A single-aquarium zone that states no source size is in THIS video's pixels.
+
+        Contract (A8-001): arena and ROI points are raw pixels of the video they
+        are attached to: the Zones tab converts clicks with
+        ``VideoDisplay.canvas_to_video``, and the report and the trajectory read
+        them as raw pixels. ``camera.desired_width/height`` is the LIVE camera's
+        resolution, not a coordinate base for a file drawn at another size, so it
+        must never be the fallback here. A stated source size still wins (zones
+        drawn on a proxy, the multi-aquarium paths). ``MultiAquariumZoneData``
+        keeps its own resolution rules and is returned untouched.
+        """
+        if source_width is not None and source_height is not None:
+            return source_width, source_height
+        if not isinstance(zone_data, ZoneData):
+            return source_width, source_height
+        if actual_width <= 0 or actual_height <= 0:
+            return source_width, source_height
+        log.info(
+            "worker.zone_source_dimensions.video_default",
+            actual_dimensions=(actual_width, actual_height),
+        )
+        return actual_width, actual_height
+
+    @staticmethod
     def _set_detector_base_dimensions(
         detector: Detector,
         base_width: int,
@@ -1087,6 +1119,15 @@ class _WorkerProcess(multiprocessing.Process):
         video_zone_data = self._get_zone_data_for_video(video_metadata)
         source_width, source_height = self._resolve_zone_source_dimensions(video_zone_data)
         source_width, source_height = self._repair_source_dimensions_if_needed(
+            video_zone_data,
+            source_width=source_width,
+            source_height=source_height,
+            actual_width=width,
+            actual_height=height,
+        )
+        # After the repair, never before: the repair heuristic only re-reads a
+        # STATED size; the video default below is the contract, not a guess.
+        source_width, source_height = self._default_single_zone_source_to_video(
             video_zone_data,
             source_width=source_width,
             source_height=source_height,
