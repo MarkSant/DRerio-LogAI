@@ -42,6 +42,7 @@ from zebtrack.core.services.external_trigger_gate import (
 from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.i18n import _
 from zebtrack.settings import DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S
+from zebtrack.ui.background_task import run_in_background
 from zebtrack.ui.components.analysis_window_panel import AnalysisWindowPanel, SpecBuildError
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
@@ -737,61 +738,86 @@ class LiveAnalysisDialog(Dialog):
             self.output_folder_var.set(folder)
 
     def _detect_cameras(self) -> None:
-        """Detect available cameras using WizardService."""
+        """Detect available cameras using WizardService, off the Tk thread.
+
+        Runs automatically when the dialog opens. Enumeration opens each camera
+        index and waits up to 3 s for a frame (audit A6-04), so it runs on a
+        daemon thread; ``_apply_detected_cameras`` / ``_on_camera_detection_error``
+        apply the outcome on Tk. A second request while one is in flight is
+        ignored.
+        """
+        if getattr(self, "_camera_detection_pending", False):
+            return
+        self._camera_detection_pending = True
         self.camera_status_label.config(text=_("Detecting..."), fg="blue")
-        self.update_idletasks()
 
-        try:
-            cameras = WizardService.detect_available_cameras()
+        def _done(cameras: list[dict[str, Any]]) -> None:
+            self._camera_detection_pending = False
+            self._apply_detected_cameras(cameras)
 
-            if cameras:
-                # Build display names and index map
-                self.camera_index_map.clear()
-                display_names = []
+        def _failed(exc: BaseException) -> None:
+            self._camera_detection_pending = False
+            self._on_camera_detection_error(exc)
 
-                for cam in cameras:
-                    index = cam["index"]
-                    # Mesmo método de nomeação do wizard de projeto
-                    # (LiveConfigStep._detect_cameras): usar o campo
-                    # ``description`` que o WizardService já formata
-                    # (ex.: "HD Webcam [index 0] - HD (1280x720)"). Os campos
-                    # ``name``/``resolution`` não existem no dict retornado.
-                    display_name = cam.get("description", _("Camera {index}").format(index=index))
-                    display_names.append(display_name)
-                    self.camera_index_map[display_name] = index
+        run_in_background(
+            self,
+            WizardService.detect_available_cameras,
+            _done,
+            _failed,
+            name="live-dialog-cameras",
+        )
 
-                self.camera_combo["values"] = display_names
+    def _apply_detected_cameras(self, cameras: list[dict[str, Any]]) -> None:
+        """Fill the camera combo and status label (Tk thread only)."""
+        if cameras:
+            # Build display names and index map
+            self.camera_index_map.clear()
+            display_names = []
 
-                # Auto-select first camera
-                if display_names and not self.camera_selection_var.get():
-                    self.camera_selection_var.set(display_names[0])
+            for cam in cameras:
+                index = cam["index"]
+                # Mesmo método de nomeação do wizard de projeto
+                # (LiveConfigStep._detect_cameras): usar o campo
+                # ``description`` que o WizardService já formata
+                # (ex.: "HD Webcam [index 0] - HD (1280x720)"). Os campos
+                # ``name``/``resolution`` não existem no dict retornado.
+                display_name = cam.get("description", _("Camera {index}").format(index=index))
+                display_names.append(display_name)
+                self.camera_index_map[display_name] = index
 
-                self.camera_status_label.config(
-                    text=(
-                        _("✓ 1 camera detected")
-                        if len(cameras) == 1
-                        else _("✓ {count} cameras detected").format(count=len(cameras))
-                    ),
-                    fg="green",
-                )
-            else:
-                self.camera_combo["values"] = []
-                self.camera_status_label.config(
-                    text=_("✗ No camera detected"),
-                    fg="red",
-                )
+            self.camera_combo["values"] = display_names
 
-        except Exception as e:
-            log.error("live_analysis_dialog.camera_detection_error", error=str(e), exc_info=True)
+            # Auto-select first camera
+            if display_names and not self.camera_selection_var.get():
+                self.camera_selection_var.set(display_names[0])
+
             self.camera_status_label.config(
-                text=_("✗ Error detecting cameras"),
+                text=(
+                    _("✓ 1 camera detected")
+                    if len(cameras) == 1
+                    else _("✓ {count} cameras detected").format(count=len(cameras))
+                ),
+                fg="green",
+            )
+        else:
+            self.camera_combo["values"] = []
+            self.camera_status_label.config(
+                text=_("✗ No camera detected"),
                 fg="red",
             )
-            messagebox.showerror(
-                _("Detection Error"),
-                _("Failed to detect cameras:\n{error}").format(error=e),
-                parent=self,
-            )
+
+    def _on_camera_detection_error(self, e: BaseException) -> None:
+        """Report a failed camera enumeration (Tk thread only)."""
+        log.error("live_analysis_dialog.camera_detection_error", error=str(e), exc_info=e)
+        self.camera_status_label.config(
+            text=_("✗ Error detecting cameras"),
+            fg="red",
+        )
+        messagebox.showerror(
+            _("Detection Error"),
+            _("Failed to detect cameras:\n{error}").format(error=e),
+            parent=self,
+        )
 
     def _validate_output_folder(self) -> bool:
         """Ensure the chosen output folder exists and accepts writes.

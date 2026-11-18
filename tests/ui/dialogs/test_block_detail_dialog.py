@@ -575,3 +575,82 @@ def test_partial_excel_report_has_notes_sheet_only_with_notes(tmp_path):
             "updated_at": "",
         },
     ]
+
+
+# ----------------------------------------------------------------------
+# A6-04: "Change camera" enumerates cameras off the Tk thread
+# ----------------------------------------------------------------------
+
+
+def _chooser_dialog():
+    """Dialog stub with a deferring Tk loop and a recording chooser."""
+    import threading as _threading
+
+    from tests.utils.deferring_tk import bind_deferring_tk
+
+    dialog = cast(Any, BlockDetailDialog.__new__(BlockDetailDialog))
+    dialog._camera_detection_pending = False
+    dialog._camera_index_override = None
+    dialog._camera_friendly_name_override = None
+    dialog.project_manager = SimpleNamespace(project_data={"camera_index": 0})
+    dialog._camera_label = MagicMock()
+    shown: list = []
+    dialog._show_camera_chooser = lambda cams: shown.append((cams, _threading.current_thread()))
+    tk_loop = bind_deferring_tk(dialog)
+    return dialog, tk_loop, shown
+
+
+def test_camera_chooser_detects_off_tk_and_opens_the_chooser_on_tk():
+    import threading as _threading
+
+    from zebtrack.core.services.wizard_service import WizardService
+
+    dialog, tk_loop, shown = _chooser_dialog()
+    calls: list = []
+    cameras = [{"index": 1, "description": "USB", "friendly_name": "USB"}]
+
+    def _detect(use_cache=True):
+        calls.append((use_cache, _threading.current_thread()))
+        return cameras
+
+    with patch.object(WizardService, "detect_available_cameras", side_effect=_detect):
+        dialog._open_camera_chooser()
+        dialog._open_camera_chooser()  # second click while in flight: ignored
+        assert shown == []  # nothing until the Tk loop turns
+        dialog._camera_label.config.assert_called_with(text="Detecting...")
+        tk_loop.run_until_idle()
+
+    assert len(calls) == 1
+    use_cache, thread = calls[0]
+    assert use_cache is False
+    assert thread is not _threading.main_thread()
+    assert shown == [(cameras, _threading.main_thread())]
+    assert dialog._camera_detection_pending is False
+    dialog._camera_label.config.assert_called_with(text="Index 0")
+
+
+def test_camera_chooser_reports_detection_failure_on_tk():
+    import threading as _threading
+
+    from zebtrack.core.services.wizard_service import WizardService
+
+    dialog, tk_loop, shown = _chooser_dialog()
+    errors: list = []
+
+    with (
+        patch.object(WizardService, "detect_available_cameras", side_effect=OSError("dshow down")),
+        patch(
+            "zebtrack.ui.dialogs.block_detail_dialog.messagebox.showerror",
+            side_effect=lambda *a, **k: errors.append((a, _threading.current_thread())),
+        ),
+    ):
+        dialog._open_camera_chooser()
+        tk_loop.run_until_idle()
+
+    assert shown == []
+    assert len(errors) == 1
+    (title, message), thread = errors[0]
+    assert title == "Detection failed"
+    assert "dshow down" in message
+    assert thread is _threading.main_thread()
+    assert dialog._camera_detection_pending is False

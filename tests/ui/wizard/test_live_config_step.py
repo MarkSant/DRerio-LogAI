@@ -5,9 +5,12 @@ is_batch_last_session) are no longer collected by the live wizard step --
 those values now come from the project batch grid defined in Step 2.
 """
 
-from typing import Any
+import threading
+from typing import Any, cast
 
 import pytest
+from tests.utils.deferring_tk import bind_deferring_tk
+from tests.utils.wait_helpers import drain_background_tasks
 
 from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.wizard.enums import WizardStepID
@@ -201,6 +204,7 @@ class TestLiveConfigTemplateReconcile:
         step.build_ui()
 
         step.on_show()
+        drain_background_tasks(self.root)
 
         # Saved camera absent → fall back to the only available one + warn.
         assert step.camera_selection_var.get() == "USB Cam"
@@ -219,6 +223,7 @@ class TestLiveConfigTemplateReconcile:
         step.build_ui()
 
         step.on_show()
+        drain_background_tasks(self.root)
 
         assert step.camera_selection_var.get() == "USB Cam"
         assert "unavailable" not in step.camera_status_label.cget("text").lower()
@@ -239,6 +244,7 @@ class TestLiveConfigTemplateReconcile:
         step.build_ui()
 
         step.on_show()
+        drain_background_tasks(self.root)
 
         # Phantom port cleared + warned, not silently carried.
         assert step.arduino_port_var.get() == ""
@@ -264,6 +270,7 @@ class TestLiveConfigTemplateReconcile:
         step.build_ui()
 
         step.on_show()
+        drain_background_tasks(self.root)
 
         assert step.arduino_port_var.get() == "COM3 - Arduino"
         assert "unavailable" not in step.arduino_status_label.cget("text").lower()
@@ -282,9 +289,246 @@ class TestLiveConfigTemplateReconcile:
         step.build_ui()
 
         step.on_show()
+        drain_background_tasks(self.root)
 
         assert calls["camera"] == 0
         assert step.camera_selection_var.get() == ""
+
+
+@pytest.mark.gui
+class TestLiveConfigDetectionOffTk:
+    """A6-04/A6-05: the template restore detects hardware off the Tk thread.
+
+    The step's ``after``/``winfo_exists`` are routed to a ``DeferringTk`` so the
+    test decides when the Tk loop turns: before that, only "Detecting..." may be
+    on screen, and the hardware call must have run on a worker thread.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self, wizard_dependencies):
+        self.root = wizard_dependencies["root"]
+
+    def _step(self, wizard_data=None):
+        step = LiveConfigStep(self.root, wizard_data if wizard_data is not None else {})
+        step.build_ui()
+        return step, bind_deferring_tk(step)
+
+    def test_template_restore_detects_off_tk_then_replays_on_tk(self, monkeypatch):
+        """``set_data`` must wait for the maps: it matches the saved devices against them."""
+        threads: list = []
+
+        def _cams(*_a, **_k):
+            threads.append(("cam", threading.current_thread()))
+            return [{"index": 0, "description": "USB Cam", "friendly_name": "USB Cam Real"}]
+
+        def _ports(*_a, **_k):
+            threads.append(("port", threading.current_thread()))
+            return [{"display_name": "COM3 - Arduino", "device": "COM3"}]
+
+        monkeypatch.setattr(WizardService, "detect_available_cameras", _cams)
+        monkeypatch.setattr(WizardService, "detect_arduino_ports", _ports)
+        step, tk_loop = self._step(
+            {
+                "template_metadata": {"name": "T"},
+                "camera_friendly_name": "USB Cam Real",
+                "use_arduino": True,
+                "arduino_port": "COM3",
+            }
+        )
+
+        step._restore_from_template_once()
+        assert step._hw_restored_from_template is True
+        assert step.camera_status_label.cget("text") == "Detecting..."
+        assert step.arduino_status_label.cget("text") == "Detecting..."
+        assert step.camera_selection_var.get() == ""
+
+        step._restore_from_template_once()  # one-shot: a second show does not rescan
+        tk_loop.run_until_idle()
+
+        assert [kind for kind, _t in threads] == ["cam", "port"]
+        assert all(t is not threading.main_thread() for _k, t in threads)
+        assert step.camera_selection_var.get() == "USB Cam"
+        assert step.use_arduino_var.get() is True
+        assert step.arduino_port_var.get() == "COM3 - Arduino"
+
+    def test_template_restore_without_arduino_skips_the_port_scan(self, monkeypatch):
+        monkeypatch.setattr(WizardService, "detect_available_cameras", lambda *a, **k: [])
+
+        def _never(*_a, **_k):
+            raise AssertionError("port scan must not run")
+
+        monkeypatch.setattr(WizardService, "detect_arduino_ports", _never)
+        step, tk_loop = self._step(
+            {"template_metadata": {"name": "T"}, "camera_index": 4, "use_arduino": False}
+        )
+
+        step._restore_from_template_once()
+        assert step.arduino_status_label.cget("text") != "Detecting..."
+        tk_loop.run_until_idle()
+
+        assert step.camera_status_label.cget("text") == "✗ No camera detected"
+
+    def test_template_restore_failure_still_replays_the_saved_settings(self, monkeypatch):
+        def _no_serial(*_a, **_k):
+            raise ImportError("serial")
+
+        monkeypatch.setattr(WizardService, "detect_available_cameras", lambda *a, **k: [])
+        monkeypatch.setattr(WizardService, "detect_arduino_ports", _no_serial)
+        step, tk_loop = self._step(
+            {
+                "template_metadata": {"name": "T"},
+                "use_arduino": True,
+                "recording_duration_s": 123,
+            }
+        )
+
+        step._restore_from_template_once()
+        tk_loop.run_until_idle()
+
+        assert step.recording_duration_var.get() == 123
+        assert step.use_arduino_var.get() is True
+        assert step.camera_status_label.cget("text") == "✗ No camera detected"
+        assert step.arduino_status_label.cget("text") == "✗ pyserial not installed"
+
+
+class _FakeLabel:
+    """Label stand-in: ``config`` stores options, ``cget`` reads them back."""
+
+    def __init__(self) -> None:
+        self.options: dict[str, Any] = {}
+
+    def config(self, **kwargs: Any) -> None:
+        self.options.update(kwargs)
+
+    def cget(self, key: str) -> Any:
+        return self.options.get(key, "")
+
+
+class _FakeVar:
+    def __init__(self, value: Any = "") -> None:
+        self.value = value
+
+    def get(self) -> Any:
+        return self.value
+
+    def set(self, value: Any) -> None:
+        self.value = value
+
+
+def _headless_step():
+    """A LiveConfigStep with just what the detection paths touch, and no Tk root.
+
+    The mutation runner deselects ``gui`` tests, so the thread contract of the
+    two detection buttons is checked here with stub widgets; the template
+    restore (which replays ``set_data`` over real widgets) stays in the GUI class.
+    """
+    step = cast(Any, LiveConfigStep.__new__(LiveConfigStep))
+    step._camera_detection_pending = False
+    step._arduino_detection_pending = False
+    step.camera_status_label = _FakeLabel()
+    step.arduino_status_label = _FakeLabel()
+    step.camera_combo = {}
+    step.arduino_port_combo = {}
+    step.camera_index_map = {}
+    step.camera_friendly_name_map = {}
+    step.arduino_port_map = {}
+    step.camera_selection_var = _FakeVar()
+    step.arduino_port_var = _FakeVar()
+    return step, bind_deferring_tk(step)
+
+
+class TestLiveConfigDetectionButtonsOffTk:
+    """A6-04/A6-05: the "Detect" buttons enumerate hardware on a worker thread.
+
+    Until the (deferred) Tk loop turns, only "Detecting..." may be on screen;
+    the hardware call must have run off the main thread.
+    """
+
+    def test_camera_button_detects_off_tk(self, monkeypatch):
+        threads: list = []
+
+        def _detect(*_a, **_k):
+            threads.append(threading.current_thread())
+            return [{"index": 0, "description": "USB Cam", "friendly_name": "USB Cam Real"}]
+
+        monkeypatch.setattr(WizardService, "detect_available_cameras", _detect)
+        step, tk_loop = _headless_step()
+
+        step._detect_cameras()
+        assert step.camera_status_label.cget("text") == "Detecting..."
+        assert step.camera_selection_var.get() == ""
+        step._detect_cameras()  # second click while in flight: ignored
+
+        tk_loop.run_until_idle()
+
+        assert len(threads) == 1
+        assert threads[0] is not threading.main_thread()
+        assert step.camera_selection_var.get() == "USB Cam"
+        assert step.camera_friendly_name_map == {"USB Cam": "USB Cam Real"}
+        assert step.camera_status_label.cget("text") == "✓ 1 camera detected"
+
+    def test_camera_detection_failure_shows_no_camera(self, monkeypatch):
+        def _boom(*_a, **_k):
+            raise OSError("dshow")
+
+        monkeypatch.setattr(WizardService, "detect_available_cameras", _boom)
+        step, tk_loop = _headless_step()
+
+        step._detect_cameras()
+        tk_loop.run_until_idle()
+
+        assert step.camera_status_label.cget("text") == "✗ No camera detected"
+        assert step._camera_detection_pending is False
+
+    def test_arduino_scan_runs_off_tk_and_auto_selects_on_tk(self, monkeypatch):
+        threads: list = []
+
+        def _ports(*_a, **_k):
+            threads.append(threading.current_thread())
+            return [{"display_name": "COM3 - Arduino", "device": "COM3", "has_handshake": True}]
+
+        monkeypatch.setattr(WizardService, "detect_arduino_ports", _ports)
+        step, tk_loop = _headless_step()
+
+        step._detect_arduino_ports()
+        assert step.arduino_status_label.cget("text") == "Detecting..."
+        assert step.arduino_port_var.get() == ""
+        step._detect_arduino_ports()  # ignored while in flight
+
+        tk_loop.run_until_idle()
+
+        assert len(threads) == 1
+        assert threads[0] is not threading.main_thread()
+        assert step.arduino_port_var.get() == "COM3 - Arduino"
+        assert step.arduino_port_map == {"COM3 - Arduino": "COM3"}
+        assert step.arduino_status_label.cget("text") == "✓ 1 port — using COM3"
+
+    def test_arduino_scan_without_pyserial_says_so(self, monkeypatch):
+        def _no_serial(*_a, **_k):
+            raise ImportError("No module named 'serial'")
+
+        monkeypatch.setattr(WizardService, "detect_arduino_ports", _no_serial)
+        step, tk_loop = _headless_step()
+
+        step._detect_arduino_ports()
+        tk_loop.run_until_idle()
+
+        assert step.arduino_status_label.cget("text") == "✗ pyserial not installed"
+        assert step._arduino_detection_pending is False
+
+    def test_arduino_scan_other_failure_shows_no_port(self, monkeypatch):
+        def _boom(*_a, **_k):
+            raise OSError("access denied")
+
+        monkeypatch.setattr(WizardService, "detect_arduino_ports", _boom)
+        step, tk_loop = _headless_step()
+
+        step._detect_arduino_ports()
+        tk_loop.run_until_idle()
+
+        assert step.arduino_status_label.cget("text") == "✗ No port detected"
+        assert step.arduino_port_combo["values"] == []
+        assert step._arduino_detection_pending is False
 
 
 def _picked_device(ports: list[dict[str, Any]]) -> str:

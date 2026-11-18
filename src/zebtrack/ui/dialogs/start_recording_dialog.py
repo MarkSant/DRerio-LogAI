@@ -20,6 +20,7 @@ from tkinter import (
 from typing import Any
 
 from zebtrack.i18n import _
+from zebtrack.ui.background_task import run_in_background
 
 
 class StartRecordingDialog(simpledialog.Dialog):
@@ -58,6 +59,8 @@ class StartRecordingDialog(simpledialog.Dialog):
         self._camera_friendly_name_override: str | None = None
         self._persist_camera_var: BooleanVar | None = None
         self._camera_label: Label | None = None
+        # Camera enumeration in flight (audit A6-04): a second click is ignored.
+        self._camera_detection_pending = False
 
         super().__init__(parent, _("Start a New Recording Session"))
 
@@ -146,17 +149,35 @@ class StartRecordingDialog(simpledialog.Dialog):
         if self.camera_provider is None:
             return
 
-        try:
-            cameras = self.camera_provider()
-        # except Exception justified: hardware probe — camera enumeration is I/O
-        except Exception as exc:
+        if self._camera_detection_pending:
+            return
+        self._camera_detection_pending = True
+        if self._camera_label is not None:
+            self._camera_label.config(text=_("Detecting..."))
+
+        def _settle() -> None:
+            self._camera_detection_pending = False
+            if self._camera_label is not None:
+                self._camera_label.config(text=self._format_current_camera())
+
+        def _done(cameras: list[dict[str, Any]]) -> None:
+            _settle()
+            self._show_camera_chooser(cameras)
+
+        def _failed(exc: BaseException) -> None:
+            _settle()
             messagebox.showerror(
                 _("Detection failed"),
                 _("Could not detect cameras:\n\n{error}").format(error=exc),
                 parent=self,
             )
-            return
 
+        # Enumeration opens each camera index and waits up to 3 s for a frame
+        # (audit A6-04): run it off the Tk thread, open the chooser on Tk.
+        run_in_background(self, self.camera_provider, _done, _failed, name="camera-chooser")
+
+    def _show_camera_chooser(self, cameras: list[dict[str, Any]]) -> None:
+        """Modal chooser over an already-detected camera list (Tk thread only)."""
         if not cameras:
             messagebox.showwarning(
                 _("No camera"),

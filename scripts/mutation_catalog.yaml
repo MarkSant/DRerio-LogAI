@@ -5327,3 +5327,161 @@ _load_registry()"
         description: "F2-UI-008: o servico volta a anunciar 300 quadros enquanto o laco para em 10"
         find: '        self._aquarium_detection_max_frames: int = AQUARIUM_DETECTION_FRAMES'
         replace: '        self._aquarium_detection_max_frames: int = 300'
+
+  # ---- A6-04/A6-05: hardware detection leaves the Tk thread -------------------
+  ui_background_task:
+    source: src/zebtrack/ui/background_task.py
+    tests:
+      - tests/ui/test_background_task.py
+    mutations:
+      - id: worker-not-daemon
+        description: "A6: a thread de trabalho deixa de ser daemon e segura o fechamento do app"
+        find: 'thread = threading.Thread(target=_run, name=f"{THREAD_PREFIX}{name}", daemon=True)'
+        replace: 'thread = threading.Thread(target=_run, name=f"{THREAD_PREFIX}{name}", daemon=False)'
+      - id: delivers-while-running
+        description: "A6: o poll entrega antes de a thread terminar"
+        find: |-
+          if thread.is_alive():
+                      _schedule_poll()
+                      return
+        replace: |-
+          if False:
+                      _schedule_poll()
+                      return
+      - id: dead-widget-gets-callback
+        description: "A6: dialogo fechado durante a deteccao ainda recebe o resultado"
+        find: 'if not _widget_alive(widget):'
+        replace: 'if False:'
+      - id: error-goes-to-on-done
+        description: "A6: a excecao do trabalho chega como resultado"
+        find: 'on_error(outcome["error"])'
+        replace: 'on_done(outcome["error"])'
+      - id: task-not-registered
+        description: "A6: tarefa em voo nao aparece em pending_tasks"
+        find: '_in_flight[thread] = widget'
+        replace: 'pass'
+      - id: running-task-pruned
+        description: "A6: tarefa ainda rodando some do registro quando o widget morre"
+        find: 'if not thread.is_alive() and not _widget_alive(widget):'
+        replace: 'if not _widget_alive(widget):'
+      - id: poll-never-armed
+        description: "A6: ninguem agenda o primeiro poll e o resultado nunca chega"
+        find: |-
+          thread.start()
+              _schedule_poll()
+        replace: |-
+          thread.start()
+  live_config_detection_off_tk:
+    source: src/zebtrack/ui/wizard/live_config_step.py
+    tests:
+      - tests/ui/wizard/test_live_config_step.py
+    mutations:
+      - id: camera-detect-on-tk
+        description: "A6-04: o botao Detectar volta a enumerar cameras no thread do Tk"
+        find: |-
+          run_in_background(
+                      self,
+                      WizardService.detect_available_cameras,
+                      _done,
+                      _failed,
+                      name="wizard-cameras",
+                  )
+        replace: |-
+          _done(WizardService.detect_available_cameras())
+      - id: camera-double-scan
+        description: "A6-04: segundo clique durante a deteccao abre outra varredura"
+        find: |-
+          self._camera_detection_pending = True
+                  self.camera_status_label.config(text=_("Detecting..."), fg="blue")
+
+                  def _done(cameras: list[dict[str, Any]]) -> None:
+        replace: |-
+          self.camera_status_label.config(text=_("Detecting..."), fg="blue")
+
+                  def _done(cameras: list[dict[str, Any]]) -> None:
+      - id: arduino-scan-on-tk
+        description: "A6-05: a varredura de portas volta ao thread do Tk"
+        find: |-
+          run_in_background(
+                      self,
+                      WizardService.detect_arduino_ports,
+                      _done,
+                      _failed,
+                      name="wizard-arduino-ports",
+                  )
+        replace: |-
+          _done(WizardService.detect_arduino_ports())
+      - id: arduino-double-scan
+        description: "A6-05: segundo clique durante a varredura abre outra"
+        find: 'self._arduino_detection_pending = True'
+        replace: 'self._arduino_detection_pending = False'
+      - id: pyserial-missing-shows-no-port
+        description: "A6-05: sem pyserial a tela diz 'nenhuma porta' em vez do motivo"
+        find: |-
+          if isinstance(exc, ImportError):
+                          self._show_pyserial_missing()
+                          return
+                      log.error("live_config.arduino_detection.failed", error=str(exc))
+        replace: |-
+          log.error("live_config.arduino_detection.failed", error=str(exc))
+  live_dialog_camera_detection_off_tk:
+    source: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+    tests:
+      - tests/test_live_analysis_ui.py
+    mutations:
+      - id: detect-on-tk
+        description: "A6-04: abrir o dialogo ao vivo volta a congelar enumerando cameras"
+        find: |-
+          run_in_background(
+                      self,
+                      WizardService.detect_available_cameras,
+                      _done,
+                      _failed,
+                      name="live-dialog-cameras",
+                  )
+        replace: |-
+          _done(WizardService.detect_available_cameras())
+      - id: pending-never-cleared-on-error
+        description: "A6-04: depois de uma falha o botao Detectar fica morto"
+        find: |-
+          self._camera_detection_pending = False
+                      self._on_camera_detection_error(exc)
+        replace: |-
+          self._on_camera_detection_error(exc)
+  start_recording_camera_chooser_off_tk:
+    source: src/zebtrack/ui/dialogs/start_recording_dialog.py
+    tests:
+      - tests/ui/dialogs/test_start_recording_dialog.py
+    mutations:
+      - id: provider-on-tk
+        description: "A6-04: 'Trocar...' volta a enumerar cameras no thread do Tk"
+        find: 'run_in_background(self, self.camera_provider, _done, _failed, name="camera-chooser")'
+        replace: '_done(self.camera_provider())'
+      - id: double-scan
+        description: "A6-04: segundo clique em 'Trocar...' abre outra varredura"
+        find: |-
+          self._camera_detection_pending = True
+                  if self._camera_label is not None:
+        replace: |-
+          if self._camera_label is not None:
+  block_detail_camera_chooser_off_tk:
+    source: src/zebtrack/ui/dialogs/block_detail_dialog.py
+    tests:
+      - tests/ui/dialogs/test_block_detail_dialog.py
+    mutations:
+      - id: detect-on-tk
+        description: "A6-04: 'Trocar camera' do bloco volta a enumerar no thread do Tk"
+        find: |-
+          run_in_background(
+                      self,
+                      lambda: WizardService.detect_available_cameras(use_cache=False),
+                      _done,
+                      _failed,
+                      name="camera-chooser",
+                  )
+        replace: |-
+          _done(WizardService.detect_available_cameras(use_cache=False))
+      - id: cached-list
+        description: "A6-04: a troca de camera passa a usar a lista em cache (ordem velha)"
+        find: 'lambda: WizardService.detect_available_cameras(use_cache=False),'
+        replace: 'lambda: WizardService.detect_available_cameras(use_cache=True),'
