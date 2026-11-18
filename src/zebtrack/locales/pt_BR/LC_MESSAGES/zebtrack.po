@@ -16440,6 +16440,14 @@ msgstr "vídeo gravado"
 msgid "Finalizing recording..."
 msgstr "Finalizando gravação..."
 
+#: src/zebtrack/coordinators/live_calibration_coordinator.py
+msgid "Detecting the aquarium..."
+msgstr "Detectando o aquário..."
+
+#: src/zebtrack/coordinators/live_calibration_coordinator.py
+msgid "Opening the camera..."
+msgstr "Abrindo a câmera..."
+
 #~ msgid "Detector parameters updated."
 #~ msgstr "Parâmetros do detector atualizados."
 

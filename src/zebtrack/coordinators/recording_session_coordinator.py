@@ -345,7 +345,11 @@ class RecordingSessionCoordinator(BaseCoordinator):
 
         # Ensure zones are defined before recording
         calibrator = self.live_calibration_coordinator
-        if not zones_validated and not calibrator.ensure_zones_before_recording():
+        # ``on_abandoned``: with a Tk root the gate can end later, on the Tk
+        # thread, without zones (A6-03); the saved context goes then.
+        if not zones_validated and not calibrator.ensure_zones_before_recording(
+            on_abandoned=self._clear_pending_recording_context
+        ):
             # Check if we're waiting for zone confirmation
             if calibrator.pending_zone_confirmation:
                 # Don't clear context - will be resumed later

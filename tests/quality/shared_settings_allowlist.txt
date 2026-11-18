@@ -25,7 +25,6 @@
 src/zebtrack/coordinators/_single_video_mixin.py::analysis_config.num_aquariums
 src/zebtrack/coordinators/_single_video_mixin.py::tracking.use_single_subject_tracker
 src/zebtrack/coordinators/_single_video_mixin.py::video_processing.single_animal_per_aquarium
-src/zebtrack/coordinators/live_calibration_coordinator.py::camera.index
 src/zebtrack/coordinators/live_camera_session_coordinator.py::model_selection.animal_method
 src/zebtrack/coordinators/live_camera_session_coordinator.py::model_selection.aquarium_method
 src/zebtrack/coordinators/live_camera_session_coordinator.py::model_selection.use_openvino

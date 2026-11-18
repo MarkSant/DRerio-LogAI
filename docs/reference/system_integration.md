@@ -1434,6 +1434,18 @@ countdown likewise no longer pumps `root.update()` (A6-08): `start_session`
 returns `True` once the countdown is armed and the rest of the start runs from
 its completion callback.
 
+**4. The zone gate is asynchronous with a Tk root (A6-03).**
+`LiveCalibrationCoordinator.ensure_zones_before_recording` runs the camera open,
+warm-up and auto-detection (or the reference-frame capture) on a daemon worker
+under a modal window, and the preview dialog on Tk. While it runs the call has
+already returned False with `pending_zone_confirmation` and
+`calibration_in_progress` set; the outcome arrives through `on_pending` (zones
+await the user's confirmation: publish the pending session now) or
+`on_abandoned` (cancelled, no camera). Never publish `LIVE_RECORDING_PENDING`
+on that early False: the banner would appear before a polygon exists. The
+camera is opened on a read-through settings view; the shared
+`settings.camera.index` is never mutated.
+
 **3. The Analysis tab owns the live controls.** `UIEvents.LIVE_SESSION_FINISH_REQUESTED`
 (payload `EmptyPayload`) is published by `AnalysisDisplayWidget`'s "⏹ Finish and
 Save" and handled by `AnalysisWidgetsBuilder.handle_live_finish_requested`.

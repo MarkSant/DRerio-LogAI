@@ -142,6 +142,27 @@ def test_start_recording_zones_pending_confirmation(coordinator):
     assert coordinator._pending_recording_context is not None
 
 
+def test_an_asynchronous_gate_that_ends_without_zones_drops_the_saved_context(coordinator):
+    """A6-03: the gate can end later, on Tk, without zones; the context must go."""
+    calibration = coordinator.live_calibration_coordinator
+    captured: dict = {}
+
+    def _ensure(**kwargs):
+        captured.update(kwargs)
+        calibration.pending_zone_confirmation = True  # deferred while the worker runs
+        return False
+
+    calibration.ensure_zones_before_recording.side_effect = _ensure
+
+    assert coordinator.start_recording(output_path="test/out", experiment_id="slow") is False
+    assert coordinator._pending_recording_context is not None
+
+    captured["on_abandoned"]()
+
+    assert coordinator._pending_recording_context is None
+    coordinator.recording_service.schedule_recording.assert_not_called()
+
+
 def test_stop_recording_success(coordinator):
     recording_state = MagicMock()
     recording_state.is_recording = True

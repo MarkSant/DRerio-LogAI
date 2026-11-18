@@ -13900,3 +13900,11 @@ msgstr ""
 #: src/zebtrack/core/recording/live_session_manager.py
 msgid "Finalizing recording..."
 msgstr ""
+
+#: src/zebtrack/coordinators/live_calibration_coordinator.py
+msgid "Detecting the aquarium..."
+msgstr ""
+
+#: src/zebtrack/coordinators/live_calibration_coordinator.py
+msgid "Opening the camera..."
+msgstr ""

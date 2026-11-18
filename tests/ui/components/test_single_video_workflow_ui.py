@@ -131,6 +131,45 @@ def test_live_auto_detect_success_refreshes_zone_overlay():
     assert UIEvents.UI_UPDATE_ZONE_LIST in published
 
 
+def test_live_auto_detect_refreshes_when_the_background_calibration_ends():
+    """A6-03: with a root the calibration finishes later, through ``on_done``."""
+    calib = Mock()
+    calib.calibration_in_progress = True
+    captured: dict = {}
+
+    def _run(**kwargs):
+        captured.update(kwargs)
+        return False  # "not finished yet"
+
+    calib.run_live_calibration.side_effect = _run
+    gui = _live_auto_detect_gui(project_type="live", calibration_coordinator=calib)
+    workflow = SingleVideoWorkflow(gui, dialog_manager=Mock())
+
+    workflow.on_auto_detect_clicked()
+    assert UIEvents.UI_REDRAW_ZONES not in _published_event_types(gui)
+
+    calib.calibration_in_progress = False
+    captured["on_done"](True)
+
+    published = _published_event_types(gui)
+    assert UIEvents.UI_REDRAW_ZONES in published
+    assert UIEvents.UI_UPDATE_ZONE_LIST in published
+
+
+def test_live_auto_detect_background_failure_does_not_refresh():
+    calib = Mock()
+    calib.calibration_in_progress = True
+    captured: dict = {}
+    calib.run_live_calibration.side_effect = lambda **kw: captured.update(kw) or False
+    gui = _live_auto_detect_gui(project_type="live", calibration_coordinator=calib)
+    workflow = SingleVideoWorkflow(gui, dialog_manager=Mock())
+
+    workflow.on_auto_detect_clicked()
+    captured["on_done"](False)
+
+    assert UIEvents.UI_REDRAW_ZONES not in _published_event_types(gui)
+
+
 def test_live_auto_detect_cancelled_does_not_refresh_overlay():
     """Detecção live cancelada/falha (False) → não redesenha nada."""
     calib = Mock()

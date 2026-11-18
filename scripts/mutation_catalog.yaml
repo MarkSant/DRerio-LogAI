@@ -5736,3 +5736,124 @@ _load_registry()"
         description: "A6-07: fechar o app mata o flush da sessao ao vivo no meio"
         find: 'if callable(wait_for_stop) and not wait_for_stop(self.LIVE_STOP_EXIT_WAIT_S):'
         replace: 'if callable(wait_for_stop) and not wait_for_stop(0.0):'
+
+  # ---- A6-03: live calibration leaves the Tk thread ---------------------------
+  live_calibration_off_tk:
+    source: src/zebtrack/coordinators/live_calibration_coordinator.py
+    tests:
+      - tests/coordinators/test_live_calibration_coordinator.py
+    mutations:
+      - id: calibration-inline-on-tk
+        description: "A6-03: camera, aquecimento e deteccao voltam ao thread do Tk"
+        find: |-
+          ``_STEP_ASYNC``: the chain only finishes when a step returns a bool.
+                  """
+                  if self.root is None:
+        replace: |-
+          ``_STEP_ASYNC``: the chain only finishes when a step returns a bool.
+                  """
+                  if True:
+      - id: in-progress-never-cleared
+        description: "A6-03: depois da calibracao a sessao fica presa em 'calibrando'"
+        find: |-
+          return
+                      self._calibration_in_progress = False
+                      if on_done is not None:
+        replace: |-
+          return
+                      if on_done is not None:
+      - id: stale-pending-misread
+        description: "A6-03: cancelar a previa vira 'pendente' e mostra o banner sem poligono"
+        find: |-
+          def _continue(ok: bool) -> None:
+                      self._pending_zone_confirmation = False
+        replace: |-
+          def _continue(ok: bool) -> None:
+      - id: pending-not-reset-after-capture
+        description: "A6-03: captura sem frame ainda conta como zonas pendentes"
+        find: |-
+          if reset_pending:
+                          # The gate was marked pending only so callers would not report
+                          # an error while the worker ran; the tail decides for real.
+                          self._pending_zone_confirmation = False
+        replace: |-
+          if reset_pending:
+                          pass
+      - id: shared-settings-index
+        description: "A6-03: a camera volta a ser aberta mexendo no settings compartilhado"
+        find: '        camera_cfg = _AttrOverride(self.settings.camera, index=camera_index)'
+        replace: '        camera_cfg = self.settings.camera'
+      - id: abandoned-reported-as-pending
+        description: "A6-03: gate cancelado publica a sessao pendente"
+        find: '            if ready or coordinator.pending_zone_confirmation:'
+        replace: '            if True:'
+      - id: sleep-on-tk-after-approval
+        description: "A6-03: a pausa de 0,5 s depois da aprovacao volta ao thread do Tk"
+        find: |-
+          if self.root is None:
+                          time.sleep(0.5)
+        replace: |-
+          if True:
+                          time.sleep(0.5)
+      - id: then-crash-hangs-the-gate
+        description: "A6-03: erro no Tk depois da calibracao deixa o gate sem desfecho"
+        find: |-
+          log.error("live_calibration_coordinator.step.then_failed", exc_info=True)
+                          outcome = False
+        replace: |-
+          log.error("live_calibration_coordinator.step.then_failed", exc_info=True)
+                          return
+  live_session_defers_after_calibration:
+    source: src/zebtrack/coordinators/live_camera_session_coordinator.py
+    tests:
+      - tests/coordinators/test_live_camera_session_coordinator.py
+    mutations:
+      - id: config-banner-before-polygon
+        description: "A6-03: o banner 'Iniciar Gravacao' do ad-hoc aparece antes do poligono"
+        find: |-
+          on_pending=_defer_config_session,
+        replace: |-
+          on_pending=None,
+      - id: project-banner-never-shown
+        description: "A6-03: projeto ao vivo nunca publica a sessao pendente apos calibrar"
+        find: |-
+          ensure_zones_before_recording(
+                          on_pending=_defer_project_session
+                      )
+        replace: |-
+          ensure_zones_before_recording()
+  recording_gate_abandoned_clears_context:
+    source: src/zebtrack/coordinators/recording_session_coordinator.py
+    tests:
+      - tests/coordinators/test_recording_session_coordinator.py
+    mutations:
+      - id: stale-recording-context
+        description: "A6-03: calibracao cancelada deixa o contexto de gravacao pendurado"
+        find: '            on_abandoned=self._clear_pending_recording_context'
+        replace: '            on_abandoned=None'
+  single_video_autodetect_on_done:
+    source: src/zebtrack/ui/components/single_video_workflow.py
+    tests:
+      - tests/ui/components/test_single_video_workflow_ui.py
+    mutations:
+      - id: on-done-not-wired
+        description: "A6-03: o poligono aprovado em segundo plano nunca aparece na aba"
+        find: '                on_done=_after_calibration,'
+        replace: '                on_done=None,'
+  preview_retry_off_tk:
+    source: src/zebtrack/ui/dialogs/preview_polygon_dialog.py
+    tests:
+      - tests/ui/dialogs/test_preview_polygon_dialog.py
+    mutations:
+      - id: retry-on-tk
+        description: "A6-03: 'Tentar novamente' volta a ler a camera e inferir no thread do Tk"
+        find: |-
+          run_in_background(
+                      self.dialog,
+                      lambda: retry(confidence),
+                      lambda raw: self._apply_retry_result(confidence, raw, None),
+                      lambda exc: self._apply_retry_result(confidence, None, exc),
+                      name="preview-polygon-retry",
+                  )
+        replace: |-
+          self._apply_retry_result(confidence, retry(confidence), None)

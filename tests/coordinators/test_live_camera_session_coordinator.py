@@ -981,6 +981,53 @@ class TestStartLiveProjectSessionExtended:
         assert coordinator._pending_live_kind == "project"
         assert coordinator._pending_live_context["experiment_id"] == "day1_Ctrl_F1"
 
+    def test_start_session_from_config_defers_only_when_the_calibration_ends(self, coordinator):
+        """A6-03: no "Start Recording" banner before a polygon exists."""
+        calibration = coordinator.live_calibration_coordinator
+        captured: dict = {}
+
+        def _ensure(**kwargs):
+            captured.update(kwargs)
+            calibration.calibration_in_progress = True
+            calibration.pending_zone_confirmation = True
+            return False
+
+        calibration.ensure_zones_before_recording.side_effect = _ensure
+
+        success = coordinator.start_session_from_config(
+            {"camera_index": 0, "experiment_id": "slow_cam"}, zones_validated=False
+        )
+
+        assert success is False
+        assert coordinator._pending_live_kind is None, "deferred before the polygon exists"
+        captured["on_pending"]()
+        assert coordinator._pending_live_kind == "config"
+        assert coordinator._pending_live_context["experiment_id"] == "slow_cam"
+
+    def test_start_live_project_session_defers_only_when_the_calibration_ends(self, coordinator):
+        coordinator.project_manager.get_project_type.return_value = "live"
+        coordinator.project_manager.project_data = {"camera_index": 0}
+        calibration = coordinator.live_calibration_coordinator
+        captured: dict = {}
+
+        def _ensure(**kwargs):
+            captured.update(kwargs)
+            calibration.calibration_in_progress = True
+            calibration.pending_zone_confirmation = True
+            return False
+
+        calibration.ensure_zones_before_recording.side_effect = _ensure
+
+        success = coordinator.start_live_project_session(
+            day=1, group="Ctrl", subject="F1", camera_index_override=0, zones_validated=False
+        )
+
+        assert success is False
+        assert coordinator._pending_live_kind is None
+        captured["on_pending"]()
+        assert coordinator._pending_live_kind == "project"
+        assert coordinator._pending_live_context["experiment_id"] == "day1_Ctrl_F1"
+
 
 class TestSessionPersistenceAndTriggers:
     def test_persist_live_session_skipped_cancelled(self, coordinator, tmp_path):

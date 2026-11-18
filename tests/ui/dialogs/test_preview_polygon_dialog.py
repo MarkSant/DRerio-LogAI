@@ -23,6 +23,7 @@ from typing import Any, cast
 from unittest.mock import MagicMock
 
 import numpy as np
+from tests.utils.deferring_tk import bind_deferring_tk
 
 from zebtrack.ui.dialogs.preview_polygon_dialog import (
     PreviewPolygonDialog,
@@ -238,7 +239,9 @@ def test_retry_resets_manual_flag_and_badge():
     new_frame = np.full((480, 640, 3), 17, dtype=np.uint8)
     dialog._on_retry = MagicMock(return_value=(new_frame, new_polygon))
 
+    tk_loop = bind_deferring_tk(dialog.dialog)
     dialog._on_retry_click()
+    tk_loop.run_until_idle()
 
     assert dialog._edited is False
     assert dialog.polygon == new_polygon
@@ -260,9 +263,55 @@ def test_retry_failure_keeps_existing_polygon_and_state():
     dialog._on_retry = MagicMock(return_value=None)
 
     original_polygon = list(dialog.polygon)
+    tk_loop = bind_deferring_tk(dialog.dialog)
     dialog._on_retry_click()
+    tk_loop.run_until_idle()
 
     # No new polygon → keep current.
     assert dialog.polygon == original_polygon
     # Status was updated to indicate the failure path.
     cast(MagicMock, dialog._status_var).set.assert_called()
+
+
+def test_retry_runs_the_detection_off_tk_and_applies_it_on_tk():
+    """A6-03: 5 camera reads + inference must not freeze the preview dialog."""
+    import threading
+
+    dialog = _make_dialog()
+    dialog._retry_button = MagicMock()
+    tk_loop = bind_deferring_tk(dialog.dialog)
+    new_polygon = [[10.0, 10.0], [600.0, 10.0], [600.0, 470.0], [10.0, 470.0]]
+    ran_on: list = []
+
+    def _retry(confidence):
+        ran_on.append(threading.current_thread())
+        return (np.full((480, 640, 3), 3, dtype=np.uint8), new_polygon)
+
+    dialog._on_retry = _retry
+    original = list(dialog.polygon)
+
+    dialog._on_retry_click()
+    assert dialog.polygon == original, "nothing may change before the Tk loop turns"
+    dialog._retry_button.state.assert_called_with(["disabled"])
+
+    tk_loop.run_until_idle()
+
+    assert ran_on and ran_on[0] is not threading.main_thread()
+    assert dialog.polygon == new_polygon
+    dialog._retry_button.state.assert_called_with(["!disabled"])
+
+
+def test_retry_exception_is_reported_on_tk_and_reenables_the_button():
+    dialog = _make_dialog()
+    dialog._retry_button = MagicMock()
+    tk_loop = bind_deferring_tk(dialog.dialog)
+
+    def _boom(_confidence):
+        raise RuntimeError("camera unplugged")
+
+    dialog._on_retry = _boom
+    dialog._on_retry_click()
+    tk_loop.run_until_idle()
+
+    cast(MagicMock, dialog._status_var).set.assert_called_with("Detection failed: camera unplugged")
+    dialog._retry_button.state.assert_called_with(["!disabled"])

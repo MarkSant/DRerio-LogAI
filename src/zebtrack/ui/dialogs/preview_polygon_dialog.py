@@ -33,6 +33,7 @@ from zebtrack.core.detection.aquarium_retry import (
     normalize_retry_outcome,
 )
 from zebtrack.i18n import _
+from zebtrack.ui.background_task import run_in_background
 
 if TYPE_CHECKING:
     from tkinter import Misc
@@ -310,10 +311,25 @@ class PreviewPolygonDialog:
         self._status_var.set(_("Detecting…"))
         if self._retry_button is not None:
             self._retry_button.state(["disabled"])
-        self.dialog.update_idletasks()
 
+        # The retry reads 5 camera frames and runs inference: on a worker, so
+        # the dialog keeps painting (audit A6-03). The button stays disabled
+        # until the result is applied, so retries never overlap.
+        retry = self._on_retry
+        run_in_background(
+            self.dialog,
+            lambda: retry(confidence),
+            lambda raw: self._apply_retry_result(confidence, raw, None),
+            lambda exc: self._apply_retry_result(confidence, None, exc),
+            name="preview-polygon-retry",
+        )
+
+    def _apply_retry_result(self, confidence: float, raw: Any, error: BaseException | None) -> None:
+        """Show a retry's outcome (Tk thread)."""
         try:
-            outcome = normalize_retry_outcome(self._on_retry(confidence))
+            if error is not None:
+                raise error
+            outcome = normalize_retry_outcome(raw)
         # except Exception justified: callback may invoke ML inference; we
         # must not let it crash the dialog.
         except Exception as exc:
