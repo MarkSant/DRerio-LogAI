@@ -493,7 +493,15 @@ class _WorkerProcess(multiprocessing.Process):
         result_queue: multiprocessing.Queue,
         command_queue: multiprocessing.Queue,
     ):
-        super().__init__(name="ZebTrack-ProcessingWorker")
+        # daemon=True (audit A6-S2): the only ``terminate()`` lives at the end of
+        # ``_monitor_loop``, a daemon THREAD that dies with the interpreter. If
+        # the app closes while the worker ignores the cancel (long inference,
+        # a hung read), ``multiprocessing``'s exit hook would ``join()`` a
+        # non-daemon child and keep the closed app alive until the batch ends;
+        # a daemon child is terminated instead. Nothing relies on the worker
+        # outliving the app (results go back through ``result_queue``), and the
+        # worker spawns no processes of its own (a daemon process cannot).
+        super().__init__(name="ZebTrack-ProcessingWorker", daemon=True)
         self.config = config
         self.result_queue = result_queue
         self.command_queue = command_queue

@@ -5596,3 +5596,14 @@ _load_registry()"
         description: "A6-06: a conexao bem-sucedida passa a mostrar o aviso de modo offline"
         find: '                if not ok:'
         replace: '                if ok:'
+
+  # ---- A6-S2: the processing worker process dies with the app ----------------
+  processing_worker_daemon:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+    mutations:
+      - id: worker-not-daemon
+        description: "A6-S2: fechar o app volta a esperar o lote inteiro do worker"
+        find: 'super().__init__(name="ZebTrack-ProcessingWorker", daemon=True)'
+        replace: 'super().__init__(name="ZebTrack-ProcessingWorker")'
