@@ -14,7 +14,6 @@ from tkinter import (
     messagebox,
     ttk,
 )
-from tkinter import font as tkfont
 from typing import TYPE_CHECKING, Any, cast
 
 import structlog
@@ -429,7 +428,6 @@ class ApplicationGUI:
         self._last_overview_counts = {}
         self._overview_video_index: dict[str, dict] = {}
         self._overview_context_menu: Menu | None = None
-        self._overview_menu_font: tkfont.Font | None = None
 
         # Arduino dashboard widget (live projects)
         self.arduino_dashboard_widget: ArduinoDashboardWidget | None = None
@@ -723,64 +721,6 @@ class ApplicationGUI:
 
         ModelDiagnosticsDialog(self.root, self.controller)
 
-    def _open_global_calibration_window(self):
-        with self.controller.global_calibration_session():
-            CalibrationDialog(self.root, self.controller)
-
-    def show_project_model_configuration_tab(self) -> bool:
-        panel = getattr(self, "project_model_configuration_panel", None)
-        if panel is not None and hasattr(panel, "refresh_from_project"):
-            panel.refresh_from_project()
-
-        if not self.notebook or not self.model_configuration_tab_frame:
-            return False
-
-        self.notebook.select(self.model_configuration_tab_frame)
-        return True
-
-    def _open_project_calibration_window(self):
-        if not getattr(self.controller.project_manager, "project_path", None):
-            self.dialog_manager.show_warning(
-                _("No Project"),
-                _("Open a project before adjusting the specific calibration."),
-            )
-            return
-
-        if self.show_project_model_configuration_tab():
-            return
-
-        with self.controller.project_calibration_session():
-            CalibrationDialog(self.root, self.controller)
-        self.weight_hardware_manager.update_openvino_checkbox(
-            self.controller.hardware_vm.use_openvino
-        )
-        self.weight_hardware_manager.set_active_weight_in_dropdown(
-            self.controller.hardware_vm.active_weight_name
-        )
-        self.weight_hardware_manager.update_openvino_status_display(
-            self.controller.hardware_vm.get_openvino_status()
-        )
-
-    def _on_reset_global_config_form_widget(self) -> None:
-        """Reset ConfigEditorWidget form fields to reflect current settings object."""
-        self._reload_config_editor_values_widget()
-        self.dialog_manager.show_info(
-            _("Form reloaded"),
-            _("Values restored to reflect the current settings."),
-        )
-
-    def _reload_config_editor_values_widget(self) -> None:
-        """Reload the config editor with current settings."""
-        if self.config_editor_widget and self.settings:
-            try:
-                # Use model_dump if it's a Pydantic model
-                if hasattr(self.settings, "model_dump"):
-                    self.config_editor_widget.set_values(self.settings.model_dump())
-                else:
-                    self.config_editor_widget.set_values(vars(self.settings))
-            except (AttributeError, TypeError, ValueError) as e:
-                log.error("gui.config_reload_error", error=str(e))
-
     def _create_project_overview_panel(self, parent: ttk.Frame | None) -> None:
         """Legacy helper preserved for TabBuilder/tests - delegates to WidgetFactory."""
         if parent is None:
@@ -789,40 +729,6 @@ class ApplicationGUI:
             log.warning("gui.project_overview.missing_widget_factory")
             return
         self.widget_factory.create_project_overview_panel(parent)
-
-    def _on_project_overview_tree_double_click(self, event) -> None:
-        """Handle double-click events on the overview tree (legacy handler)."""
-        del event
-
-        if not self.project_overview_tree:
-            return
-
-        item_id = self.project_overview_tree.focus()
-        if item_id:
-            self.video_selector_manager._on_project_overview_tree_double_click_impl(None)
-
-    def _on_project_overview_right_click(self, event) -> None:
-        """Handle right-click events on the overview tree (legacy handler)."""
-        tree = self.project_overview_tree
-        if not tree or not tree.winfo_exists():
-            return
-
-        item_id = tree.identify_row(event.y)
-        if item_id:
-            self.menu_manager.show_project_overview_context_menu(
-                item_id, event.x_root, event.y_root
-            )
-
-    def _on_frame_configure(self, event=None):
-        """Update scroll region when frame size changes."""
-        if self.controls_canvas:
-            self.controls_canvas.configure(scrollregion=self.controls_canvas.bbox("all"))
-
-    def _on_canvas_configure_scroll(self, event=None):
-        """Update frame width when canvas size changes."""
-        if self.controls_canvas and self.controls_canvas_window:
-            canvas_width = event.width if event else self.controls_canvas.winfo_width()
-            self.controls_canvas.itemconfig(self.controls_canvas_window, width=canvas_width)
 
     def _bind_mousewheel(self):
         """Bind mouse wheel scrolling to the canvas."""
@@ -843,34 +749,6 @@ class ApplicationGUI:
             # For Linux
             self.controls_canvas.bind("<Button-4>", _on_mousewheel)
             self.controls_canvas.bind("<Button-5>", _on_mousewheel)
-
-    def _recenter_canvas_image(self, canvas_width, canvas_height):
-        """Recenter the canvas background image."""
-        if not hasattr(self, "_canvas_bg_position"):
-            return
-
-        # Safety check: video_display may not exist yet
-        if not hasattr(self, "video_display") or not self.video_display:
-            return
-
-        # Remove the old image
-        self.video_display.canvas.delete("background_image")
-
-        # Center the image in the new canvas size
-        center_x = canvas_width // 2
-        center_y = canvas_height // 2
-
-        # Update stored position
-        self._canvas_bg_position = (center_x, center_y, "center")
-
-        # Create the centered image
-        self.video_display.canvas.create_image(
-            center_x,
-            center_y,
-            anchor="center",
-            image=self._canvas_bg_image,
-            tags="background_image",
-        )
 
     def _on_roi_template_var_changed(self, *args) -> None:
         """Trace callback: Log whenever roi_template_var changes."""
@@ -913,15 +791,6 @@ class ApplicationGUI:
                 _("Error"),
                 _("Could not apply the detector parameters. See the log for details."),
             )
-
-    def _remove_selected_roi_confirm(self) -> None:
-        """Remove the selected ROI after user confirmation.
-
-        Delegates to canvas_manager.remove_selected_roi() (modern path).
-        Kept as thin stub for backward compatibility with tests.
-        """
-        if self.canvas_manager:
-            self.canvas_manager.remove_selected_roi()
 
     @public_api
     def set_status(self, text):
@@ -1033,12 +902,6 @@ class ApplicationGUI:
         """Show a dialog to get missing metadata from the user."""
         dialog = MissingMetadataDialog(self.root, experiment_id)
         return dialog.result
-
-    def _on_save_arena(self):
-        """Save arena."""
-        self.canvas_manager.save_arena()
-        # Mark zones as dirty — saved in memory but not committed via "Concluir"
-        self._zones_dirty = True
 
     def _on_mousewheel(self, event):
         """Handle mousewheel scrolling."""
