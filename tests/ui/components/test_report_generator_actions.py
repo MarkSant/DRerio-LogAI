@@ -17,7 +17,7 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from tests.utils.deferring_tk import bind_deferring_tk
@@ -614,7 +614,7 @@ class TestDeleteAllUnifiedReportsOffTk:
         root = SimpleNamespace()
         tk_loop = bind_deferring_tk(root)
         actions, dialogs, _dispatcher, _status = _actions(tmp_path, widget=None)
-        dialogs.gui = SimpleNamespace(root=root)
+        cast(Any, dialogs).gui = SimpleNamespace(root=root)
 
         actions.delete_all_unified_reports()
         assert dialogs.infos == []

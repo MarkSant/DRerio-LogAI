@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 from tests.utils.deferring_tk import bind_deferring_tk
@@ -77,7 +78,7 @@ class TestClearOpenVinoCacheOffTk:
 
     @staticmethod
     def _panel(clear_cache):
-        panel = GlobalModelConfigurationPanel.__new__(GlobalModelConfigurationPanel)
+        panel = cast(Any, GlobalModelConfigurationPanel.__new__(GlobalModelConfigurationPanel))
         panel._cache_clear_pending = False
         panel.controller = SimpleNamespace(
             hardware_vm=SimpleNamespace(clear_openvino_cache=clear_cache)

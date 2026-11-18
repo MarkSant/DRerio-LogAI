@@ -1592,11 +1592,12 @@ class TestWindowTriggerRejection:
 def _detection_only_dialog():
     """LiveAnalysisDialog stub with just the widgets ``_detect_cameras`` touches."""
     from types import SimpleNamespace
+    from typing import Any, cast
     from unittest.mock import MagicMock
 
     from tests.utils.deferring_tk import bind_deferring_tk
 
-    dialog = LiveAnalysisDialog.__new__(LiveAnalysisDialog)
+    dialog = cast(Any, LiveAnalysisDialog.__new__(LiveAnalysisDialog))
     dialog.camera_status_label = MagicMock()
     dialog.camera_combo = {}
     dialog.camera_index_map = {}

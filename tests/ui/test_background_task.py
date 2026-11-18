@@ -159,7 +159,7 @@ def test_destroyed_widget_drops_the_callbacks():
 
 def test_after_failure_drops_the_task_without_raising():
     class _DeadRoot(_DeferringWidget):
-        def after(self, _delay, _callback):
+        def after(self, _delay, callback=None, *args):
             raise tk.TclError("application has been destroyed")
 
     widget = _DeadRoot()
