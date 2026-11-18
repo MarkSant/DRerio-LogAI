@@ -143,8 +143,12 @@ class _Host(CameraConnectionMixin):
         self.preview_window = None
         self.stop_calls = 0
 
-    def stop_session(self, *, cancelled: bool = False, keep_data: bool = False) -> bool:
+    def stop_session(
+        self, *, cancelled: bool = False, keep_data: bool = False, on_stopped=None
+    ) -> bool:
         self.stop_calls += 1
+        if on_stopped is not None:
+            on_stopped(True)
         return True
 
 
