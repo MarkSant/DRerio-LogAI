@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 from pandas import DataFrame
 
+from tests.helpers.fake_backends import stop_session_that_completes
 from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
 from zebtrack.coordinators.live_camera_session_coordinator import LiveCameraSessionCoordinator
 
@@ -141,7 +142,7 @@ def test_cancelled_session_not_registered(test_settings, tmp_path):
     discard the session (``stop_session(cancelled=True)``)."""
     mock_live_camera_service = MagicMock()
     mock_live_camera_service.current_output_dir = tmp_path
-    mock_live_camera_service.stop_session.return_value = True
+    mock_live_camera_service.stop_session.side_effect = stop_session_that_completes()
     mock_project_manager = MagicMock()
 
     batch_coord = LiveBatchCoordinator(
@@ -175,7 +176,8 @@ def test_cancelled_session_not_registered(test_settings, tmp_path):
     # Cancel must NOT register any batch in the project.
     assert batch_coord._active_batches == {}
     # And the service must be told to discard the partial session.
-    mock_live_camera_service.stop_session.assert_called_once_with(cancelled=True)
+    mock_live_camera_service.stop_session.assert_called_once()
+    assert mock_live_camera_service.stop_session.call_args.kwargs["cancelled"] is True
 
 
 def test_persist_live_multi_aquarium_outputs_from_session_subdirectories(test_settings, tmp_path):
@@ -421,7 +423,7 @@ def test_batch_metadata_incomplete_skips_registration(test_settings, tmp_path):
 
     session_coord._active_live_session_id = "test_session_002"
     session_coord._active_wizard_data = wizard_data
-    mock_live_camera_service.stop_session.return_value = True
+    mock_live_camera_service.stop_session.side_effect = stop_session_that_completes()
 
     # Should not raise error, just skip registration
     success = session_coord.stop_live_session()
@@ -854,7 +856,7 @@ def test_stopping_the_triggered_session_releases_the_codes(test_settings):
     )
     coord.start_live_project_session(day=1, group="Controle", subject="1", zones_validated=True)
     coord.on_arduino_event(1)
-    coord.live_camera_service.stop_session.return_value = True
+    coord.live_camera_service.stop_session.side_effect = stop_session_that_completes()
 
     coord.stop_live_session(discard=True)
 

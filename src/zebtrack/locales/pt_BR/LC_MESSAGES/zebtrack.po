@@ -16436,6 +16436,10 @@ msgid "recorded video"
 msgstr "vídeo gravado"
 
 # | msgid "Detector Parameters"
+#: src/zebtrack/core/recording/live_session_manager.py
+msgid "Finalizing recording..."
+msgstr "Finalizando gravação..."
+
 #~ msgid "Detector parameters updated."
 #~ msgstr "Parâmetros do detector atualizados."
 

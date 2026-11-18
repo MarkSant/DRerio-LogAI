@@ -5630,3 +5630,73 @@ _load_registry()"
         description: "A6-11: a espera pelo worker deixa de ter limite"
         find: 'kwargs={"timeout": self.WORKER_CANCEL_TIMEOUT_S},'
         replace: 'kwargs={"timeout": None},'
+
+  # ---- A6-07/A6-08: asynchronous live stop, countdown without a nested loop ------
+  live_stop_async_and_countdown:
+    source: src/zebtrack/core/recording/live_session_manager.py
+    tests:
+      - tests/core/recording/test_live_session_manager_extended.py
+    mutations:
+      - id: stop-always-inline
+        description: "A6-07: parar a sessao volta a fazer flush/joins no thread do Tk"
+        find: '        if self.root is None:'
+        replace: '        if True:'
+      - id: double-teardown
+        description: "A6-07: timer + botao Parar disparam dois teardowns"
+        find: '        if self._stop_in_progress:'
+        replace: '        if False:'
+      - id: stop-flag-stuck
+        description: "A6-07: depois de uma parada, nenhuma outra parada roda de novo"
+        find: |-
+          self._stop_in_progress = False
+                  self._stop_waiters = []
+        replace: |-
+          self._stop_waiters = []
+      - id: countdown-ignores-abort
+        description: "A6-08: parar durante a contagem ainda inicia a gravacao"
+        find: |-
+          log.warning("live_camera_service.countdown.aborted")
+                                  return
+        replace: |-
+          log.warning("live_camera_service.countdown.aborted")
+      - id: deferred-failure-silent
+        description: "A6-08: falha depois da contagem some sem erro para o operador"
+        find: '                        self._report_deferred_start_failure()'
+        replace: '                        pass'
+      - id: countdown-starts-immediately
+        description: "A6-08: a gravacao comeca antes de a contagem terminar"
+        find: |-
+          log.info("live_camera_service.countdown.armed", seconds=countdown_seconds)
+                          return True
+        replace: |-
+          log.info("live_camera_service.countdown.armed", seconds=countdown_seconds)
+  live_post_analysis_after_stop:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: post-analysis-never-starts
+        description: "A6-07: a pos-analise deixa de rodar depois da parada assincrona"
+        find: '        self.stop_session(keep_data=keep_data, on_stopped=_start_post_analysis)'
+        replace: '        self.stop_session(keep_data=keep_data)'
+  live_cancel_finalizes_once:
+    source: src/zebtrack/coordinators/live_camera_session_coordinator.py
+    tests:
+      - tests/coordinators/test_live_camera_session_coordinator.py
+    mutations:
+      - id: suppression-never-cleared
+        description: "A6-07: depois de cancelar, paradas automaticas nunca mais finalizam a aba"
+        find: |-
+          def _after_stop(stopped: bool) -> None:
+                          self._suppress_service_stop_callback = False
+        replace: |-
+          def _after_stop(stopped: bool) -> None:
+  app_exit_waits_for_live_stop:
+    source: src/zebtrack/core/viewmodels/main_view_model_runtime.py
+    tests:
+      - tests/core/viewmodels/test_main_view_model_runtime.py
+    mutations:
+      - id: exit-does-not-wait
+        description: "A6-07: fechar o app mata o flush da sessao ao vivo no meio"
+        find: 'if callable(wait_for_stop) and not wait_for_stop(self.LIVE_STOP_EXIT_WAIT_S):'
+        replace: 'if callable(wait_for_stop) and not wait_for_stop(0.0):'

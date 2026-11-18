@@ -935,6 +935,35 @@ def test_join_threads_signals_exit_cancels_analysis_and_shuts_arduino() -> None:
     assert vm.ui_event_bus.published == []
 
 
+def test_join_threads_waits_for_an_in_flight_live_stop() -> None:
+    """A6-07: the live teardown is a daemon thread; exiting under it kills the flush."""
+    waits: list[float] = []
+
+    def _wait(timeout: float) -> bool:
+        waits.append(timeout)
+        return True
+
+    live = SimpleNamespace(wait_for_pending_stop=_wait)
+    vm = _shutdown_vm(live_camera_service=live)
+
+    _runtime(vm).join_threads()
+
+    assert waits == [20.0]
+    assert vm.program_exit_event.is_set()
+
+
+def test_join_threads_still_shuts_down_when_the_live_stop_overruns() -> None:
+    camera = _FakeCamera()
+    hardware = _hardware_without_camera()
+    hardware.camera = camera
+    live = SimpleNamespace(wait_for_pending_stop=lambda _timeout: False)
+    vm = _shutdown_vm(live_camera_service=live, hardware_vm=hardware)
+
+    _runtime(vm).join_threads()
+
+    assert camera.released == 1
+
+
 def test_join_threads_joins_only_the_threads_that_are_alive() -> None:
     coordinator_thread = _FakeThread(alive=True)
     legacy_thread = _FakeThread(alive=True)

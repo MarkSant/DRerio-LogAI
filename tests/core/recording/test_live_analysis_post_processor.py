@@ -170,8 +170,12 @@ class PostAnalysisHost(LiveAnalysisPostProcessorMixin):
         self.current_output_dir = output_dir
         self.stopped_with: list[bool] = []
 
-    def stop_session(self, *, cancelled: bool = False, keep_data: bool = False) -> bool:
+    def stop_session(
+        self, *, cancelled: bool = False, keep_data: bool = False, on_stopped=None
+    ) -> bool:
         self.stopped_with.append(keep_data)
+        if on_stopped is not None:
+            on_stopped(True)
         return True
 
 

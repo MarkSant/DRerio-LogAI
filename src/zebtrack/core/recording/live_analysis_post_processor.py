@@ -10,6 +10,7 @@ import datetime
 import glob
 import math
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -87,7 +88,11 @@ class LiveAnalysisPostProcessorMixin:
 
     # Methods from other mixins
     def stop_session(  # type: ignore[empty-body]
-        self, *, cancelled: bool = False, keep_data: bool = False
+        self,
+        *,
+        cancelled: bool = False,
+        keep_data: bool = False,
+        on_stopped: Callable[[bool], None] | None = None,
     ) -> bool: ...
     def _setup_session_timer(self, duration_s: float, output_dir: Path) -> None: ...
 
@@ -583,21 +588,6 @@ class LiveAnalysisPostProcessorMixin:
             self.stop_session()
             return
 
-        # Stop threads and cleanup
-        self.stop_session(keep_data=keep_data)
-
-        log.info(
-            "live_camera_service.starting_post_analysis",
-            output_dir=str(output_dir),
-            keep_data=keep_data,
-        )
-
-        # ``stop_session`` já levou a aba Análise a "Análise finalizada", mas os
-        # relatórios só existem depois da thread abaixo — uma janela silenciosa
-        # de vários segundos em que a UI afirma ter terminado e a pasta ainda
-        # não tem ``.xlsx``/``.docx``. Diz o que está acontecendo.
-        self._publish_post_analysis_status(_("Generating the reports for the live session..."))
-
         def _run_post_analysis() -> None:  # noqa: C901
             """Background thread worker for post-processing analysis."""
             try:
@@ -885,14 +875,32 @@ class LiveAnalysisPostProcessorMixin:
                         0, self._show_completion_message, output_dir, False, None, "error"
                     )
 
-        # Start background thread for post-analysis
-        analysis_thread = threading.Thread(
-            target=_run_post_analysis,
-            name="PostAnalysisThread",
-            daemon=True,
-        )
-        analysis_thread.start()
-        log.info("live_camera_service.post_analysis_thread_started")
+        def _start_post_analysis(_stopped: bool) -> None:
+            log.info(
+                "live_camera_service.starting_post_analysis",
+                output_dir=str(output_dir),
+                keep_data=keep_data,
+            )
+
+            # ``stop_session`` já levou a aba Análise a "Análise finalizada", mas os
+            # relatórios só existem depois da thread abaixo — uma janela silenciosa
+            # de vários segundos em que a UI afirma ter terminado e a pasta ainda
+            # não tem ``.xlsx``/``.docx``. Diz o que está acontecendo.
+            self._publish_post_analysis_status(_("Generating the reports for the live session..."))
+
+            # Start background thread for post-analysis
+            analysis_thread = threading.Thread(
+                target=_run_post_analysis,
+                name="PostAnalysisThread",
+                daemon=True,
+            )
+            analysis_thread.start()
+            log.info("live_camera_service.post_analysis_thread_started")
+
+        # Stop threads and cleanup. The post-analysis reads the files this stop
+        # flushes, so it starts from ``on_stopped``: with a Tk root the teardown
+        # runs on a worker and returns before the recorder is closed (A6-07).
+        self.stop_session(keep_data=keep_data, on_stopped=_start_post_analysis)
 
     def _count_live_subjects(self, df: pd.DataFrame) -> int:
         """How many animals the completion dialog reports (A4-02).

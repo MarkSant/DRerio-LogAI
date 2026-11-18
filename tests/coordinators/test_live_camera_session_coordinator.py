@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+from tests.helpers.fake_backends import stop_session_that_completes
 from zebtrack.coordinators.live_camera_session_coordinator import (
     LiveCameraSessionCoordinator,
     LiveCameraSessionCoordinatorError,
@@ -287,13 +288,74 @@ class TestLiveCameraSessionCoordinatorLifecycle:
     def test_stop_live_session(self, coordinator, mock_live_camera_service):
         """Should stop session via service."""
         coordinator._active_live_session_id = "test_exp"
-        mock_live_camera_service.stop_session.return_value = True
+        mock_live_camera_service.stop_session.side_effect = stop_session_that_completes()
 
         res = coordinator.stop_live_session()
 
         assert res is True
         assert not coordinator.is_live_session_active()
-        mock_live_camera_service.stop_session.assert_called_once_with(cancelled=True)
+        mock_live_camera_service.stop_session.assert_called_once()
+        assert mock_live_camera_service.stop_session.call_args.kwargs["cancelled"] is True
+
+    def test_cancel_finalizes_once_when_the_stop_finishes_later(
+        self, coordinator, mock_live_camera_service
+    ):
+        """A6-07: with a Tk root the service finishes the stop AFTER returning.
+
+        Its ``on_session_stopped`` then fires from the Tk thread, just before the
+        coordinator's own ``on_stopped``. The suppression must still be on at that
+        moment, or the session would be finalized twice.
+        """
+        coordinator._active_live_session_id = "test_exp"
+        pending: list = []
+
+        def _stop_later(**kw):
+            pending.append(kw["on_stopped"])
+            return True
+
+        mock_live_camera_service.stop_session.side_effect = _stop_later
+        finalized: list[dict] = []
+        real_finalize = coordinator._finalize_live_session_ui
+
+        def _spy(**kw):
+            finalized.append(kw)
+            return real_finalize(**kw)
+
+        coordinator._finalize_live_session_ui = _spy
+
+        assert coordinator.stop_live_session() is True
+        assert finalized == []  # nothing final until the teardown is done
+        assert coordinator._suppress_service_stop_callback is True
+
+        # Service side, on Tk: on_session_stopped first, then on_stopped.
+        coordinator._on_live_service_session_stopped(True)
+        pending[0](True)
+
+        assert finalized == [{"cancelled": True, "publish_refresh": True, "service_success": True}]
+        assert coordinator._suppress_service_stop_callback is False
+        assert not coordinator.is_live_session_active()
+
+    def test_cancel_with_a_failed_teardown_finalizes_without_refresh(
+        self, coordinator, mock_live_camera_service
+    ):
+        coordinator._active_live_session_id = "test_exp"
+        mock_live_camera_service.stop_session.side_effect = stop_session_that_completes(
+            stopped=False
+        )
+
+        assert coordinator.stop_live_session() is True
+
+        assert not coordinator.is_live_session_active()
+        assert coordinator._suppress_service_stop_callback is False
+
+    def test_cancel_clears_the_suppression_when_the_service_raises(
+        self, coordinator, mock_live_camera_service
+    ):
+        coordinator._active_live_session_id = "test_exp"
+        mock_live_camera_service.stop_session.side_effect = OSError("camera gone")
+
+        assert coordinator.stop_live_session() is False
+        assert coordinator._suppress_service_stop_callback is False
 
     def test_stop_live_session_keeping_data_finishes_instead_of_discarding(
         self, coordinator, mock_live_camera_service

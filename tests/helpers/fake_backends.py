@@ -371,3 +371,19 @@ def openvino_settings(**openvino_overrides: Any) -> SimpleNamespace:
         openvino=SimpleNamespace(**openvino),
         bytetrack=SimpleNamespace(track_threshold=0.6, match_threshold=0.85),
     )
+
+
+def stop_session_that_completes(stopped: bool = True, returns: bool = True) -> Any:
+    """``side_effect`` for a mocked ``LiveCameraService.stop_session``.
+
+    Since A6-07 the real service finishes a stop through its ``on_stopped``
+    callback (asynchronously when there is a Tk root). A bare ``return_value``
+    never calls it, so the caller's finalization would never run.
+    """
+
+    def _stop(*_args: Any, on_stopped: Any = None, **_kwargs: Any) -> bool:
+        if on_stopped is not None:
+            on_stopped(stopped)
+        return returns
+
+    return _stop

@@ -13,6 +13,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from tests.utils.deferring_tk import bind_deferring_tk
 
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.recording import live_session_manager as lsm_module
@@ -996,50 +997,81 @@ class TestStartSessionPreviewAndCountdown:
 
         assert slept == []
 
-    def test_countdown_with_root_waits_for_the_callback(self, harness, monkeypatch):
+    def test_countdown_with_root_is_armed_and_the_start_finishes_in_its_callback(
+        self, harness, monkeypatch
+    ):
+        """A6-08: no ``root.update()`` pump inside the handler.
+
+        The old loop re-entered Tk while ``start_session`` was half done, so the
+        operator could press Start again or close the window mid-setup. Now the
+        call returns once the countdown is armed and the threads/recorder start
+        from the countdown's completion callback.
+        """
         root = MagicMock()
         harness.svc.root = root
         pending: list[Any] = []
         harness.svc.recording_service._run_countdown.side_effect = (
             lambda seconds, done: pending.append((seconds, done))
         )
-        pumps = {"n": 0}
-
-        def _update() -> None:
-            # The Tk loop runs twice, then the countdown window finishes.
-            pumps["n"] += 1
-            if pumps["n"] == 2:
-                pending[0][1]()
-
-        root.update.side_effect = _update
-        monkeypatch.setattr(lsm_module.time, "sleep", lambda _s: None)
         preview = MagicMock()
         harness.svc.preview_window = preview
 
         assert harness.start(use_countdown=True, countdown_duration_s=4) is True
 
         assert pending[0][0] == 4
-        assert pumps["n"] == 2
         preview.update_status_text.assert_any_call("⏳ Starting in 4s...", color="yellow")
-        assert len(harness.recorder_calls) == 1
+        assert harness.recorder_calls == [], "recording started before the countdown ended"
+        root.update.assert_not_called()
 
-    def test_countdown_aborted_by_exit_event(self, harness, monkeypatch):
-        root = MagicMock()
-        harness.svc.root = root
-        harness.svc.recording_service._run_countdown.side_effect = (
-            lambda seconds, done: harness.svc.exit_event.set()
+        pending[0][1]()
+
+        assert len(harness.recorder_calls) == 1
+        harness.svc.state_manager.update_processing_state.assert_any_call(
+            source="live_camera_service.start", is_processing=True
         )
 
-        assert harness.start(use_countdown=True, countdown_duration_s=2) is False
-        assert harness.recorder_calls == []
-
-    def test_countdown_survives_a_dead_tk_root(self, harness, monkeypatch):
+    def test_countdown_aborted_by_exit_event_starts_nothing(self, harness, monkeypatch):
         root = MagicMock()
-        root.update.side_effect = tk.TclError("application destroyed")
         harness.svc.root = root
 
+        def _countdown(_seconds, done):
+            harness.svc.exit_event.set()  # stopped during the countdown
+            done()
+
+        harness.svc.recording_service._run_countdown.side_effect = _countdown
+
         assert harness.start(use_countdown=True, countdown_duration_s=2) is True
-        assert len(harness.recorder_calls) == 1
+        assert harness.recorder_calls == []
+        harness.svc.state_manager.update_processing_state.assert_not_called()
+
+    def test_a_start_that_fails_after_the_countdown_is_reported_and_stopped(
+        self, harness, monkeypatch
+    ):
+        """No caller is left to read a False: the service shows it and stops."""
+        root = MagicMock()
+        harness.svc.root = root
+        pending: list[Any] = []
+        harness.svc.recording_service._run_countdown.side_effect = (
+            lambda _seconds, done: pending.append(done)
+        )
+        monkeypatch.setattr(harness.svc, "_start_threads", lambda: False)
+        stops: list[dict] = []
+
+        def _record_stop(**kw: Any) -> bool:
+            stops.append(kw)
+            return True
+
+        monkeypatch.setattr(harness.svc, "stop_session", _record_stop)
+
+        assert harness.start(use_countdown=True, countdown_duration_s=2) is True
+        pending[0]()
+
+        assert stops == [{}]
+        published = harness.svc.event_bus.publish.call_args_list[-1].args[0]
+        assert published.type.name == "SHOW_ERROR"
+        assert published.data.title == "Error"
+        assert published.data.message == "Could not start the recording."
+        assert harness.recorder_calls == []
 
 
 class _Thread:
@@ -1081,10 +1113,23 @@ class TestStopSession:
         camera = MagicMock()
         svc.camera = camera
         svc._saved_detector_context = "calibration"
+        tk_loop = bind_deferring_tk(root)
+        root.after_cancel = MagicMock()  # keep the timer cancel observable
+        release_threads: list = []
+        camera.release.side_effect = lambda: release_threads.append(threading.current_thread())
+        stopped: list[bool] = []
 
-        assert svc.stop_session() is True
+        assert svc.stop_session(on_stopped=stopped.append) is True
 
+        # The timer is a Tk call and goes at once; the rest waits for the loop.
         root.after_cancel.assert_called_once_with("after#7")
+        preview.destroy.assert_not_called()
+        assert stopped == []
+
+        tk_loop.run_until_idle()
+
+        assert stopped == [True]
+        assert release_threads and release_threads[0] is not threading.main_thread()
         preview.destroy.assert_called_once_with()
         assert svc.preview_window is None
         assert svc._preview_window_destroyed is True
@@ -1105,8 +1150,10 @@ class TestStopSession:
         preview = MagicMock()
         preview.destroy.side_effect = tk.TclError("gone")
         svc.preview_window = preview
+        tk_loop = bind_deferring_tk(root)
 
         assert svc.stop_session() is True
+        tk_loop.run_until_idle()
         assert svc.preview_window is None
 
     def test_context_restore_failure_still_clears_saved_context(self, harness, monkeypatch):
@@ -1454,3 +1501,114 @@ def test_pytest_env_is_what_suppresses_the_camera_dialog():
     # The camera-failure dialog is gated on PYTEST_CURRENT_TEST; pin that the
     # variable exists here so the "outside pytest" test above is meaningful.
     assert os.environ.get("PYTEST_CURRENT_TEST")
+
+
+class TestAsyncStop:
+    """A6-07: with a Tk root the teardown runs on a worker; Tk steps come back."""
+
+    def _svc(self, harness, monkeypatch):
+        svc = harness.svc
+        svc._session_duration_s = 0.0
+        svc.recorder.start_time = None
+        monkeypatch.setattr(lsm_module.time, "sleep", lambda _s: None)
+        root = MagicMock()
+        svc.root = root
+        return svc, bind_deferring_tk(root)
+
+    def test_the_recorder_is_flushed_off_tk_and_the_ui_waits_for_it(self, harness, monkeypatch):
+        svc, tk_loop = self._svc(harness, monkeypatch)
+        flushed_on: list = []
+        svc.recorder.stop_recording.side_effect = lambda *a, **k: flushed_on.append(
+            threading.current_thread()
+        )
+        order: list[str] = []
+        svc.on_session_stopped = lambda cancelled: order.append(f"session_stopped:{cancelled}")
+
+        assert svc.stop_session(on_stopped=lambda ok: order.append(f"on_stopped:{ok}")) is True
+        svc.state_manager.update_processing_state.assert_not_called()
+
+        tk_loop.run_until_idle()
+
+        assert flushed_on and flushed_on[0] is not threading.main_thread()
+        assert order == ["session_stopped:False", "on_stopped:True"]
+        svc.state_manager.update_processing_state.assert_called_once_with(
+            source="live_camera_service.stop", is_processing=False
+        )
+        assert svc._stop_in_progress is False
+
+    def test_a_second_stop_while_stopping_only_queues_its_callback(self, harness, monkeypatch):
+        svc, tk_loop = self._svc(harness, monkeypatch)
+        release = threading.Event()
+        flushes: list[int] = []
+
+        def _slow_flush(*_a, **_k):
+            flushes.append(1)
+            release.wait(5)
+
+        svc.recorder.stop_recording.side_effect = _slow_flush
+        calls: list[str] = []
+
+        svc.stop_session(on_stopped=lambda ok: calls.append("first"))
+        assert svc.stop_session(on_stopped=lambda ok: calls.append("second")) is True
+        release.set()
+        tk_loop.run_until_idle()
+
+        assert flushes == [1]
+        assert calls == ["first", "second"]
+
+    def test_a_teardown_crash_still_restores_the_ui_and_reports_false(self, harness, monkeypatch):
+        svc, tk_loop = self._svc(harness, monkeypatch)
+
+        def _boom(**_kwargs):
+            raise RuntimeError("ledger disk full")
+
+        monkeypatch.setattr(svc, "_stop_teardown_off_tk", _boom)
+        results: list[bool] = []
+
+        svc.stop_session(on_stopped=results.append)
+        tk_loop.run_until_idle()
+
+        assert results == [False]
+        svc.state_manager.update_processing_state.assert_called_once_with(
+            source="live_camera_service.stop", is_processing=False
+        )
+        assert svc._stop_in_progress is False
+
+    def test_one_failing_follow_up_does_not_skip_the_next(self, harness, monkeypatch):
+        svc, tk_loop = self._svc(harness, monkeypatch)
+        calls: list[str] = []
+
+        def _bad(_ok):
+            raise ValueError("caller bug")
+
+        svc.stop_session(on_stopped=_bad)
+        svc.stop_session(on_stopped=lambda ok: calls.append("ran"))
+        tk_loop.run_until_idle()
+
+        assert calls == ["ran"]
+
+    def test_without_a_root_the_stop_is_synchronous(self, harness, monkeypatch):
+        svc = harness.svc
+        svc._session_duration_s = 0.0
+        svc.recorder.start_time = None
+        svc.root = None
+        monkeypatch.setattr(lsm_module.time, "sleep", lambda _s: None)
+        results: list[bool] = []
+
+        assert svc.stop_session(on_stopped=results.append) is True
+
+        assert results == [True]
+        svc.recorder.stop_recording.assert_called_once()
+
+    def test_exit_waits_for_an_in_flight_teardown(self, harness, monkeypatch):
+        svc, _tk_loop = self._svc(harness, monkeypatch)
+        release = threading.Event()
+        svc.recorder.stop_recording.side_effect = lambda *a, **k: release.wait(5)
+
+        svc.stop_session()
+        assert svc.wait_for_pending_stop(0.05) is False
+        release.set()
+        assert svc.wait_for_pending_stop(5) is True
+
+    def test_wait_for_pending_stop_without_a_stop_returns_at_once(self, harness):
+        assert harness.svc.wait_for_pending_stop(0.0) is True

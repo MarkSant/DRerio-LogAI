@@ -48,6 +48,10 @@ def _payload_get(
 class MainViewModelRuntime:
     """Extracted event/state handlers to keep MainViewModel lean."""
 
+    # Longest a closing app waits for a live session's teardown to flush (A6-07):
+    # the teardown's own budget is ~18 s (drain/join 5 s, recorder 10 s, camera 3 s).
+    LIVE_STOP_EXIT_WAIT_S = 20.0
+
     _EVENTS_TO_HANDLE = (
         UIEvents.RECORDING_START,
         UIEvents.RECORDING_STOP,
@@ -496,6 +500,13 @@ class MainViewModelRuntime:
 
         vm.program_exit_event.set()
         vm.analysis_vm.cancel_current_analysis()
+
+        # A live stop tears down on a daemon thread (A6-07); exiting under it
+        # would kill the recorder flush half-way. Bounded like the joins below.
+        live_service = getattr(vm, "live_camera_service", None)
+        wait_for_stop = getattr(live_service, "wait_for_pending_stop", None)
+        if callable(wait_for_stop) and not wait_for_stop(self.LIVE_STOP_EXIT_WAIT_S):
+            log.error("controller.shutdown.live_stop_still_running")
 
         if vm.processing_coordinator and vm.processing_coordinator.processing_thread:
             if vm.processing_coordinator.processing_thread.is_alive():
