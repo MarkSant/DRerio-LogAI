@@ -35,10 +35,10 @@ def test_multiple_subscribers(event_bus):
     handler1 = Mock()
     handler2 = Mock()
 
-    event_bus.subscribe(UIEvents.VIDEO_LOADED, handler1)
-    event_bus.subscribe(UIEvents.VIDEO_LOADED, handler2)
+    event_bus.subscribe(UIEvents.SET_STATUS, handler1)
+    event_bus.subscribe(UIEvents.SET_STATUS, handler2)
 
-    event = Event(type=UIEvents.VIDEO_LOADED, data={"video_path": "/tmp/test.mp4"})
+    event = Event(type=UIEvents.SET_STATUS, data={"video_path": "/tmp/test.mp4"})
     event_bus.publish(event)
 
     handler1.assert_called_once()

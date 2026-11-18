@@ -194,22 +194,6 @@ def test_start_live_session_and_recording_delegates(view_model):
     view_model.recording_session_coordinator.stop_recording.assert_called_once()
 
 
-def test_toggle_recording_starts_when_not_recording(view_model):
-    view_model.recording_session_coordinator.recording_service = SimpleNamespace(is_recording=False)
-
-    view_model.toggle_recording()
-
-    view_model.recording_session_coordinator.start_recording.assert_called_once()
-
-
-def test_toggle_recording_stops_when_recording(view_model):
-    view_model.recording_session_coordinator.recording_service = SimpleNamespace(is_recording=True)
-
-    view_model.toggle_recording()
-
-    view_model.recording_session_coordinator.stop_recording.assert_called_once()
-
-
 # ----------------------------------------------------------------------
 # get_default_weights_summary (TASK-065)
 # ----------------------------------------------------------------------

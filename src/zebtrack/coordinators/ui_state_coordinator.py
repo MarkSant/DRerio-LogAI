@@ -493,9 +493,9 @@ class UIStateController:
     # repaired: nothing in src/ ever called it, and the coordinator wraps the
     # service's ValueError, so the handler could not have fired even if
     # something had. A correct-looking boundary that never runs is worse than an
-    # absent one — it is why the missing dialog went unnoticed. The three real
-    # call sites go through ``hardware_vm.update_detector_parameters`` and each
-    # carries its own boundary now (model_diagnostics_panel, event_dispatcher,
+    # absent one — it is why the missing dialog went unnoticed. The real call
+    # sites go through ``hardware_vm.update_detector_parameters`` and each
+    # carries its own boundary now (model_diagnostics_panel,
     # gui._on_apply_roi_settings).
 
     # ========================================================================

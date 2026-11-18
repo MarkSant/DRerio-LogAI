@@ -816,8 +816,6 @@ class RecordingSessionCoordinator(BaseCoordinator):
             return
 
         # Listen for zone saving events to resume pending recording
-        self.event_bus.subscribe(UIEvents.ZONE_SAVE_MANUAL_ARENA, self._on_zone_saved)
-        self.event_bus.subscribe(UIEvents.ZONE_SET_ARENA_POLYGON, self._on_zone_saved)
         self.event_bus.subscribe(UIEvents.ZONE_SAVE_ARENA, self._on_zone_saved)
 
     def _on_zone_saved(self, data: payloads.EventPayload | None = None) -> None:
@@ -830,7 +828,7 @@ class RecordingSessionCoordinator(BaseCoordinator):
         # a sessão pendente pertence ao ``LiveCameraSessionCoordinator`` (fluxo
         # live, retomado por ``LIVE_RECORDING_RESUME_REQUESTED`` do botão
         # "Iniciar Gravação"/"Concluir"). Nesse caso, clicar "Salvar Edição"
-        # (que publica ZONE_SAVE_ARENA/ZONE_SAVE_MANUAL_ARENA) NÃO pode ser
+        # (que publica ZONE_SAVE_ARENA) NÃO pode ser
         # tratado como confirmação de zonas: resetar a flag aqui corrompia o
         # handshake live, disparava o caminho de gravação errado e fazia a
         # auto-detecção reaparecer por cima da edição do usuário.

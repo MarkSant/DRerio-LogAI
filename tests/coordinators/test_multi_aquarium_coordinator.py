@@ -232,15 +232,6 @@ def test_wizard_regex_reaches_the_assignment_dialog(mock_detector_class, coordin
     ]
 
 
-def test_handle_multi_auto_detect(coordinator):
-    payload = {"video_path": "test.mp4", "expected_count": 4, "method": "contour"}
-
-    with patch.object(coordinator, "run_aquarium_detection") as mock_run:
-        coordinator._handle_multi_auto_detect(payload)
-
-        mock_run.assert_called_once_with("test.mp4", count=4, method="contour", multi_aquarium=True)
-
-
 def test_on_aquarium_assignment_completed(coordinator):
     payload = {
         "configs": [{"aquarium_id": 0, "group": "A", "subject_id": "S1", "day": "1"}],

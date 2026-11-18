@@ -114,34 +114,7 @@ ALLOWED_ORPHANS = frozenset(
 
 # Subscribed today with nobody publishing: the handler cannot run. NEVER add.
 # Classification (delete / wire / keep) in docs/audits/2026-11_A1_events.md.
-ALLOWED_UNPUBLISHED = frozenset(
-    {
-        "ANALYSIS_TASK_STATUS_UPDATED",
-        "CALIBRATION_COPY_TO_PROJECT",
-        "CALIBRATION_SAVE_TO_PROJECT",
-        "DETECTOR_UPDATE_PARAMETERS",
-        "EXTERNAL_TRIGGER_NOTICE",
-        "MODEL_ADD_WEIGHT",
-        "MODEL_CLEAR_OPENVINO_CACHE",
-        "MODEL_VALIDATE_WEIGHTS",
-        "NAVIGATE_TO_WELCOME",
-        "PROCESSING_GENERATE_TRAJECTORIES",
-        "PROCESSING_STATS_UPDATED",
-        "RECORDING_TOGGLE",
-        "SOCIAL_SUMMARY_UPDATED",
-        "UI_NAVIGATE_FROM_ANALYSIS_VIEW",
-        # o único publicador era o ControlPanelWidget morto (A2-D-009): o handler em
-        # video_selector_tree_manager.py já não rodava antes da remoção
-        "UI_REQUEST_PROCESS_VIDEOS",
-        "UI_SETUP_INTERACTIVE_POLYGON",
-        "VIDEO_LOADED",
-        "ZONE_APPLY_ROI_SETTINGS",
-        "ZONE_AQUARIUM_CONFIG_UPDATED",
-        "ZONE_MULTI_AUTO_DETECT",
-        "ZONE_SAVE_MANUAL_ARENA",
-        "ZONE_SET_ARENA_POLYGON",
-    }
-)
+ALLOWED_UNPUBLISHED: frozenset[str] = frozenset()
 
 # Never referenced outside event_bus_v2.py. NEVER add.
 ALLOWED_UNREFERENCED: frozenset[str] = frozenset()

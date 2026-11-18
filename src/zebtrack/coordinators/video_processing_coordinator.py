@@ -310,8 +310,7 @@ class VideoProcessingCoordinator(
             video_path = str(_payload_get(payload, "video_path", "")).strip()
             # Guard against an empty/blank path (e.g. a LIVE project has no video
             # file). Without this, ``AquariumDetector`` would try to open ``.``
-            # via cv2 and fail with "Cannot open video file: .". Mirrors the
-            # guard in ``MultiAquariumCoordinator._handle_multi_auto_detect``.
+            # via cv2 and fail with "Cannot open video file: .".
             # Live projects route auto-detect to the camera in the UI layer
             # (``SingleVideoWorkflow.on_auto_detect_clicked``).
             if not video_path or video_path == ".":
@@ -352,33 +351,7 @@ class VideoProcessingCoordinator(
             ),
         )
 
-        # Generate trajectories (from Reports tab)
-        def _handle_generate_trajectories(payload: payloads.EventPayload) -> None:
-            selection = _payload_get(payload, "selection", ())
-            if any(
-                "_sub_" in str(s) or not str(s).endswith((".mp4", ".avi", ".mov", ".mkv"))
-                for s in selection
-            ):
-                log.debug(
-                    "video_processing_coordinator.generate_trajectories.skipped",
-                    reason="selection_contains_tree_ids_handled_by_callback",
-                )
-                return
-            paths = [
-                s
-                for s in selection
-                if isinstance(s, str) and s.endswith((".mp4", ".avi", ".mov", ".mkv"))
-            ]
-            if paths:
-                self.process_pending_project_videos(paths)
-
-        bus.subscribe(UIEvents.PROCESSING_GENERATE_TRAJECTORIES, _handle_generate_trajectories)
-
         # Multi-aquarium events → multi-aquarium coordinator
-        bus.subscribe(
-            UIEvents.ZONE_MULTI_AUTO_DETECT,
-            lambda payload: mac._handle_multi_auto_detect(payload) if mac else None,
-        )
         bus.subscribe(
             UIEvents.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED,
             lambda payload: mac._on_aquarium_assignment_completed(payload) if mac else None,

@@ -3,11 +3,6 @@
 The runtime is real in every test; only its collaborators (the sub-view-models,
 the bus, the threads) are faked, and the fakes record what they were asked to
 do so each assertion is on a routed argument or a published payload.
-
-Not covered on purpose: ``RECORDING_TOGGLE``, ``MODEL_ADD_WEIGHT``,
-``MODEL_CLEAR_OPENVINO_CACHE``, ``MODEL_VALIDATE_WEIGHTS``,
-``CALIBRATION_COPY_TO_PROJECT`` and ``CALIBRATION_SAVE_TO_PROJECT``: the event
-audit says nothing publishes them.
 """
 
 from __future__ import annotations
@@ -451,19 +446,6 @@ def test_video_cancel_analysis_routes_to_analysis_vm() -> None:
     _runtime(vm).handle_event(UIEvents.VIDEO_CANCEL_ANALYSIS, cast(Any, None))
 
     assert vm.analysis_vm.names() == ["cancel_current_analysis"]
-
-
-def test_zone_save_manual_arena_routes_points_and_skips_a_missing_polygon() -> None:
-    vm = _vm()
-    runtime = _runtime(vm)
-
-    runtime.handle_event(UIEvents.ZONE_SAVE_MANUAL_ARENA, cast(Any, {}))
-    assert vm.analysis_vm.calls == []
-
-    runtime.handle_event(
-        UIEvents.ZONE_SAVE_MANUAL_ARENA, cast(Any, {"polygon_points": [(0, 0), (4, 0), (4, 4)]})
-    )
-    assert vm.analysis_vm.only("save_manual_arena") == (([(0, 0), (4, 0), (4, 4)],), {})
 
 
 # ----------------------------------------------------------------------- project misc

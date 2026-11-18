@@ -533,12 +533,6 @@ class HardwareStatusViewModel:
         if self.recording_session_coordinator:
             self.recording_session_coordinator.stop_recording()
 
-    def toggle_recording(self) -> None:
-        if self.recording_service and self.recording_service.is_recording:
-            self.stop_recording()
-        else:
-            self.start_recording()
-
     @property
     def recording_service(self) -> Any | None:
         # Return Any | None because types might be circular or loaded dynamically

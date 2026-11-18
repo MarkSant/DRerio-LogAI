@@ -100,7 +100,7 @@ broader suite:
 | `io/camera.py`, `io/live_stream_source.py` | `tests/io/test_camera*.py`, `tests/io/test_live_stream_source.py` |
 | `analysis/reporters/*` | `tests/analysis/test_reporter*.py`, `test_*_reporter.py` |
 | `analysis/behavior*.py`, `analysis/roi.py` | `tests/test_behavior_geotaxis.py`, `tests/analysis/test_roi*.py` |
-| `core/services/roi_rule_resolver.py` (regra de ROI) | `tests/core/services/test_roi_rule_resolver.py`, `tests/coordinators/test_roi_rule_propagation.py`, `tests/core/test_arduino_roi_evaluator.py`, `tests/ui/components/test_roi_settings_persistence.py`, `tests/ui/components/test_zone_controls_widget.py` |
+| `core/services/roi_rule_resolver.py` (regra de ROI) | `tests/core/services/test_roi_rule_resolver.py`, `tests/coordinators/test_roi_rule_propagation.py`, `tests/core/test_arduino_roi_evaluator.py`, `tests/ui/components/test_zone_controls_widget.py` |
 | `core/services/arena_detection_policy.py` (método seg/det + forma da máscara da arena) | `tests/core/test_arena_detection_policy.py`, `tests/coordinators/test_multi_aquarium_coordinator.py`, `tests/coordinators/test_live_calibration_coordinator.py` |
 | `core/services/zone_autoimport_policy.py` (adotar ou não os parquets de zona achados em disco) | `tests/core/services/test_zone_autoimport_policy.py`, `tests/ui/components/test_dialog_manager.py` (marcador `gui`, `-k zone_reuse`) |
 | `core/services/pattern_match.py` (regra única dos padrões regex de grupo/dia/sujeito: sem distinção de caixa, valor = primeiro grupo que participou) | `tests/core/services/test_pattern_match.py`, `tests/ui/wizard/test_custom_regex_dialog.py`, `tests/ui/wizard/test_detection_step_extended.py` |

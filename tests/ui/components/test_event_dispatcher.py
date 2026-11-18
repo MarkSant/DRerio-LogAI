@@ -195,17 +195,6 @@ class TestRegisterDirectHandler:
 class TestGuiHandlers:
     """Testes para handlers com GUI."""
 
-    def test_handle_setup_interactive_polygon_defaults(self):
-        gui = SimpleNamespace(
-            event_bus=MagicMock(),
-            canvas_manager=MagicMock(),
-        )
-        dispatcher = EventDispatcher(cast(Any, gui))
-
-        dispatcher._handle_setup_interactive_polygon(None)
-
-        gui.canvas_manager.setup_interactive_polygon.assert_called_once()
-
     def test_handle_setup_zone_definition_valid(self):
         gui = SimpleNamespace(
             event_bus=MagicMock(),
@@ -356,7 +345,7 @@ class TestGuiSubscriptions:
         dispatcher.register_event_bus_handlers()
 
         subscribed = [call.args[0] for call in event_bus.subscribe.call_args_list]
-        assert subscribed == [UIEvents.CLASS_ROLES_CHANGED, UIEvents.UI_SETUP_INTERACTIVE_POLYGON]
+        assert subscribed == [UIEvents.CLASS_ROLES_CHANGED]
 
     def test_subscribe_zone_component_events(self):
         event_bus = MagicMock()
@@ -520,22 +509,6 @@ class TestZoneComponentEventHandlers:
         mock_gui.video_selector_manager._populate_video_selector_tree.assert_called_once_with(
             filter_text=None
         )
-
-    def test_detector_update_parameters_delegation(self):
-        """Verifica que evento DETECTOR_UPDATE_PARAMETERS chama método correto."""
-        # Arrange
-        mock_gui = MagicMock()
-        mock_gui.controller = MagicMock()
-        params = {"rule": "centroid_in", "buffer_radius": 0.5, "overlap_ratio": 0.1}
-
-        # Act
-        mock_gui._on_apply_roi_settings = lambda p: (
-            mock_gui.controller.update_detector_parameters(p) if p and mock_gui.controller else None
-        )
-        mock_gui._on_apply_roi_settings(params)
-
-        # Assert
-        mock_gui.controller.update_detector_parameters.assert_called_once_with(params)
 
 
 class TestAnalysisWindowSpecChanged:

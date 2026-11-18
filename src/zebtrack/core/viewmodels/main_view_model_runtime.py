@@ -51,7 +51,6 @@ class MainViewModelRuntime:
     _EVENTS_TO_HANDLE = (
         UIEvents.RECORDING_START,
         UIEvents.RECORDING_STOP,
-        UIEvents.RECORDING_TOGGLE,
         UIEvents.PROJECT_CREATE,
         UIEvents.PROJECT_OPEN,
         UIEvents.PROJECT_CLOSE,
@@ -61,18 +60,14 @@ class MainViewModelRuntime:
         UIEvents.UI_REQUEST_WEIGHT_FILE,
         UIEvents.VIDEO_ANALYZE_SINGLE,
         UIEvents.VIDEO_CANCEL_ANALYSIS,
-        UIEvents.MODEL_ADD_WEIGHT,
         UIEvents.MODEL_DELETE_WEIGHT,
         UIEvents.MODEL_LOAD_NEW_WEIGHT,
         UIEvents.MODEL_SET_DEFAULT_FOR,
         UIEvents.MODEL_RECLASSIFY_TARGET,
-        UIEvents.MODEL_CLEAR_OPENVINO_CACHE,
         UIEvents.MODEL_RESCAN_WEIGHTS,
         UIEvents.MODEL_RESET_REGISTRY,
         UIEvents.MODEL_FORCE_BENCHMARK,
-        UIEvents.MODEL_VALIDATE_WEIGHTS,
         UIEvents.MODEL_CONVERT_OPENVINO,
-        UIEvents.ZONE_SAVE_MANUAL_ARENA,
         UIEvents.PROJECT_DELETE_ASSET,
         UIEvents.PROJECT_DELETE_GROUP,
         UIEvents.PROJECT_DELETE_DAY,
@@ -80,8 +75,6 @@ class MainViewModelRuntime:
         UIEvents.PROJECT_DELETE_AQUARIUM,
         UIEvents.PROJECT_CLEAR_AQUARIUM_SUBJECT,
         UIEvents.PROJECT_RESET_ANALYSIS_DATA,
-        UIEvents.CALIBRATION_COPY_TO_PROJECT,
-        UIEvents.CALIBRATION_SAVE_TO_PROJECT,
         UIEvents.PROJECT_GENERATE_SUMMARIES,
         UIEvents.PROJECT_VIDEO_SELECTED,
         UIEvents.PROJECT_SELECTION_CHANGED,
@@ -115,7 +108,7 @@ class MainViewModelRuntime:
         payload_dict = _payload_to_dict(data)
 
         match event_name:
-            case UIEvents.RECORDING_START | UIEvents.RECORDING_STOP | UIEvents.RECORDING_TOGGLE:
+            case UIEvents.RECORDING_START | UIEvents.RECORDING_STOP:
                 self._handle_recording_event(event_name)
             case UIEvents.PROJECT_CREATE | UIEvents.PROJECT_OPEN | UIEvents.PROJECT_CLOSE:
                 self._handle_project_event(event_name, data, payload_dict)
@@ -123,24 +116,19 @@ class MainViewModelRuntime:
                 UIEvents.MODEL_SET_OPENVINO
                 | UIEvents.MODEL_SET_WEIGHT
                 | UIEvents.MODEL_RUN_DIAGNOSTIC
-                | UIEvents.MODEL_ADD_WEIGHT
                 | UIEvents.MODEL_DELETE_WEIGHT
                 | UIEvents.MODEL_LOAD_NEW_WEIGHT
                 | UIEvents.UI_REQUEST_WEIGHT_FILE
                 | UIEvents.MODEL_SET_DEFAULT_FOR
                 | UIEvents.MODEL_RECLASSIFY_TARGET
-                | UIEvents.MODEL_CLEAR_OPENVINO_CACHE
                 | UIEvents.MODEL_RESCAN_WEIGHTS
                 | UIEvents.MODEL_RESET_REGISTRY
                 | UIEvents.MODEL_FORCE_BENCHMARK
-                | UIEvents.MODEL_VALIDATE_WEIGHTS
                 | UIEvents.MODEL_CONVERT_OPENVINO
             ):
                 self._handle_model_event(event_name, data, payload_dict)
             case UIEvents.VIDEO_ANALYZE_SINGLE | UIEvents.VIDEO_CANCEL_ANALYSIS:
                 self._handle_video_event(event_name, data)
-            case UIEvents.ZONE_SAVE_MANUAL_ARENA:
-                self._handle_zone_event(data)
             case (
                 UIEvents.PROJECT_DELETE_ASSET
                 | UIEvents.PROJECT_DELETE_GROUP
@@ -149,8 +137,6 @@ class MainViewModelRuntime:
                 | UIEvents.PROJECT_DELETE_AQUARIUM
                 | UIEvents.PROJECT_CLEAR_AQUARIUM_SUBJECT
                 | UIEvents.PROJECT_RESET_ANALYSIS_DATA
-                | UIEvents.CALIBRATION_COPY_TO_PROJECT
-                | UIEvents.CALIBRATION_SAVE_TO_PROJECT
                 | UIEvents.PROJECT_GENERATE_SUMMARIES
                 | UIEvents.PROJECT_VIDEO_SELECTED
                 | UIEvents.PROJECT_SELECTION_CHANGED
@@ -168,8 +154,6 @@ class MainViewModelRuntime:
             vm.hardware_vm.start_recording()
         elif event_name is UIEvents.RECORDING_STOP:
             vm.hardware_vm.stop_recording()
-        elif event_name is UIEvents.RECORDING_TOGGLE:
-            vm.hardware_vm.toggle_recording()
 
     def _handle_project_event(
         self,
@@ -219,8 +203,6 @@ class MainViewModelRuntime:
             vm.hardware_vm.run_model_diagnostic(config)
         elif event_name is UIEvents.UI_REQUEST_WEIGHT_FILE:
             vm.hardware_vm.handle_request_weight_file()
-        elif event_name is UIEvents.MODEL_ADD_WEIGHT:
-            vm.hardware_vm.add_new_weight(**payload_dict)
         elif event_name is UIEvents.MODEL_DELETE_WEIGHT:
             vm.hardware_vm.delete_weight(**payload_dict)
         elif event_name is UIEvents.MODEL_LOAD_NEW_WEIGHT:
@@ -233,14 +215,10 @@ class MainViewModelRuntime:
             )
         elif event_name is UIEvents.MODEL_RECLASSIFY_TARGET:
             vm.hardware_vm.reclassify_weight_target(payload_dict["name"], payload_dict["target"])
-        elif event_name is UIEvents.MODEL_CLEAR_OPENVINO_CACHE:
-            vm.hardware_vm.clear_openvino_cache(payload_dict.get("name"))
         elif event_name is UIEvents.MODEL_RESCAN_WEIGHTS:
             vm.hardware_vm.rescan_weights_folder()
         elif event_name is UIEvents.MODEL_RESET_REGISTRY:
             vm.hardware_vm.reset_weights_registry()
-        elif event_name is UIEvents.MODEL_VALIDATE_WEIGHTS:
-            vm.hardware_vm.validate_weight_files()
         elif event_name is UIEvents.MODEL_FORCE_BENCHMARK:
             # Run on a worker thread so the UI stays responsive.
             import threading
@@ -274,11 +252,6 @@ class MainViewModelRuntime:
         elif event_name is UIEvents.VIDEO_CANCEL_ANALYSIS:
             vm.analysis_vm.cancel_current_analysis()
 
-    def _handle_zone_event(self, data: payloads.EventPayload) -> None:
-        polygon_points = _payload_get(data, "polygon_points")
-        if polygon_points is not None:
-            self._vm.analysis_vm.save_manual_arena(polygon_points)
-
     def _handle_project_misc_event(
         self,
         event_name: UIEvents,
@@ -289,11 +262,7 @@ class MainViewModelRuntime:
         if self._handle_project_deletion_events(event_name, payload_dict):
             return
 
-        if event_name is UIEvents.CALIBRATION_COPY_TO_PROJECT:
-            vm.project_vm.handle_calibration_copy_to_project()
-        elif event_name is UIEvents.CALIBRATION_SAVE_TO_PROJECT:
-            vm.project_vm.handle_calibration_save_to_project()
-        elif event_name is UIEvents.PROJECT_GENERATE_SUMMARIES:
+        if event_name is UIEvents.PROJECT_GENERATE_SUMMARIES:
             video_paths = _payload_get(data, "video_paths")
             if video_paths is not None:
                 vm.analysis_vm.generate_parquet_summaries(list(video_paths))
