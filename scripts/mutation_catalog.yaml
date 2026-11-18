@@ -5607,3 +5607,26 @@ _load_registry()"
         description: "A6-S2: fechar o app volta a esperar o lote inteiro do worker"
         find: 'super().__init__(name="ZebTrack-ProcessingWorker", daemon=True)'
         replace: 'super().__init__(name="ZebTrack-ProcessingWorker")'
+
+  # ---- A6-11: Cancel no longer waits for the worker on the Tk thread -------------
+  processing_cancel_off_tk:
+    source: src/zebtrack/coordinators/progress_tracking_coordinator.py
+    tests:
+      - tests/coordinators/test_progress_tracking_coordinator.py
+    mutations:
+      - id: cancel-wait-not-daemon
+        description: "A6-11: a espera pelo worker segura o fechamento do app"
+        find: |-
+          name="processing-cancel-wait",
+                              daemon=True,
+        replace: |-
+          name="processing-cancel-wait",
+                              daemon=False,
+      - id: cancel-waits-on-tk
+        description: "A6-11: Cancelar volta a congelar a janela esperando o worker"
+        find: '                self._cancel_thread.start()'
+        replace: '                self._cancel_thread.run()'
+      - id: cancel-unbounded
+        description: "A6-11: a espera pelo worker deixa de ter limite"
+        find: 'kwargs={"timeout": self.WORKER_CANCEL_TIMEOUT_S},'
+        replace: 'kwargs={"timeout": None},'

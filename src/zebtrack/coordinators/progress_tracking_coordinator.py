@@ -11,6 +11,7 @@ Estimated size: ~480 lines (target <800).
 from __future__ import annotations
 
 import os
+import threading
 import time
 from collections.abc import Mapping
 from pathlib import Path
@@ -677,13 +678,21 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         # the intended join/terminate never happened. The run still stopped —
         # the monitor loop forwards ``cancel_event`` to the worker process — but
         # nobody waited for it, so the cancel returned while the process was
-        # still writing. The bounded timeout keeps the UI thread responsive if
-        # the worker is mid-inference.
+        # still writing. The wait is bounded, and it runs on a daemon thread:
+        # this method is the Cancel button's handler, so waiting here froze the
+        # window for up to the timeout before even showing "Cancelling..."
+        # (audit A6-11).
         vpc = self._video_processing_coordinator
         if vpc:
             worker = getattr(vpc, "processing_worker", None)
             if worker is not None and hasattr(worker, "cancel"):
-                worker.cancel(timeout=self.WORKER_CANCEL_TIMEOUT_S)
+                self._cancel_thread = threading.Thread(
+                    target=worker.cancel,
+                    kwargs={"timeout": self.WORKER_CANCEL_TIMEOUT_S},
+                    name="processing-cancel-wait",
+                    daemon=True,
+                )
+                self._cancel_thread.start()
 
         self.state_manager.update_processing_state(
             source="processing_coordinator.cancel_processing",
