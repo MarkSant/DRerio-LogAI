@@ -5319,3 +5319,47 @@ _load_registry()"
         description: "F2-UI-008: o servico volta a anunciar 300 quadros enquanto o laco para em 10"
         find: '        self._aquarium_detection_max_frames: int = AQUARIUM_DETECTION_FRAMES'
         replace: '        self._aquarium_detection_max_frames: int = 300'
+  zone_source_video_default:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+      - tests/integration/test_flow_e2e_single_video.py
+    mutations:
+      - id: camera-reference-is-the-base-again
+        description: "A8-001: zona sem tamanho de origem volta a ser escalada de camera.desired"
+        find: '        source_width, source_height = self._default_single_zone_source_to_video('
+        replace: '        _ignored_size = self._default_single_zone_source_to_video('
+      - id: video-default-overrides-stated-size
+        description: "A8-001: o tamanho do video atropela um source_video_width declarado"
+        find: |-
+          if source_width is not None and source_height is not None:
+                      return source_width, source_height
+                  if not isinstance(zone_data, ZoneData):
+        replace: |-
+          if False:
+                      return source_width, source_height
+                  if not isinstance(zone_data, ZoneData):
+      - id: multi-aquarium-defaulted-to-video
+        description: "A8-001: o default de video vaza para o multi-aquario"
+        find: |-
+          if not isinstance(zone_data, ZoneData):
+                      return source_width, source_height
+                  if actual_width <= 0
+        replace: |-
+          if False:
+                      return source_width, source_height
+                  if actual_width <= 0
+      - id: unreadable-video-size-accepted
+        description: "A8-001: video com largura 0 vira base 0x480 do escalonador"
+        find: '        if actual_width <= 0 or actual_height <= 0:'
+        replace: '        if actual_width <= 0 and actual_height <= 0:'
+  zone_metadata_reaches_project_worker:
+    source: src/zebtrack/coordinators/_video_selection_mixin.py
+    tests:
+      - tests/coordinators/test_video_selection_and_completion_mixins.py
+      - tests/integration/test_flow_e2e_prerecorded_project.py
+    mutations:
+      - id: metadata-stripped
+        description: "A8-002: o lote do projeto volta a descartar source_video_width/height"
+        find: '                        "metadata": dict(getattr(zone_data, "metadata", {}) or {}),'
+        replace: '                        "metadata": {},'

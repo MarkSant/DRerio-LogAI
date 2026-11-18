@@ -168,6 +168,60 @@ def test_resolve_zone_source_dimensions_reads_multi_aquarium_video_size(worker_c
     assert worker._resolve_zone_source_dimensions(multi_data) == (1920, 1080)
 
 
+def test_single_zone_without_source_size_defaults_to_the_video_size():
+    """A8-001: an unsized single-aquarium zone is in the video's own pixels."""
+    zone_data = ZoneData(polygon=[[40, 40], [600, 40], [600, 440], [40, 440]])
+
+    resolved = _WorkerProcess._default_single_zone_source_to_video(
+        zone_data,
+        source_width=None,
+        source_height=None,
+        actual_width=640,
+        actual_height=480,
+    )
+
+    assert resolved == (640, 480)
+
+
+def test_single_zone_stated_source_size_beats_the_video_size():
+    zone_data = ZoneData(polygon=[[20, 20], [300, 20], [300, 220]])
+
+    resolved = _WorkerProcess._default_single_zone_source_to_video(
+        zone_data,
+        source_width=320,
+        source_height=240,
+        actual_width=640,
+        actual_height=480,
+    )
+
+    assert resolved == (320, 240)
+
+
+def test_multi_aquarium_zone_is_not_defaulted_to_the_video_size():
+    resolved = _WorkerProcess._default_single_zone_source_to_video(
+        MultiAquariumZoneData(),
+        source_width=None,
+        source_height=None,
+        actual_width=640,
+        actual_height=480,
+    )
+
+    assert resolved == (None, None)
+
+
+@pytest.mark.parametrize("actual", [(0, 480), (640, 0)])
+def test_unreadable_video_size_leaves_the_zone_unsized(actual):
+    resolved = _WorkerProcess._default_single_zone_source_to_video(
+        ZoneData(polygon=[[0, 0], [10, 0], [10, 10]]),
+        source_width=None,
+        source_height=None,
+        actual_width=actual[0],
+        actual_height=actual[1],
+    )
+
+    assert resolved == (None, None)
+
+
 def test_repair_source_dimensions_switches_to_desired_base_when_polygon_tiny(worker_config):
     result_queue: mp.Queue[object] = mp.Queue()
     command_queue: mp.Queue[object] = mp.Queue()

@@ -38,11 +38,11 @@ Only the boundaries a headless test cannot cross:
 * the worker's ``configure_logging`` — it would reconfigure structlog for the
   whole test session and write ``analysis_worker.log`` into the cwd.
 
-Zones are saved exactly as the Zones tab saves them (raw pixels, no source
-size), with ``camera.desired_*`` equal to the video size — the configuration in
-which this flow is correct today. With the shipped 1280x720 reference the arena
-is mis-scaled: see the A8-002 test at the bottom and A8-001 in
-``test_flow_e2e_single_video.py``.
+Zones are saved exactly as the Zones tab saves them (raw pixels of the video,
+no source size). The module fixture sets ``camera.desired_*`` to the video size;
+the tests at the bottom keep the shipped 1280x720 reference and prove the
+camera reference plays no part in a pre-recorded run (A8-001), and that a zone
+which states its source size keeps it all the way to the worker (A8-002).
 
 Runs in CI's default job (no ``slow``/``gui`` marker).
 """
@@ -236,30 +236,49 @@ def test_identity_is_the_path_even_for_byte_identical_videos(project_run: dict) 
     assert [e["metadata"]["day"] for e in entries] == [1, 2]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "A8-002: _load_zones_for_eligible_videos rebuilds the per-video zone dict "
-        "without 'metadata', so source_video_width/height never reach the project "
-        "worker; it then scales raw-pixel zones from camera.desired (1280x720)."
-    ),
-)
-def test_project_worker_receives_the_zone_source_size(tmp_path: Path) -> None:
-    """Zones that DO state their source size must be scaled from it.
+def _halved(points: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    return [(x // 2, y // 2) for x, y in points]
 
-    Shipped camera reference (1280x720), a 640x480 video, and day 1's arena
-    saved WITH ``source_video_width/height = 640x480``. The worker honours that
-    metadata when it arrives (``_resolve_zone_source_dimensions``), so the
-    subject's walk to x = 500 px must survive the arena filter. Today the batch
-    path strips the metadata and the arena is shrunk to half its size.
+
+def test_project_worker_receives_the_zone_source_size(tmp_path: Path) -> None:
+    """Zones that DO state their source size must be scaled from it (A8-002).
+
+    Shipped camera reference (1280x720), a 640x480 video, and both arenas saved
+    at HALF size WITH ``source_video_width/height = 320x240``, as a zone drawn on
+    a 320x240 proxy would be. Only that metadata turns the half-size polygon back
+    into the whole tank: without it the worker reads the points as this video's
+    own pixels (the A8-001 default), the arena ends at x = 300 and the subject's
+    walk to x = 500 px is dropped. So this fails exactly when the project batch
+    (``_load_zones_for_eligible_videos``) strips ``metadata`` on the way to the
+    worker, whatever the default for zones without a size.
     """
+    half = (WIDTH // 2, HEIGHT // 2)
     run = _run_project(
         tmp_path,
         flow_settings(camera_matches_video=False),
         {
-            1: make_zone(ARENA_A, ROI_A, "Esquerda", source_size=(WIDTH, HEIGHT)),
-            2: make_zone(ARENA_A, ROI_A, "Esquerda", source_size=(WIDTH, HEIGHT)),
+            1: make_zone(_halved(ARENA_A), _halved(ROI_A), "Esquerda", source_size=half),
+            2: make_zone(_halved(ARENA_A), _halved(ROI_A), "Esquerda", source_size=half),
         },
     )
-    day1 = pd.read_parquet(run["folders"][1] / f"3_CoordMovimento_{STEM}.parquet")
-    assert day1["x_center_px"].max() > 400
+    for day in (1, 2):
+        df = pd.read_parquet(run["folders"][day] / f"3_CoordMovimento_{STEM}.parquet")
+        assert df["x_center_px"].max() > 400, f"day {day}"
+
+
+def test_zones_without_a_source_size_are_this_videos_pixels(tmp_path: Path) -> None:
+    """Shipped 1280x720 camera reference, 640x480 videos, zones with NO source size.
+
+    That is how every Zones-tab zone is saved (A8-001): raw pixels of the video
+    they belong to. The camera reference is the live camera's resolution, never
+    a coordinate base for a file, so the whole-tank arena must keep the walk to
+    x = 500 px on both days.
+    """
+    run = _run_project(
+        tmp_path,
+        flow_settings(camera_matches_video=False),
+        {1: make_zone(ARENA_A, ROI_A, "Esquerda"), 2: make_zone(ARENA_A, ROI_A, "Esquerda")},
+    )
+    for day in (1, 2):
+        df = pd.read_parquet(run["folders"][day] / f"3_CoordMovimento_{STEM}.parquet")
+        assert df["x_center_px"].max() > 400, f"day {day}"

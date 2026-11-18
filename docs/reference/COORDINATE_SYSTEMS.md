@@ -18,16 +18,32 @@ DRerio LogAI manages spatial data across three distinct coordinate spaces. Under
 **Usage:**
 
 - Raw camera frames.
-- User-drawn Arena and ROI polygons.
+- User-drawn Arena and ROI polygons, in the pixels of the video (or camera frame) they were
+  drawn on.
 - Raw YOLO/OpenVINO detections.
   **Characteristics:** May contain perspective distortion; the arena is often an irregular quadrilateral.
+
+**Scaling base of a zone.** A zone's points are pixels of the frame it was drawn on, so
+the detector must scale them FROM that frame's size TO the frame being processed. The
+batch worker (`_WorkerProcess._process_single_video`) resolves that source size as:
+
+1. `ZoneData.metadata["source_video_width/height"]` (or `MultiAquariumZoneData.video_width/height`)
+   when the zone states it;
+2. otherwise, for a single-aquarium zone, **the video's own size** — never
+   `camera.desired_width/height`, which is the live camera's resolution (A8-001). A 640x480
+   video on a machine whose camera reference is 1280x720 used to get an arena half its
+   drawn size, with detections past it dropped and the run reported as successful.
+
+The project batch (`VideoSelectionMixin._load_zones_for_eligible_videos`) must carry the
+zone's `metadata` into the worker payload, or step 1 never happens (A8-002).
 
 ### 2.2. Warped Space (Normalized Pixels)
 
 **Resolution:** Fixed width of **600 pixels**. Height ($N$) is calculated to maintain the real aspect ratio of the aquarium.
 **Usage:**
 
-- Trajectory storage in `.parquet` files.
+- Summary geometry (arena, ROIs and trajectory warped together at report time, see § 3.2).
+  The `.parquet` trajectory itself is **not** warped: it stays in Original Video Space.
 - Internal normalization and mapping.
   **Characteristics:** The arena becomes a perfect rectangle `[(0,0), (600,0), (600,N), (0,N)]`. Perspective correction is applied via a homography matrix.
 
