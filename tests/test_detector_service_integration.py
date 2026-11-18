@@ -346,11 +346,11 @@ class TestDetectorServiceIntegration(unittest.TestCase):
         self.controller.detector_service.set_single_subject_mode(True)
 
         # Verify mode was set on detector
-        self.assertTrue(self.controller.detector.is_single_subject_mode())
+        self.assertTrue(self.controller.detector._single_subject_mode)
 
         # Change to multi-subject mode
         self.controller.detector_service.set_single_subject_mode(False)
-        self.assertFalse(self.controller.detector.is_single_subject_mode())
+        self.assertFalse(self.controller.detector._single_subject_mode)
 
     def test_reset_tracking_state(self):
         """Test reset tracking state through service."""

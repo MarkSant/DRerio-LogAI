@@ -21,8 +21,8 @@ class TestBboxAreaGateExtended:
         assert gate.enabled is True
         assert gate.ratio_max == DEFAULT_RATIO_MAX
         assert gate.warmup == DEFAULT_WARMUP
-        assert gate.rejections == 0
-        assert gate.sample_count == 0
+        assert gate._rejections == 0
+        assert len(gate._areas) == 0
 
     def test_from_settings_none(self):
         gate = BboxAreaGate.from_settings(None, label="test")
@@ -54,8 +54,8 @@ class TestBboxAreaGateExtended:
         # 5th sample (reaches warmup)
         kept = gate.filter([(0, 0, 100, 100, 0.9, 1, 0)])
         assert len(kept) == 1
-        assert gate.rejections == 0
-        assert gate.sample_count == 5
+        assert gate._rejections == 0
+        assert len(gate._areas) == 5
 
     def test_rejection_after_warmup(self):
         gate = BboxAreaGate(warmup=5, ratio_max=2.0, window=10)
@@ -63,18 +63,18 @@ class TestBboxAreaGateExtended:
         for _ in range(5):
             gate.filter([(0, 0, 10, 10, 0.9, 1, 0)])
 
-        assert gate.sample_count == 5
+        assert len(gate._areas) == 5
 
         # Area 150 (ratio 1.5 < 2.0) -> accepted
         kept = gate.filter([(0, 0, 15, 10, 0.9, 1, 0)])
         assert len(kept) == 1
-        assert gate.sample_count == 6
+        assert len(gate._areas) == 6
 
         # Area 300 (ratio 3.0 > 2.0) -> rejected
         rejected = gate.filter([(0, 0, 30, 10, 0.9, 1, 0)])
         assert len(rejected) == 0
-        assert gate.rejections == 1
-        assert gate.sample_count == 6
+        assert gate._rejections == 1
+        assert len(gate._areas) == 6
 
     def test_disabled_gate_accepts_everything(self):
         gate = BboxAreaGate(enabled=False, warmup=2, ratio_max=1.5)
@@ -83,21 +83,21 @@ class TestBboxAreaGateExtended:
         # Should accept huge box even with low ratio_max
         kept = gate.filter([(0, 0, 1000, 1000, 0.9, 1, 0)])
         assert len(kept) == 1
-        assert gate.rejections == 0
+        assert gate._rejections == 0
 
     def test_degenerate_box_skipped(self):
         gate = BboxAreaGate(warmup=2)
         # Zero area box
         kept = gate.filter([(10, 10, 10, 10, 0.9, 1, 0)])
         assert len(kept) == 0
-        assert gate.sample_count == 0
+        assert len(gate._areas) == 0
 
     def test_reset(self):
         gate = BboxAreaGate(warmup=2)
         gate.filter([(0, 0, 10, 10, 0.9, 1, 0)])
         gate.filter([(0, 0, 10, 10, 0.9, 1, 0)])
-        assert gate.sample_count == 2
+        assert len(gate._areas) == 2
 
         gate.reset()
-        assert gate.sample_count == 0
-        assert gate.rejections == 0
+        assert len(gate._areas) == 0
+        assert gate._rejections == 0

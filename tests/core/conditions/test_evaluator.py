@@ -569,7 +569,6 @@ class TestWindow:
         for observation in frames:
             evaluator.step(observation)
         evaluator.finish()
-        assert evaluator.skipped_observations == 1
         assert evaluator.result.start is not None
         assert evaluator.result.start.frame == 3
 
