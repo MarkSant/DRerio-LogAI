@@ -174,7 +174,6 @@ class UICoordinator:
         self.event_bus.subscribe(UIEvents.POLYGON_EDIT_REQUESTED, self._on_polygon_edit_requested)
 
         # Project & Video Management Events
-        self.event_bus.subscribe(UIEvents.VIDEO_LOADED, self._on_video_loaded)
         self.event_bus.subscribe(
             UIEvents.VIDEO_TREE_REFRESH_REQUESTED, self._on_video_tree_refresh_requested
         )
@@ -189,17 +188,7 @@ class UICoordinator:
             UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED, self._on_project_views_refresh_requested
         )
 
-        # Analysis & Processing Events
-        self.event_bus.subscribe(
-            UIEvents.PROCESSING_STATS_UPDATED, self._on_processing_stats_updated
-        )
-        self.event_bus.subscribe(UIEvents.SOCIAL_SUMMARY_UPDATED, self._on_social_summary_updated)
-        self.event_bus.subscribe(
-            UIEvents.ANALYSIS_TASK_STATUS_UPDATED, self._on_analysis_task_status_updated
-        )
-
         # External Trigger Events
-        self.event_bus.subscribe(UIEvents.EXTERNAL_TRIGGER_NOTICE, self._on_external_trigger_notice)
 
         # Live Camera Events (v2.2.0)
         self.event_bus.subscribe(UIEvents.CAMERA_DISCONNECT_DETECTED, self._on_camera_disconnect)
@@ -416,47 +405,6 @@ class UICoordinator:
             self._errors_count += 1
             log.exception("ui_coordinator.video_hierarchy_snapshot.error", error=str(e))
 
-    def _on_video_loaded(self, data: payloads.EventPayload) -> None:
-        """Handle VIDEO_LOADED event.
-
-        **Workflow 6: Video Load Coordination**
-
-        Publishers: CanvasManager, VideoDisplayWidget
-
-        Coordinates:
-        1. Load video frame to canvas
-        2. Check for existing zones
-        3. Offer zone reuse if no zones exist
-
-        Args:
-            data: Event payload containing:
-                - video_path: str - Path to the loaded video
-        """
-        self._events_handled += 1
-        video_path = _payload_get(data, "video_path")
-
-        try:
-            # 1. Load frame to canvas
-            canvas_manager = self.canvas_manager
-            if canvas_manager is not None and video_path:
-                self._safe_ui_call(lambda: canvas_manager.load_video_frame_to_canvas(video_path))
-                log.debug("ui_coordinator.video_loaded.frame_loaded", video_path=video_path)
-
-            # 2. Check for existing zones and offer reuse
-            dialog_manager = self.dialog_manager
-            if (
-                self.validation_manager
-                and dialog_manager is not None
-                and video_path
-                and not self.validation_manager.has_zones(video_path)
-            ):
-                self._safe_ui_call(lambda: dialog_manager.offer_zone_reuse(video_path))
-                log.debug("ui_coordinator.video_loaded.zone_reuse_offered")
-
-        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
-            self._errors_count += 1
-            log.exception("ui_coordinator.video_loaded.error", error=str(e))
-
     def _on_project_views_refresh_requested(self, data: payloads.EventPayload) -> None:
         """Handle PROJECT_VIEWS_REFRESH_REQUESTED event.
 
@@ -494,61 +442,6 @@ class UICoordinator:
         except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.project_views_refresh.error", error=str(e))
-
-    def _on_processing_stats_updated(self, data: payloads.EventPayload) -> None:
-        """Handle PROCESSING_STATS_UPDATED event."""
-        self._events_handled += 1
-        try:
-            if self.state_synchronizer:
-                state_synchronizer = self.state_synchronizer
-                self._safe_ui_call(
-                    lambda: state_synchronizer.update_processing_stats(**_payload_to_dict(data))
-                )
-        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
-            self._errors_count += 1
-            log.exception("ui_coordinator.processing_stats_updated.error", error=str(e))
-
-    def _on_social_summary_updated(self, data: payloads.EventPayload) -> None:
-        """Handle SOCIAL_SUMMARY_UPDATED event."""
-        self._events_handled += 1
-        try:
-            if self.state_synchronizer:
-                state_synchronizer = self.state_synchronizer
-                self._safe_ui_call(
-                    lambda: state_synchronizer.update_social_summary(**_payload_to_dict(data))
-                )
-        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
-            self._errors_count += 1
-            log.exception("ui_coordinator.social_summary_updated.error", error=str(e))
-
-    def _on_analysis_task_status_updated(self, data: payloads.EventPayload) -> None:
-        """Handle ANALYSIS_TASK_STATUS_UPDATED event."""
-        self._events_handled += 1
-        try:
-            if self.state_synchronizer:
-                state_synchronizer = self.state_synchronizer
-                self._safe_ui_call(
-                    lambda: state_synchronizer.update_analysis_task_status(**_payload_to_dict(data))
-                )
-        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
-            self._errors_count += 1
-            log.exception("ui_coordinator.analysis_task_status_updated.error", error=str(e))
-
-    def _on_external_trigger_notice(self, data: payloads.EventPayload) -> None:
-        """Handle EXTERNAL_TRIGGER_NOTICE event."""
-        self._events_handled += 1
-        try:
-            if self.dialog_manager:
-                dialog_manager = self.dialog_manager
-                self._safe_ui_call(
-                    lambda: dialog_manager.show_external_trigger_notice(
-                        _payload_get(data, "session_label", ""),
-                        **_payload_to_dict(data),
-                    )
-                )
-        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
-            self._errors_count += 1
-            log.exception("ui_coordinator.external_trigger_notice.error", error=str(e))
 
     def _on_external_trigger_notice_cleared(self, data: payloads.EventPayload) -> None:
         """Handle EXTERNAL_TRIGGER_NOTICE_CLEARED event."""

@@ -515,33 +515,6 @@ class MultiAquariumCoordinator(BaseCoordinator):
                 ),
             )
 
-    def _handle_multi_auto_detect(self, payload: payloads.EventPayload) -> None:
-        """Handle ZONE_MULTI_AUTO_DETECT event.
-
-        Extracts video_path and expected_count from event payload
-        and delegates to run_aquarium_detection.
-        """
-        video_path = _payload_get(payload, "video_path", "")
-        expected_count = _payload_get(payload, "expected_count", 2)
-        method = _payload_get(payload, "method", "auto")
-
-        if not video_path:
-            log.warning("processing_coordinator.multi_auto_detect.no_video_path")
-            return
-
-        log.info(
-            "processing_coordinator.multi_auto_detect.event_received",
-            video=os.path.basename(video_path),
-            expected_count=expected_count,
-        )
-
-        self.run_aquarium_detection(
-            video_path,
-            count=expected_count,
-            method=method,
-            multi_aquarium=True,
-        )
-
     # ========================================================================
     # Aquarium Assignment
     # ========================================================================

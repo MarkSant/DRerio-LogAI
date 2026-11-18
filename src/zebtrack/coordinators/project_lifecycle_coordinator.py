@@ -137,89 +137,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         if not self.event_bus:
             return
 
-        # Subscribe to aquarium config update events
-        self.event_bus.subscribe(
-            UIEvents.ZONE_AQUARIUM_CONFIG_UPDATED,
-            self._handle_aquarium_config_updated,
-        )
-
         log.info("project_lifecycle_coordinator.register_handlers.complete")
-
-    def _handle_aquarium_config_updated(self, payload: payloads.EventPayload) -> None:
-        """Handle aquarium configuration update event.
-
-        Phase 5: Updates aquarium configuration in zone data.
-
-        Args:
-            payload: Event payload with aquarium_id, config, and video_path.
-        """
-        aquarium_id = _payload_get(payload, "aquarium_id")
-        config = _payload_get(payload, "config")
-        video_path = _payload_get(payload, "video_path")
-
-        if aquarium_id is None or not config or not video_path:
-            log.warning(
-                "aquarium_config_update.missing_data",
-                has_id=aquarium_id is not None,
-                has_config=bool(config),
-                has_video=bool(video_path),
-            )
-            return
-
-        if not self._zone_manager:
-            log.warning("aquarium_config_update.no_zone_manager")
-            return
-
-        try:
-            zone_data = self._zone_manager.get_multi_aquarium_zone_data(
-                self.project_manager.project_data, video_path
-            )
-            if not zone_data:
-                log.warning(
-                    "aquarium_config_update.no_zone_data",
-                    video_path=str(video_path),
-                )
-                return
-
-            aquarium = zone_data.get_aquarium(aquarium_id)
-            if not aquarium:
-                log.warning(
-                    "aquarium_config_update.aquarium_not_found",
-                    aquarium_id=aquarium_id,
-                )
-                return
-
-            # Update aquarium config
-            if hasattr(config, "group"):
-                aquarium.group = config.group
-            elif isinstance(config, dict):
-                aquarium.group = config.get("group", aquarium.group)
-
-            if hasattr(config, "subject_id"):
-                aquarium.subject_id = config.subject_id
-            elif isinstance(config, dict):
-                aquarium.subject_id = config.get("subject_id", aquarium.subject_id)
-
-            if hasattr(config, "day"):
-                aquarium.day = config.day
-            elif isinstance(config, dict):
-                aquarium.day = config.get("day", aquarium.day)
-
-            # Save updated zone data
-            self._zone_manager.save_multi_aquarium_zone_data(video_path, zone_data)
-
-            log.info(
-                "aquarium_config_update.success",
-                aquarium_id=aquarium_id,
-                video_path=str(video_path),
-            )
-
-        except Exception as e:  # except Exception justified: event handler fault isolation
-            log.error(
-                "aquarium_config_update.failed",
-                aquarium_id=aquarium_id,
-                error=str(e),
-            )
 
     # ========================================================================
     # Group A: Project Lifecycle (create, open, close)
@@ -1173,19 +1091,6 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         if self._model_override_service:
             return self._model_override_service.resolve_project_model_settings(overrides)
         return self.project_workflow_service.resolve_project_model_settings(overrides)
-
-    def save_current_calibration_to_project(
-        self,
-        get_active_weight_name: Callable[[], str | None],
-        get_use_openvino: Callable[[], bool],
-        refresh_callback: Callable[[str, bool], None] | None = None,
-    ) -> tuple[str | None, bool] | None:
-        """Save current model settings as project-specific overrides."""
-        if self._model_override_service:
-            return self._model_override_service.save_current_calibration_to_project(
-                get_active_weight_name, get_use_openvino, refresh_callback
-            )
-        return None
 
     def _project_animal_method(self) -> str:
         """det/seg method of the open project, before the global setting.

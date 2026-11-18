@@ -206,7 +206,6 @@ def create_test_controller(root, **overrides):
 
     # Create BootstrapResult Mock
     bootstrap_result = BootstrapResult(
-        project_service=overrides.get("project_service", MagicMock()),
         analysis_service=overrides.get("analysis_service", MagicMock()),
         video_classification_service=overrides.get("video_classification_service", MagicMock()),
         video_selection_service=overrides.get("video_selection_service", MagicMock()),

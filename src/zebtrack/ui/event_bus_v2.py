@@ -39,13 +39,10 @@ class UIEvents(Enum):
     RECORDING_START = auto()
     RECORDING_STARTED = auto()  # Internal fire-and-forget
     RECORDING_STOP = auto()
-    RECORDING_TOGGLE = auto()
-    RECORDING_TRIGGER = auto()
     RECORDING_STOPPED = auto()  # Internal: coordinator publishes after stop
 
     # ── Project ───────────────────────────────────────────────────────
     PROJECT_CREATE = auto()
-    PROJECT_CREATED = auto()
     PROJECT_OPEN = auto()
     PROJECT_OPENED = auto()
     PROJECT_CLOSE = auto()
@@ -54,7 +51,6 @@ class UIEvents(Enum):
     PROJECT_IMPORT_VIDEOS = auto()
     PROJECT_PROCESS_VIDEOS = auto()
     PROJECT_GENERATE_SUMMARIES = auto()
-    PROJECT_APPLY_SETTINGS = auto()
     PROJECT_DELETE_ASSET = auto()
     PROJECT_DELETE_GROUP = auto()
     PROJECT_DELETE_DAY = auto()
@@ -74,8 +70,6 @@ class UIEvents(Enum):
     MODEL_SET_WEIGHT = auto()
     MODEL_SET_OPENVINO = auto()
     MODEL_CONVERT_OPENVINO = auto()
-    MODEL_UPDATE_OPENVINO_STATUS = auto()
-    MODEL_ADD_WEIGHT = auto()
     MODEL_DELETE_WEIGHT = auto()
     MODEL_RUN_DIAGNOSTIC = auto()
     MODEL_LOAD_NEW_WEIGHT = auto()
@@ -83,29 +77,12 @@ class UIEvents(Enum):
     MODEL_SET_DEFAULT_FOR = auto()
     MODEL_RECLASSIFY_TARGET = auto()
     # Maintenance commands triggered from the inline weights catalog.
-    MODEL_CLEAR_OPENVINO_CACHE = auto()
     MODEL_RESCAN_WEIGHTS = auto()
     MODEL_RESET_REGISTRY = auto()
     MODEL_FORCE_BENCHMARK = auto()
-    MODEL_VALIDATE_WEIGHTS = auto()
 
     # ── Detector & Zone Commands ──────────────────────────────────────
-    DETECTOR_SETUP = auto()
-    DETECTOR_SETUP_ZONES = auto()
-    DETECTOR_UPDATE_PARAMETERS = auto()
-    DETECTOR_UPDATE_ZONES = auto()
-    ZONE_SET_ARENA_POLYGON = auto()
-    ZONE_SAVE_MANUAL_ARENA = auto()
-    ZONE_UPDATE_ARENA = auto()
     ZONE_AUTO_DETECT = auto()
-    ZONE_START_DRAW_ARENA = auto()
-    ZONE_APPLY_ROI_TEMPLATE = auto()
-    ZONE_SAVE_ROI_TEMPLATE = auto()
-    ZONE_IMPORT_AND_APPLY_ROI_TEMPLATE = auto()
-    ZONE_RENAME_SELECTED_ROI = auto()
-    ZONE_CHANGE_ROI_COLOR = auto()
-    ZONE_REMOVE_SELECTED_ROI = auto()
-    ZONE_APPLY_ROI_SETTINGS = auto()
     # Zone tab asks to open the ROI section of the Advanced Settings tab, which
     # is the single place where the rule AND all its parameters are editable.
     ZONE_OPEN_ROI_SETTINGS = auto()
@@ -134,39 +111,24 @@ class UIEvents(Enum):
     ZONE_CONCLUDE_VIDEO = auto()  # Raw string "zone.conclude_video"
 
     # ── Multi-Aquarium ────────────────────────────────────────────────
-    ZONE_MULTI_AUTO_DETECT = auto()
     ZONE_MULTI_AUTO_DETECT_SUCCESS = auto()
     ZONE_MULTI_AUTO_DETECT_FAILED = auto()
     ZONE_AQUARIUM_SELECTED = auto()
-    ZONE_MULTI_DETECT_COMPLETED = auto()
-    ZONE_AQUARIUM_CONFIG_CONFIRMED = auto()
-    ZONE_AQUARIUM_CONFIG_UPDATED = auto()
-    ZONE_AQUARIUM_COUNT_CONFIRMED = auto()
     ZONE_AQUARIUM_ASSIGNMENT_COMPLETED = auto()
-    ZONE_SHOW_AQUARIUM_COUNT_DIALOG = auto()
     ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG = auto()
     ZONE_PROCESSING_MODE_CHANGED = auto()
 
     # ── Processing Reports ────────────────────────────────────────────
-    PROCESSING_GENERATE_TRAJECTORIES = auto()
     PROCESSING_EXPORT_SUMMARIES = auto()
     REPORTS_GENERATE_PARTIAL = auto()
-    REPORTS_GENERATE_UNIFIED = auto()
 
     # ── Calibration ───────────────────────────────────────────────────
-    CALIBRATION_RUN_LIVE = auto()
-    CALIBRATION_COPY_TO_PROJECT = auto()
-    CALIBRATION_SAVE_TO_PROJECT = auto()
 
     # ── Arduino ───────────────────────────────────────────────────────
-    ARDUINO_SETUP = auto()
-    ARDUINO_LOG_EVENT = auto()
     ARDUINO_PORT_UPDATE_REQUESTED = auto()
 
     # ── Reports / App / Wizard ────────────────────────────────────────
     REPORT_GENERATE = auto()
-    APP_CLOSE = auto()
-    WIZARD_CREATE_PROJECT = auto()
 
     # ── Controller → UI Events ────────────────────────────────────────
     UI_SHOW_ERROR = auto()
@@ -179,13 +141,11 @@ class UIEvents(Enum):
     UI_APPEND_ARDUINO_LOG = auto()
     UI_UPDATE_ARDUINO_COMMAND = auto()
     UI_UPDATE_OPENVINO_STATUS = auto()
-    UI_SETUP_INTERACTIVE_POLYGON = auto()
     UI_DISPLAY_VIDEO_FRAME = auto()
     UI_UPDATE_PROCESSING_MODE = auto()
     UI_NAVIGATE_TO_WELCOME = auto()
     UI_NAVIGATE_TO_PROJECT_VIEW = auto()
     UI_NAVIGATE_TO_ANALYSIS_VIEW = auto()
-    UI_NAVIGATE_FROM_ANALYSIS_VIEW = auto()
     UI_SELECT_TAB = auto()
     UI_UPDATE_OPENVINO_CHECKBOX = auto()
     UI_SET_ACTIVE_WEIGHT = auto()
@@ -207,10 +167,6 @@ class UIEvents(Enum):
     UI_REQUEST_WEIGHT_ACTION = auto()
 
     # ── Multi-Aquarium UI Events ──────────────────────────────────────
-    UI_SHOW_AQUARIUM_COUNT_DIALOG = auto()
-    UI_SHOW_AQUARIUM_ASSIGNMENT_DIALOG = auto()
-    UI_UPDATE_AQUARIUM_SELECTOR = auto()
-    UI_SET_AQUARIUM_SELECTOR_VISIBLE = auto()
 
     # ── Live Analysis ─────────────────────────────────────────────────
     UI_UPDATE_LIVE_FRAME = auto()
@@ -240,35 +196,25 @@ class UIEvents(Enum):
     PROJECT_VIDEO_RIGHT_CLICK_WIDGET = auto()
     PROJECT_ITEM_DOUBLE_CLICK = auto()
     REPORTS_DELETE_UNIFIED = auto()
-    CONTROL_PREVIEW_TOGGLED = auto()
-    CONTROL_INTERVAL_CHANGED = auto()
     FRAME_ERROR = auto()
     VIDEO_METADATA_UPDATED = auto()
     ANALYSIS_TRACK_SELECTED = auto()
     ANALYSIS_CANCEL_REQUESTED = auto()
     LIVE_SESSION_FINISH_REQUESTED = auto()
-    VIDEO_RECONFIGURE_SUBJECTS = auto()
     SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO = auto()
 
     # ── V2 Legacy (kept for backward compat — already existed) ────────
     ZONES_UPDATED = auto()
-    ZONE_SELECTED_V2 = auto()  # Alias for v2-specific zone selection
     POLYGON_EDIT_REQUESTED = auto()
-    VIDEO_LOADED = auto()
     PROJECT_VIEWS_REFRESH_REQUESTED = auto()
     VIDEO_TREE_REFRESH_REQUESTED = auto()
     VIDEO_HIERARCHY_SNAPSHOT_REQUESTED = auto()
     READINESS_SNAPSHOT_UPDATED = auto()
     PROCESSING_REPORTS_ITEM_RIGHT_CLICK = auto()
-    UI_REQUEST_PROCESS_VIDEOS = auto()
-    PROCESSING_STATS_UPDATED = auto()
-    SOCIAL_SUMMARY_UPDATED = auto()
-    ANALYSIS_TASK_STATUS_UPDATED = auto()
     SHOW_ERROR = auto()
     SHOW_WARNING = auto()
     SHOW_INFO = auto()
     SET_STATUS = auto()
-    EXTERNAL_TRIGGER_NOTICE = auto()
     EXTERNAL_TRIGGER_NOTICE_CLEARED = auto()
     ANALYSIS_WINDOW_SPEC_CHANGED = auto()
     CLASS_ROLES_CHANGED = auto()
@@ -276,15 +222,7 @@ class UIEvents(Enum):
     ANALYSIS_WINDOW_STATE_CHANGED = auto()
     # -- end v8 F5 --
     ERROR_OCCURRED = auto()
-    PROGRESS_UPDATE = auto()
-    TRACKING_COMPLETE = auto()
     FRAME_DISPLAYED = auto()
-    ANALYSIS_STARTED = auto()
-    ANALYSIS_COMPLETED = auto()
-    DISPLAY_VIDEO_FRAME = auto()
-    NAVIGATE_TO_WELCOME = auto()
-    NAVIGATE_TO_PROJECT = auto()
-    NAVIGATE_TO_ANALYSIS = auto()
     CAMERA_DISCONNECT_DETECTED = auto()
     CAMERA_DISCONNECT_USER_ACTION = auto()
     CAMERA_RECONNECTED = auto()
@@ -298,12 +236,9 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.RECORDING_START: payloads.RecordingStartPayload,
     UIEvents.RECORDING_STARTED: payloads.RecordingStartedPayload,
     UIEvents.RECORDING_STOP: payloads.EmptyPayload,
-    UIEvents.RECORDING_TOGGLE: payloads.EmptyPayload,
-    UIEvents.RECORDING_TRIGGER: payloads.RecordingTriggerPayload,
     UIEvents.RECORDING_STOPPED: payloads.RecordingStoppedPayload,
     # Project
     UIEvents.PROJECT_CREATE: payloads.ProjectCreatePayload,
-    UIEvents.PROJECT_CREATED: payloads.ProjectCreatedPayload,
     UIEvents.PROJECT_OPEN: payloads.ProjectOpenPayload,
     UIEvents.PROJECT_OPENED: payloads.ProjectOpenedPayload,
     UIEvents.PROJECT_CLOSE: payloads.EmptyPayload,
@@ -312,7 +247,6 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.PROJECT_IMPORT_VIDEOS: payloads.ProjectImportVideosPayload,
     UIEvents.PROJECT_PROCESS_VIDEOS: payloads.ProjectProcessVideosPayload,
     UIEvents.PROJECT_GENERATE_SUMMARIES: payloads.ProjectGenerateSummariesPayload,
-    UIEvents.PROJECT_APPLY_SETTINGS: payloads.ProjectApplySettingsPayload,
     UIEvents.PROJECT_DELETE_ASSET: payloads.ProjectDeleteAssetPayload,
     UIEvents.PROJECT_DELETE_GROUP: payloads.ProjectDeleteGroupPayload,
     UIEvents.PROJECT_DELETE_DAY: payloads.ProjectDeleteDayPayload,
@@ -330,35 +264,16 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.MODEL_SET_WEIGHT: payloads.ModelSetWeightPayload,
     UIEvents.MODEL_SET_OPENVINO: payloads.ModelSetOpenVinoPayload,
     UIEvents.MODEL_CONVERT_OPENVINO: payloads.ModelConvertOpenVinoPayload,
-    UIEvents.MODEL_UPDATE_OPENVINO_STATUS: payloads.ModelUpdateOpenVinoStatusPayload,
-    UIEvents.MODEL_ADD_WEIGHT: payloads.ModelAddWeightPayload,
     UIEvents.MODEL_DELETE_WEIGHT: payloads.ModelDeleteWeightPayload,
     UIEvents.MODEL_RUN_DIAGNOSTIC: payloads.ModelRunDiagnosticPayload,
     UIEvents.MODEL_LOAD_NEW_WEIGHT: payloads.ModelLoadNewWeightPayload,
     UIEvents.MODEL_SET_DEFAULT_FOR: payloads.ModelSetDefaultForPayload,
     UIEvents.MODEL_RECLASSIFY_TARGET: payloads.ModelReclassifyTargetPayload,
-    UIEvents.MODEL_CLEAR_OPENVINO_CACHE: payloads.ModelClearOpenVinoCachePayload,
     UIEvents.MODEL_RESCAN_WEIGHTS: payloads.EmptyPayload,
     UIEvents.MODEL_RESET_REGISTRY: payloads.EmptyPayload,
     UIEvents.MODEL_FORCE_BENCHMARK: payloads.EmptyPayload,
-    UIEvents.MODEL_VALIDATE_WEIGHTS: payloads.EmptyPayload,
     # Detector & Zone Commands
-    UIEvents.DETECTOR_SETUP: payloads.DetectorSetupPayload,
-    UIEvents.DETECTOR_SETUP_ZONES: payloads.DetectorSetupZonesPayload,
-    UIEvents.DETECTOR_UPDATE_PARAMETERS: payloads.DetectorUpdateParametersPayload,
-    UIEvents.DETECTOR_UPDATE_ZONES: payloads.DetectorUpdateZonesPayload,
-    UIEvents.ZONE_SET_ARENA_POLYGON: payloads.EmptyPayload,
-    UIEvents.ZONE_SAVE_MANUAL_ARENA: payloads.EmptyPayload,
-    UIEvents.ZONE_UPDATE_ARENA: payloads.EmptyPayload,
     UIEvents.ZONE_AUTO_DETECT: payloads.ZoneAutoDetectPayload,
-    UIEvents.ZONE_START_DRAW_ARENA: payloads.EmptyPayload,
-    UIEvents.ZONE_APPLY_ROI_TEMPLATE: payloads.ZoneTemplateApplyPayload,
-    UIEvents.ZONE_SAVE_ROI_TEMPLATE: payloads.EmptyPayload,
-    UIEvents.ZONE_IMPORT_AND_APPLY_ROI_TEMPLATE: payloads.EmptyPayload,
-    UIEvents.ZONE_RENAME_SELECTED_ROI: payloads.EmptyPayload,
-    UIEvents.ZONE_CHANGE_ROI_COLOR: payloads.EmptyPayload,
-    UIEvents.ZONE_REMOVE_SELECTED_ROI: payloads.EmptyPayload,
-    UIEvents.ZONE_APPLY_ROI_SETTINGS: payloads.RoiSettingsApplyPayload,
     UIEvents.ZONE_OPEN_ROI_SETTINGS: payloads.EmptyPayload,
     # Zone Widget Component Events
     UIEvents.ZONE_DRAW_ARENA: payloads.EmptyPayload,
@@ -383,35 +298,20 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.ZONE_DELETE_ZONES: payloads.VideoPathPayload,
     UIEvents.ZONE_CONCLUDE_VIDEO: payloads.EmptyPayload,
     # Multi-Aquarium
-    UIEvents.ZONE_MULTI_AUTO_DETECT: payloads.ZoneMultiAutoDetectPayload,
     UIEvents.ZONE_MULTI_AUTO_DETECT_SUCCESS: payloads.ZoneMultiAutoDetectSuccessPayload,
     UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED: payloads.ZoneMultiAutoDetectFailedPayload,
     UIEvents.ZONE_AQUARIUM_SELECTED: payloads.ZoneAquariumSelectedPayload,
-    UIEvents.ZONE_MULTI_DETECT_COMPLETED: payloads.ZoneMultiDetectCompletedPayload,
-    UIEvents.ZONE_AQUARIUM_CONFIG_CONFIRMED: payloads.ZoneAquariumConfigConfirmedPayload,
-    UIEvents.ZONE_AQUARIUM_CONFIG_UPDATED: payloads.ZoneAquariumConfigUpdatedPayload,
-    UIEvents.ZONE_AQUARIUM_COUNT_CONFIRMED: payloads.ZoneAquariumCountConfirmedPayload,
     UIEvents.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED: payloads.ZoneAquariumAssignmentCompletedPayload,
-    UIEvents.ZONE_SHOW_AQUARIUM_COUNT_DIALOG: payloads.EmptyPayload,
     UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG: payloads.ZoneShowAquariumAssignmentDialogPayload,
     UIEvents.ZONE_PROCESSING_MODE_CHANGED: payloads.ZoneProcessingModeChangedPayload,
     # Processing Reports
-    UIEvents.PROCESSING_GENERATE_TRAJECTORIES: payloads.ProcessingGenerateTrajectoriesPayload,
     UIEvents.PROCESSING_EXPORT_SUMMARIES: payloads.ProcessingExportSummariesPayload,
     UIEvents.REPORTS_GENERATE_PARTIAL: payloads.ReportsGeneratePartialPayload,
-    UIEvents.REPORTS_GENERATE_UNIFIED: payloads.ReportsGenerateUnifiedPayload,
     # Calibration
-    UIEvents.CALIBRATION_RUN_LIVE: payloads.CalibrationRunLivePayload,
-    UIEvents.CALIBRATION_COPY_TO_PROJECT: payloads.CalibrationCopyToProjectPayload,
-    UIEvents.CALIBRATION_SAVE_TO_PROJECT: payloads.CalibrationSaveToProjectPayload,
     # Arduino
-    UIEvents.ARDUINO_SETUP: payloads.ArduinoSetupPayload,
-    UIEvents.ARDUINO_LOG_EVENT: payloads.ArduinoLogEventPayload,
     UIEvents.ARDUINO_PORT_UPDATE_REQUESTED: payloads.ArduinoPortUpdateRequestedPayload,
     # Reports / App / Wizard
     UIEvents.REPORT_GENERATE: payloads.ReportGeneratePayload,
-    UIEvents.APP_CLOSE: payloads.EmptyPayload,
-    UIEvents.WIZARD_CREATE_PROJECT: payloads.WizardCreateProjectPayload,
     # Controller -> UI Events
     UIEvents.UI_SHOW_ERROR: payloads.MessagePayload,
     UIEvents.UI_SHOW_WARNING: payloads.MessagePayload,
@@ -423,13 +323,11 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.UI_APPEND_ARDUINO_LOG: payloads.UIAppendArduinoLogPayload,
     UIEvents.UI_UPDATE_ARDUINO_COMMAND: payloads.UIUpdateArduinoCommandPayload,
     UIEvents.UI_UPDATE_OPENVINO_STATUS: payloads.UIUpdateOpenVinoStatusPayload,
-    UIEvents.UI_SETUP_INTERACTIVE_POLYGON: payloads.SetupInteractivePolygonPayload,
     UIEvents.UI_DISPLAY_VIDEO_FRAME: payloads.VideoPathPayload,
     UIEvents.UI_UPDATE_PROCESSING_MODE: payloads.UpdateProcessingModePayload,
     UIEvents.UI_NAVIGATE_TO_WELCOME: payloads.EmptyPayload,
     UIEvents.UI_NAVIGATE_TO_PROJECT_VIEW: payloads.EmptyPayload,
     UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW: payloads.EmptyPayload,
-    UIEvents.UI_NAVIGATE_FROM_ANALYSIS_VIEW: payloads.EmptyPayload,
     UIEvents.UI_SELECT_TAB: payloads.UISelectTabPayload,
     UIEvents.UI_UPDATE_OPENVINO_CHECKBOX: payloads.UIUpdateOpenVinoCheckboxPayload,
     UIEvents.UI_SET_ACTIVE_WEIGHT: payloads.UISetActiveWeightPayload,
@@ -450,10 +348,6 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.UI_REQUEST_WEIGHT_TYPE: payloads.UIRequestWeightTypePayload,
     UIEvents.UI_REQUEST_WEIGHT_ACTION: payloads.UIRequestWeightActionPayload,
     # Multi-Aquarium UI Events
-    UIEvents.UI_SHOW_AQUARIUM_COUNT_DIALOG: payloads.EmptyPayload,
-    UIEvents.UI_SHOW_AQUARIUM_ASSIGNMENT_DIALOG: payloads.ZoneShowAquariumAssignmentDialogPayload,
-    UIEvents.UI_UPDATE_AQUARIUM_SELECTOR: payloads.UpdateAquariumSelectorPayload,
-    UIEvents.UI_SET_AQUARIUM_SELECTOR_VISIBLE: payloads.SetAquariumSelectorVisiblePayload,
     # Live Analysis
     UIEvents.UI_UPDATE_LIVE_FRAME: payloads.UIUpdateLiveFramePayload,
     UIEvents.LIVE_SESSION_STARTED: payloads.LiveSessionStartedPayload,
@@ -478,34 +372,24 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.PROJECT_VIDEO_RIGHT_CLICK_WIDGET: payloads.ProjectContextMenuClickPayload,
     UIEvents.PROJECT_ITEM_DOUBLE_CLICK: payloads.ItemIdPayload,
     UIEvents.REPORTS_DELETE_UNIFIED: payloads.ReportsDeleteUnifiedPayload,
-    UIEvents.CONTROL_PREVIEW_TOGGLED: payloads.ControlPreviewToggledPayload,
-    UIEvents.CONTROL_INTERVAL_CHANGED: payloads.ControlIntervalChangedPayload,
     UIEvents.FRAME_ERROR: payloads.FrameErrorPayload,
     UIEvents.VIDEO_METADATA_UPDATED: payloads.VideoMetadataUpdatedPayload,
     UIEvents.ANALYSIS_TRACK_SELECTED: payloads.TrackIdPayload,
     UIEvents.ANALYSIS_CANCEL_REQUESTED: payloads.EmptyPayload,
     UIEvents.LIVE_SESSION_FINISH_REQUESTED: payloads.EmptyPayload,
-    UIEvents.VIDEO_RECONFIGURE_SUBJECTS: payloads.VideoReconfigureSubjectsPayload,
     UIEvents.SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO: payloads.SetupZoneDefinitionPayload,
     # V2 Legacy
     UIEvents.ZONES_UPDATED: payloads.ZonesUpdatedPayload,
-    UIEvents.ZONE_SELECTED_V2: payloads.ItemIdPayload,
     UIEvents.POLYGON_EDIT_REQUESTED: payloads.PolygonEditRequestedPayload,
-    UIEvents.VIDEO_LOADED: payloads.VideoLoadedPayload,
     UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED: payloads.ProjectViewsRefreshRequestedPayload,
     UIEvents.VIDEO_TREE_REFRESH_REQUESTED: payloads.VideoTreeRefreshRequestedPayload,
     UIEvents.VIDEO_HIERARCHY_SNAPSHOT_REQUESTED: payloads.EmptyPayload,
     UIEvents.READINESS_SNAPSHOT_UPDATED: payloads.ReadinessSnapshotUpdatedPayload,
     UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK: payloads.ProjectContextMenuClickPayload,
-    UIEvents.UI_REQUEST_PROCESS_VIDEOS: payloads.EmptyPayload,
-    UIEvents.PROCESSING_STATS_UPDATED: payloads.ProcessingStatsPayload,
-    UIEvents.SOCIAL_SUMMARY_UPDATED: payloads.SocialSummaryPayload,
-    UIEvents.ANALYSIS_TASK_STATUS_UPDATED: payloads.AnalysisTaskStatusPayload,
     UIEvents.SHOW_ERROR: payloads.MessagePayload,
     UIEvents.SHOW_WARNING: payloads.MessagePayload,
     UIEvents.SHOW_INFO: payloads.MessagePayload,
     UIEvents.SET_STATUS: payloads.StatusPayload,
-    UIEvents.EXTERNAL_TRIGGER_NOTICE: payloads.ExternalTriggerNoticePayload,
     UIEvents.EXTERNAL_TRIGGER_NOTICE_CLEARED: payloads.EmptyPayload,
     UIEvents.ANALYSIS_WINDOW_SPEC_CHANGED: payloads.AnalysisWindowSpecChangedPayload,
     UIEvents.CLASS_ROLES_CHANGED: payloads.ClassRolesChangedPayload,
@@ -513,15 +397,7 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.ANALYSIS_WINDOW_STATE_CHANGED: payloads.AnalysisWindowStatePayload,
     # -- end v8 F5 --
     UIEvents.ERROR_OCCURRED: payloads.ErrorOccurredPayload,
-    UIEvents.PROGRESS_UPDATE: payloads.ProcessingProgressPayload,
-    UIEvents.TRACKING_COMPLETE: payloads.TrackingCompletePayload,
     UIEvents.FRAME_DISPLAYED: payloads.FramePayload,
-    UIEvents.ANALYSIS_STARTED: payloads.AnalysisStartedPayload,
-    UIEvents.ANALYSIS_COMPLETED: payloads.AnalysisCompletedPayload,
-    UIEvents.DISPLAY_VIDEO_FRAME: payloads.VideoPathPayload,
-    UIEvents.NAVIGATE_TO_WELCOME: payloads.EmptyPayload,
-    UIEvents.NAVIGATE_TO_PROJECT: payloads.EmptyPayload,
-    UIEvents.NAVIGATE_TO_ANALYSIS: payloads.EmptyPayload,
     UIEvents.CAMERA_DISCONNECT_DETECTED: payloads.CameraDisconnectPayload,
     UIEvents.CAMERA_DISCONNECT_USER_ACTION: payloads.CameraDisconnectPayload,
     UIEvents.CAMERA_RECONNECTED: payloads.CameraDisconnectPayload,

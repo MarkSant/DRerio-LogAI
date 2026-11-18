@@ -114,81 +114,10 @@ ALLOWED_ORPHANS = frozenset(
 
 # Subscribed today with nobody publishing: the handler cannot run. NEVER add.
 # Classification (delete / wire / keep) in docs/audits/2026-11_A1_events.md.
-ALLOWED_UNPUBLISHED = frozenset(
-    {
-        "ANALYSIS_TASK_STATUS_UPDATED",
-        "CALIBRATION_COPY_TO_PROJECT",
-        "CALIBRATION_SAVE_TO_PROJECT",
-        "DETECTOR_UPDATE_PARAMETERS",
-        "EXTERNAL_TRIGGER_NOTICE",
-        "MODEL_ADD_WEIGHT",
-        "MODEL_CLEAR_OPENVINO_CACHE",
-        "MODEL_VALIDATE_WEIGHTS",
-        "NAVIGATE_TO_WELCOME",
-        "PROCESSING_GENERATE_TRAJECTORIES",
-        "PROCESSING_STATS_UPDATED",
-        "RECORDING_TOGGLE",
-        "SOCIAL_SUMMARY_UPDATED",
-        "UI_NAVIGATE_FROM_ANALYSIS_VIEW",
-        # o único publicador era o ControlPanelWidget morto (A2-D-009): o handler em
-        # video_selector_tree_manager.py já não rodava antes da remoção
-        "UI_REQUEST_PROCESS_VIDEOS",
-        "UI_SETUP_INTERACTIVE_POLYGON",
-        "VIDEO_LOADED",
-        "ZONE_APPLY_ROI_SETTINGS",
-        "ZONE_AQUARIUM_CONFIG_UPDATED",
-        "ZONE_MULTI_AUTO_DETECT",
-        "ZONE_SAVE_MANUAL_ARENA",
-        "ZONE_SET_ARENA_POLYGON",
-    }
-)
+ALLOWED_UNPUBLISHED: frozenset[str] = frozenset()
 
 # Never referenced outside event_bus_v2.py. NEVER add.
-ALLOWED_UNREFERENCED = frozenset(
-    {
-        "ANALYSIS_COMPLETED",
-        "ANALYSIS_STARTED",
-        "APP_CLOSE",
-        "ARDUINO_LOG_EVENT",
-        "ARDUINO_SETUP",
-        "CALIBRATION_RUN_LIVE",
-        # o único publicador era o ControlPanelWidget morto, apagado em 2026-11 (A2-D-009)
-        "CONTROL_INTERVAL_CHANGED",
-        "CONTROL_PREVIEW_TOGGLED",
-        "DETECTOR_SETUP",
-        "DETECTOR_SETUP_ZONES",
-        "DETECTOR_UPDATE_ZONES",
-        "DISPLAY_VIDEO_FRAME",
-        "MODEL_UPDATE_OPENVINO_STATUS",
-        "NAVIGATE_TO_ANALYSIS",
-        "NAVIGATE_TO_PROJECT",
-        "PROGRESS_UPDATE",
-        "PROJECT_APPLY_SETTINGS",
-        "PROJECT_CREATED",
-        "RECORDING_TRIGGER",
-        "REPORTS_GENERATE_UNIFIED",
-        "TRACKING_COMPLETE",
-        "UI_SET_AQUARIUM_SELECTOR_VISIBLE",
-        "UI_SHOW_AQUARIUM_ASSIGNMENT_DIALOG",
-        "UI_SHOW_AQUARIUM_COUNT_DIALOG",
-        "UI_UPDATE_AQUARIUM_SELECTOR",
-        "VIDEO_RECONFIGURE_SUBJECTS",
-        "WIZARD_CREATE_PROJECT",
-        "ZONE_APPLY_ROI_TEMPLATE",
-        "ZONE_AQUARIUM_CONFIG_CONFIRMED",
-        "ZONE_AQUARIUM_COUNT_CONFIRMED",
-        "ZONE_CHANGE_ROI_COLOR",
-        "ZONE_IMPORT_AND_APPLY_ROI_TEMPLATE",
-        "ZONE_MULTI_DETECT_COMPLETED",
-        "ZONE_REMOVE_SELECTED_ROI",
-        "ZONE_RENAME_SELECTED_ROI",
-        "ZONE_SAVE_ROI_TEMPLATE",
-        "ZONE_SELECTED_V2",
-        "ZONE_SHOW_AQUARIUM_COUNT_DIALOG",
-        "ZONE_START_DRAW_ARENA",
-        "ZONE_UPDATE_ARENA",
-    }
-)
+ALLOWED_UNREFERENCED: frozenset[str] = frozenset()
 
 # Files whose string-literal publishes are tolerated. Empty since the dead
 # ``ProjectCoordinator`` was deleted (audit A2-04). NEVER add.

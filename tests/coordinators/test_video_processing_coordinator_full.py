@@ -131,8 +131,6 @@ class TestEventRegistrationAndRouting:
         assert UIEvents.PROJECT_PROCESS_VIDEOS in subscribed_events
         assert UIEvents.ZONE_AUTO_DETECT in subscribed_events
         assert UIEvents.PROJECT_GENERATE_SUMMARIES in subscribed_events
-        assert UIEvents.PROCESSING_GENERATE_TRAJECTORIES in subscribed_events
-        assert UIEvents.ZONE_MULTI_AUTO_DETECT in subscribed_events
         assert UIEvents.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED in subscribed_events
         assert UIEvents.ZONE_PROCESSING_MODE_CHANGED in subscribed_events
         assert UIEvents.REPORT_GENERATE in subscribed_events
@@ -267,23 +265,6 @@ class TestEventRegistrationAndRouting:
         mock_mac = self._run_auto_detect(coord, deps)
 
         assert mock_mac.run_aquarium_detection.call_args.kwargs["count"] == 3
-
-    def test_handle_generate_trajectories_filters_sub_and_invalid_extensions(self, mock_deps):
-        coord, deps = mock_deps
-        coord.process_pending_project_videos = MagicMock()
-        coord.register_event_handlers()
-
-        bus = deps["event_bus"]
-        for call in bus.subscribe.call_args_list:
-            if call[0][0] == UIEvents.PROCESSING_GENERATE_TRAJECTORIES:
-                handler = call[0][1]
-                # With _sub_ tree node
-                handler({"selection": ["video_sub_0", "valid.mp4"]})
-                coord.process_pending_project_videos.assert_not_called()
-
-                # With valid files only
-                handler({"selection": ["v1.mp4", "v2.avi"]})
-                coord.process_pending_project_videos.assert_called_once_with(["v1.mp4", "v2.avi"])
 
     def test_handle_report_generate_unified_and_standard(self, mock_deps):
         coord, deps = mock_deps

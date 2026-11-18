@@ -77,9 +77,9 @@ class TestEventDispatcherModes:
         handler = MagicMock()
 
         dispatcher.register_handler(
-            UIEvents.APP_CLOSE, handler, mode=EventDispatcher.MODE_NO_PARAMS
+            UIEvents.FRAME_ERROR, handler, mode=EventDispatcher.MODE_NO_PARAMS
         )
-        bus.publish(UIEvents.APP_CLOSE, {})
+        bus.publish(UIEvents.FRAME_ERROR, {})
 
         handler.assert_called_once_with()
 
@@ -146,10 +146,10 @@ class TestEventDispatcherModes:
         bad_handler = MagicMock(side_effect=ValueError("Handler failed"))
 
         dispatcher.register_handler(
-            UIEvents.APP_CLOSE, bad_handler, mode=EventDispatcher.MODE_NO_PARAMS
+            UIEvents.FRAME_ERROR, bad_handler, mode=EventDispatcher.MODE_NO_PARAMS
         )
         # Should not raise exception out of publish
-        bus.publish(UIEvents.APP_CLOSE, {})
+        bus.publish(UIEvents.FRAME_ERROR, {})
         bad_handler.assert_called_once()
 
     def test_has_meaningful_analysis_metadata(self):

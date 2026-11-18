@@ -33,7 +33,6 @@ from zebtrack.core.application_bootstrapper import ApplicationBootstrapper
 from zebtrack.core.dependency_container import LazyRef, MainViewModelDependencies
 from zebtrack.core.main_view_model import MainViewModel
 from zebtrack.core.project.project_manager import ProjectManager
-from zebtrack.core.project.project_service import ProjectService
 from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
 from zebtrack.core.recording.live_camera_service import LiveCameraService
 from zebtrack.core.recording.recording_service import RecordingService
@@ -195,13 +194,6 @@ def build_container(context: ContainerContext) -> punq.Container:
     )
 
     container.register(
-        ProjectService,
-        # ProjectManager owns the instance that actually does the project I/O;
-        # the container hands out that one instead of a second, unused copy (A3-01).
-        factory=lambda: _resolve(container, ProjectManager).project_service,
-        scope=punq.Scope.singleton,
-    )
-    container.register(
         ProjectWorkflowAdapter,
         factory=lambda: ProjectWorkflowAdapter(
             project_workflow_service=_resolve(container, ProjectWorkflowService),
@@ -331,7 +323,6 @@ def build_container(context: ContainerContext) -> punq.Container:
             detector_service=_resolve(container, DetectorService),
             video_processing_service=_resolve(container, VideoProcessingService),
             analysis_service=_resolve(container, AnalysisService),
-            recording_service=_resolve(container, RecordingService),
             live_camera_service=_resolve(container, LiveCameraService),
             ui_state_controller=_resolve(container, UIStateController),
             project_lifecycle_coordinator=_resolve(container, ProjectLifecycleCoordinator),
@@ -436,12 +427,8 @@ def _register_processing_cluster(container: punq.Container, context: ContainerCo
     trajectory_data_service = TrajectoryDataService()
     video_frame_extractor = VideoFrameExtractor()
 
-    container.register(VideoSelectionService, instance=video_selection_service)
-    container.register(VideoValidationService, instance=video_validation_service)
-    container.register(VideoClassificationService, instance=video_classification_service)
-    container.register(VideoMetadataService, instance=video_metadata_service)
-    container.register(TrajectoryDataService, instance=trajectory_data_service)
-    container.register(VideoFrameExtractor, instance=video_frame_extractor)
+    # These stateless services are wired into the coordinators below by hand; nothing
+    # resolves them from the container, so they are not registered (A3-02).
 
     progress_tracking_coordinator = ProgressTrackingCoordinator(
         state_manager=state_manager,
@@ -523,10 +510,8 @@ def _register_processing_cluster(container: punq.Container, context: ContainerCo
     sequential_processing_coordinator._progress_coordinator = progress_tracking_coordinator
     report_generation_coordinator._progress_coordinator = progress_tracking_coordinator
 
-    container.register(ProgressTrackingCoordinator, instance=progress_tracking_coordinator)
-    container.register(MultiAquariumCoordinator, instance=multi_aquarium_coordinator)
-    container.register(ReportGenerationCoordinator, instance=report_generation_coordinator)
-    container.register(SequentialProcessingCoordinator, instance=sequential_processing_coordinator)
+    # Only the processing coordinator is resolved from the container; its four
+    # sub-coordinators are reached through it (A3-02).
     container.register(VideoProcessingCoordinator, instance=processing_coordinator)
 
 

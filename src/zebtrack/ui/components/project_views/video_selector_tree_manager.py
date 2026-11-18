@@ -85,11 +85,6 @@ class VideoSelectorTreeManager:
         )
 
         self.event_bus_v2.subscribe(
-            UIEvents.UI_REQUEST_PROCESS_VIDEOS,
-            self._on_request_process_videos,
-        )
-
-        self.event_bus_v2.subscribe(
             UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
             lambda d: self.refresh_project_views(
                 reason=d.get("reason"),
@@ -112,7 +107,6 @@ class VideoSelectorTreeManager:
             "video_selector_tree_manager.event_subscriptions_setup",
             events=[
                 "VIDEO_TREE_REFRESH_REQUESTED",
-                "UI_REQUEST_PROCESS_VIDEOS",
                 "PROJECT_VIEWS_REFRESH_REQUESTED",
                 "READINESS_SNAPSHOT_UPDATED",
                 "VIDEO_HIERARCHY_SNAPSHOT_UPDATED",
@@ -131,15 +125,6 @@ class VideoSelectorTreeManager:
             filter_text=filter_text,
         )
         self._populate_video_selector_tree(filter_text)
-
-    def _on_request_process_videos(self, data: dict) -> None:
-        """Handle UI request to process videos (Selection with Fallback).
-
-        Called when users click "Process Video" in Analysis view.
-        Attempts to process current selection; if none, processes all pending videos.
-        """
-        log.info("video_selector_tree_manager.request_process_videos")
-        self.trigger_batch_trajectory_processing(fallback_to_pending=True)
 
     def _on_readiness_snapshot_updated(self, data: payloads.EventPayload) -> None:
         """Handle READINESS_SNAPSHOT_UPDATED event."""

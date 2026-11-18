@@ -490,7 +490,6 @@ domains:
       - "tests/analysis/reporters/test_excel_reporter_sheets.py"
       - "tests/coordinators/test_roi_rule_propagation.py"
       - "tests/core/test_arduino_roi_evaluator.py"
-      - "tests/ui/components/test_roi_settings_persistence.py"
       - "tests/analysis/test_roi_analyzer.py"
       - "tests/analysis/test_roi_flutter.py"
       - "tests/analysis/test_roi_time_attribution.py"

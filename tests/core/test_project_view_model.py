@@ -175,17 +175,6 @@ def test_handle_calibration_copy_to_project_returns_none_without_coordinator(vie
     assert view_model.handle_calibration_copy_to_project_path("C:/qualquer") is None
 
 
-def test_handle_calibration_save_to_project(view_model):
-    view_model.handle_calibration_save_to_project()
-
-    args = view_model.project_lifecycle_coordinator.save_current_calibration_to_project.call_args
-    get_active_weight_name = args.kwargs["get_active_weight_name"]
-    get_use_openvino = args.kwargs["get_use_openvino"]
-
-    assert get_active_weight_name() == "weights.pt"
-    assert get_use_openvino() is True
-
-
 def test_get_calibration_scope_info_defaults(view_model):
     view_model.project_lifecycle_coordinator = None
 
@@ -262,7 +251,6 @@ def test_model_override_saves_and_calibration_copies_are_noops_without_a_coordin
 
     vm.save_project_model_overrides("w.pt", True)
     vm.save_project_model_slot_overrides({"seg:aquarium": "w.pt"}, False)
-    vm.handle_calibration_save_to_project()
     assert vm.handle_calibration_copy_to_project() is None
     assert vm.handle_calibration_copy_to_project_path("/proj") is None
 
@@ -423,18 +411,6 @@ def test_state_readers_are_neutral_without_a_state_manager(view_model):
 
     assert get_weight() is None
     assert get_openvino() is False
-
-
-def test_calibration_save_hands_the_coordinator_state_readers(view_model):
-    view_model.handle_calibration_save_to_project()
-
-    call = view_model.project_lifecycle_coordinator.save_current_calibration_to_project.call_args
-    assert call.args == ()
-    assert call.kwargs["get_active_weight_name"]() == "weights.pt"
-    assert call.kwargs["get_use_openvino"]() is True
-    view_model.state_manager = None
-    assert call.kwargs["get_active_weight_name"]() is None
-    assert call.kwargs["get_use_openvino"]() is False
 
 
 def test_calibration_scope_info_returns_the_coordinators_dict(view_model):

@@ -270,15 +270,6 @@ def test_copy_global_returns_none_without_project() -> None:
     event_bus.publish.assert_called()  # aviso "Nenhum Projeto"
 
 
-def test_save_current_calibration_returns_none_without_project() -> None:
-    service = _build_service(project_path=None, overrides={"slot_weights": {}})
-    result = service.save_current_calibration_to_project(
-        get_active_weight_name=lambda: "w",
-        get_use_openvino=lambda: False,
-    )
-    assert result is None
-
-
 def test_save_project_model_overrides_returns_current_without_project() -> None:
     # Mock local do workflow para assertar sem esbarrar na tipagem do atributo.
     workflow = Mock()

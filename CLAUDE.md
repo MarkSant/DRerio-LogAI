@@ -1,6 +1,6 @@
 <!-- ═════════════════════════════════════════════════════════════════════════
      CLAUDE INSTRUCTION FILE — DRerio LogAI
-     Last refreshed: 2026-05-09
+     Last refreshed: 2026-11-18
      Canonical source: CLAUDE.md (sync changes to AGENTS.md when applicable)
      ═════════════════════════════════════════════════════════════════════════ -->
 
@@ -395,6 +395,11 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
   exists) → `ProjectLifecycleManager.create_new_project()`. Keys outside the
   `prepare_controller_parameters` allowlist (slot weights, `class_roles`) are written by
   `ProjectWorkflowService._persist_initial_project_overrides`.
+- **`core/services/pattern_match.py` is the one rule for the group/day/subject regexes**: searched
+  case-insensitively, and a match's value is its first capture group that TOOK PART (an
+  alternation like `Dia_(\d+)|D(\d+)` yields group 2, never `None`). The pattern dialog, the
+  detection step and the project import all call it; never re-derive `match.group(1)` at a call
+  site.
 - Guide: [`docs/guides/developer/wizard.md`](docs/guides/developer/wizard.md).
 
 ---
@@ -473,12 +478,15 @@ Pattern: `domain.action.result`.
   3c_Objetos_<video>.parquet          # Per-frame heartbeat + subject/context detections
                                       #   (v8; recorder.persist_object_sidecar, default on)
   7_AnalysisWindow_<video>.json       # Resolved START/STOP of the analysis window (v8)
-  4_Relatorio_<video>.{docx,xlsx}     # Individual report (project flow); the single-video
-                                      #   pipeline writes <video>_report.docx and
-                                      #   <video>_summary.xlsx instead. The xlsx has
-                                      #   Sheet1 (metrics per ROI) and por_animal (long
-                                      #   table, only when per-animal metrics exist)
+  4_Relatorio_<video>.{docx,xlsx}     # Individual report. The xlsx has Sheet1 (metrics
+                                      #   per ROI) and por_animal (long table, only when
+                                      #   per-animal metrics exist)
 ```
+
+`<results>` is `Grupo_X/Dia_Y/Sujeito_Z/` inside a project, and `<video_dir>/<stem>_results/`
+for a single video without a project (same file names). The `<video>_report.docx` /
+`<video>_summary.xlsx` names exist only in `AnalysisPipelineRunnerMixin`, which no flow reaches
+(A4-13); do not document or depend on them.
 
 No new file may start with `3_CoordMovimento`: several readers glob that prefix and take
 `[0]`. `start_recording` deletes stale `3b_`, `3c_` and `7_` files of the same base.
@@ -513,6 +521,15 @@ use it for latency or to date an event. See
   [`.github/workflows/ci.yml`](.github/workflows/ci.yml). A PR that raises coverage raises the gate
   in the same PR. `--cov-fail-under` must **never** go back into `pytest.ini`: there it fires on
   every partial local run, which is how 28 consecutive test PRs shipped without the number moving.
+- **Per-package floors**: packages a campaign raised (`plugins`, `utils`, `core.viewmodels`,
+  `core.video`, `core.project`) have a floor of their own, checked by
+  `scripts/coverage_summary.py --fail-under <pkg>=<n>` after the core suite on Linux; a package
+  can no longer erode under a global number. Values in `COVERAGE_BASELINE.md`.
+- **One end-to-end test per flow**: `tests/integration/test_flow_e2e_{prerecorded_project,
+  single_video,live_project,live_adhoc}.py` drive the real entry points (only the camera and the
+  process boundary are faked) and assert each flow's output contract. They run in the default
+  job; a change to any shared path must keep all four green
+  ([`LIVE_FLOW_TEST_PROTOCOL.md`](docs/testing/LIVE_FLOW_TEST_PROTOCOL.md)).
 - **Markers**: `@pytest.mark.{gui,slow,integration,unit}`.
 - **Fixtures**: `tests/conftest.py`.
 - **Source → tests lookup**: [`docs/testing/TEST_MAP.md`](docs/testing/TEST_MAP.md).
@@ -599,7 +616,12 @@ Tuning details: [`docs/guides/developer/performance-tuning.md`](docs/guides/deve
 - **Line length**: 100 chars (Ruff).
 - **Python**: ≥3.12 required.
 - **setuptools**: pinned <81 (docxcompose dependency).
-- **EventBus**: `EventBusV2` is the sole event bus; `UIEvents` enum in `ui/event_bus_v2.py` (~200 events).
+- **EventBus**: `EventBusV2` is the sole event bus; `UIEvents` enum in `ui/event_bus_v2.py`
+  (~150 events). `_publish_event` takes a `UIEvents` member (mypy rejects a string, which reached
+  nobody). `tests/quality/test_no_orphan_ui_events.py` fails on an event published with no
+  subscriber, subscribed with no publisher, or never referenced; its allowlists only shrink, and
+  two of the three are empty. `publish` runs handlers on the CALLING thread: a subscriber that
+  touches Tk marshals with `root.after(0, ...)` (StateManager observers run on a thread pool).
 - **Markdown**: follow `.markdownlint.json`; ATX headings, `-` for unordered lists, language tag on every code fence.
 
 ---

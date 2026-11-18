@@ -56,7 +56,6 @@ def test_setup_subscriptions_registers_key_events():
     subscribed_events = [call.args[0] for call in event_bus.subscribe.call_args_list]
     assert UIEvents.ZONES_UPDATED in subscribed_events
     assert UIEvents.VIDEO_TREE_REFRESH_REQUESTED in subscribed_events
-    assert UIEvents.ANALYSIS_TASK_STATUS_UPDATED in subscribed_events
     assert UIEvents.ZONE_DISPLAY_CLEARED in subscribed_events
 
 
@@ -99,28 +98,6 @@ def test_on_project_views_refresh_requested_delegates():
 
     project_view_manager.refresh_project_views.assert_called_once_with(
         reason="zones", append_summary=True, immediate=True
-    )
-
-
-def test_on_processing_stats_updated_delegates():
-    event_bus = MagicMock()
-    state_synchronizer = MagicMock()
-    coordinator = UICoordinator(event_bus=event_bus, state_synchronizer=state_synchronizer)
-
-    coordinator._on_processing_stats_updated({"fps": 30})
-
-    state_synchronizer.update_processing_stats.assert_called_once_with(fps=30)
-
-
-def test_on_external_trigger_notice_calls_dialog():
-    event_bus = MagicMock()
-    dialog_manager = MagicMock()
-    coordinator = UICoordinator(event_bus=event_bus, dialog_manager=dialog_manager)
-
-    coordinator._on_external_trigger_notice({"session_label": "S1", "source": "io"})
-
-    dialog_manager.show_external_trigger_notice.assert_called_once_with(
-        "S1", session_label="S1", source="io"
     )
 
 
