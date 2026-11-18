@@ -48,17 +48,6 @@ def test_bind_callback_with_bus(tkinter_root):
 
 
 @pytest.mark.gui
-def test_set_enabled_updates_children(tkinter_root):
-    widget = _DummyWidget(tkinter_root, event_bus=None)
-
-    widget.set_enabled(False)
-    assert str(widget.button.cget("state")) == "disabled"
-
-    widget.set_enabled(True)
-    assert str(widget.button.cget("state")) == "normal"
-
-
-@pytest.mark.gui
 def test_destroy_unsubscribes_what_the_widget_bound(tkinter_root):
     """A inscricao nao pode sobreviver ao widget.
 

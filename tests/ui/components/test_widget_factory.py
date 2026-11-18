@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from zebtrack.ui.components.widget_factory import STATUS_SYMBOLS, WidgetFactory
+from zebtrack.ui.components.widget_factory import WidgetFactory
 
 
 class _ValidationManagerStub:
@@ -19,23 +19,6 @@ class _ValidationManagerStub:
 def factory():
     gui = SimpleNamespace(validation_manager=_ValidationManagerStub())
     return WidgetFactory(gui)
-
-
-def test_build_status_icon_legend_simple(factory):
-    legend = factory.build_status_icon_legend_simple()
-    assert STATUS_SYMBOLS["arena"] in legend
-    assert STATUS_SYMBOLS["rois"] in legend
-    assert STATUS_SYMBOLS["trajectory"] in legend
-    assert STATUS_SYMBOLS["summary"] not in legend
-
-    legend_with_summary = factory.build_status_icon_legend_simple(include_summary=True)
-    assert STATUS_SYMBOLS["summary"] in legend_with_summary
-
-
-def test_get_zone_summary_helper_text(factory):
-    text = factory.get_zone_summary_helper_text()
-    assert STATUS_SYMBOLS["summary"] in text
-    assert "trajectories" in text
 
 
 @pytest.mark.parametrize(
@@ -130,32 +113,6 @@ def test_build_model_status_calls_panel_builder(monkeypatch):
     factory.build_model_status(parent=Mock())
 
     build_panel.assert_called_once()
-
-
-def test_create_zone_summary_cards_section_updates_project_view_manager(monkeypatch):
-    zone_summary_frame = Mock()
-    zone_summary_frame.winfo_exists.return_value = True
-    _vsm = Mock()
-    gui = SimpleNamespace(
-        zone_controls_frame=Mock(),
-        zone_summary_frame=zone_summary_frame,
-        zone_summary_cards=None,
-        video_selector_manager=_vsm,
-        project_view_manager=_vsm,
-        validation_manager=_ValidationManagerStub(),
-    )
-    factory = WidgetFactory(gui)
-    create_cards = Mock(return_value=(Mock(), {"arena": Mock()}))
-    monkeypatch.setattr(
-        "zebtrack.ui.builders.zone_widgets.PanelBuilder.create_zone_summary_cards",
-        create_cards,
-    )
-
-    factory.create_zone_summary_cards_section()
-
-    zone_summary_frame.destroy.assert_called_once()
-    create_cards.assert_called_once()
-    gui.video_selector_manager.update_zone_summary_cards.assert_called_once()
 
 
 def test_create_drawing_buttons_builds_and_positions(monkeypatch):

@@ -1402,7 +1402,7 @@ class TestLiveAnalysisDialogAnalysisWindow:
 
         dialog = self._open(tkinter_root, test_settings, roi_names_provider=lambda: ["Toca"])
         panel = dialog.analysis_window_panel
-        assert panel.is_session_only is True
+        assert panel._session_only is True
 
         panel.apply_barnes_preset()
         assert self._accept(dialog) is True

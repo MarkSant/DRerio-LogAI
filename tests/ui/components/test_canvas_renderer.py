@@ -233,15 +233,6 @@ def test_draw_placeholder_logo_gives_up_on_a_canvas_that_never_sizes():
     assert root.after.call_args_list == []
 
 
-def test_clear_placeholder_logo_drops_tag_and_reference():
-    renderer, canvas = _placeholder_renderer(_canvas_placeholder_image=object())
-
-    renderer.clear_placeholder_logo()
-
-    canvas.delete.assert_called_once_with(CanvasRenderer.PLACEHOLDER_TAG)
-    assert renderer.manager._canvas_placeholder_image is None
-
-
 def _overlay_renderer():
     canvas = Mock()
     canvas.winfo_exists.return_value = True

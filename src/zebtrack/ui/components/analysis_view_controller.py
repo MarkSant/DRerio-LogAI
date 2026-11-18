@@ -450,10 +450,6 @@ class AnalysisViewController:
         ordered = sorted(observed, key=str)
         return [all_tracks_label(), *ordered]
 
-    def on_track_selection_changed(self, _event: Any = None) -> None:
-        """Handle track selector change — re-render the last analysis frame."""
-        self._canvas_manager._render_last_analysis_frame()
-
     # ------------------------------------------------------------------
     # Widget cleanup helpers
     # ------------------------------------------------------------------
