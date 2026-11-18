@@ -167,7 +167,7 @@ class TestRecorderPauseResume:
         success = recorder.pause_recording()
 
         assert success is True
-        assert recorder.is_paused() is True
+        assert recorder._is_paused is True
 
     def test_resume_recording(self, settings_obj):
         """Test resuming recording."""
@@ -180,7 +180,7 @@ class TestRecorderPauseResume:
             success = recorder.resume_recording()
 
         assert success is True
-        assert recorder.is_paused() is False
+        assert recorder._is_paused is False
         assert recorder._total_paused_duration == 5.0
 
     def test_write_detection_data_while_paused(self, settings_obj):

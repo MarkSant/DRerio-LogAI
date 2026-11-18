@@ -780,7 +780,7 @@ def test_persist_masks_defaults_to_off(recorder_setup):
     """O padrão é NÃO gravar máscaras: custo zero para quem não usa seg_overlap."""
     recorder, _output_folder, _w, _h = recorder_setup
     assert recorder.persist_masks is False
-    assert recorder.mask_parquet_filename == ""
+    assert recorder._mask_parquet_filename == ""
 
 
 # =============================================================================
@@ -987,7 +987,7 @@ class TestObjectSidecar:
         recorder.stop_recording()
 
         assert recorder.persist_object_sidecar is False
-        assert recorder.object_parquet_filename == ""
+        assert recorder._object_parquet_filename == ""
         assert not _objects_path(folder, "b").exists()
 
     def test_recorder_without_settings_writes_nothing(self, recorder_setup):

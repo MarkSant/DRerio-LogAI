@@ -296,39 +296,6 @@ def test_ultralytics_detector_get_name():
     assert UltralyticsDetectorPlugin.get_name() == "YOLO (Ultralytics)"
 
 
-def test_ultralytics_detector_set_tracking_parameters(mock_ultralytics_import):
-    """Test set_tracking_parameters method."""
-    mock_model_instance = MagicMock()
-    mock_model_instance.names = {0: "aqua", 1: "zebrafish"}  # Add class names
-    mock_ultralytics_import.return_value = mock_model_instance
-
-    detector = UltralyticsDetectorPlugin(model_path="model.pt")
-
-    # Initial values (match settings.py defaults: track_threshold=0.25, match_threshold=0.95)
-    assert detector.track_threshold == 0.25
-    assert detector.match_threshold == 0.95
-
-    # Update both parameters
-    detector.set_tracking_parameters(track_threshold=0.5, match_threshold=0.3)
-    assert detector.track_threshold == 0.5
-    assert detector.match_threshold == 0.3
-
-    # Update only track_threshold
-    detector.set_tracking_parameters(track_threshold=0.6)
-    assert detector.track_threshold == 0.6
-    assert detector.match_threshold == 0.3
-
-    # Update only match_threshold
-    detector.set_tracking_parameters(match_threshold=0.4)
-    assert detector.track_threshold == 0.6
-    assert detector.match_threshold == 0.4
-
-    # Test with zero/negative values (should not update)
-    detector.set_tracking_parameters(track_threshold=0, match_threshold=-0.1)
-    assert detector.track_threshold == 0.6
-    assert detector.match_threshold == 0.4
-
-
 def test_ultralytics_detector_reset_tracking_state(mock_ultralytics_import):
     """Test reset_tracking_state method (no-op for Ultralytics)."""
     mock_model_instance = MagicMock()
@@ -413,17 +380,6 @@ class TestUltralyticsDetectorExtended:
         plugin = UltralyticsDetectorPlugin("dummy.pt")
         assert plugin.get_name() == "YOLO (Ultralytics)"
         assert plugin.model_input_shape == (640, 640)
-
-    def test_set_tracking_parameters(self, mock_model: MagicMock):
-        plugin = UltralyticsDetectorPlugin("dummy.pt")
-        plugin.set_tracking_parameters(track_threshold=0.42, match_threshold=0.88)
-        assert plugin.track_threshold == 0.42
-        assert plugin.match_threshold == 0.88
-
-        # Non-positive values ignored
-        plugin.set_tracking_parameters(track_threshold=-1.0, match_threshold=0.0)
-        assert plugin.track_threshold == 0.42
-        assert plugin.match_threshold == 0.88
 
     def test_reset_tracking_state_noop(self, mock_model: MagicMock):
         plugin = UltralyticsDetectorPlugin("dummy.pt")

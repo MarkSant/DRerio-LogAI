@@ -663,16 +663,6 @@ class TestAnimalConfidenceResolution(unittest.TestCase):
             yolo = SimpleNamespace(confidence_threshold=0.05, animal_confidence_threshold=bad)
             self.assertEqual(resolve_animal_confidence(yolo), 0.05, f"bad={bad!r}")
 
-    def test_real_settings_expose_the_same_answer_as_the_property(self):
-        from zebtrack.settings import load_settings, resolve_animal_confidence
-
-        settings = load_settings()
-
-        self.assertEqual(
-            settings.yolo_model.effective_animal_confidence,
-            resolve_animal_confidence(settings.yolo_model),
-        )
-
 
 class TestConfigPathIsIndependentOfWorkingDirectory(unittest.TestCase):
     """The launch directory must not decide whether the app finds its config.

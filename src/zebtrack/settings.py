@@ -359,15 +359,6 @@ class YOLOModelSettings(BaseModel):
         ),
     )
 
-    @property
-    def effective_animal_confidence(self) -> float:
-        """Confidence floor to use for animal detection.
-
-        Prefer :func:`resolve_animal_confidence` at call sites that may receive a
-        stub or mock settings object; this property assumes a real model.
-        """
-        return resolve_animal_confidence(self)
-
     nms_threshold: float = Field(
         ...,
         gt=0,

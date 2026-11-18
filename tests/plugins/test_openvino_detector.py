@@ -345,17 +345,6 @@ class TestThresholds:
         plugin, _backend = _build(monkeypatch, model_dir, settings_obj=settings_obj)
         assert plugin.conf_threshold == 0.7
 
-    def test_tracking_hints_ignore_missing_and_non_positive_values(
-        self, model_dir: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        plugin, _backend = _build(monkeypatch, model_dir, settings_obj=openvino_settings())
-        plugin.set_tracking_parameters(track_threshold=0.3)
-        assert (plugin.track_threshold, plugin.match_threshold) == (0.3, 0.85)
-        plugin.set_tracking_parameters(match_threshold=0.5)
-        assert (plugin.track_threshold, plugin.match_threshold) == (0.3, 0.5)
-        plugin.set_tracking_parameters(track_threshold=0.0, match_threshold=-1.0)
-        assert (plugin.track_threshold, plugin.match_threshold) == (0.3, 0.5)
-
     def test_context_and_region_setters(
         self, model_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

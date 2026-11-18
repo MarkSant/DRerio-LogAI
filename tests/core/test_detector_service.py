@@ -46,14 +46,6 @@ class MockDetectorPlugin(DetectorPlugin):
     def set_aquarium_region_defined(self, defined: bool) -> None:
         self._aquarium_region_defined = defined
 
-    def set_tracking_parameters(
-        self, *, track_threshold: float | None = None, match_threshold: float | None = None
-    ) -> None:
-        if track_threshold is not None:
-            self.track_threshold = float(track_threshold)
-        if match_threshold is not None:
-            self.match_threshold = float(match_threshold)
-
     def get_context_info(self) -> dict[str, str]:
         return {"context": self._context}
 
