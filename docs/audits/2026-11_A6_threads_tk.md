@@ -80,6 +80,7 @@ Top three, in order of how often the user meets them:
 - Fix: do not sleep after the last attempt (one-line change), and move the loop to a daemon thread
   that posts the result dialog with `root.after(0, ...)`.
 - Confidence: high.
+- Status (2026-11-18): fixed. `delete_unified_reports_dir()` runs through `ui/background_task.run_in_background`; the result dialog and the buttons refresh on Tk; no pause after the last attempt; a second request while deleting is ignored. Block `unified_reports_delete_off_tk`.
 
 ### A6-03 — Live calibration: camera open, warm-up sleeps and detection on Tk
 
@@ -106,6 +107,7 @@ Top three, in order of how often the user meets them:
   modal "Detecting arena..." window and call `update()` between stages (this is what
   `LiveSessionManager.start_session` already does for the countdown, see A6-08).
 - Confidence: high for the chain and the constants; the open time is an estimate.
+- Status (2026-11-18): open, needs a decision. `run_live_calibration` and `ensure_zones_before_recording` return a bool that both live flows and the single-video auto-detect read synchronously to decide whether the session starts; moving the warm-up and burst off Tk turns the start path into a callback chain, the same kind of contract change A6-07 made for the stop. Not chosen unilaterally.
 
 ### A6-04 — Camera enumeration on Tk at five sites
 
@@ -132,6 +134,7 @@ Top three, in order of how often the user meets them:
   with `after(0, ...)`; the five sites then differ only in the callback. The reader thread inside
   is already daemon.
 - Confidence: high.
+- Status (2026-11-18): fixed at all five sites with one helper, `ui/background_task.run_in_background` (daemon worker that never touches Tk; the Tk thread polls with `after` and runs the callbacks; a destroyed widget drops them). The wizard's template restore detects first and replays `set_data` on Tk. A second click while detecting is ignored. Blocks `ui_background_task`, `live_config_detection_off_tk`, `live_dialog_camera_detection_off_tk`, `start_recording_camera_chooser_off_tk`, `block_detail_camera_chooser_off_tk`.
 
 ### A6-05 — Arduino port scan with handshake on Tk
 
@@ -146,6 +149,7 @@ Top three, in order of how often the user meets them:
 - User-visible: ticking "Use Arduino" or pressing "Detectar" freezes the wizard.
 - Fix: same helper as A6-04 (thread + `after(0, ...)`); the scan itself is thread-safe.
 - Confidence: high.
+- Status (2026-11-18): fixed with the A6-04 helper (button, checkbox and template restore). Block `live_config_detection_off_tk`.
 
 ### A6-06 — `ArduinoManager.connect`/`disconnect` on Tk, holding a lock
 
@@ -163,6 +167,7 @@ Top three, in order of how often the user meets them:
 - Fix: connect on a daemon thread and publish the result; `_notify_status` already marshals to
   Tk in the dashboard widget (`arduino_dashboard.py` `_run_on_ui_thread`).
 - Confidence: medium (depends on the project's handshake setting).
+- Status (2026-11-18): `connect` fixed. `ProjectInitializer` connects on a worker and shows the offline warning on Tk; `ArduinoManager.connect` no longer holds `_lock` across the port open and handshake (the dashboard asks `is_connected()` on Tk), and a new `_connect_lock` serialises connects. `disconnect` (two bounded joins under the lock, on project close) is unchanged. Blocks `arduino_connect_lock_split`, `project_open_arduino_off_tk`.
 
 ### A6-07 — Live `stop_session` joins and flushes on Tk
 
@@ -188,6 +193,7 @@ Top three, in order of how often the user meets them:
   real fix runs the teardown from `_finalize_recorder` onward on a worker and finishes the UI
   steps in `after(0, ...)`.
 - Confidence: high for the thread, medium for the real-world duration.
+- Status (2026-11-18): fixed as decided by the maintainer (asynchronous stop). With a Tk root, `stop_session` cancels the timer on Tk, runs the teardown (drain, joins, ledger, recorder flush, discard `rmtree`, camera release) on a daemon worker under a modal "Finalizing recording..." window, and finishes on Tk (preview, state, buttons, `on_session_stopped`, then the new `on_stopped` callback). The post-analysis and the cancel finalization of the coordinator run from `on_stopped`; a stop requested during a stop only queues its callback; `join_threads` waits up to 20 s for an in-flight teardown before exit. Without a root (headless, end-to-end tests) the stop stays synchronous. Blocks `live_stop_async_and_countdown`, `live_post_analysis_after_stop`, `live_cancel_finalizes_once`, `app_exit_waits_for_live_stop`.
 
 ### A6-08 — Live `start_session`: camera warm-up and a nested event loop
 
@@ -208,6 +214,7 @@ Top three, in order of how often the user meets them:
   `_run_countdown(seconds, on_complete)`, which is what this loop waits on) and move the warm-up to
   the capture thread.
 - Confidence: high.
+- Status (2026-11-18): the nested `root.update()` loop is gone. With a root the countdown is armed and `start_session` returns `True`; threads, recorder and status start from the countdown's completion callback (`_finish_start_after_countdown`). A failure after the countdown shows "Could not start the recording." and stops the session. Camera warm-up stays on Tk, as decided. Block `live_stop_async_and_countdown`.
 
 ### A6-10 — Recursive delete with OneDrive retry sleeps on Tk
 
@@ -229,6 +236,7 @@ Top three, in order of how often the user meets them:
   the existing report dialog with `after(0, ...)`. For the sleeps, do not sleep after the last
   attempt.
 - Confidence: high for the panel path, medium for the asset manager.
+- Status (2026-11-18): weight panel fixed (`clear_openvino_cache` on a worker, report on Tk; block `openvino_cache_clear_off_tk`). `asset_manager._rmtree_safe` is unchanged: it mutates `project_data` and saves the project, so moving it off Tk is a ProjectManager contract change; its sleeps already skip the last attempt.
 
 ### A6-11 — Window close and cancel: bounded joins on Tk
 
@@ -244,6 +252,7 @@ Top three, in order of how often the user meets them:
 - Fix: none required for a normal close; if wanted, call `cancel_processing` from a thread and
   disable the button first. Listed for completeness.
 - Confidence: high; severity low.
+- Status (2026-11-18): Cancel fixed (the bounded wait for the worker runs on a daemon thread; block `processing_cancel_off_tk`). Window close unchanged: the exit has to wait for the teardown, as this finding already says.
 
 ## Confirmed — widget or `tk.Variable` access from a non-Tk thread
 
@@ -308,6 +317,7 @@ Top three, in order of how often the user meets them:
 - Fix: marshal these three subscriptions in the dispatcher the same way as A6-09; it is harmless
   if they already run on Tk.
 - Confidence: low-medium.
+- Status (2026-11-18): not confirmed. `VideoProcessingService.process_single_video` is reached only from `AnalysisService.process_videos_batch`, which has no caller, and `process_frame_source` has none either; the reachable publishers of these events (live session) run on Tk. No change.
 
 ### A6-S2 — `_WorkerProcess` is a non-daemon `multiprocessing.Process`
 
@@ -321,6 +331,7 @@ Top three, in order of how often the user meets them:
 - Fix: `daemon=True` in `__init__` (children are killed with the parent) — check that nothing
   relies on the worker surviving the parent.
 - Confidence: low.
+- Status (2026-11-18): confirmed and fixed. The only `terminate()` is at the end of `_monitor_loop`, a daemon thread that dies with the interpreter, so a worker that ignored the cancel kept the closed app alive. `_WorkerProcess` is now `daemon=True`; nothing relies on it outliving the app and it spawns no processes. Block `processing_worker_daemon`.
 
 ### A6-S3 — Opening a video file to draw one frame, on Tk
 
@@ -332,6 +343,7 @@ Top three, in order of how often the user meets them:
 - Fix: none unless the lag is reported; if so, load the frame on a daemon thread with the cached
   `PhotoImage` delivered by `after(0, ...)`.
 - Confidence: low.
+- Status (2026-11-18): confirmed on Tk; left as recommended above (no lag reported).
 
 ### A6-S4 — `UI_UPDATE_WEIGHTS_LIST` subscriber is unmarshalled
 
@@ -341,6 +353,7 @@ Top three, in order of how often the user meets them:
   marshalled, this one is not.
 - Fix: wrap with `_run_on_ui_thread`, same as A6-09.
 - Confidence: low.
+- Status (2026-11-18): not confirmed. The publishers (`add_new_weight`, `delete_weight`) run from the weight panel buttons, after a `filedialog`, through the synchronous bus: Tk thread. No change.
 
 ## Checked and fine
 
