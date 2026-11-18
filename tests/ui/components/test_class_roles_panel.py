@@ -1114,7 +1114,7 @@ class TestPanelTemplateSeed:
         panel.seed_roles(BARNES_ROLES)
 
         assert panel.has_seed()
-        assert panel.seed_fit() is not None and panel.seed_fit().is_exact
+        assert panel._seed_fit is not None and panel._seed_fit.is_exact
         assert panel.draft_mapping() == BARNES_ROLES
         assert panel.draft_weight_sha256() == _sha(files["rat"])
         assert panel._warning.cget("text") == ""
@@ -1174,7 +1174,7 @@ class TestPanelTemplateSeed:
         panel.seed_roles(BARNES_ROLES)
         panel.seed_roles(None)
         assert not panel.has_seed()
-        assert panel.seed_fit() is None
+        assert panel._seed_fit is None
 
     def test_load_now_applies_a_seed_on_a_lazy_panel(self, tkinter_root, registry) -> None:
         wm, files = registry

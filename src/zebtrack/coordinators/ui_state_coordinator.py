@@ -551,87 +551,6 @@ class UIStateController:
                     )
                 )
 
-    def apply_roi_template(self, template: dict[str, Any]) -> None:
-        """Apply an ROI template to the active video."""
-        pm = self.project_manager
-        active_video = pm.get_active_zone_video()
-        if not active_video:
-            self.ui_event_bus.publish(
-                Event(
-                    type=UIEvents.UI_SHOW_WARNING,
-                    data=MessagePayload(
-                        title=_("Video not selected"),
-                        message=_("Select a video in the list before applying the template."),
-                    ),
-                )
-            )
-            return
-
-        template_name = template.get("name") or template.get("display_name") or _("Template")
-        try:
-            template_zone = pm.load_roi_template(
-                template_name,
-                location=template.get("location"),
-                file_path=template.get("file"),
-            )
-            pm.save_zone_data(template_zone, video_path=active_video, persist=bool(pm.project_path))
-            pm.set_active_zone_video(active_video)
-            self.setup_detector_zones()
-            self.ui_event_bus.publish(Event(type=UIEvents.UI_REDRAW_ZONES))
-            self.ui_event_bus.publish(Event(type=UIEvents.UI_UPDATE_ZONE_LIST))
-            self.ui_event_bus.publish(
-                Event(
-                    type=UIEvents.UI_SHOW_INFO,
-                    data=MessagePayload(
-                        title=_("Template Applied"),
-                        message=_("The zones were updated with template '{name}'.").format(
-                            name=template_name
-                        ),
-                    ),
-                )
-            )
-        except FileNotFoundError as exc:
-            logger.error(
-                "controller.roi_templates.file_missing", template=template_name, error=str(exc)
-            )
-            self.ui_event_bus.publish(
-                Event(
-                    type=UIEvents.UI_SHOW_ERROR,
-                    data=MessagePayload(
-                        title=_("File not found"),
-                        message=_("The file linked to the template was not found."),
-                    ),
-                )
-            )
-        except Exception as exc:
-            logger.error(
-                "controller.roi_templates.apply_failed", error=str(exc), template=template_name
-            )
-            self.ui_event_bus.publish(
-                Event(
-                    type=UIEvents.UI_SHOW_ERROR,
-                    data=MessagePayload(title=_("Error applying the template"), message=str(exc)),
-                )
-            )
-
-    def update_main_arena(self, polygon_points: list[list[int]]):
-        """
-        Update the main arena polygon in the project's zone data.
-
-        Phase 2.1: Logic simplified but maintains compatibility with existing tests.
-        ProjectService methods available for future direct usage.
-        """
-        logger.info("controller.zone.update_arena", points=len(polygon_points))
-
-        # Update in-memory zone data
-        zone_data = self.project_manager.get_zone_data()
-        zone_data.polygon = polygon_points
-        self.project_manager.save_zone_data(zone_data)
-
-        # After updating, we need to reload the zones in the detector
-        self.setup_detector_zones()
-        logger.info("controller.zone.update_arena.success")
-
     # ========================================================================
     # Group D: User Feedback
     # ========================================================================
@@ -697,48 +616,6 @@ class UIStateController:
             self.ui_event_bus.publish(Event(type=UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW))
         else:
             self.ui_coordinator.update_view(self.view, "start_analysis_view_mode")
-
-    def _prepare_processing_ui(self, total_videos: int) -> None:
-        # Phase 4: Use UICoordinator for UI updates
-        view = self.view
-        if view is None:
-            return
-        self.ui_coordinator.show_progress_bar(view)
-        self.ui_coordinator.schedule_after(
-            0,
-            lambda: view.set_status(
-                _("Starting processing for {count} videos...").format(count=total_videos)
-            ),
-        )
-        self.project_manager.set_active_zone_video(None)
-
-    def _finalize_processing(
-        self,
-        *,
-        was_cancelled: bool,
-        videos_to_process: list[dict],
-        final_output_dir: str,
-    ) -> None:
-        # Phase 4: Use UICoordinator for UI updates
-        if not self.view:
-            return
-        self.project_manager.set_active_zone_video(None)
-        self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
-        self.ui_coordinator.hide_progress_bar(self.view)
-
-        if was_cancelled:
-            self.ui_coordinator.show_info(
-                self.view, _("Cancelled"), _("The video analysis was cancelled.")
-            )
-        else:
-            self.ui_coordinator.show_info(
-                self.view,
-                _("Processing Finished"),
-                _(
-                    "Processing of {count} video(s) finished successfully.\n"
-                    "Results saved in:\n{directory}"
-                ).format(count=len(videos_to_process), directory=final_output_dir),
-            )
 
     # ========================================================================
     # Group G: Diagnostic UI

@@ -372,21 +372,6 @@ class DetectorService:
             "iou_threshold": "float",
         }
 
-    def get_available_configs(self) -> list[str]:
-        """Return a list of available model weight names."""
-        return self.model_service.list_available_weights()
-
-    def get_active_config(self) -> str | None:
-        """Return the name of the currently active model weight."""
-        if self.detector and self.detector.plugin:
-            return getattr(self.detector.plugin, "name", "None")
-        return None
-
-    def set_active_config(self, weight_name: str) -> bool:
-        """Switch the active detector configuration."""
-        success, _weight_name = self.initialize_detector(active_weight_name=weight_name)
-        return success
-
     def set_context(self, context: str) -> None:
         """Set the context for the detector plugin."""
         if self.detector:

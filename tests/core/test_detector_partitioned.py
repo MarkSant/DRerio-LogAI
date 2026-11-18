@@ -355,19 +355,6 @@ class TestResetMultiAquariumTracking:
 class TestMultiAquariumHelpers:
     """Tests for multi-aquarium helper methods."""
 
-    def test_is_multi_aquarium_mode_false(self, detector):
-        """Test is_multi_aquarium_mode returns False initially."""
-        assert detector.is_multi_aquarium_mode() is False
-
-    def test_is_multi_aquarium_mode_true(self, detector, dual_aquarium_setup):
-        """Test is_multi_aquarium_mode returns True after setup."""
-        detector.set_multi_aquarium_zones(
-            aquariums=dual_aquarium_setup,
-            actual_width=1280,
-            actual_height=720,
-        )
-        assert detector.is_multi_aquarium_mode() is True
-
     def test_get_aquarium_polygon(self, detector, dual_aquarium_setup):
         """Test get_aquarium_polygon returns scaled polygon."""
         detector.set_multi_aquarium_zones(
@@ -413,36 +400,6 @@ class TestMultiAquariumHelpers:
         assert len(data) == 2
         assert data[0].group == "Controle"
         assert data[1].group == "Tratamento"
-
-
-class TestPointInPolygon:
-    """Tests for _point_in_polygon helper method."""
-
-    def test_point_inside(self, detector):
-        """Test point inside polygon returns True."""
-        polygon = np.array([[0, 0], [100, 0], [100, 100], [0, 100]], dtype=np.int32)
-
-        assert detector._point_in_polygon((50, 50), polygon) is True
-
-    def test_point_outside(self, detector):
-        """Test point outside polygon returns False."""
-        polygon = np.array([[0, 0], [100, 0], [100, 100], [0, 100]], dtype=np.int32)
-
-        assert detector._point_in_polygon((200, 200), polygon) is False
-
-    def test_point_on_boundary(self, detector):
-        """Test point on boundary returns True."""
-        polygon = np.array([[0, 0], [100, 0], [100, 100], [0, 100]], dtype=np.int32)
-
-        # Points on boundary should return True (>= 0)
-        assert detector._point_in_polygon((0, 0), polygon) is True
-        assert detector._point_in_polygon((50, 0), polygon) is True
-
-    def test_empty_polygon(self, detector):
-        """Test empty polygon returns False."""
-        polygon = np.array([], dtype=np.int32)
-
-        assert detector._point_in_polygon((50, 50), polygon) is False
 
 
 class TestDrawMultiAquariumOverlay:

@@ -977,11 +977,6 @@ class AnalysisWindowPanel(ttk.Frame):
             roi_names_provider=roi_names_provider,
         )
 
-    @property
-    def is_session_only(self) -> bool:
-        """True for the ad-hoc dialog's editor: no project behind it."""
-        return self._session_only
-
     def on_project_manager_replaced(self, new_manager: Any) -> None:
         """Adopt the ``ProjectManager`` that replaced the one we were built with.
 

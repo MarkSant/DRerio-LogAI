@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import Counter
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -47,59 +46,6 @@ class TestValidationManagerExtended:
         assert merged["new_key"] == "val"
         # Original base dict is untouched
         assert base["nested"]["y"] == 20
-
-    def test_compose_overview_status_line(self):
-        mock_gui = MagicMock()
-        vm = ValidationManager(mock_gui)
-
-        # Empty
-        assert "No video" in vm.compose_overview_status_line(0, Counter())
-
-        # With counts
-        counts = Counter({"complete": 5, "failed": 1, "custom_status": 2})
-        line = vm.compose_overview_status_line(8, counts)
-        assert "8 video(s)" in line
-        assert "5" in line
-        assert "1" in line
-        assert "+ 2" in line
-
-    def test_save_global_config_from_widget_validation_errors(self):
-        mock_gui = MagicMock()
-        mock_dialogs = MagicMock()
-        vm = ValidationManager(mock_gui, dialog_manager=mock_dialogs)
-
-        # 1. Invalid FPS (<= 0)
-        vm.save_global_config_from_widget(
-            {
-                "video_processing": {
-                    "fps": 0,
-                    "processing_interval": 1,
-                    "display_interval": 1,
-                    "processing_offset": 0,
-                },
-                "recorder": {"flush_interval_seconds": 1, "flush_row_threshold": 10},
-                "trajectory_smoothing": {"window_length": 5, "polyorder": 2},
-            }
-        )
-        mock_dialogs.show_error.assert_called_once()
-        assert "FPS must be greater than 0" in mock_dialogs.show_error.call_args[0][1]
-        mock_dialogs.show_error.reset_mock()
-
-        # 2. Invalid window_length (even number)
-        vm.save_global_config_from_widget(
-            {
-                "video_processing": {
-                    "fps": 30,
-                    "processing_interval": 1,
-                    "display_interval": 1,
-                    "processing_offset": 0,
-                },
-                "recorder": {"flush_interval_seconds": 1, "flush_row_threshold": 10},
-                "trajectory_smoothing": {"window_length": 4, "polyorder": 2},
-            }
-        )
-        mock_dialogs.show_error.assert_called_once()
-        assert "Window length must be odd" in mock_dialogs.show_error.call_args[0][1]
 
     def test_check_live_project_calibration_skips_non_live(self):
         mock_gui = MagicMock()
@@ -160,21 +106,6 @@ class TestValidationManagerExtended2:
         vm_fallback = ValidationManager(gui, dialog_manager=None)
         assert vm_fallback.dialog_manager is gui.dialog_manager
 
-    def test_compose_overview_status_line_empty(self):
-        vm = ValidationManager(MagicMock())
-        res = vm.compose_overview_status_line(0, Counter())
-        assert "No video registered" in res or "Nenhum vídeo" in res
-
-    def test_compose_overview_status_line_populated(self):
-        vm = ValidationManager(MagicMock())
-        counts = Counter({"pending": 2, "complete": 5, "failed": 1, "unknown_status": 3})
-        res = vm.compose_overview_status_line(11, counts)
-        assert "11" in res
-        assert "✅ 5" in res
-        assert "⏳ 2" in res
-        assert "⚠️ 1" in res
-        assert "+ 3" in res
-
 
 class TestValidationManagerExtended3:
     def test_status_symbols_and_meta(self):
@@ -217,31 +148,6 @@ class TestValidationManagerExtended3:
 
 
 class TestValidationManagerExtended4:
-    def test_save_global_config_invalid_fps(self):
-        gui = MagicMock()
-        vm = ValidationManager(gui)
-
-        values = {
-            "video_processing": {
-                "fps": 0,  # Invalid FPS
-                "processing_interval": 1,
-                "display_interval": 1,
-                "processing_offset": 0,
-            },
-            "recorder": {
-                "flush_interval_seconds": 1.0,
-                "flush_row_threshold": 100,
-            },
-            "trajectory_smoothing": {
-                "window_length": 5,
-                "polyorder": 2,
-            },
-        }
-
-        # Should trigger dialog_manager.show_error
-        vm.save_global_config_from_widget(values)
-        gui.dialog_manager.show_error.assert_called_once()
-
     def test_deep_merge_dicts_nested(self):
         base = {
             "a": 1,
@@ -264,58 +170,6 @@ class TestValidationManagerExtended4:
 
 
 class TestValidationManagerExtended5:
-    def test_save_global_config_invalid_processing_interval(self):
-        gui = MagicMock()
-        vm = ValidationManager(gui)
-        gui.dialog_manager = MagicMock()
-
-        values = {
-            "video_processing": {
-                "fps": 30.0,
-                "processing_interval": 0,
-                "display_interval": 1,
-                "processing_offset": 0,
-            },
-            "recorder": {
-                "flush_interval_seconds": 10.0,
-                "flush_row_threshold": 100,
-            },
-            "trajectory_smoothing": {
-                "window_length": 5,
-                "polyorder": 2,
-            },
-        }
-
-        vm.save_global_config_from_widget(values)
-        gui.dialog_manager.show_error.assert_called_once()
-        assert "processing interval" in gui.dialog_manager.show_error.call_args[0][1].lower()
-
-    def test_save_global_config_invalid_flush_rows(self):
-        gui = MagicMock()
-        vm = ValidationManager(gui)
-        gui.dialog_manager = MagicMock()
-
-        values = {
-            "video_processing": {
-                "fps": 30.0,
-                "processing_interval": 1,
-                "display_interval": 1,
-                "processing_offset": 0,
-            },
-            "recorder": {
-                "flush_interval_seconds": 10.0,
-                "flush_row_threshold": 0,  # Invalid: must be >= 1
-            },
-            "trajectory_smoothing": {
-                "window_length": 5,
-                "polyorder": 2,
-            },
-        }
-
-        vm.save_global_config_from_widget(values)
-        gui.dialog_manager.show_error.assert_called_once()
-        assert "flush" in gui.dialog_manager.show_error.call_args[0][1].lower()
-
     def test_deep_merge_dicts_empty(self):
         base = {"a": 1, "b": {"c": 2}}
         override: dict[str, Any] = {}
@@ -327,166 +181,6 @@ class TestValidationManagerExtended5:
         dm = MagicMock()
         vm = ValidationManager(gui, dialog_manager=dm)
         assert vm.dialog_manager is dm
-
-
-class TestValidationManagerExtended6:
-    def test_save_global_config_invalid_polyorder(self):
-        gui = MagicMock()
-        vm = ValidationManager(gui)
-        gui.dialog_manager = MagicMock()
-
-        values = {
-            "video_processing": {
-                "fps": 30.0,
-                "processing_interval": 1,
-                "display_interval": 1,
-                "processing_offset": 0,
-            },
-            "recorder": {
-                "flush_interval_seconds": 10.0,
-                "flush_row_threshold": 100,
-            },
-            "trajectory_smoothing": {
-                "window_length": 5,
-                "polyorder": 0,  # Invalid: polyorder must be at least 1
-            },
-        }
-
-        vm.save_global_config_from_widget(values)
-        gui.dialog_manager.show_error.assert_called_once()
-        assert "polyorder" in gui.dialog_manager.show_error.call_args[0][1].lower()
-
-    def test_save_global_config_even_window_length(self):
-        gui = MagicMock()
-        vm = ValidationManager(gui)
-        gui.dialog_manager = MagicMock()
-
-        values = {
-            "video_processing": {
-                "fps": 30.0,
-                "processing_interval": 1,
-                "display_interval": 1,
-                "processing_offset": 0,
-            },
-            "recorder": {
-                "flush_interval_seconds": 10.0,
-                "flush_row_threshold": 100,
-            },
-            "trajectory_smoothing": {
-                "window_length": 4,  # Invalid: must be odd
-                "polyorder": 2,
-            },
-        }
-
-        vm.save_global_config_from_widget(values)
-        gui.dialog_manager.show_error.assert_called_once()
-        assert "window length" in gui.dialog_manager.show_error.call_args[0][1].lower()
-
-
-class TestValidationManagerExtended7:
-    def test_save_global_config_invalid_fps(self):
-        gui = MagicMock()
-        gui.dialog_manager = MagicMock()
-        vm = ValidationManager(gui)
-
-        values = {
-            "video_processing": {
-                "fps": 0.0,  # Invalid: must be > 0
-                "processing_interval": 1,
-                "display_interval": 1,
-                "processing_offset": 0,
-            },
-            "recorder": {
-                "flush_interval_seconds": 10.0,
-                "flush_row_threshold": 100,
-            },
-            "trajectory_smoothing": {
-                "window_length": 5,
-                "polyorder": 2,
-            },
-        }
-
-        vm.save_global_config_from_widget(values)
-        gui.dialog_manager.show_error.assert_called_once()
-        assert "fps" in gui.dialog_manager.show_error.call_args[0][1].lower()
-
-    def test_save_global_config_invalid_processing_interval(self):
-        gui = MagicMock()
-        gui.dialog_manager = MagicMock()
-        vm = ValidationManager(gui)
-
-        values = {
-            "video_processing": {
-                "fps": 30.0,
-                "processing_interval": 0,  # Invalid: must be > 0
-                "display_interval": 1,
-                "processing_offset": 0,
-            },
-            "recorder": {
-                "flush_interval_seconds": 10.0,
-                "flush_row_threshold": 100,
-            },
-            "trajectory_smoothing": {
-                "window_length": 5,
-                "polyorder": 2,
-            },
-        }
-
-        vm.save_global_config_from_widget(values)
-        gui.dialog_manager.show_error.assert_called_once()
-        assert "interval" in gui.dialog_manager.show_error.call_args[0][1].lower()
-
-    def test_save_global_config_invalid_display_interval(self):
-        gui = MagicMock()
-        gui.dialog_manager = MagicMock()
-        vm = ValidationManager(gui)
-
-        values = {
-            "video_processing": {
-                "fps": 30.0,
-                "processing_interval": 1,
-                "display_interval": 0,  # Invalid: must be > 0
-                "processing_offset": 0,
-            },
-            "recorder": {
-                "flush_interval_seconds": 10.0,
-                "flush_row_threshold": 100,
-            },
-            "trajectory_smoothing": {
-                "window_length": 5,
-                "polyorder": 2,
-            },
-        }
-
-        vm.save_global_config_from_widget(values)
-        gui.dialog_manager.show_error.assert_called_once()
-        assert "display interval" in gui.dialog_manager.show_error.call_args[0][1].lower()
-
-    def test_save_global_config_invalid_offset(self):
-        gui = MagicMock()
-        gui.dialog_manager = MagicMock()
-        vm = ValidationManager(gui)
-
-        values = {
-            "video_processing": {
-                "fps": 30.0,
-                "processing_interval": 1,
-                "display_interval": 1,
-                "processing_offset": -1,  # Invalid: must be >= 0
-            },
-            "recorder": {
-                "flush_interval_seconds": 10.0,
-                "flush_row_threshold": 100,
-            },
-            "trajectory_smoothing": {
-                "window_length": 5,
-                "polyorder": 2,
-            },
-        }
-
-        vm.save_global_config_from_widget(values)
-        gui.dialog_manager.show_error.assert_called_once()
-        assert "offset" in gui.dialog_manager.show_error.call_args[0][1].lower()
 
 
 class TestValidationManagerExtended8:

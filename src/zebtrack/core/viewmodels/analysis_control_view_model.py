@@ -262,17 +262,6 @@ class AnalysisControlViewModel:
             return self.processing_coordinator.add_roi_polygon(points_list, name, color)
         return False
 
-    def auto_detect_zones(self, **kwargs: Any) -> None:
-        """
-        Trigger auto-detection of aquarium zones via event.
-        """
-        if self.ui_event_bus:
-            payload = payloads.ZoneAutoDetectPayload(
-                video_path=kwargs.get("video_path") or "",
-                stabilization_frames=kwargs.get("stabilization_frames", 10),
-            )
-            self.ui_event_bus.publish(Event(type=UIEvents.ZONE_AUTO_DETECT, data=payload))
-
     def generate_parquet_summaries(self, video_paths: list[str]) -> None:
         """Generate summaries (Word/Excel) for the given video paths."""
         log.info("analysis_control.generate_summaries.start", count=len(video_paths))

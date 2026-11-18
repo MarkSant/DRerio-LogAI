@@ -211,7 +211,7 @@ def test_arduino_manager_send_command_success(mock_controller, arduino_factory, 
     result = manager.send_command(42)
 
     assert result is True
-    assert manager.last_command() == 42
+    assert manager._last_command == 42
 
     mock_arduino.send_command.assert_called_once_with(42)
     mock_controller.log_arduino_event.assert_any_call("Command 42 sent to the Arduino.")
@@ -239,7 +239,7 @@ def test_arduino_manager_send_command_not_connected(mock_controller):
     result = manager.send_command(42)
 
     assert result is False
-    assert manager.last_command() is None
+    assert manager._last_command is None
 
     mock_controller.log_arduino_event.assert_called_with(
         "Could not send command: Arduino disconnected."
@@ -274,7 +274,7 @@ def test_send_command_ack_none_uses_async(mock_controller, arduino_factory, mock
     result = manager.send_command(42)
 
     assert result is True
-    assert manager.last_command() == 42
+    assert manager._last_command == 42
     mock_arduino.send_command_async.assert_called_once_with(42)
     mock_arduino.send_command.assert_not_called()
 
@@ -301,13 +301,13 @@ def test_arduino_manager_last_command(mock_controller, arduino_factory, mock_ard
     manager = ArduinoManager(mock_controller, arduino_factory=arduino_factory)
     manager.connect("COM3", 9600)
 
-    assert manager.last_command() is None
+    assert manager._last_command is None
 
     manager.send_command(10)
-    assert manager.last_command() == 10
+    assert manager._last_command == 10
 
     manager.send_command(20)
-    assert manager.last_command() == 20
+    assert manager._last_command == 20
 
     manager.disconnect()
 

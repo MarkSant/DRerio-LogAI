@@ -86,7 +86,7 @@ def test_get_default_by_type():
         wm.add_weight(det_file, set_as_default=False)
 
         # Set det as default for det type
-        wm.set_default_weight_by_type("best_oi.pt", "det")
+        wm.set_default_weight_for("best_oi.pt", method="det", target="aquarium")
 
         # Test getting defaults by type
         seg_name, seg_details = wm.get_default_seg_weight()
@@ -130,8 +130,8 @@ def test_get_weight_path_by_method():
         assert "best_seg.pt" in wm.weights
         assert "best_oi.pt" in wm.weights
         assert wm.weights["best_seg.pt"]["is_default_seg"] is False
-        wm.set_default_weight_by_type("best_seg.pt", "seg")
-        wm.set_default_weight_by_type("best_oi.pt", "det")
+        wm.set_default_weight_for("best_seg.pt", method="seg", target="zebrafish")
+        wm.set_default_weight_for("best_oi.pt", method="det", target="aquarium")
 
         # Compared as resolved paths, not as strings. The registered path now
         # comes from discovery rather than from the exact string this test

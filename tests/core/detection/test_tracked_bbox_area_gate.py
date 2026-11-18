@@ -99,7 +99,7 @@ def test_a_rejected_box_never_enters_the_baseline() -> None:
 
     # Depois da rajada, a caixa inflada continua sendo rejeitada.
     assert gate.filter([_det(RUNAWAY_BOX)]) == []
-    assert gate.rejections == 51
+    assert gate._rejections == 51
 
 
 def test_nothing_is_rejected_during_warmup() -> None:

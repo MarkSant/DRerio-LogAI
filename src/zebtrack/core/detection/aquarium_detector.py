@@ -1244,31 +1244,6 @@ class ContourBasedMultiAquariumDetector:
             if source:
                 source.release()
 
-    def detect_multiple_aquariums_from_frame(
-        self,
-        frame: np.ndarray,
-        expected_count: int = 2,
-    ) -> list[np.ndarray]:
-        """Detect multiple aquariums from a single frame.
-
-        Args:
-            frame: Video frame as numpy array (BGR format).
-            expected_count: Expected number of aquariums (must be 2).
-
-        Returns:
-            List of polygon numpy arrays or empty list if failed.
-
-        Raises:
-            ValueError: If expected_count != 2.
-        """
-        if expected_count != 2:
-            # Internal API contract, not operator copy: the wizard already
-            # validates this count with a translated message. English without
-            # _(), like the other developer-facing guards.
-            raise ValueError("Only 2 aquariums are supported")
-
-        return self._detect_aquariums_by_contours(frame, expected_count)
-
     def _detect_aquariums_by_contours(
         self,
         frame: np.ndarray,
@@ -1434,56 +1409,3 @@ class ContourBasedMultiAquariumDetector:
         )
 
         return overlap_ratio > threshold
-
-    def _validate_aquarium_pair(
-        self,
-        polygons: list[np.ndarray],
-        frame_width: int,
-    ) -> bool:
-        """Validate that detected aquariums form a valid pair.
-
-        Checks:
-        - Aquariums are on opposite sides of the frame
-        - Aquariums have similar sizes (within 50%)
-        - Aquariums don't overlap
-
-        Args:
-            polygons: List of 2 polygon arrays.
-            frame_width: Width of the video frame.
-
-        Returns:
-            True if valid pair, False otherwise.
-        """
-        if len(polygons) != 2:
-            return False
-
-        # Get bounding boxes
-        x1_min, x1_max = polygons[0][:, 0].min(), polygons[0][:, 0].max()
-        x2_min, x2_max = polygons[1][:, 0].min(), polygons[1][:, 0].max()
-
-        # Check that aquariums are on different sides
-        center1 = (x1_min + x1_max) / 2
-        center2 = (x2_min + x2_max) / 2
-        mid_frame = frame_width / 2
-
-        # One should be on left half, other on right half
-        if not (
-            (center1 < mid_frame and center2 > mid_frame)
-            or (center1 > mid_frame and center2 < mid_frame)
-        ):
-            log.warning("contour_detector.aquariums_not_opposite_sides")
-            return False
-
-        # Check similar sizes
-        area1 = cv2.contourArea(polygons[0])
-        area2 = cv2.contourArea(polygons[1])
-        size_ratio = min(area1, area2) / max(area1, area2) if max(area1, area2) > 0 else 0
-
-        if size_ratio < 0.5:
-            log.warning(
-                "contour_detector.aquariums_size_mismatch",
-                size_ratio=f"{size_ratio:.2f}",
-            )
-            return False
-
-        return True

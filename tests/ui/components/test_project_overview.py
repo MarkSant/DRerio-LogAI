@@ -117,21 +117,15 @@ def test_add_tree_item_with_parent(overview_widget):
     assert parent_children[0] == "child"
 
 
-def test_expand_and_collapse_tree_item(overview_widget):
-    """Test expand and collapse functionality."""
+def test_expand_tree_item(overview_widget):
+    """Test expand functionality."""
     # Add parent and child
     overview_widget.add_tree_item("parent", "Parent", values=("", ""))
     overview_widget.add_tree_item("child", "Child", parent="parent", values=("", ""))
 
-    # Test expand
     overview_widget.expand_tree_item("parent")
     is_open = overview_widget.project_overview_tree.item("parent", "open")
     assert is_open == 1 or is_open is True  # Tk returns 1 or True depending on version
-
-    # Test collapse
-    overview_widget.collapse_tree_item("parent")
-    is_open = overview_widget.project_overview_tree.item("parent", "open")
-    assert is_open == 0 or is_open is False  # Tk returns 0 or False depending on version
 
 
 def test_event_emission_on_refresh(overview_widget, event_bus):

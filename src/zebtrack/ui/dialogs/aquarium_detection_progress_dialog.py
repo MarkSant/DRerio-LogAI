@@ -322,29 +322,6 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
                 error=str(e),
             )
 
-    def show_completion(self, success: bool, message: str) -> None:
-        """Show completion status.
-
-        Args:
-            success: Whether detection succeeded
-            message: Completion message
-        """
-        if success:
-            self.status_label.config(
-                text=f"✓ {message}",
-                foreground="green",
-                font=("Arial", 10, "bold"),
-            )
-        else:
-            self.status_label.config(
-                text=f"✗ {message}",
-                foreground="red",
-                font=("Arial", 10, "bold"),
-            )
-
-        # Auto-close after 2 seconds
-        self.after(2000, self.destroy)
-
     def close_dialog(self) -> None:
         """Programmatically close dialog."""
         try:

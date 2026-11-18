@@ -29,16 +29,16 @@ class TestWarmup:
 
         # Even an absurd box survives while the gate has no baseline.
         assert gate.filter([_box(1000.0)]) == [_box(1000.0)]
-        assert gate.rejections == 0
+        assert gate._rejections == 0
 
     def test_gate_activates_once_warmup_is_reached(self):
         gate = BboxAreaGate(ratio_max=3.0, window=30, warmup=10)
         _feed(gate, 10.0, 10)  # area 100, ten samples
 
-        assert gate.sample_count == 10
+        assert len(gate._areas) == 10
         # 10x the median area -> rejected.
         assert gate.filter([_box(31.7)]) == []
-        assert gate.rejections == 1
+        assert gate._rejections == 1
 
 
 class TestRunawayRejection:
@@ -50,7 +50,7 @@ class TestRunawayRejection:
         runaway = _box(60.0)  # area 3600 -> 36x median
 
         assert gate.filter([real, runaway]) == [real]
-        assert gate.rejections == 1
+        assert gate._rejections == 1
 
     def test_runaway_burst_cannot_inflate_its_own_baseline(self):
         """Rejected areas must not enter the history.
@@ -67,7 +67,7 @@ class TestRunawayRejection:
 
         # Baseline untouched: a normal box still passes afterwards.
         assert gate.filter([_box(10.0)]) == [_box(10.0)]
-        assert gate.rejections == 200
+        assert gate._rejections == 200
 
     def test_median_survives_outliers_already_in_the_window(self):
         """Median, not mean: a few huge accepted samples must not move the bar."""
@@ -96,7 +96,7 @@ class TestTolerance:
 
         tiny = _box(1.0)
         assert gate.filter([tiny]) == [tiny]
-        assert gate.rejections == 0
+        assert gate._rejections == 0
 
     def test_degenerate_box_is_dropped_without_polluting_history(self):
         gate = BboxAreaGate(ratio_max=3.0, window=30, warmup=10)
@@ -105,7 +105,7 @@ class TestTolerance:
         assert gate.filter([(5.0, 5.0, 5.0, 20.0, 0.9, None, 0)]) == []
         # Zero-area box must not enter the median (it would drag it to 0 and
         # then reject everything).
-        assert gate.sample_count == 10
+        assert len(gate._areas) == 10
 
 
 class TestLifecycle:
@@ -115,26 +115,26 @@ class TestLifecycle:
 
         huge = _box(10000.0)
         assert gate.filter([huge]) == [huge]
-        assert gate.rejections == 0
+        assert gate._rejections == 0
 
     def test_reset_clears_history_between_videos(self):
         """Areas from a previous framing must not gate the next video."""
         gate = BboxAreaGate(ratio_max=3.0, window=30, warmup=10)
         _feed(gate, 10.0, 12)
         gate.filter([_box(60.0)])
-        assert gate.rejections == 1
+        assert gate._rejections == 1
 
         gate.reset()
 
-        assert gate.sample_count == 0
-        assert gate.rejections == 0
+        assert len(gate._areas) == 0
+        assert gate._rejections == 0
         # A larger scale is now accepted from scratch.
         assert gate.filter([_box(60.0)]) != []
 
     def test_window_bounds_the_history(self):
         gate = BboxAreaGate(ratio_max=3.0, window=5, warmup=2)
         _feed(gate, 10.0, 50)
-        assert gate.sample_count == 5
+        assert len(gate._areas) == 5
 
     def test_empty_input_is_returned_unchanged(self):
         gate = BboxAreaGate()

@@ -72,15 +72,13 @@ def test_register_session(coordinator):
     batch_id2 = coordinator.register_session("exp2", video_path, metadata)
     assert batch_id == batch_id2
 
-    batch = coordinator.get_batch_for_session("exp1")
-    assert batch is not None
+    batches = list(coordinator._active_batches.values())
+    assert len(batches) == 1
+    batch = batches[0]
+    assert batch.batch_id == batch_id
     assert batch.session_count == 2
     assert "exp1" in batch.completed_sessions
     assert "exp2" in batch.completed_sessions
-
-    active = coordinator.get_active_batches()
-    assert len(active) == 1
-    assert active[0].batch_id == batch_id
 
 
 def test_register_session_persistence_exception(coordinator):
@@ -95,7 +93,7 @@ def test_register_session_persistence_exception(coordinator):
     # It should not raise an exception
     batch_id = coordinator.register_session("exp1", video_path, metadata)
     assert batch_id is not None
-    assert coordinator.get_batch_for_session("exp1") is not None
+    assert any("exp1" in b.completed_sessions for b in coordinator._active_batches.values())
 
 
 def test_mark_batch_complete_not_found(coordinator):

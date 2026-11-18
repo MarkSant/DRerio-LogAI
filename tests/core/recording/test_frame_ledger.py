@@ -349,7 +349,7 @@ def _run_pipeline(harness: _PipelineHarness) -> list[dict[str, Any]]:
         harness.exit_event.set()
         drain.join(timeout=5)
     harness._finalize_frame_ledger()
-    return sorted(ledger.rows_snapshot(), key=lambda r: r["pipeline_frame"])
+    return sorted((dict(r) for r in ledger._rows), key=lambda r: r["pipeline_frame"])
 
 
 def test_one_row_per_captured_frame_monotonic_without_gaps(tmp_path):
@@ -723,7 +723,7 @@ def _stop_like_stop_session(harness: _PipelineHarness, run_s: float, drain_s: fl
     harness.video_recording_thread.join(timeout=5)
     ledger = harness._frame_ledger
     assert ledger is not None
-    rows = sorted(ledger.rows_snapshot(), key=lambda r: r["pipeline_frame"])
+    rows = sorted((dict(r) for r in ledger._rows), key=lambda r: r["pipeline_frame"])
     harness._finalize_frame_ledger()
     return rows, left
 

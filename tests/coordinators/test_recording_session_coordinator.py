@@ -172,29 +172,6 @@ def test_is_recording(coordinator):
     assert coordinator.is_recording() is True
 
 
-def test_get_recording_info(coordinator):
-    recording_state = MagicMock()
-    recording_state.is_recording = True
-    recording_state.output_path = "test/path"
-    recording_state.experiment_id = "test_exp"
-    recording_state.duration = 300
-    coordinator.state_manager.get_recording_state.return_value = recording_state
-
-    info = coordinator.get_recording_info()
-
-    assert info is not None
-    assert info["is_recording"] is True
-    assert info["output_path"] == "test/path"
-
-
-def test_get_recording_info_not_recording(coordinator):
-    recording_state = MagicMock()
-    recording_state.is_recording = False
-    coordinator.state_manager.get_recording_state.return_value = recording_state
-
-    assert coordinator.get_recording_info() is None
-
-
 @patch("zebtrack.core.services.external_trigger_gate.decide_external_trigger")
 def test_handle_external_trigger_reject(mock_decide, coordinator):
     from zebtrack.core.services.external_trigger_gate import ExternalTriggerDecision

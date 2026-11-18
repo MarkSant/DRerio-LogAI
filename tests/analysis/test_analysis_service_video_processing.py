@@ -87,27 +87,6 @@ class TestAnalysisServiceVideoProcessing:
         with pytest.raises((ValueError, OSError, Exception)):  # Should raise some exception
             analysis_service.load_trajectory_dataframe(invalid_file)
 
-    def test_validate_trajectory_schema_valid(self, analysis_service):
-        """Test schema validation with valid dataframe."""
-        df = pd.DataFrame(
-            {
-                "timestamp": [0.0],
-                "frame": [0],
-                "track_id": [1],
-                "x1": [100],
-                "y1": [100],
-                "x2": [150],
-                "y2": [150],
-            }
-        )
-        assert analysis_service.validate_trajectory_schema(df) is True
-
-    def test_validate_trajectory_schema_missing_columns(self, analysis_service):
-        """Test schema validation with missing columns."""
-        df = pd.DataFrame({"timestamp": [0.0], "frame": [0], "x1": [100]})
-        with pytest.raises(ValueError, match="missing required columns"):
-            analysis_service.validate_trajectory_schema(df)
-
     @patch("zebtrack.analysis.analysis_service.ConcreteBehavioralAnalyzer")
     @patch("zebtrack.analysis.analysis_service.ROIAnalyzer")
     def test_run_analysis_pipeline_success(
@@ -322,58 +301,3 @@ class TestAnalysisServiceVideoProcessing:
 
         assert analysis_interval == 10
         assert display_interval == 10
-
-    def test_build_metadata_context_single_video(self, analysis_service):
-        """Test metadata context returns None for single video."""
-        video_info = {"metadata": {"group": "control"}}
-        single_video_config = {"some": "config"}
-
-        metadata = analysis_service.build_metadata_context(
-            video_info=video_info,
-            single_video_config=single_video_config,
-            experiment_id="exp_001",
-            video_path="/path/to/video.mp4",
-        )
-
-        assert metadata is None
-
-    def test_build_metadata_context_with_derive_callback(self, analysis_service):
-        """Test metadata context with derive callback."""
-        video_info = {"metadata": {"group": "control"}}
-
-        def mock_derive(exp_id, video_path):
-            return {"subject": "fish_1", "derived": True}
-
-        metadata = analysis_service.build_metadata_context(
-            video_info=video_info,
-            single_video_config=None,
-            experiment_id="exp_001",
-            video_path="/path/to/video.mp4",
-            derive_callback=mock_derive,
-        )
-
-        assert metadata is not None
-        assert metadata["group"] == "control"
-        assert metadata["subject"] == "fish_1"
-        assert metadata["derived"] is True
-
-    def test_build_metadata_context_derive_callback_fails(self, analysis_service):
-        """Test metadata context when derive callback fails."""
-        video_info = {"metadata": {"group": "control"}}
-
-        def failing_derive(exp_id, video_path):
-            raise ValueError("Derive failed")
-
-        # Should handle exception gracefully
-        metadata = analysis_service.build_metadata_context(
-            video_info=video_info,
-            single_video_config=None,
-            experiment_id="exp_001",
-            video_path="/path/to/video.mp4",
-            derive_callback=failing_derive,
-        )
-
-        assert metadata is not None
-        assert metadata["group"] == "control"
-        # Derived data should not be present
-        assert "subject" not in metadata

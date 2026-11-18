@@ -148,13 +148,6 @@ def test_analysis_metadata_defaults():
     )
 
 
-def test_default_analysis_metadata_text():
-    assert (
-        StateSynchronizer._default_analysis_metadata_text()
-        == "Group: No Group | Day: No Day | Individual: Not reported"
-    )
-
-
 def test_apply_analysis_metadata_strings_updates_widget_vars():
     analysis_display_widget = SimpleNamespace(
         group_var=Mock(),

@@ -55,10 +55,6 @@ def test_no_rois():
     assert ev.occupied_rois([(5, 5)]) == set()
 
 
-def test_centroid_of_bbox():
-    assert ArduinoRoiEvaluator.centroid_of_bbox(0, 0, 10, 20) == (5.0, 10.0)
-
-
 def test_accepts_list_polygons():
     ev = ArduinoRoiEvaluator(["A"], [[[0, 0], [10, 0], [10, 10], [0, 10]]])
     assert ev.occupied_rois([(5, 5)]) == {"A"}

@@ -452,19 +452,6 @@ class OpenVINOPlugin(DetectorPlugin):
         """
         return not (len(self.class_names) > 2 or self._context_classes_present)
 
-    def set_tracking_parameters(
-        self,
-        *,
-        track_threshold: float | None = None,
-        match_threshold: float | None = None,
-    ) -> None:
-        """Update ByteTrack threshold hints consumed by the detector."""
-
-        if track_threshold is not None and track_threshold > 0:
-            self.track_threshold = track_threshold
-        if match_threshold is not None and match_threshold > 0:
-            self.match_threshold = match_threshold
-
     def detect(
         self, frame: np.ndarray, conf_threshold: float | None = None
     ) -> list[tuple[int, int, int, int, float, int | None, int]]:

@@ -9,10 +9,8 @@ Estimated size: ~750 lines (target <800).
 
 from __future__ import annotations
 
-import contextlib
 import os
 import shutil
-from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -1018,83 +1016,3 @@ class MultiAquariumCoordinator(BaseCoordinator):
             settings_obj=self.settings,
         )
         return intervals.analysis, intervals.display
-
-    @contextlib.contextmanager
-    def _temporary_single_animal_mode(
-        self, single_video_config: dict | None = None
-    ) -> Generator[bool, None, None]:
-        """Context manager to temporarily set single-animal mode during processing.
-
-        Restores original settings on exit.
-        """
-        log.info(
-            "controller.temporary_mode.entry",
-            has_config=single_video_config is not None,
-            config_keys=list(single_video_config.keys()) if single_video_config else [],
-        )
-
-        previous_mode = self.settings.video_processing.single_animal_per_aquarium
-        resolved_mode = self._resolve_single_animal_mode(single_video_config)
-
-        previous_tracker_pref = self.settings.tracking.use_single_subject_tracker
-        resolved_tracker_pref = self._resolve_single_subject_tracker_preference(single_video_config)
-        if resolved_tracker_pref is None and resolved_mode is not None:
-            resolved_tracker_pref = bool(resolved_mode)
-            log.info(
-                "controller.processing.single_subject_tracker.inferred_from_single_animal",
-                enabled=resolved_tracker_pref,
-                scope="single_video" if single_video_config else "project",
-            )
-
-        if resolved_tracker_pref is None:
-            resolved_tracker_pref = previous_tracker_pref
-
-        if resolved_mode is not None and resolved_mode != previous_mode:
-            self.settings.video_processing.single_animal_per_aquarium = resolved_mode
-            log.info(
-                "controller.processing.single_animal_mode",
-                enabled=resolved_mode,
-                previous=previous_mode,
-                scope="single_video" if single_video_config else "project",
-            )
-
-        tracker_changed = resolved_tracker_pref != previous_tracker_pref
-        if tracker_changed:
-            self.settings.tracking.use_single_subject_tracker = resolved_tracker_pref
-            log.info(
-                "controller.processing.single_subject_tracker",
-                enabled=resolved_tracker_pref,
-                previous=previous_tracker_pref,
-                scope="single_video" if single_video_config else "project",
-            )
-
-        self._configure_single_subject_tracker(self.settings.tracking.use_single_subject_tracker)
-        self._publish_processing_mode(
-            source="processing.temporary_mode.enter",
-            force=True,
-        )
-
-        try:
-            yield self.settings.video_processing.single_animal_per_aquarium
-        finally:
-            if self.settings.video_processing.single_animal_per_aquarium != previous_mode:
-                self.settings.video_processing.single_animal_per_aquarium = previous_mode
-                log.info(
-                    "controller.processing.single_animal_mode_restored",
-                    restored=previous_mode,
-                )
-
-            if tracker_changed:
-                self.settings.tracking.use_single_subject_tracker = previous_tracker_pref
-                log.info(
-                    "controller.processing.single_subject_tracker_restored",
-                    restored=previous_tracker_pref,
-                )
-
-            self._configure_single_subject_tracker(
-                self.settings.tracking.use_single_subject_tracker
-            )
-            self._publish_processing_mode(
-                source="processing.temporary_mode.exit",
-                force=True,
-            )

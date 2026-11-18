@@ -241,19 +241,6 @@ def test_reset_analysis_data(coordinator):
     coordinator.project_manager.reset_analysis_data.assert_called_once()
 
 
-def test_register_project_outputs(coordinator):
-    coordinator.register_project_outputs(
-        video_path="video.mp4",
-        results_dir="res",
-        trajectory_path="traj.parquet",
-        summary_parquet="sum.parquet",
-        summary_excel="sum.xlsx",
-        report_path="rep.docx",
-    )
-
-    coordinator.project_manager.register_processing_outputs.assert_called_once()
-
-
 def test_are_project_overrides_active(coordinator):
     coordinator._model_override_service.are_project_overrides_active.return_value = True
     assert coordinator.are_project_overrides_active() is True

@@ -127,36 +127,6 @@ class ModelService:
         else:
             return _("OpenVINO is disabled.")
 
-    def list_available_weights(self) -> list[str]:
-        """
-        List all available weight files.
-
-        Returns:
-            list[str]: List of weight file names
-        """
-        # Weight manager stores weights as dict, extract names
-        weights_dict = getattr(self.weight_manager, "weights", {})
-        return list(weights_dict.keys()) if weights_dict else []
-
-    def validate_weight(self, weight_name: str) -> bool:
-        """
-        Validate that a weight file exists and is usable.
-
-        Args:
-            weight_name: Name of the weight file
-
-        Returns:
-            bool: True if weight is valid
-        """
-        details = self.weight_manager.get_weight_details(weight_name)
-        if not details:
-            return False
-
-        weight_path = details.get("path")
-        if not weight_path:
-            return False
-        return Path(weight_path).exists()
-
     def get_default_weight(self) -> tuple[str, dict] | tuple[None, None]:
         """
         Get the default weight configuration.
@@ -178,21 +148,6 @@ class ModelService:
             list[str]: List of all weight names
         """
         return self.weight_manager.get_all_weights()
-
-    def get_weight_type(self, weight_name: str) -> str | None:
-        """
-        Get the type of a weight (seg or det).
-
-        Phase 2.4: Helper for weight type queries.
-
-        Args:
-            weight_name: Name of the weight file
-
-        Returns:
-            str: "seg" or "det", or None if weight not found
-        """
-        details = self.weight_manager.get_weight_details(weight_name)
-        return details.get("type") if details else None
 
     def is_openvino_ready(self, weight_name: str) -> bool:
         """
@@ -286,137 +241,6 @@ class ModelService:
         if not callable(checker):
             return False
         return checker(weight_name) is False
-
-    def validate_model_configuration(
-        self, weight_name: str | None, use_openvino: bool
-    ) -> dict[str, Any]:
-        """
-        Validate a complete model configuration.
-
-        Phase 2.4: Comprehensive configuration validation.
-
-        Args:
-            weight_name: Name of the weight to validate
-            use_openvino: Whether OpenVINO usage is requested
-
-        Returns:
-            dict: Validation result with keys:
-                - valid: bool, True if configuration is valid
-                - weight_exists: bool, True if weight file exists
-                - weight_valid: bool, True if weight is usable
-                - openvino_ready: bool, True if OpenVINO is ready (if requested)
-                - errors: list[str], list of validation error messages
-                - warnings: list[str], list of validation warnings
-        """
-        result: dict[str, Any] = {
-            "valid": True,
-            "weight_exists": False,
-            "weight_valid": False,
-            "openvino_ready": False,
-            "errors": [],
-            "warnings": [],
-        }
-
-        # Validate weight
-        if not weight_name:
-            result["valid"] = False
-            result["errors"].append("No weight specified")
-            return result
-
-        details = self.weight_manager.get_weight_details(weight_name)
-        if not details:
-            result["valid"] = False
-            result["errors"].append(f"Weight '{weight_name}' not found in configuration")
-            return result
-
-        result["weight_exists"] = True
-
-        # Validate weight file
-        weight_path = details.get("path")
-        if not weight_path or not Path(weight_path).exists():
-            result["valid"] = False
-            result["errors"].append(f"Weight file not found: {weight_path}")
-        else:
-            result["weight_valid"] = True
-
-        # Validate OpenVINO if requested
-        if use_openvino:
-            ov_status = self.check_openvino_conversion_status(weight_name)
-            result["openvino_ready"] = ov_status["ready"]
-
-            if not ov_status["ready"]:
-                if ov_status["status"] == "not_converted":
-                    result["warnings"].append(
-                        "OpenVINO model not converted. Conversion will be required."
-                    )
-                elif ov_status["status"] == "failed":
-                    result["valid"] = False
-                    error_msg = f"OpenVINO conversion failed: {ov_status['error']}"
-                    result["errors"].append(error_msg)
-                elif ov_status["status"] == "converting":
-                    result["valid"] = False
-                    result["errors"].append("OpenVINO conversion in progress")
-
-        log.info(
-            "model_service.config_validation",
-            weight=weight_name,
-            use_openvino=use_openvino,
-            valid=result["valid"],
-        )
-
-        return result
-
-    def get_weight_configuration_summary(self, weight_name: str | None) -> dict[str, Any]:
-        """
-        Get a summary of weight configuration details.
-
-        Phase 2.4: Helper for displaying weight configuration.
-
-        Args:
-            weight_name: Name of the weight
-
-        Returns:
-            dict: Configuration summary with keys:
-                - name: str or None
-                - type: str or None ("seg" or "det")
-                - path: str or None
-                - exists: bool
-                - openvino_available: bool
-                - openvino_status: str
-        """
-        if not weight_name:
-            return {
-                "name": None,
-                "type": None,
-                "path": None,
-                "exists": False,
-                "openvino_available": False,
-                "openvino_status": "unknown",
-            }
-
-        details = self.weight_manager.get_weight_details(weight_name)
-        if not details:
-            return {
-                "name": weight_name,
-                "type": None,
-                "path": None,
-                "exists": False,
-                "openvino_available": False,
-                "openvino_status": "unknown",
-            }
-
-        weight_path = details.get("path")
-        weight_exists = bool(weight_path and Path(weight_path).exists())
-        ov_status = self.check_openvino_conversion_status(weight_name)
-
-        return {
-            "name": weight_name,
-            "type": details.get("type"),
-            "path": weight_path,
-            "exists": weight_exists,
-            "openvino_available": ov_status["ready"],
-            "openvino_status": ov_status["status"],
-        }
 
     def find_weight_by_path(
         self, weight_path: Path | str

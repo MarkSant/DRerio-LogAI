@@ -19,15 +19,6 @@ def test_slugify_normalizes_text():
     assert AssetManager._slugify("  ###  ") == "template"
 
 
-def test_ensure_roi_template_dir(tmp_path):
-    target = AssetManager.ensure_roi_template_dir(tmp_path)
-    assert target.exists()
-    assert target.name == "roi_templates"
-
-    with pytest.raises(ValueError, match="Project not initialised"):
-        AssetManager.ensure_roi_template_dir("")
-
-
 def test_list_roi_templates_aggregates_and_sorts(monkeypatch):
     manager = AssetManager()
     manager.roi_template_manager = MagicMock()
@@ -190,17 +181,6 @@ class TestAssetManagerExtended:
         assert AssetManager._slugify("---Test---") == "test"
         assert AssetManager._slugify("") == "template"
 
-    def test_ensure_roi_template_dir(self, tmp_path: Path):
-        project_dir = tmp_path / "my_project"
-        project_dir.mkdir()
-
-        template_dir = AssetManager.ensure_roi_template_dir(project_dir)
-        assert template_dir.exists()
-        assert template_dir.name == "roi_templates"
-
-        with pytest.raises(ValueError, match="Project not initialised"):
-            AssetManager.ensure_roi_template_dir("")
-
     def test_resolve_roi_template_entry(self):
         project_data = {
             "roi_templates": [
@@ -322,15 +302,6 @@ class TestAssetManagerExtended2:
         assert AssetManager._slugify("   ") == "template"
         assert AssetManager._slugify("Água & Peixe") == "agua-peixe"
 
-    def test_ensure_roi_template_dir(self, tmp_path: Path):
-        project_dir = tmp_path / "project_root"
-        project_dir.mkdir()
-
-        template_dir = AssetManager.ensure_roi_template_dir(project_dir)
-        assert template_dir.exists()
-        assert template_dir.is_dir()
-        assert template_dir.name == "roi_templates"
-
     def test_slugify_numbers_and_underscores(self):
         assert AssetManager._slugify("Batch_123_456") == "batch_123_456"
         assert AssetManager._slugify("---test---") == "test"
@@ -342,16 +313,6 @@ class TestAssetManagerExtended4:
         assert AssetManager._slugify("Ação & Reação 123") == "acao-reacao-123"
         assert AssetManager._slugify("---") == "template"
         assert AssetManager._slugify("") == "template"
-
-    def test_ensure_roi_template_dir(self, tmp_path: Path):
-        project_dir = tmp_path / "project_root"
-        res = AssetManager.ensure_roi_template_dir(project_dir)
-        assert res.exists()
-        assert res == project_dir / "roi_templates"
-
-    def test_ensure_roi_template_dir_empty_raises(self):
-        with pytest.raises(ValueError, match="Project not initialised"):
-            AssetManager.ensure_roi_template_dir("")
 
     def test_list_roi_templates_project_and_global_sorting(self):
         manager = AssetManager()

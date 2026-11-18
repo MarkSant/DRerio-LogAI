@@ -435,85 +435,8 @@ class TestFileDialogs:
 
 
 @pytest.mark.gui
-class TestCalibrationDialogs:
-    """Tests for calibration dialog methods."""
-
-    @patch("zebtrack.ui.dialogs.calibration_dialog.CalibrationDialog")
-    def test_open_global_calibration_window(
-        self, mock_calibration_dialog, dialog_manager, mock_controller
-    ):
-        """Test opening global calibration window."""
-        mock_context = Mock()
-        mock_context.__enter__ = Mock(return_value=None)
-        mock_context.__exit__ = Mock(return_value=False)
-        mock_controller.global_calibration_session.return_value = mock_context
-
-        dialog_manager.open_global_calibration_window()
-
-        mock_controller.global_calibration_session.assert_called_once()
-        mock_calibration_dialog.assert_called_once_with(dialog_manager.gui.root, mock_controller)
-
-    @patch("zebtrack.ui.dialogs.calibration_dialog.CalibrationDialog")
-    def test_open_project_calibration_window_no_project(
-        self, mock_calibration_dialog, dialog_manager, mock_controller
-    ):
-        """Test opening project calibration when no project loaded."""
-        mock_controller.project_manager.project_path = None
-
-        with patch.object(dialog_manager, "show_warning") as mock_warning:
-            dialog_manager.open_project_calibration_window()
-
-        mock_warning.assert_called_once()
-        mock_calibration_dialog.assert_not_called()
-
-    def test_open_project_calibration_window_success(self, dialog_manager, mock_gui):
-        """Test redirecting project calibration to the dedicated notebook tab."""
-        dialog_manager.open_project_calibration_window()
-
-        mock_gui.show_project_model_configuration_tab.assert_called_once_with()
-
-
-@pytest.mark.gui
 class TestROITemplateDialogs:
     """Tests for ROI template dialog methods."""
-
-    @patch("zebtrack.ui.dialogs.save_roi_template_dialog.SaveROITemplateDialog")
-    def test_show_template_save_dialog_returns_result(self, mock_dialog_class, dialog_manager):
-        """Test show_template_save_dialog returns dialog result."""
-        mock_dialog = Mock()
-        mock_dialog.result = {"name": "Template1", "save_arena": True}
-        mock_dialog_class.return_value = mock_dialog
-
-        result = dialog_manager.show_template_save_dialog(
-            has_arena=True,
-            has_rois=True,
-            allow_project=True,
-            initial_name="Default",
-        )
-
-        assert result == {"name": "Template1", "save_arena": True}
-        mock_dialog_class.assert_called_once_with(
-            dialog_manager.gui.root,
-            default_name="Default",
-            has_arena=True,
-            has_rois=True,
-            allow_project=True,
-        )
-
-    @patch("zebtrack.ui.dialogs.save_roi_template_dialog.SaveROITemplateDialog")
-    def test_show_template_save_dialog_returns_none_on_cancel(
-        self, mock_dialog_class, dialog_manager
-    ):
-        """Test show_template_save_dialog returns None when cancelled."""
-        mock_dialog = Mock()
-        mock_dialog.result = None
-        mock_dialog_class.return_value = mock_dialog
-
-        result = dialog_manager.show_template_save_dialog(
-            has_arena=True, has_rois=False, allow_project=False, initial_name="Test"
-        )
-
-        assert result is None
 
     @patch("zebtrack.ui.components.dialog_manager.filedialog")
     def test_import_roi_template_cancelled(self, mock_filedialog, dialog_manager):
@@ -620,98 +543,6 @@ class TestROITemplateDialogs:
             (call for call in calls if call[0][0].type == UIEvents.ZONES_UPDATED), None
         )
         assert zones_updated_call is not None
-
-
-@pytest.mark.gui
-class TestAnalysisDialogs:
-    """Tests for analysis dialog methods."""
-
-    @patch("zebtrack.ui.dialogs.center_periphery_dialog.CenterPeripheryDialog")
-    def test_open_center_periphery_dialog_returns_result(self, mock_dialog_class, dialog_manager):
-        """Test open_center_periphery_dialog returns dialog result."""
-        mock_dialog = Mock()
-        mock_dialog.result = {"method": "percentage", "value": 50}
-        mock_dialog_class.return_value = mock_dialog
-
-        result = dialog_manager.open_center_periphery_dialog()
-
-        assert result == {"method": "percentage", "value": 50}
-        mock_dialog_class.assert_called_once_with(dialog_manager.gui.root)
-
-    @patch("zebtrack.ui.dialogs.center_periphery_dialog.CenterPeripheryDialog")
-    def test_open_center_periphery_dialog_returns_none_on_cancel(
-        self, mock_dialog_class, dialog_manager
-    ):
-        """Test open_center_periphery_dialog returns None when cancelled."""
-        mock_dialog = Mock()
-        mock_dialog.result = None
-        mock_dialog_class.return_value = mock_dialog
-
-        result = dialog_manager.open_center_periphery_dialog()
-
-        assert result is None
-
-    @patch("zebtrack.ui.dialogs.template_dialog.TemplateDialog")
-    def test_open_template_rois_dialog_returns_result(self, mock_dialog_class, dialog_manager):
-        """Test open_template_rois_dialog returns dialog result."""
-        mock_dialog = Mock()
-        mock_dialog.result = {"template_type": "grid", "rows": 3, "cols": 3}
-        mock_dialog_class.return_value = mock_dialog
-
-        result = dialog_manager.open_template_rois_dialog()
-
-        assert result == {"template_type": "grid", "rows": 3, "cols": 3}
-        mock_dialog_class.assert_called_once_with(dialog_manager.gui.root)
-
-    @patch("zebtrack.ui.dialogs.template_dialog.TemplateDialog")
-    def test_open_template_rois_dialog_returns_none_on_cancel(
-        self, mock_dialog_class, dialog_manager
-    ):
-        """Test open_template_rois_dialog returns None when cancelled."""
-        mock_dialog = Mock()
-        mock_dialog.result = None
-        mock_dialog_class.return_value = mock_dialog
-
-        result = dialog_manager.open_template_rois_dialog()
-
-        assert result is None
-
-    @patch("zebtrack.ui.dialogs.single_video_config_dialog.SingleVideoConfigDialog")
-    def test_open_single_video_config_dialog_returns_result(
-        self, mock_dialog_class, dialog_manager, mock_controller
-    ):
-        """Test open_single_video_config_dialog returns dialog result."""
-        mock_dialog = Mock()
-        mock_dialog.result = {
-            "analysis_interval_frames": 20,
-            "display_interval_frames": 15,
-        }
-        mock_dialog_class.return_value = mock_dialog
-
-        result = dialog_manager.open_single_video_config_dialog()
-
-        assert result == {
-            "analysis_interval_frames": 20,
-            "display_interval_frames": 15,
-        }
-        mock_dialog_class.assert_called_once_with(
-            dialog_manager.gui.root,
-            settings_obj=mock_controller.settings,
-            event_bus=dialog_manager.gui.event_bus,
-        )
-
-    @patch("zebtrack.ui.dialogs.single_video_config_dialog.SingleVideoConfigDialog")
-    def test_open_single_video_config_dialog_returns_none_on_cancel(
-        self, mock_dialog_class, dialog_manager
-    ):
-        """Test open_single_video_config_dialog returns None when cancelled."""
-        mock_dialog = Mock()
-        mock_dialog.result = None
-        mock_dialog_class.return_value = mock_dialog
-
-        result = dialog_manager.open_single_video_config_dialog()
-
-        assert result is None
 
 
 @pytest.mark.gui
@@ -869,33 +700,6 @@ class TestProjectAndRecordingDialogs:
 @pytest.mark.gui
 class TestConfirmationDialogs:
     """Tests for confirmation dialog methods."""
-
-    @patch("zebtrack.ui.components.dialog_manager.messagebox")
-    def test_confirm_delete_roi_template_confirmed(self, mock_messagebox, dialog_manager):
-        """Test confirm_delete_roi_template when user confirms."""
-        mock_messagebox.askyesno.return_value = True
-
-        result = dialog_manager.confirm_delete_roi_template(
-            "Template1", "/path/to/template.json", "Global"
-        )
-
-        assert result is True
-        mock_messagebox.askyesno.assert_called_once()
-        call_args = mock_messagebox.askyesno.call_args
-        assert "Template1" in call_args[0][1]
-        assert "Global" in call_args[0][1]
-        assert call_args[1]["icon"] == "warning"
-
-    @patch("zebtrack.ui.components.dialog_manager.messagebox")
-    def test_confirm_delete_roi_template_cancelled(self, mock_messagebox, dialog_manager):
-        """Test confirm_delete_roi_template when user cancels."""
-        mock_messagebox.askyesno.return_value = False
-
-        result = dialog_manager.confirm_delete_roi_template(
-            "Template1", "/path/to/template.json", "Project"
-        )
-
-        assert result is False
 
     @patch("zebtrack.ui.components.dialog_manager.messagebox")
     def test_confirm_remove_roi_confirmed(self, mock_messagebox, dialog_manager):
@@ -1550,43 +1354,10 @@ class TestUtilityMethods:
         pack_call = mock_gui.analysis_display_widget.progress_frame.pack.call_args
         assert "before" not in pack_call[1]
 
-    @patch("zebtrack.utils.os_opener.open_path")
-    def test_open_path_in_explorer_delegates_to_os_opener(self, mock_open_path, dialog_manager):
-        """Test open_path_in_explorer delegates to os_opener.open_path."""
-        dialog_manager.open_path_in_explorer("/path/to/directory")
-
-        mock_open_path.assert_called_once_with("/path/to/directory")
-
-    @patch("zebtrack.utils.os_opener.open_path")
-    def test_open_path_in_explorer_error(self, mock_open_path, dialog_manager):
-        """Test open_path_in_explorer handles errors."""
-        mock_open_path.side_effect = Exception("Command failed")
-
-        with patch.object(dialog_manager, "show_error") as mock_error:
-            dialog_manager.open_path_in_explorer("/path/to/directory")
-
-        mock_error.assert_called_once()
-        error_message = mock_error.call_args[0][1]
-        assert "/path/to/directory" in error_message
-
 
 @pytest.mark.gui
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
-
-    @patch("zebtrack.ui.dialogs.save_roi_template_dialog.SaveROITemplateDialog")
-    def test_show_template_save_dialog_empty_result_dict(self, mock_dialog_class, dialog_manager):
-        """Test show_template_save_dialog with empty result dict returns None."""
-        mock_dialog = Mock()
-        mock_dialog.result = {}  # Empty result dict is treated as cancellation (returns None)
-        mock_dialog_class.return_value = mock_dialog
-
-        result = dialog_manager.show_template_save_dialog(
-            has_arena=False, has_rois=False, allow_project=False, initial_name=""
-        )
-
-        # Empty dict is treated as cancellation
-        assert result is None
 
     @patch("zebtrack.ui.components.dialog_manager.filedialog")
     def test_import_roi_template_error_handling(self, mock_filedialog, dialog_manager, mock_gui):
@@ -1697,33 +1468,6 @@ class TestEdgeCases:
 
         message = mock_gui.external_trigger_notice_var.set.call_args[0][0]
         assert "Port COM5" in message
-
-    @patch("zebtrack.ui.dialogs.calibration_dialog.CalibrationDialog")
-    def test_open_project_calibration_falls_back_to_dialog_when_tab_unavailable(
-        self, mock_calibration_dialog, dialog_manager, mock_controller, mock_gui
-    ):
-        """Test legacy fallback when the project tabs are not available yet."""
-        mock_context = Mock()
-        mock_context.__enter__ = Mock(return_value=None)
-        mock_context.__exit__ = Mock(return_value=False)
-        mock_controller.project_calibration_session.return_value = mock_context
-        mock_controller.hardware_vm.use_openvino = True
-        mock_controller.hardware_vm.active_weight_name = "custom_weight"
-        mock_controller.hardware_vm.get_openvino_status.return_value = "enabled"
-        mock_gui.show_project_model_configuration_tab.return_value = False
-
-        dialog_manager.open_project_calibration_window()
-
-        mock_gui.show_project_model_configuration_tab.assert_called_once_with()
-        mock_controller.project_calibration_session.assert_called_once()
-        mock_calibration_dialog.assert_called_once_with(mock_gui.root, mock_controller)
-        mock_gui.weight_hardware_manager.update_openvino_checkbox.assert_called_once_with(True)
-        mock_gui.weight_hardware_manager.set_active_weight_in_dropdown.assert_called_once_with(
-            "custom_weight"
-        )
-        mock_gui.weight_hardware_manager.update_openvino_status_display.assert_called_once_with(
-            "enabled"
-        )
 
 
 # ======================================================================

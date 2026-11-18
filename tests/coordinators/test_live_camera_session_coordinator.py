@@ -680,23 +680,6 @@ class TestPendingAndResumeFlows:
         assert event_obj.type == UIEvents.UI_SHOW_ERROR
 
 
-class TestSessionInfo:
-    def test_get_live_session_info_not_active(self, coordinator):
-        coordinator._active_live_session_id = None
-        assert coordinator.get_live_session_info() is None
-
-    def test_get_live_session_info_active(self, coordinator, mock_state_manager):
-        coordinator._active_live_session_id = "sess_123"
-        mock_proc = Mock(camera_index=0, experiment_id="exp_1", duration_s=100.0)
-        mock_state_manager.get_processing_state.return_value = mock_proc
-
-        info = coordinator.get_live_session_info()
-        assert info is not None
-        assert info["session_id"] == "sess_123"
-        assert info["is_active"] is True
-        assert info["camera_index"] == 0
-
-
 class TestBatchSessionRegistration:
     def test_register_batch_session_no_wizard_data(self, coordinator):
         coordinator._active_wizard_data = None

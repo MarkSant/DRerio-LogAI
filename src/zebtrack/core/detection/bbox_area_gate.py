@@ -94,16 +94,6 @@ class BboxAreaGate:
             label=label,
         )
 
-    @property
-    def rejections(self) -> int:
-        """How many detections this gate has rejected since the last reset."""
-        return self._rejections
-
-    @property
-    def sample_count(self) -> int:
-        """How many accepted areas currently back the median."""
-        return len(self._areas)
-
     def reset(self) -> None:
         """Forget history so the next video re-learns its own baseline.
 

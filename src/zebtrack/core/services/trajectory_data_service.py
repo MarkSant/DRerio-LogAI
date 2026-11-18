@@ -8,6 +8,7 @@ pandas directly.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
@@ -29,7 +30,7 @@ class TrajectoryDataService:
     """
 
     @staticmethod
-    def load_trajectory(path: str) -> pd.DataFrame:
+    def load_trajectory(path: Path | str) -> pd.DataFrame:
         """Load a trajectory Parquet file.
 
         Args:
@@ -49,37 +50,8 @@ class TrajectoryDataService:
         df = _pd.read_parquet(path)
         log.debug(
             "trajectory_data_service.load.ok",
-            path=path,
+            path=str(path),
             rows=len(df),
             columns=list(df.columns),
         )
         return df
-
-    @staticmethod
-    def load_trajectory_safe(path: str) -> pd.DataFrame | None:
-        """Load a trajectory file, returning ``None`` on any error.
-
-        This is the preferred method for coordinator code that already
-        handles missing files gracefully.
-
-        Args:
-            path: Absolute path to a trajectory Parquet file.
-
-        Returns:
-            DataFrame or ``None`` if the file is missing / unreadable.
-        """
-        try:
-            return TrajectoryDataService.load_trajectory(path)
-        except FileNotFoundError:
-            log.warning(
-                "trajectory_data_service.load.not_found",
-                path=path,
-            )
-            return None
-        except Exception:
-            log.error(
-                "trajectory_data_service.load.error",
-                path=path,
-                exc_info=True,
-            )
-            return None

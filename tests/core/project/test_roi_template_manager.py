@@ -343,17 +343,6 @@ class TestROITemplateManagerExtended:
         assert templates[0]["name"] == "Template A"
         assert templates[1]["name"] == "Template B"
 
-    def test_delete_template(self, manager: ROITemplateManager):
-        zd = ZoneData(polygon=[[0, 0], [50, 0], [50, 50]])
-        meta = manager.save_template("To Delete", zd, save_location="global", save_rois=False)
-        assert Path(meta["file"]).exists()
-
-        assert manager.delete_template(meta["file"]) is True
-        assert not Path(meta["file"]).exists()
-
-        # Deleting non-existent returns False
-        assert manager.delete_template(meta["file"]) is False
-
     def test_cleanup_orphaned_templates(self, manager: ROITemplateManager, tmp_path: Path):
         # Create a valid template and an invalid JSON file
         zd = ZoneData(polygon=[[0, 0], [50, 0], [50, 50]])

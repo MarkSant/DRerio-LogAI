@@ -820,36 +820,6 @@ class TestMetadataExtraction:
 class TestTemporarySingleAnimalMode:
     """Test temporary single animal mode context manager (via sub-coordinator)."""
 
-    def test_temporary_single_animal_mode_method_exists(self, coordinator):
-        """Test _temporary_single_animal_mode method exists on multi-aquarium coordinator."""
-        mac = coordinator._multi_aquarium_coordinator
-        assert hasattr(mac, "_temporary_single_animal_mode")
-        assert callable(mac._temporary_single_animal_mode)
-
-    def test_temporary_single_animal_mode_is_context_manager(
-        self, coordinator, mock_detector_service
-    ):
-        """Test _temporary_single_animal_mode returns a context manager."""
-        mac = coordinator._multi_aquarium_coordinator
-        ctx = mac._temporary_single_animal_mode(single_video_config={})
-
-        assert hasattr(ctx, "__enter__")
-        assert hasattr(ctx, "__exit__")
-
-    def test_temporary_mode_infers_tracker_pref_from_single_animal(
-        self, coordinator, mock_settings
-    ):
-        """Tracker preference follows single-animal mode when explicit pref is absent."""
-        mac = coordinator._multi_aquarium_coordinator
-        mac._resolve_single_subject_tracker_preference = MagicMock(return_value=None)
-
-        with mac._temporary_single_animal_mode({"single_animal_per_aquarium": True}):
-            assert mock_settings.video_processing.single_animal_per_aquarium is True
-            assert mock_settings.tracking.use_single_subject_tracker is True
-
-        assert mock_settings.video_processing.single_animal_per_aquarium is False
-        assert mock_settings.tracking.use_single_subject_tracker is False
-
 
 # =============================================================================
 # SUMMARY VIDEO PROCESSING TESTS

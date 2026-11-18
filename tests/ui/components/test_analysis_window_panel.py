@@ -1271,7 +1271,7 @@ class TestSessionPanel:
     def test_starts_without_a_window(self, tkinter_root: Any) -> None:
         panel, _provider = self._panel(tkinter_root)
 
-        assert panel.is_session_only is True
+        assert panel._session_only is True
         assert panel.project_manager is None
         assert panel.current_spec() is None
         assert panel.preview_text() == (describe_window_spec(None), False)

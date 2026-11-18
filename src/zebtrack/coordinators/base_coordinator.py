@@ -199,33 +199,6 @@ class BaseCoordinator:
                     else:
                         update_state_fn(cat_enum, **kwargs)
 
-    def _get_state(self, category: str | StateCategory, key: str, default: Any = None) -> Any:
-        """Get a value from state manager.
-
-        Args:
-            category: State category (e.g., ``"project"``, ``"processing"``).
-            key: State key.
-            default: Default value if key not found.
-
-        Returns:
-            State value or *default*.
-
-        Example:
-            .. code-block:: python
-
-                project_name = self._get_state("project", "project_name")
-        """
-        from zebtrack.core.state_manager import StateCategory
-
-        cat_enum: StateCategory
-        if isinstance(category, str):
-            cat_enum = StateCategory[category.upper()]
-        else:
-            cat_enum = category
-
-        state = self.state_manager.get_state(cat_enum)
-        return state.get(key, default)
-
     # ------------------------------------------------------------------
     # Event helpers
     # ------------------------------------------------------------------

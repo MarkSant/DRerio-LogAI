@@ -122,20 +122,6 @@ class TestAquariumSelectorVisibility:
             zone_controls.aquarium_selector_frame.pack_info()
 
 
-class TestGetActiveAquariumId:
-    """Tests for get_active_aquarium_id method."""
-
-    def test_get_active_aquarium_id_default(self, zone_controls):
-        """Test get_active_aquarium_id returns 0 by default."""
-        assert zone_controls.get_active_aquarium_id() == 0
-
-    def test_get_active_aquarium_id_returns_set_value(self, zone_controls):
-        """Test get_active_aquarium_id returns the set value."""
-        zone_controls.active_aquarium_var.set(1)
-
-        assert zone_controls.get_active_aquarium_id() == 1
-
-
 class TestSetActiveAquarium:
     """Tests for set_active_aquarium method."""
 
@@ -265,4 +251,4 @@ class TestUpdateAquariumCount:
         # Simulate clicking radio button 2
         zone_controls.active_aquarium_var.set(1)
 
-        assert zone_controls.get_active_aquarium_id() == 1
+        assert zone_controls.active_aquarium_var.get() == 1

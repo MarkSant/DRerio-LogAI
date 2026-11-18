@@ -454,10 +454,6 @@ def test_update_detector_parameters_forwards_keyword_arguments(view_model):
     )
 
 
-def test_setup_arduino_is_deprecated_and_reports_failure(view_model):
-    assert view_model.setup_arduino() is False
-
-
 # ---------------------------------------------------------------------------
 # Arduino bridge: payloads, messages and failure isolation
 # ---------------------------------------------------------------------------
@@ -507,10 +503,6 @@ def test_command_sent_logs_failure_distinctly(view_model):
     published = _published(view_model.ui_event_bus)
     assert published[0][1].success is False
     assert published[1][1].message == "Command 9 failed (roi)"
-
-
-def test_get_arduino_manager_returns_the_bootstrapped_manager(view_model):
-    assert view_model._get_arduino_manager() is view_model.arduino_manager
 
 
 def test_shutdown_arduino_manager_shuts_down_and_drops_every_reference(view_model):

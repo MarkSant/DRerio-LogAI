@@ -93,25 +93,6 @@ class AssetManager:
         normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", normalized).strip("-")
         return normalized.lower() or "template"
 
-    @staticmethod
-    def ensure_roi_template_dir(project_path: Path | str) -> Path:
-        """Ensure ROI template directory exists in project.
-
-        Args:
-            project_path: Path to the project directory
-
-        Returns:
-            Path to ROI template directory
-
-        Raises:
-            ValueError: If project_path is None
-        """
-        if not project_path:
-            raise ValueError(_("Project not initialised for saving ROI templates."))
-        target = Path(project_path) / "roi_templates"
-        target.mkdir(parents=True, exist_ok=True)
-        return target
-
     def list_roi_templates(
         self,
         project_data: dict,

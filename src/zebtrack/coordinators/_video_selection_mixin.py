@@ -357,11 +357,15 @@ class VideoSelectionMixin:
                         zone_data, video_info["path"], persist=False
                     )
                     zones_updated = True
+                    # ``metadata`` travels too: it carries the zone's
+                    # ``source_video_width/height``, without which the worker
+                    # cannot tell what frame the points were drawn on (A8-002).
                     video_info["zone_data"] = {
                         "polygon": zone_data.polygon,
                         "roi_polygons": zone_data.roi_polygons,
                         "roi_names": zone_data.roi_names,
                         "roi_colors": zone_data.roi_colors,
+                        "metadata": dict(getattr(zone_data, "metadata", {}) or {}),
                     }
 
         if zones_updated and self.project_manager.project_path:

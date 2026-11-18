@@ -146,11 +146,6 @@ class TestLiveCameraSessionCoordinatorExtended4:
         coord._active_live_session_id = "session_99"
         assert coord.is_live_session_active() is True
 
-    def test_get_live_session_info_idle(self):
-        coord = object.__new__(LiveCameraSessionCoordinator)
-        coord._active_live_session_id = None
-        assert coord.get_live_session_info() is None
-
 
 class TestLiveCameraSessionCoordinatorExtended5:
     def test_live_camera_session_coordinator_attributes(self):

@@ -110,31 +110,6 @@ def test_collect_analysis_parameters_nested_analysis_falls_back(settings_obj: Se
     )
 
 
-def test_validate_trajectory_schema_success(settings_obj: Settings):
-    """Test that the schema validation passes with a valid dataframe."""
-    service = AnalysisService(settings_obj=settings_obj)
-    df = pd.DataFrame(
-        {
-            "timestamp": [],
-            "frame": [],
-            "track_id": [],
-            "x1": [],
-            "y1": [],
-            "x2": [],
-            "y2": [],
-        }
-    )
-    assert service.validate_trajectory_schema(df) is True
-
-
-def test_validate_trajectory_schema_missing_columns(settings_obj: Settings):
-    """Test that schema validation fails if columns are missing."""
-    service = AnalysisService(settings_obj=settings_obj)
-    df = pd.DataFrame({"timestamp": [], "frame": []})
-    with pytest.raises(ValueError, match="missing required columns"):
-        service.validate_trajectory_schema(df)
-
-
 # ---------------------------------------------------------------------------
 # Recording duration from the time base, not rows / fps
 # ---------------------------------------------------------------------------

@@ -64,13 +64,14 @@ def make_zone(
 ) -> ZoneData:
     """Arena + one ROI in RAW VIDEO PIXELS, the shape the Zones tab saves.
 
-    The canvas converts clicks with ``VideoDisplay.canvas_to_video``, so the
-    points are in the video frame's own pixels. For a single aquarium nothing in
+    The canvas converts clicks to the video frame's own pixels, so the
+    points are in those pixels. For a single aquarium nothing in
     production writes ``source_video_width``/``source_video_height`` into the
     zone metadata (only the multi-aquarium paths do), so the default here is NO
-    metadata, exactly what a user's zones look like. ``source_size`` exists for
-    the A8-002 test, which shows that even zones that DO carry it lose it on the
-    way to the project worker.
+    metadata, exactly what a user's zones look like; the worker then reads the
+    points as the video's own pixels (A8-001). ``source_size`` exists for the
+    A8-002 test, which checks that a zone that DOES carry it keeps it on the way
+    to the project worker.
     """
     metadata: dict[str, Any] = {}
     if source_size is not None:
@@ -88,11 +89,10 @@ def flow_settings(*, camera_matches_video: bool = True) -> Settings:
     """``config.yaml`` settings (no machine-local override) for a flow run.
 
     ``camera_matches_video=True`` sets ``camera.desired_width/height`` to the
-    fixture video's size (640x480). The worker scales single-aquarium zones FROM
-    that reference size to the frame (``_initialize_detector`` builds the
-    ``ZoneScaler`` with it), so this is the configuration under which the
-    pre-recorded flows are correct today: the machine's camera resolution equals
-    the videos'. ``False`` keeps the shipped 1280x720 and exposes A8-001.
+    fixture video's size (640x480). ``False`` keeps the shipped 1280x720, under
+    which a pre-recorded run must give the same result: since A8-001 a zone
+    without a stated source size is scaled from the VIDEO's size, never from the
+    camera reference that ``_initialize_detector`` seeds the ``ZoneScaler`` with.
     """
     settings = load_pristine_settings()
     if camera_matches_video:
