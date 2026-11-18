@@ -27,7 +27,6 @@ from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCo
 from zebtrack.core.project.project_manager import ProjectManager
 from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
 from zebtrack.core.recording.live_camera_service import LiveCameraService
-from zebtrack.core.recording.recording_service import RecordingService
 from zebtrack.core.services.detector_service import DetectorService
 from zebtrack.core.services.model_service import ModelService
 from zebtrack.core.services.weight_manager import WeightManager
@@ -178,7 +177,6 @@ class MainViewModelDependencies:
     detector_service: DetectorService
     video_processing_service: VideoProcessingService
     analysis_service: AnalysisService | None = None
-    recording_service: RecordingService | None = None
     live_camera_service: LiveCameraService | None = None
     ui_state_controller: UIStateController | None = None
     dialog_coordinator: DialogCoordinator | None = None

@@ -115,7 +115,6 @@ def mock_dependencies(mock_root):
         detector_service=detector_svc,
         video_processing_service=Mock(),
         analysis_service=Mock(),
-        recording_service=None,
         live_camera_service=None,
         # Phase 3: Super coordinators (properly mocked)
         project_lifecycle_coordinator=project_lifecycle_coord,

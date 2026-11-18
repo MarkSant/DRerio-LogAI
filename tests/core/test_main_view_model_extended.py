@@ -54,7 +54,6 @@ class TestMainViewModelExtended:
         deps.video_metadata_service = MagicMock()
         deps.video_processing_service = MagicMock()
         deps.project_workflow_service = MagicMock()
-        deps.recording_service = MagicMock()
         deps.live_camera_service = MagicMock()
         deps.dialog_coordinator = MagicMock()
         deps.analysis_service = MagicMock()
@@ -77,7 +76,6 @@ class TestMainViewModelExtended:
             cancel_event=threading.Event(),
         )
         return BootstrapResult(
-            project_service=MagicMock(),
             analysis_service=MagicMock(),
             video_classification_service=MagicMock(),
             video_selection_service=MagicMock(),
@@ -101,7 +99,6 @@ class TestMainViewModelExtended:
         assert vm.analysis_vm is not None
         assert vm.hardware_vm is not None
         assert vm.view is mock_bootstrap_result.view
-        assert vm.project_service is mock_bootstrap_result.project_service
         assert vm.analysis_service is mock_bootstrap_result.analysis_service
         assert vm.active_weight_name == "yolo11n.pt"
 
