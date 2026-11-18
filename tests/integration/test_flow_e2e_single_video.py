@@ -160,10 +160,11 @@ def test_the_video_is_registered_only_in_memory(single_run: dict) -> None:
 def test_arena_is_honoured_when_the_video_is_not_the_camera_size(tmp_path: Path) -> None:
     """Shipped camera reference (1280x720) and a 640x480 video.
 
-    The user drew the arena on THIS video's frame (``canvas_to_video``), and the
-    report reads it as raw pixels. The worker instead treats it as 1280x720
-    reference coordinates and halves it, so the subject's walk to x = 500 px is
-    filtered out as "outside the arena" while the run reports success.
+    The user drew the arena on THIS video's frame (the canvas converts clicks to
+    video pixels), and the report reads it as raw pixels. The worker instead
+    treats it as 1280x720 reference coordinates and halves it, so the subject's
+    walk to x = 500 px is filtered out as "outside the arena" while the run
+    reports success.
     """
     run = _run_single_video(tmp_path, flow_settings(camera_matches_video=False))
     df = pd.read_parquet(run["results"] / f"3_CoordMovimento_{STEM}.parquet")

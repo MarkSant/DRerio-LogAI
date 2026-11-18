@@ -2,6 +2,7 @@
 
 import os
 import tkinter as tk
+from pathlib import Path
 from tkinter import Canvas
 from typing import Any
 
@@ -94,7 +95,7 @@ class VideoDisplayWidget(BaseWidget):
                 self.after_cancel(self._redraw_job)
             self._redraw_job = self.after(100, self._draw_bg_image_to_canvas)
 
-    def load_frame(self, video_path: str, frame_number: int = 0) -> bool:
+    def load_frame(self, video_path: Path | str, frame_number: int = 0) -> bool:
         """
         Load a specific frame from a video file.
 
@@ -109,6 +110,8 @@ class VideoDisplayWidget(BaseWidget):
             - frame.loaded on success
             - frame.error on failure
         """
+        if video_path:
+            video_path = str(video_path)
         if not video_path or not os.path.exists(video_path):
             self._log.error("video_display.load_frame.no_video", path=video_path)
             self.emit_event(
@@ -178,17 +181,6 @@ class VideoDisplayWidget(BaseWidget):
                 },
             )
             return False
-
-    def set_image(self, image: Image.Image) -> None:
-        """
-        Set an image directly (without loading from video).
-
-        Args:
-            image: PIL Image to display
-        """
-        self._original_image = image
-        self._raw_bg_image = image
-        self._draw_bg_image_to_canvas()
 
     def clear(self) -> None:
         """Clear the canvas and reset image state."""
@@ -267,66 +259,3 @@ class VideoDisplayWidget(BaseWidget):
                 image=self._canvas_bg_image,
                 tags="background_image",
             )
-
-    def video_to_canvas(self, video_x: float, video_y: float) -> tuple[float, float]:
-        """
-        Convert video frame coordinates to canvas coordinates.
-
-        Args:
-            video_x: X coordinate in video frame
-            video_y: Y coordinate in video frame
-
-        Returns:
-            Tuple of (canvas_x, canvas_y)
-        """
-        if not hasattr(self, "_bg_scale") or not hasattr(self, "_bg_offset"):
-            # Fallback: return video coordinates if scaling info not available
-            return (float(video_x), float(video_y))
-
-        scale = self._bg_scale
-        offset_x, offset_y = self._bg_offset
-
-        # Convert video coordinates to canvas coordinates
-        canvas_x = video_x * scale + offset_x
-        canvas_y = video_y * scale + offset_y
-
-        return (float(canvas_x), float(canvas_y))
-
-    def canvas_to_video(self, canvas_x: float, canvas_y: float) -> tuple[float, float]:
-        """
-        Convert canvas coordinates to video frame coordinates.
-
-        Args:
-            canvas_x: X coordinate on canvas
-            canvas_y: Y coordinate on canvas
-
-        Returns:
-            Tuple of (video_x, video_y)
-        """
-        if not hasattr(self, "_bg_scale") or not hasattr(self, "_bg_offset"):
-            # Fallback: return canvas coordinates if scaling info not available
-            return (float(canvas_x), float(canvas_y))
-
-        scale = self._bg_scale
-        offset_x, offset_y = self._bg_offset
-
-        # Convert canvas coordinates to video coordinates
-        video_x = (canvas_x - offset_x) / scale
-        video_y = (canvas_y - offset_y) / scale
-
-        return (float(video_x), float(video_y))
-
-    def get_image_size(self) -> tuple[int, int] | None:
-        """Return the size of the currently loaded image (width, height) if any."""
-        if self._bg_img_size:
-            return self._bg_img_size
-        return None
-
-    def get_scale(self) -> float:
-        """
-        Get the current display scale factor.
-
-        Returns:
-            Scale factor (canvas pixels per video pixel)
-        """
-        return self._bg_scale

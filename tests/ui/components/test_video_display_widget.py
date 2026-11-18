@@ -24,35 +24,6 @@ def widget(tkinter_root, event_bus):
 
 
 @pytest.mark.gui
-def test_get_image_size_defaults(widget):
-    assert widget.get_image_size() == (320, 240)
-
-
-@pytest.mark.gui
-def test_set_image_updates_state(widget, monkeypatch):
-    monkeypatch.setattr(widget.canvas, "winfo_width", lambda: 200)
-    monkeypatch.setattr(widget.canvas, "winfo_height", lambda: 100)
-
-    image = Image.new("RGB", (100, 50), color=(10, 20, 30))
-    widget.set_image(image)
-
-    widget._draw_bg_image_to_canvas()
-
-    assert widget._original_image is image
-    assert widget._raw_bg_image is image
-    assert widget.get_image_size() == (100, 50)
-
-
-@pytest.mark.gui
-def test_coordinate_conversions(widget):
-    widget._bg_scale = 2.0
-    widget._bg_offset = (10, 20)
-
-    assert widget.video_to_canvas(5, 5) == (20.0, 30.0)
-    assert widget.canvas_to_video(20, 30) == (5.0, 5.0)
-
-
-@pytest.mark.gui
 def test_clear_resets_state(widget):
     widget._original_image = Image.new("RGB", (10, 10))
     widget._raw_bg_image = Image.new("RGB", (10, 10))

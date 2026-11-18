@@ -64,8 +64,8 @@ def make_zone(
 ) -> ZoneData:
     """Arena + one ROI in RAW VIDEO PIXELS, the shape the Zones tab saves.
 
-    The canvas converts clicks with ``VideoDisplay.canvas_to_video``, so the
-    points are in the video frame's own pixels. For a single aquarium nothing in
+    The canvas converts clicks to the video frame's own pixels, so the
+    points are in those pixels. For a single aquarium nothing in
     production writes ``source_video_width``/``source_video_height`` into the
     zone metadata (only the multi-aquarium paths do), so the default here is NO
     metadata, exactly what a user's zones look like. ``source_size`` exists for
