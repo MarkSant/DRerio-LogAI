@@ -21,30 +21,10 @@ class TestMultiAquariumEventConstants:
         assert hasattr(UIEvents, "ZONE_AQUARIUM_SELECTED")
         assert isinstance(UIEvents.ZONE_AQUARIUM_SELECTED, UIEvents)
 
-    def test_zone_multi_detect_completed_event_exists(self):
-        """Test ZONE_MULTI_DETECT_COMPLETED event constant exists."""
-        assert hasattr(UIEvents, "ZONE_MULTI_DETECT_COMPLETED")
-        assert isinstance(UIEvents.ZONE_MULTI_DETECT_COMPLETED, UIEvents)
-
-    def test_zone_aquarium_config_confirmed_event_exists(self):
-        """Test ZONE_AQUARIUM_CONFIG_CONFIRMED event constant exists."""
-        assert hasattr(UIEvents, "ZONE_AQUARIUM_CONFIG_CONFIRMED")
-        assert isinstance(UIEvents.ZONE_AQUARIUM_CONFIG_CONFIRMED, UIEvents)
-
-    def test_zone_aquarium_count_confirmed_event_exists(self):
-        """Test ZONE_AQUARIUM_COUNT_CONFIRMED event constant exists."""
-        assert hasattr(UIEvents, "ZONE_AQUARIUM_COUNT_CONFIRMED")
-        assert isinstance(UIEvents.ZONE_AQUARIUM_COUNT_CONFIRMED, UIEvents)
-
     def test_zone_aquarium_assignment_completed_event_exists(self):
         """Test ZONE_AQUARIUM_ASSIGNMENT_COMPLETED event constant exists."""
         assert hasattr(UIEvents, "ZONE_AQUARIUM_ASSIGNMENT_COMPLETED")
         assert isinstance(UIEvents.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED, UIEvents)
-
-    def test_zone_show_aquarium_count_dialog_event_exists(self):
-        """Test ZONE_SHOW_AQUARIUM_COUNT_DIALOG event constant exists."""
-        assert hasattr(UIEvents, "ZONE_SHOW_AQUARIUM_COUNT_DIALOG")
-        assert isinstance(UIEvents.ZONE_SHOW_AQUARIUM_COUNT_DIALOG, UIEvents)
 
     def test_zone_show_aquarium_assignment_dialog_event_exists(self):
         """Test ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG event constant exists."""
@@ -55,67 +35,23 @@ class TestMultiAquariumEventConstants:
 class TestMultiAquariumUIEventConstants:
     """Tests for multi-aquarium UI event constants (Controller → UI)."""
 
-    def test_ui_show_aquarium_count_dialog_event_exists(self):
-        """Test UI_SHOW_AQUARIUM_COUNT_DIALOG event constant exists."""
-        assert hasattr(UIEvents, "UI_SHOW_AQUARIUM_COUNT_DIALOG")
-        assert isinstance(UIEvents.UI_SHOW_AQUARIUM_COUNT_DIALOG, UIEvents)
-
-    def test_ui_show_aquarium_assignment_dialog_event_exists(self):
-        """Test UI_SHOW_AQUARIUM_ASSIGNMENT_DIALOG event constant exists."""
-        assert hasattr(UIEvents, "UI_SHOW_AQUARIUM_ASSIGNMENT_DIALOG")
-        assert isinstance(UIEvents.UI_SHOW_AQUARIUM_ASSIGNMENT_DIALOG, UIEvents)
-
-    def test_ui_update_aquarium_selector_event_exists(self):
-        """Test UI_UPDATE_AQUARIUM_SELECTOR event constant exists."""
-        assert hasattr(UIEvents, "UI_UPDATE_AQUARIUM_SELECTOR")
-        assert isinstance(UIEvents.UI_UPDATE_AQUARIUM_SELECTOR, UIEvents)
-
-    def test_ui_set_aquarium_selector_visible_event_exists(self):
-        """Test UI_SET_AQUARIUM_SELECTOR_VISIBLE event constant exists."""
-        assert hasattr(UIEvents, "UI_SET_AQUARIUM_SELECTOR_VISIBLE")
-        assert isinstance(UIEvents.UI_SET_AQUARIUM_SELECTOR_VISIBLE, UIEvents)
-
-
-class TestEventNamingConvention:
-    """Tests to ensure event naming follows conventions."""
-
     def test_zone_events_follow_naming_convention(self):
         """Test ZONE_* events follow naming convention."""
         zone_events = [
             UIEvents.ZONE_MULTI_AUTO_DETECT,
             UIEvents.ZONE_AQUARIUM_SELECTED,
-            UIEvents.ZONE_MULTI_DETECT_COMPLETED,
-            UIEvents.ZONE_AQUARIUM_CONFIG_CONFIRMED,
-            UIEvents.ZONE_AQUARIUM_COUNT_CONFIRMED,
             UIEvents.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED,
-            UIEvents.ZONE_SHOW_AQUARIUM_COUNT_DIALOG,
             UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
         ]
 
         for event in zone_events:
             assert event.name.startswith("ZONE_"), f"Event {event.name} should start with 'ZONE_'"
 
-    def test_ui_events_follow_naming_convention(self):
-        """Test UI_* events follow naming convention."""
-        ui_events = [
-            UIEvents.UI_SHOW_AQUARIUM_COUNT_DIALOG,
-            UIEvents.UI_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
-            UIEvents.UI_UPDATE_AQUARIUM_SELECTOR,
-            UIEvents.UI_SET_AQUARIUM_SELECTOR_VISIBLE,
-        ]
-
-        for event in ui_events:
-            assert event.name.startswith("UI_"), f"Event {event.name} should start with 'UI_'"
-
     def test_events_use_uppercase_names(self):
         """Test event enum names are UPPER_SNAKE_CASE."""
         multi_aquarium_events = [
             UIEvents.ZONE_MULTI_AUTO_DETECT,
             UIEvents.ZONE_AQUARIUM_SELECTED,
-            UIEvents.ZONE_MULTI_DETECT_COMPLETED,
-            UIEvents.ZONE_AQUARIUM_CONFIG_CONFIRMED,
-            UIEvents.UI_SHOW_AQUARIUM_COUNT_DIALOG,
-            UIEvents.UI_UPDATE_AQUARIUM_SELECTOR,
         ]
 
         for event in multi_aquarium_events:

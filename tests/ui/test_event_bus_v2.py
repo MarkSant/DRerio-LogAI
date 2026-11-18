@@ -69,10 +69,10 @@ def test_handler_exception_isolation(event_bus):
     failing_handler = Mock(side_effect=ValueError("Boom"))
     working_handler = Mock()
 
-    event_bus.subscribe(UIEvents.ANALYSIS_STARTED, failing_handler)
-    event_bus.subscribe(UIEvents.ANALYSIS_STARTED, working_handler)
+    event_bus.subscribe(UIEvents.SET_STATUS, failing_handler)
+    event_bus.subscribe(UIEvents.SET_STATUS, working_handler)
 
-    event = Event(type=UIEvents.ANALYSIS_STARTED, data={"video_path": "/tmp/test.mp4"})
+    event = Event(type=UIEvents.SET_STATUS, data={"video_path": "/tmp/test.mp4"})
     event_bus.publish(event)
 
     failing_handler.assert_called_once()
