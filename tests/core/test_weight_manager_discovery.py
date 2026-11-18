@@ -101,7 +101,7 @@ def test_a_generalist_can_be_promoted_by_hand(populated_weights_dir):
     """Opting in is the point: discovery makes them selectable, not default."""
     manager = WeightManager(settings_obj=_blank_settings(), config_dir=populated_weights_dir)
 
-    manager.set_default_weight_by_type("best_seg.pt", "seg")
+    manager.set_default_weight_for("best_seg.pt", method="seg", target="zebrafish")
 
     name, _details = manager.get_default_seg_weight()
     assert name == "best_seg.pt"

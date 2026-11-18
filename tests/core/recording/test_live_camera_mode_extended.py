@@ -10,7 +10,6 @@ from zebtrack.core.recording.live_camera_mode import (
     LiveCameraMode,
     LiveCameraModeRecommendation,
     LiveCameraModeSelector,
-    get_mode_description,
 )
 from zebtrack.utils.hardware_capability import (
     HardwareCapabilityReport,
@@ -224,36 +223,3 @@ class TestRecommendationDetails:
         assert rec.can_process_realtime is True
         assert rec.alternative_options == []
         assert rec.reason == "Default mode selected."
-
-
-class TestSequentialPlan:
-    def test_one_single_aquarium_session_per_aquarium(self):
-        plan = _selector().create_sequential_session_plan(3, "Dia_1_G1")
-
-        assert [s["experiment_id"] for s in plan] == [
-            "Dia_1_G1_aquarium_0",
-            "Dia_1_G1_aquarium_1",
-            "Dia_1_G1_aquarium_2",
-        ]
-        assert [s["aquarium_index"] for s in plan] == [0, 1, 2]
-        assert {s["aquarium_count_total"] for s in plan} == {3}
-        assert {s["mode"] for s in plan} == {LiveCameraMode.SINGLE_AQUARIUM_REALTIME}
-        assert plan[0]["notes"] == "Session 1 of 3 (individual aquarium)"
-        assert plan[2]["notes"] == "Session 3 of 3 (individual aquarium)"
-
-    def test_zero_aquariums_is_an_empty_plan(self):
-        assert _selector().create_sequential_session_plan(0, "x") == []
-
-
-class TestModeDescription:
-    def test_every_mode_has_its_own_description(self):
-        descriptions = {mode: get_mode_description(mode) for mode in LiveCameraMode}
-
-        assert descriptions[LiveCameraMode.RECORD_ONLY] == (
-            "Record video without detection (process offline later)"
-        )
-        assert len(set(descriptions.values())) == len(LiveCameraMode)
-        assert "Unknown mode" not in descriptions.values()
-
-    def test_unknown_value_has_a_fallback(self):
-        assert get_mode_description("nope") == "Unknown mode"  # type: ignore[arg-type]

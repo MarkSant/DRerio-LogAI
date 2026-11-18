@@ -420,11 +420,6 @@ class FrameLedger:
         with self._lock:
             return len(self._rows)
 
-    def rows_snapshot(self) -> list[dict[str, Any]]:
-        """Cópia rasa das linhas acumuladas (para testes e inspeção)."""
-        with self._lock:
-            return [dict(r) for r in self._rows]
-
     def current_fps_measured(self) -> float | None:
         """Taxa de captura medida a partir dos timestamps já registrados.
 

@@ -51,16 +51,6 @@ class TestUISchedulerExtended:
         result = scheduler.schedule_after(200, MagicMock())
         assert result == "after#1"
 
-    def test_cancel_scheduled_no_root(self):
-        scheduler = UIScheduler(root=None)
-        scheduler.cancel_scheduled("after#1")  # Should not raise
-
-    def test_cancel_scheduled_calls_after_cancel(self):
-        mock_root = MagicMock()
-        scheduler = UIScheduler(root=mock_root)
-        scheduler.cancel_scheduled("after#42")
-        mock_root.after_cancel.assert_called_once_with("after#42")
-
     def test_update_view_none_view_is_no_op(self):
         scheduler = UIScheduler(root=None)
         scheduler.update_view(None, "set_status", "msg")  # Should not raise

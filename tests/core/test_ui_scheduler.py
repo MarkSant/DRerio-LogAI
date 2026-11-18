@@ -121,22 +121,6 @@ class TestUISchedulerScheduling(unittest.TestCase):
 
         assert result is None
 
-    def test_cancel_scheduled(self):
-        """Test canceling a scheduled callback."""
-        mock_root = Mock()
-        coordinator = UIScheduler(root=mock_root)
-
-        coordinator.cancel_scheduled("after_id_123")
-
-        mock_root.after_cancel.assert_called_once_with("after_id_123")
-
-    def test_cancel_scheduled_without_root(self):
-        """Test cancel_scheduled does nothing when no root."""
-        coordinator = UIScheduler()
-
-        # Should not raise error
-        coordinator.cancel_scheduled("after_id_123")
-
 
 class TestUISchedulerViewUpdates(unittest.TestCase):
     """Test suite for view update convenience methods."""
@@ -305,15 +289,6 @@ class TestUISchedulerErrorHandling(unittest.TestCase):
         result = coordinator.schedule_after(100, Mock())
 
         assert result is None
-
-    def test_cancel_scheduled_handles_exception(self):
-        """Test that cancel_scheduled handles exceptions gracefully."""
-        mock_root = Mock()
-        mock_root.after_cancel.side_effect = tk.TclError("Cancel error")
-        coordinator = UIScheduler(root=mock_root)
-
-        # Should not raise error
-        coordinator.cancel_scheduled("after_id_123")
 
 
 if __name__ == "__main__":

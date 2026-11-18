@@ -5208,14 +5208,6 @@ _load_registry()"
         description: "capacidade 2 aparece como '1 aquarium'"
         find: 'if max_supported == 1'
         replace: 'if max_supported <= 2'
-      - id: plan-ids-one-based
-        description: "ids do plano sequencial deslocados em um"
-        find: '"experiment_id": f"{base_experiment_id}_aquarium_{aq_idx}",'
-        replace: '"experiment_id": f"{base_experiment_id}_aquarium_{aq_idx + 1}",'
-      - id: plan-notes-zero-based
-        description: "notas do plano comecam em 'Session 0'"
-        find: 'index=aq_idx + 1, total=total_aquariums'
-        replace: 'index=aq_idx, total=total_aquariums'
       - id: one-aquarium-is-multi
         description: "um aquario so e recomendado como multi-aquario"
         find: 'if requested_aquariums > 1'

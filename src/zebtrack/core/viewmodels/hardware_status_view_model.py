@@ -111,15 +111,6 @@ class HardwareStatusViewModel:
 
         # --- Arduino ---
 
-    def setup_arduino(self) -> bool:
-        # Note: Arduino setup is now handled differently in HardwareCoordinator
-        # These methods are deprecated
-        log.warning(
-            "hardware_status_view_model.arduino_deprecated",
-            message="Direct Arduino access via HardwareCoordinator is deprecated.",
-        )
-        return False
-
     def _publish_arduino_ui(self, event_type: UIEvents, payload: Any) -> None:
         """Publish an Arduino UI event on the bus (best-effort, thread-safe).
 
@@ -192,10 +183,6 @@ class HardwareStatusViewModel:
             UIEvents.UI_APPEND_ARDUINO_LOG,
             UIAppendArduinoLogPayload(message=message),
         )
-
-    def _get_arduino_manager(self):
-        # Lazy init if needed, though passed in bootstrap
-        return self.arduino_manager
 
     def _on_project_manager_replaced(self, _data: Any) -> None:
         """Release the serial port when the project that owned it goes away.

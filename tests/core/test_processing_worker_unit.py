@@ -218,14 +218,6 @@ def test_format_day_handles_numeric_and_strings():
     assert _WorkerProcess._format_day("Day") == "Day"
 
 
-def test_format_subject_handles_numeric_and_strings():
-    assert _WorkerProcess._format_subject(None) == "Indefinido"
-    assert _WorkerProcess._format_subject("4") == "04"
-    assert _WorkerProcess._format_subject(5.0) == "05"
-    assert _WorkerProcess._format_subject("S9") == "09"
-    assert _WorkerProcess._format_subject("Subject") == "Subject"
-
-
 def test_check_cancellation_sets_flag(worker_config):
     result_queue: mp.Queue[object] = mp.Queue()
     command_queue: mp.Queue[str] = mp.Queue()

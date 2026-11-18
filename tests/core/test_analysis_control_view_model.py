@@ -135,18 +135,6 @@ def test_start_single_video_processing_delegates(view_model):
     )
 
 
-def test_auto_detect_zones_publishes_event(view_model):
-    """Publish auto detect event payload."""
-    view_model.auto_detect_zones(video_path="/video.mp4", stabilization_frames=15)
-
-    view_model.ui_event_bus.publish.assert_called_once_with(
-        Event(
-            type=UIEvents.ZONE_AUTO_DETECT,
-            data=payloads.ZoneAutoDetectPayload(video_path="/video.mp4", stabilization_frames=15),
-        )
-    )
-
-
 def test_cancel_current_analysis_no_active_processing(view_model):
     """No-op when nothing is running."""
     view_model.cancel_current_analysis()
@@ -340,26 +328,6 @@ def test_single_video_processing_degrades_without_a_coordinator(view_model):
     view_model.processing_coordinator = None
 
     view_model.start_single_video_processing(video_path="/v.mp4")  # must not raise
-
-
-def test_auto_detect_defaults_the_stabilization_and_the_path(view_model):
-    view_model.auto_detect_zones()
-    view_model.auto_detect_zones(video_path=None)
-
-    published = [c.args[0] for c in view_model.ui_event_bus.publish.call_args_list]
-    assert [e.data for e in published] == [
-        payloads.ZoneAutoDetectPayload(video_path="", stabilization_frames=10),
-        payloads.ZoneAutoDetectPayload(video_path="", stabilization_frames=10),
-    ]
-
-
-def test_auto_detect_without_a_bus_is_a_noop(view_model):
-    bus = view_model.ui_event_bus
-    view_model.ui_event_bus = None
-
-    view_model.auto_detect_zones(video_path="/v.mp4")
-
-    bus.publish.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

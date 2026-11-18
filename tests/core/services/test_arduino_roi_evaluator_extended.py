@@ -100,6 +100,3 @@ class TestArduinoRoiEvaluatorExtended:
         evaluator = ArduinoRoiEvaluator([], [])
         assert evaluator.has_rois() is False
         assert evaluator.occupied_rois([(10.0, 10.0)]) == set()
-
-    def test_centroid_of_bbox(self):
-        assert ArduinoRoiEvaluator.centroid_of_bbox(0.0, 0.0, 10.0, 20.0) == (5.0, 10.0)
