@@ -13,6 +13,7 @@ import structlog
 
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
+from zebtrack.ui.background_task import run_in_background
 from zebtrack.ui.components.class_roles_panel import ClassRolesDialog
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
@@ -126,6 +127,8 @@ class GlobalModelConfigurationPanel(ttk.Frame):
         self.device_combobox: ttk.Combobox | None = None
         self._weights_validation: dict[str, bool] = {}
         self._conversion_poller_id: str | None = None
+        # OpenVINO cache deletion running on a worker (audit A6-10).
+        self._cache_clear_pending = False
         self._refresh_weight_choices: Callable[[], None] | None = None
 
         self._build()
@@ -718,9 +721,7 @@ class GlobalModelConfigurationPanel(ttk.Frame):
             parent=self,
         ):
             return
-        report = self.controller.hardware_vm.clear_openvino_cache(name)
-        self._show_cache_clear_report(report, scope=name)
-        self._populate_weights_treeview()
+        self._clear_cache_in_background(name)
 
     def _on_clear_cache_all(self) -> None:
         if not messagebox.askyesno(
@@ -740,9 +741,38 @@ class GlobalModelConfigurationPanel(ttk.Frame):
             icon="warning",
         ):
             return
-        report = self.controller.hardware_vm.clear_openvino_cache(None)
-        self._show_cache_clear_report(report, scope=None)
-        self._populate_weights_treeview()
+        self._clear_cache_in_background(None)
+
+    def _clear_cache_in_background(self, name: str | None) -> None:
+        """Delete OpenVINO cache folders off the Tk thread (audit A6-10).
+
+        The deletion is an ``rmtree`` of hundreds of MB, retried while OneDrive
+        holds a file; on Tk it froze the window. The report dialog and the list
+        refresh run back on Tk. A second request while one runs is ignored.
+        """
+        if self._cache_clear_pending:
+            log.info("model_panel.clear_cache.already_running", name=name)
+            return
+        self._cache_clear_pending = True
+        hardware_vm = self.controller.hardware_vm
+
+        def _done(report: dict[str, list[str]] | None) -> None:
+            self._cache_clear_pending = False
+            self._show_cache_clear_report(report, scope=name)
+            self._populate_weights_treeview()
+
+        def _failed(exc: BaseException) -> None:
+            self._cache_clear_pending = False
+            log.error("model_panel.clear_cache.failed", name=name, error=str(exc))
+            self._populate_weights_treeview()
+
+        run_in_background(
+            self,
+            lambda: hardware_vm.clear_openvino_cache(name),
+            _done,
+            _failed,
+            name="clear-openvino-cache",
+        )
 
     def _show_cache_clear_report(
         self,

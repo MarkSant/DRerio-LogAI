@@ -5523,3 +5523,37 @@ _load_registry()"
         description: "A6-02: sem o widget da aba, a exclusao volta ao thread do Tk"
         find: 'return root if root is not None and hasattr(root, "after") else None'
         replace: 'return None'
+
+  # ---- A6-10: deleting OpenVINO caches leaves the Tk thread -------------------
+  openvino_cache_clear_off_tk:
+    source: src/zebtrack/ui/components/global_model_configuration_panel.py
+    tests:
+      - tests/ui/components/test_global_model_configuration_panel_extended.py
+    mutations:
+      - id: clear-on-tk
+        description: "A6-10: 'Excluir cache OpenVINO' volta a apagar no thread do Tk"
+        find: |-
+          run_in_background(
+                      self,
+                      lambda: hardware_vm.clear_openvino_cache(name),
+                      _done,
+                      _failed,
+                      name="clear-openvino-cache",
+                  )
+        replace: |-
+          _done(hardware_vm.clear_openvino_cache(name))
+      - id: double-clear
+        description: "A6-10: segundo clique durante a exclusao dispara outra"
+        find: '        self._cache_clear_pending = True'
+        replace: '        self._cache_clear_pending = False'
+      - id: stuck-after-failure
+        description: "A6-10: depois de uma falha o botao nunca mais apaga"
+        find: |-
+          self._cache_clear_pending = False
+                      log.error("model_panel.clear_cache.failed", name=name, error=str(exc))
+        replace: |-
+          log.error("model_panel.clear_cache.failed", name=name, error=str(exc))
+      - id: scope-lost
+        description: "A6-10: o relatorio passa a dizer 'todos os pesos' ao limpar um so"
+        find: 'self._show_cache_clear_report(report, scope=name)'
+        replace: 'self._show_cache_clear_report(report, scope=None)'
