@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from zebtrack.i18n import _
+from zebtrack.ui.background_task import run_in_background
 from zebtrack.ui.window_utils import reset_geometry_if_not_maximized
 
 if TYPE_CHECKING:
@@ -367,6 +368,15 @@ class ProjectInitializer:
     # Live / Pre-recorded component setup
     # ------------------------------------------------------------------
 
+    def _warn_arduino_offline(self, port: str) -> None:
+        """Tell the user the session will run without the Arduino (Tk thread)."""
+        self.gui.dialog_manager.show_warning(
+            _("Arduino Warning"),
+            _("Could not connect to the Arduino on port {port}. Running in offline mode.").format(
+                port=port
+            ),
+        )
+
     def initialize_live_components(self, pm: Any) -> None:
         """Initialize components for Live project type."""
         gui = self.gui
@@ -391,13 +401,28 @@ class ProjectInitializer:
         handshake = settings.arduino.handshake if settings else "none"
         ack = settings.arduino.ack if settings else "none"
         if use_arduino and arduino_manager is not None and port:
-            if not arduino_manager.connect(port, baud_rate, handshake=handshake, ack=ack):
-                gui.dialog_manager.show_warning(
-                    _("Arduino Warning"),
-                    _(
-                        "Could not connect to the Arduino on port {port}. Running in offline mode."
-                    ).format(port=port),
-                )
+            # Opening the port (and, with ``handshake="ready_line"``, waiting up
+            # to the 2 s serial timeout for the ready line) used to run here, on
+            # the Tk thread, while a project was opening (audit A6-06). The
+            # manager publishes its own status; only the warning comes back.
+            def _connect() -> bool:
+                return bool(arduino_manager.connect(port, baud_rate, handshake=handshake, ack=ack))
+
+            def _on_connected(ok: bool) -> None:
+                if not ok:
+                    self._warn_arduino_offline(port)
+
+            def _on_connect_error(exc: BaseException) -> None:
+                log.error("project_initializer.arduino_connect.failed", port=port, error=str(exc))
+                self._warn_arduino_offline(port)
+
+            run_in_background(
+                gui.root,
+                _connect,
+                _on_connected,
+                _on_connect_error,
+                name="arduino-connect",
+            )
         elif use_arduino and arduino_manager is None:
             log.warning(
                 "project_initializer.arduino_enabled_but_no_manager",

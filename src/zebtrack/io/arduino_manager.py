@@ -64,6 +64,9 @@ class ArduinoManager:
         self._write_queue: queue.Queue[tuple[int, dict[str, Any] | None]] = queue.Queue()
         self._stop_event = threading.Event()
         self._lock = threading.RLock()
+        # Serialises connect() calls without holding ``_lock`` across the
+        # serial open + handshake (audit A6-06).
+        self._connect_lock = threading.Lock()
         self._port: str | None = None
         self._baud_rate: int | None = None
         self._last_command: int | None = None
@@ -117,13 +120,18 @@ class ArduinoManager:
                 for sketches that do not reply "OK"). Defaults to 'ok' to
                 preserve callers that do not opt in.
         """
-        with self._lock:
-            self._ack = ack
-            if self.is_connected() and self._port == port:
-                log.debug("arduino_manager.connect.already_connected", port=port)
-                return True
+        # ``_connect_lock`` serialises connects; ``_lock`` guards the state and
+        # is NOT held across the port open / handshake (up to the serial
+        # timeout). Holding it there made every ``is_connected()`` — the
+        # dashboard asks on the Tk thread — wait for the handshake (audit A6-06).
+        with self._connect_lock:
+            with self._lock:
+                self._ack = ack
+                if self.is_connected() and self._port == port:
+                    log.debug("arduino_manager.connect.already_connected", port=port)
+                    return True
 
-            self._shutdown_reader_locked()
+                self._shutdown_reader_locked()
 
             try:
                 candidate = self._arduino_factory(port, baud_rate)
@@ -169,23 +177,24 @@ class ArduinoManager:
                 )
                 return False
 
-            self.arduino = candidate
-            self._port = port
-            self._baud_rate = baud_rate
-            self._stop_event.clear()
-            self._drain_write_queue()
-            self._reader_thread = threading.Thread(
-                target=self._reader_loop,
-                name="ArduinoReader",
-                daemon=True,
-            )
-            self._reader_thread.start()
-            self._writer_thread = threading.Thread(
-                target=self._writer_loop,
-                name="ArduinoWriter",
-                daemon=True,
-            )
-            self._writer_thread.start()
+            with self._lock:
+                self.arduino = candidate
+                self._port = port
+                self._baud_rate = baud_rate
+                self._stop_event.clear()
+                self._drain_write_queue()
+                self._reader_thread = threading.Thread(
+                    target=self._reader_loop,
+                    name="ArduinoReader",
+                    daemon=True,
+                )
+                self._reader_thread.start()
+                self._writer_thread = threading.Thread(
+                    target=self._writer_loop,
+                    name="ArduinoWriter",
+                    daemon=True,
+                )
+                self._writer_thread.start()
 
         log.info("arduino_manager.connect.success", port=port, baud_rate=baud_rate)
         self._notify_status(True, port)

@@ -5557,3 +5557,42 @@ _load_registry()"
         description: "A6-10: o relatorio passa a dizer 'todos os pesos' ao limpar um so"
         find: 'self._show_cache_clear_report(report, scope=name)'
         replace: 'self._show_cache_clear_report(report, scope=None)'
+
+  # ---- A6-06: Arduino connect leaves the Tk thread ------------------------------
+  arduino_connect_lock_split:
+    source: src/zebtrack/io/arduino_manager.py
+    tests:
+      - tests/test_io_arduino_manager.py
+    mutations:
+      - id: connects-not-serialised
+        description: "A6-06: dois connect() simultaneos abrem a mesma porta duas vezes"
+        find: 'with self._connect_lock:'
+        replace: 'with threading.Lock():'
+  project_open_arduino_off_tk:
+    source: src/zebtrack/ui/components/project_initializer.py
+    tests:
+      - tests/ui/components/test_project_initializer_live_camera.py
+    mutations:
+      - id: connect-on-tk
+        description: "A6-06: abrir projeto ao vivo volta a esperar o handshake no thread do Tk"
+        find: |-
+          run_in_background(
+                          gui.root,
+                          _connect,
+                          _on_connected,
+                          _on_connect_error,
+                          name="arduino-connect",
+                      )
+        replace: |-
+          _on_connected(_connect())
+      - id: exception-swallowed
+        description: "A6-06: falha inesperada na conexao some sem aviso ao usuario"
+        find: |-
+          log.error("project_initializer.arduino_connect.failed", port=port, error=str(exc))
+                          self._warn_arduino_offline(port)
+        replace: |-
+          log.error("project_initializer.arduino_connect.failed", port=port, error=str(exc))
+      - id: warns-on-success
+        description: "A6-06: a conexao bem-sucedida passa a mostrar o aviso de modo offline"
+        find: '                if not ok:'
+        replace: '                if ok:'
