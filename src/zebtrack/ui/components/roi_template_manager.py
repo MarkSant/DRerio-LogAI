@@ -263,34 +263,6 @@ class ROITemplateManager:
             self.dialog_manager.show_error(_("Error applying the template"), str(exc))
             return False
 
-    def delete_template(self) -> bool:
-        """Delete the selected template."""
-        selected = self.get_selected_template()
-        if not selected:
-            return False
-
-        # Confirm with user
-        confirm = self.dialog_manager.ask_ok_cancel(
-            _("Confirm Deletion"),
-            _("Do you really want to delete template '{name}'?").format(name=selected["name"]),
-        )
-        if not confirm:
-            return False
-
-        try:
-            self.project_manager.delete_roi_template(
-                selected["name"],
-                location=selected.get("location"),
-                file_path=selected.get("file"),
-            )
-
-            self.refresh_templates(clear_selection=True)
-            return True
-        except (OSError, PermissionError, KeyError) as exc:
-            log.error("roi_templates.delete_failed", error=str(exc))
-            self.dialog_manager.show_error(_("Error deleting the template"), str(exc))
-            return False
-
     def clear_applied_template_drawings(self) -> bool:
         """Clear zone drawings from the active video only.
 

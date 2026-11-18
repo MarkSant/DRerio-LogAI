@@ -70,20 +70,6 @@ def test_apply_template(manager, mock_pm, mock_gui):
         mock_gui.dialog_manager.show_warning.assert_called()
 
 
-def test_delete_template(manager, mock_pm, mock_gui):
-    manager._cache = [
-        {"name": "T1", "display_name": "T1", "location": "project", "file": "t1.json"}
-    ]
-    manager.template_var.set("T1")
-
-    mock_gui.dialog_manager.ask_ok_cancel.return_value = True
-
-    result = manager.delete_template()
-
-    assert result is True
-    mock_pm.delete_roi_template.assert_called()
-
-
 def test_save_template(manager, mock_pm, mock_gui):
     mock_pm.get_zone_data.return_value = MagicMock(polygon=[(0, 0)], roi_polygons=[])
     mock_pm.project_path = "path"

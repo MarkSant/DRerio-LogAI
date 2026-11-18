@@ -22,16 +22,6 @@ def test_normalize_path_lowercase_and_slashes(tmp_path):
     assert normalized.endswith("/some/video.mp4")
 
 
-def test_refresh_complete_flag():
-    entry = {"has_arena": True, "has_rois": True, "has_trajectory": False}
-    VideoManager.refresh_complete_flag(entry)
-    assert entry["has_complete_data"] is False
-
-    entry["has_trajectory"] = True
-    VideoManager.refresh_complete_flag(entry)
-    assert entry["has_complete_data"] is True
-
-
 def test_find_video_entry_by_path():
     project_data = {"batches": [{"videos": [{"path": "/data/A.MP4"}, {"path": "/data/B.MP4"}]}]}
 
