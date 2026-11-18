@@ -219,7 +219,7 @@ class TestLiveBatchCoordinator:
         )
 
         assert batch_id is not None
-        assert len(coordinator.get_active_batches()) == 1
+        assert len(coordinator._active_batches) == 1
 
     def test_batch_completion(self, project_manager, analysis_service, state_manager, settings_obj):
         """Test batch completion and unified report generation."""

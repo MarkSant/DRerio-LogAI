@@ -549,28 +549,6 @@ class LiveBatchCoordinator:
         )
         return registered
 
-    def get_active_batches(self) -> list[BatchMetadata]:
-        """Get list of all active (incomplete) batches.
-
-        Returns:
-            List of active batch metadata
-        """
-        return [b for b in self._active_batches.values() if not b.is_complete]
-
-    def get_batch_for_session(self, experiment_id: str) -> BatchMetadata | None:
-        """Find batch containing a specific session.
-
-        Args:
-            experiment_id: Experiment ID to search for
-
-        Returns:
-            Batch metadata or None if not found
-        """
-        for batch in self._active_batches.values():
-            if experiment_id in batch.completed_sessions:
-                return batch
-        return None
-
     def _create_batch_key(self, group: str | None, day: str | None, subject_id: str | None) -> str:
         """Create unique batch key from metadata.
 

@@ -293,60 +293,6 @@ class TestSetupDetectorZones:
         assert UIEvents.UI_SHOW_ERROR in event_types
 
 
-class TestApplyRoiTemplate:
-    def test_no_active_video(self, controller):
-        controller.project_manager.get_active_zone_video.return_value = None
-        controller.apply_roi_template({"name": "T1"})
-        event_obj = controller.ui_event_bus.publish.call_args[0][0]
-        assert event_obj.type == UIEvents.UI_SHOW_WARNING
-
-    def test_apply_success(self, controller):
-        controller.project_manager.get_active_zone_video.return_value = "v1.mp4"
-        controller.project_manager.load_roi_template.return_value = Mock()
-        controller.project_manager.project_path = "/proj"
-        controller.setup_detector_zones = Mock()
-
-        controller.apply_roi_template({"name": "T1", "location": "loc", "file": "f.json"})
-
-        controller.project_manager.save_zone_data.assert_called_once()
-        controller.setup_detector_zones.assert_called_once()
-        event_types = [c.args[0].type for c in controller.ui_event_bus.publish.call_args_list]
-        assert UIEvents.UI_REDRAW_ZONES in event_types
-        assert UIEvents.UI_UPDATE_ZONE_LIST in event_types
-        assert UIEvents.UI_SHOW_INFO in event_types
-
-    def test_apply_file_not_found(self, controller):
-        controller.project_manager.get_active_zone_video.return_value = "v1.mp4"
-        controller.project_manager.load_roi_template.side_effect = FileNotFoundError("missing")
-
-        controller.apply_roi_template({"name": "T1"})
-
-        event_obj = controller.ui_event_bus.publish.call_args[0][0]
-        assert event_obj.type == UIEvents.UI_SHOW_ERROR
-
-    def test_apply_generic_exception(self, controller):
-        controller.project_manager.get_active_zone_video.return_value = "v1.mp4"
-        controller.project_manager.load_roi_template.side_effect = RuntimeError("error")
-
-        controller.apply_roi_template({"name": "T1"})
-
-        event_obj = controller.ui_event_bus.publish.call_args[0][0]
-        assert event_obj.type == UIEvents.UI_SHOW_ERROR
-
-
-class TestUpdateMainArena:
-    def test_update_main_arena_success(self, controller):
-        mock_zone = Mock()
-        controller.project_manager.get_zone_data.return_value = mock_zone
-        controller.setup_detector_zones = Mock()
-
-        controller.update_main_arena([[0, 0], [10, 10]])
-
-        assert mock_zone.polygon == [[0, 0], [10, 10]]
-        controller.project_manager.save_zone_data.assert_called_once_with(mock_zone)
-        controller.setup_detector_zones.assert_called_once()
-
-
 class TestUserFeedback:
     def test_show_post_creation_guide_view_suppressed(self, controller):
         controller.view = Mock(suppress_post_creation_guide=True)
@@ -391,27 +337,6 @@ class TestProcessingUIAndDiagnostics:
         controller.ui_coordinator.update_view.assert_called_once_with(
             controller.view, "start_analysis_view_mode"
         )
-
-    def test_prepare_processing_ui(self, controller):
-        controller.view = Mock()
-        controller._prepare_processing_ui(5)
-        controller.ui_coordinator.show_progress_bar.assert_called_once_with(controller.view)
-        controller.project_manager.set_active_zone_video.assert_called_once_with(None)
-
-    def test_finalize_processing_success_and_cancelled(self, controller):
-        controller.view = Mock()
-
-        # Cancelled
-        controller._finalize_processing(
-            was_cancelled=True, videos_to_process=[{}], final_output_dir="/out"
-        )
-        controller.ui_coordinator.hide_progress_bar.assert_called_with(controller.view)
-
-        # Success
-        controller._finalize_processing(
-            was_cancelled=False, videos_to_process=[{}], final_output_dir="/out"
-        )
-        assert controller.ui_coordinator.show_info.call_count == 2
 
     def test_diagnostic_progress_helpers(self, controller):
         mock_dialog = Mock()

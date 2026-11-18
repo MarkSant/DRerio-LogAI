@@ -978,49 +978,6 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             )
             return False
 
-    def register_project_outputs(
-        self,
-        *,
-        video_path: str,
-        results_dir: str,
-        trajectory_path: str,
-        summary_parquet: str,
-        summary_excel: str,
-        report_path: str,
-        refresh_callback: Callable[[str, bool], None] | None = None,
-    ) -> None:
-        """Register processing outputs to project.
-
-        Args:
-            video_path: Path to processed video
-            results_dir: Results directory path
-            trajectory_path: Trajectory parquet path
-            summary_parquet: Summary parquet path
-            summary_excel: Summary excel path
-            report_path: Report docx path
-            refresh_callback: Optional callback to refresh project views
-
-        Phase 3: Consolidated from ProjectOrchestrator._register_project_outputs
-        """
-        self.logger.info("project.outputs.register.start", video=video_path)
-
-        # Register through project manager
-        if hasattr(self.project_manager, "register_processing_outputs"):
-            self.project_manager.register_processing_outputs(
-                video_path=video_path,
-                results_dir=results_dir,
-                trajectory_path=trajectory_path,
-                summary_parquet=summary_parquet,
-                summary_excel=summary_excel,
-                report_path=report_path,
-            )
-
-        # Refresh views if callback provided
-        if refresh_callback:
-            refresh_callback("processing_progress", True)
-
-        self.logger.info("project.outputs.register.complete", video=video_path)
-
     # ========================================================================
     # Group C: Model Override Management (delegated to ModelOverrideService)
     # ========================================================================

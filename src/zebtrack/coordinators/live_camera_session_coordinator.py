@@ -1391,26 +1391,6 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         """
         return self._active_live_session_id is not None
 
-    def get_live_session_info(self) -> dict[str, Any] | None:
-        """Get information about current live session.
-
-        Returns:
-            dict with session info, or None if no active session
-        """
-        if not self.is_live_session_active():
-            return None
-
-        # Get state from StateManager
-        processing_state = self.state_manager.get_processing_state()
-
-        return {
-            "session_id": self._active_live_session_id,
-            "is_active": True,
-            "camera_index": getattr(processing_state, "camera_index", None),
-            "experiment_id": getattr(processing_state, "experiment_id", None),
-            "duration_s": getattr(processing_state, "duration_s", None),
-        }
-
     # =============================================================================
     # BATCH SESSION REGISTRATION
     # =============================================================================

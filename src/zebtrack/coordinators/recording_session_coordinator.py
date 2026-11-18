@@ -476,24 +476,6 @@ class RecordingSessionCoordinator(BaseCoordinator):
         recording_state = self.state_manager.get_recording_state()
         return recording_state is not None and recording_state.is_recording
 
-    def get_recording_info(self) -> dict[str, Any] | None:
-        """Get information about current recording session.
-
-        Returns:
-            dict with recording info, or None if not recording
-        """
-        recording_state = self.state_manager.get_recording_state()
-
-        if not recording_state or not recording_state.is_recording:
-            return None
-
-        return {
-            "is_recording": recording_state.is_recording,
-            "output_path": getattr(recording_state, "output_path", None),
-            "experiment_id": getattr(recording_state, "experiment_id", None),
-            "duration": getattr(recording_state, "duration", None),
-        }
-
     # =============================================================================
     # EXTERNAL TRIGGER HANDLING
     # =============================================================================
