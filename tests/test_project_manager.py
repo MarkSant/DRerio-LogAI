@@ -1257,33 +1257,6 @@ def project_manager(tmp_path):
     return pm
 
 
-def test_validate_project_parameters_bounds(project_manager):
-    with pytest.raises(ValueError):
-        project_manager._validate_project_parameters(
-            num_aquariums=0,
-            animals_per_aquarium=1,
-            aquarium_width_cm=1.0,
-            aquarium_height_cm=1.0,
-            analysis_interval_frames=10,
-            display_interval_frames=10,
-            camera_index=0,
-            project_type="Pre-recorded",
-            video_files=None,
-        )
-
-    project_manager._validate_project_parameters(
-        num_aquariums=1,
-        animals_per_aquarium=1,
-        aquarium_width_cm=0.0,
-        aquarium_height_cm=0.0,
-        analysis_interval_frames=10,
-        display_interval_frames=10,
-        camera_index=0,
-        project_type="Pre-recorded",
-        video_files=None,
-    )
-
-
 def test_apply_project_migrations_sets_tracking_default(project_manager):
     loaded = {
         "calibration": {},

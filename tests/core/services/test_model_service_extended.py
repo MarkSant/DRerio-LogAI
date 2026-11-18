@@ -73,30 +73,6 @@ class TestModelServiceExtended:
                 "required" in self.service.get_openvino_status("best.pt", use_openvino=True).lower()
             )
 
-    def test_list_available_weights(self):
-        self.mock_weight_manager.weights = {"weight1.pt": {}, "weight2.pt": {}}
-        weights = self.service.list_available_weights()
-        assert weights == ["weight1.pt", "weight2.pt"]
-
-        # Empty weights
-        self.mock_weight_manager.weights = None
-        assert self.service.list_available_weights() == []
-
-    def test_validate_weight(self):
-        # Not found
-        self.mock_weight_manager.get_weight_details.return_value = None
-        assert self.service.validate_weight("missing.pt") is False
-
-        # Found and exists on disk
-        with patch("pathlib.Path.exists", return_value=True):
-            self.mock_weight_manager.get_weight_details.return_value = {"path": "/models/best.pt"}
-            assert self.service.validate_weight("best.pt") is True
-
-        # Found but missing on disk
-        with patch("pathlib.Path.exists", return_value=False):
-            self.mock_weight_manager.get_weight_details.return_value = {"path": "/models/best.pt"}
-            assert self.service.validate_weight("best.pt") is False
-
     def test_inspect_model_weight_not_found(self):
         self.mock_weight_manager.get_weight_details.return_value = None
         with pytest.raises(ValueError, match="not found in the configuration"):

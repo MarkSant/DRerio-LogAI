@@ -1,7 +1,8 @@
 """Tests for AquariumDetectionProgressDialog (live arena auto-detection progress).
 
-``show_completion`` and ``close_dialog`` are not tested: the dead-code audit
-(A2-D-319, A2-D-320) found no caller; the coordinator destroys the dialog itself.
+``close_dialog`` is exercised through the UI coordinator's tests
+(``tests/ui/test_ui_coordinator_helpers.py``), which are what call it. ``show_completion``
+was removed as dead (A2-D-319).
 """
 
 from __future__ import annotations

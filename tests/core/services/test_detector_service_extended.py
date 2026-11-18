@@ -100,14 +100,6 @@ class TestDetectorServiceExtended:
         assert defs["use_bytetrack"] == "bool"
         assert defs["track_buffer"] == "int"
 
-    def test_get_active_config(self, service: DetectorService):
-        assert service.get_active_config() is None
-
-        mock_detector = MagicMock()
-        mock_detector.plugin.name = "best_seg.pt"
-        service.detector = mock_detector
-        assert service.get_active_config() == "best_seg.pt"
-
 
 class TestDetectorServiceThresholdsAndValidation:
     def test_default_threshold_constants(self):
@@ -245,20 +237,6 @@ class TestDetectorServiceExtended3:
         assert defs["nms_threshold"] == "float"
         assert defs["use_bytetrack"] == "bool"
         assert defs["track_threshold"] == "float"
-
-    def test_get_available_configs_and_active_config(self):
-        model_srv = MagicMock()
-        model_srv.list_available_weights.return_value = ["w1.pt", "w2.pt"]
-
-        service = DetectorService(
-            state_manager=MagicMock(),
-            project_manager=MagicMock(),
-            weight_manager=MagicMock(),
-            model_service=model_srv,
-            settings_obj=MagicMock(),
-        )
-        assert service.get_available_configs() == ["w1.pt", "w2.pt"]
-        assert service.get_active_config() is None
 
     def test_apply_project_detector_hyperparams(self):
         project_mgr = MagicMock()

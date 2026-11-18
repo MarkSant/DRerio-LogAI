@@ -732,11 +732,6 @@ class ProcessingReportsWidget(BaseWidget):
         if self.tree:
             self.tree.item(item_id, open=True)
 
-    def collapse_tree_item(self, item_id: str) -> None:
-        """Collapse a tree item to hide its children."""
-        if self.tree:
-            self.tree.item(item_id, open=False)
-
     def get_selection(self) -> tuple[str, ...]:
         """
         Get currently selected item IDs.
@@ -747,14 +742,3 @@ class ProcessingReportsWidget(BaseWidget):
         if self.tree:
             return self.tree.selection()
         return ()
-
-    def update_selection_info(self, text: str, foreground: str = "#555555") -> None:
-        """
-        Update the selection information label.
-
-        Args:
-            text: Text to display
-            foreground: Text color
-        """
-        if self.selection_label:
-            self.selection_label.config(text=text, foreground=foreground)

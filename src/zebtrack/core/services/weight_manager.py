@@ -1024,37 +1024,6 @@ class WeightManager:
                 fallback = (name, details)
         return fallback
 
-    def set_default_weight_by_type(self, name_to_set: str, weight_type: str) -> None:
-        """Set a new default weight for a specific type (legacy wrapper).
-
-        .. deprecated:: 3.4
-            Prefer :meth:`set_default_weight_for` which lets callers specify
-            both ``method`` and ``target`` independently. This wrapper keeps
-            existing call sites working by inferring the target from the
-            weight's current ``target`` field (falling back to the type
-            convention).
-        """
-        if name_to_set not in self.weights:
-            log.error(
-                "weights.default_by_type.not_found",
-                name=name_to_set,
-                type=weight_type,
-            )
-            return
-
-        weight_details = self.weights[name_to_set]
-        if weight_details.get("type") != weight_type:
-            log.warning(
-                "weights.default_by_type.type_mismatch",
-                name=name_to_set,
-                expected_type=weight_type,
-                actual_type=weight_details.get("type"),
-            )
-            return
-
-        target = weight_details.get("target") or _default_target_for_type(weight_type)
-        self.set_default_weight_for(name_to_set, method=weight_type, target=target)
-
     def set_default_weight(self, name: str) -> bool:
         """Set a new default weight with proper type handling."""
         target_weight = self.get_weight_details(name)

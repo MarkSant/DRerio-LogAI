@@ -517,11 +517,6 @@ class ConditionEvaluator:
         return self._spec
 
     @property
-    def skipped_observations(self) -> int:
-        """Observations dropped because their clock went backwards."""
-        return self._skipped
-
-    @property
     def finished(self) -> bool:
         """Whether :meth:`finish` was called."""
         return self._finished

@@ -701,8 +701,8 @@ class TestBuiltinTemplateInstall:
     def test_a_deleted_builtin_stays_deleted(self, tmp_path):
         user_dir = tmp_path / "user"
         source = self._builtin(tmp_path)
-        manager = TemplateManager(templates_dir=user_dir, builtin_templates_dir=source)
-        assert manager.delete_template("rodent")
+        TemplateManager(templates_dir=user_dir, builtin_templates_dir=source)
+        (user_dir / "rodent.json").unlink()
 
         TemplateManager(templates_dir=user_dir, builtin_templates_dir=source)
 

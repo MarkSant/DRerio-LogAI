@@ -14,6 +14,8 @@ from zebtrack.ui import gui
 from zebtrack.ui.components.state_synchronizer import StateSynchronizer
 from zebtrack.ui.sentinels import no_day_label, no_group_label, not_reported_label
 
+_DEFAULT_METADATA_TEXT = "Group: No Group | Day: No Day | Individual: Not reported"
+
 
 class DummyVar:
     def __init__(self, value: str = "") -> None:
@@ -29,7 +31,7 @@ class DummyVar:
 def _make_gui_instance() -> gui.ApplicationGUI:
     instance = gui.ApplicationGUI.__new__(gui.ApplicationGUI)
     inst_any = cast(Any, instance)
-    inst_any.analysis_metadata_var = DummyVar(StateSynchronizer._default_analysis_metadata_text())
+    inst_any.analysis_metadata_var = DummyVar(_DEFAULT_METADATA_TEXT)
     inst_any.analysis_task_var = DummyVar(StateSynchronizer._default_analysis_task_text())
     inst_any.analysis_status_var = DummyVar()
     inst_any.progress_labels = {}
@@ -89,10 +91,7 @@ def test_update_analysis_metadata_handles_missing_values() -> None:
     gui_instance.analysis_view_controller.update_analysis_metadata(metadata={})
 
     assert gui_instance.analysis_metadata_var is not None
-    assert (
-        gui_instance.analysis_metadata_var.get()
-        == StateSynchronizer._default_analysis_metadata_text()
-    )
+    assert gui_instance.analysis_metadata_var.get() == _DEFAULT_METADATA_TEXT
 
 
 def test_update_analysis_task_status_formats_step() -> None:

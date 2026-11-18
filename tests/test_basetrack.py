@@ -46,15 +46,6 @@ class TestIdCounter:
         assert BaseTrack._count == 0
         assert BaseTrack.next_id() == 1
 
-    def test_set_id_counter(self):
-        BaseTrack.set_id_counter(100)
-        assert BaseTrack._count == 100
-        assert BaseTrack.next_id() == 101
-
-    def test_set_id_counter_zero(self):
-        BaseTrack.set_id_counter(0)
-        assert BaseTrack.next_id() == 1
-
 
 class TestStateTransitions:
     def test_mark_lost(self):

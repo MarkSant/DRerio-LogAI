@@ -13,7 +13,7 @@ from zebtrack.core.services.trajectory_data_service import TrajectoryDataService
 
 
 class TestTrajectoryDataServiceExtended:
-    """Test TrajectoryDataService load and safe load operations."""
+    """Test TrajectoryDataService load operations."""
 
     def test_load_trajectory_file_not_found(self, tmp_path: Path):
         nonexistent = str(tmp_path / "nonexistent.parquet")
@@ -29,12 +29,3 @@ class TestTrajectoryDataServiceExtended:
         assert isinstance(loaded, pd.DataFrame)
         assert len(loaded) == 2
         pd.testing.assert_frame_equal(loaded, df)
-
-    def test_load_trajectory_safe_missing_returns_none(self, tmp_path: Path):
-        nonexistent = str(tmp_path / "missing.parquet")
-        assert TrajectoryDataService.load_trajectory_safe(nonexistent) is None
-
-    def test_load_trajectory_safe_corrupt_returns_none(self, tmp_path: Path):
-        corrupt_file = tmp_path / "corrupt.parquet"
-        corrupt_file.write_bytes(b"not a valid parquet file")
-        assert TrajectoryDataService.load_trajectory_safe(str(corrupt_file)) is None

@@ -567,21 +567,6 @@ class _WorkerProcess(multiprocessing.Process):
 
         return _read("aquarium_width_cm"), _read("aquarium_height_cm")
 
-    @staticmethod
-    def _format_subject(value) -> str:
-        """Format subject component for folder name."""
-        if not value:
-            return "Indefinido"
-        try:
-            subj_num = int(float(str(value)))
-            return f"{subj_num:02d}"
-        except (ValueError, TypeError):
-            # Try to extract digits from string (e.g. "S1" -> 1)
-            match = re.search(r"\d+", str(value))
-            if match:
-                return f"{int(match.group()):02d}"
-            return str(value)
-
     def run(self) -> None:
         """Main entry point for the worker process."""
         # Configure logging for worker process (multiprocessing doesn't inherit parent config)

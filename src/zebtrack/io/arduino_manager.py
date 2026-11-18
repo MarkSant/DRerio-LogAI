@@ -217,17 +217,6 @@ class ArduinoManager:
         """Return the currently connected port, if any."""
         return self._port
 
-    def list_available_ports(self) -> list[str]:
-        """List available serial ports using WizardService.
-
-        Returns:
-            List of serial port names
-        """
-        from zebtrack.core.services.wizard_service import WizardService
-
-        ports = WizardService.detect_arduino_ports(use_cache=True)
-        return [port.get("device", "") for port in ports if port.get("device")]
-
     def send_command(self, command: int | str, *, source: str = "auto") -> bool:
         """Sends a command to Arduino and reports outcome to controller."""
         command_value: int
@@ -468,10 +457,6 @@ class ArduinoManager:
             answered=sum(1 for i in range(expected) if results.get(i)),
         )
         return [(token, results.get(index)) for index, token in enumerate(tokens)]
-
-    def last_command(self) -> int | None:
-        """Returns the last successful command sent."""
-        return self._last_command
 
     def shutdown(self) -> None:
         """Stops reader thread and closes Arduino connection."""

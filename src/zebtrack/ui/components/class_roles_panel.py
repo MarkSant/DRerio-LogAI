@@ -1237,10 +1237,6 @@ class ClassRolesPanel(ttk.Frame):
         """Whether template roles wait to be (or were) applied."""
         return self._seed is not None
 
-    def seed_fit(self) -> ClassRolesFit | None:
-        """The last re-validation of the template roles (``None``: not yet)."""
-        return self._seed_fit
-
     def seed_error(self) -> ClassRolesUnresolvedError | None:
         """The weight the template roles did not fit has no resolvable subject."""
         return self._seed_error

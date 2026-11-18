@@ -480,26 +480,6 @@ class Recorder:
         self._pause_start_time = None
         return True
 
-    def is_paused(self) -> bool:
-        """Check if recorder is currently paused.
-
-        Returns:
-            True if paused
-        """
-        return self._is_paused
-
-    def get_pause_metadata(self) -> dict:
-        """Get pause/resume metadata for session report.
-
-        Returns:
-            Dict with pause statistics
-        """
-        return {
-            "is_paused": self._is_paused,
-            "total_paused_duration_s": self._total_paused_duration,
-            "pause_start_time": self._pause_start_time,
-        }
-
     # ---------------------------------------------------------------
     # Phase 4 / M4: async Parquet flush thread
     # ---------------------------------------------------------------
@@ -908,25 +888,6 @@ class Recorder:
                 timestamp, frame_number, t_event_s, parts.get(aq_id, []), aquarium_id=aq_id
             )
 
-    def write_video_frame_multi_aquarium(
-        self,
-        aquarium_id: int,
-        frame: np.ndarray,
-    ) -> None:
-        """
-        Write a video frame for a specific aquarium.
-
-        Args:
-            aquarium_id: The aquarium ID to write the frame for.
-            frame: The video frame to write.
-        """
-        if not self._multi_aquarium_mode:
-            log.warning("recorder.multi_aquarium.write_frame.not_active")
-            return
-
-        if aquarium_id in self._aquarium_recorders:
-            self._aquarium_recorders[aquarium_id].write_video_frame(frame)
-
     def stop_recording_multi_aquarium(
         self, force_stop: bool = False, reason: str | None = None
     ) -> None:
@@ -980,10 +941,6 @@ class Recorder:
 
             details = "; ".join(f"aquarium {aq_id + 1}: {error}" for aq_id, error in failures)
             raise RecorderError(f"Recording could not be finalised for {details}")
-
-    def is_multi_aquarium_mode(self) -> bool:
-        """Check if recorder is in multi-aquarium mode."""
-        return self._multi_aquarium_mode
 
     def get_aquarium_recorders(self) -> dict[int, "Recorder"]:
         """Get all aquarium recorders (for testing/debugging)."""
@@ -1157,11 +1114,6 @@ class Recorder:
     def persist_masks(self) -> bool:
         """Se este recorder grava o sidecar de máscaras."""
         return self._persist_masks
-
-    @property
-    def mask_parquet_filename(self) -> str:
-        """Caminho do sidecar; string vazia quando a gravação está desligada."""
-        return self._mask_parquet_filename
 
     def write_mask_data(self, frame_number: int, masks_by_track: dict[int, Any]) -> None:
         """Enfileira os contornos de um frame para o sidecar.
@@ -1342,11 +1294,6 @@ class Recorder:
     def persist_object_sidecar(self) -> bool:
         """Whether this recorder writes the ``3c_Objetos_`` sidecar."""
         return self._persist_objects
-
-    @property
-    def object_parquet_filename(self) -> str:
-        """Path of the object sidecar; empty string when it is switched off."""
-        return self._object_parquet_filename
 
     def write_object_data(
         self,
@@ -1628,57 +1575,6 @@ class Recorder:
                 ]
             )
         return columns
-
-    def _validate_unique_detections(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Remove duplicate detections (same frame + track_id).
-
-        BUG FIX #2: Prevents inflated metrics caused by duplicate detections
-        of the same object in the same frame, which can occur due to ByteTracker
-        errors or model issues.
-
-        Args:
-            df: DataFrame with detection data
-
-        Returns:
-            DataFrame with duplicates removed (keeps first occurrence)
-        """
-        if df.empty:
-            return df
-
-        # Check if required columns exist
-        if "frame" not in df.columns or "track_id" not in df.columns:
-            log.warning(
-                "recorder.duplicate_check_skipped",
-                reason="missing_columns",
-                available_columns=list(df.columns),
-            )
-            return df
-
-        # Identify duplicates
-        duplicates = df.duplicated(subset=["frame", "track_id"], keep="first")
-        num_duplicates = duplicates.sum()
-
-        if num_duplicates > 0:
-            # Get some examples for logging
-            duplicate_examples = df[duplicates][["frame", "track_id"]].head(5).to_dict("records")
-
-            log.warning(
-                "recorder.duplicate_detections_removed",
-                count=int(num_duplicates),
-                total_rows=len(df),
-                percentage=f"{(num_duplicates / len(df)) * 100:.2f}%",
-                examples=duplicate_examples,
-                message=(
-                    "Duplicate detections detected and removed. "
-                    "This may indicate ByteTracker issues or model problems."
-                ),
-            )
-
-            # Remove duplicates
-            df = df[~duplicates].copy()
-
-        return df
 
     def _should_flush(self) -> bool:
         if not self.detection_data:

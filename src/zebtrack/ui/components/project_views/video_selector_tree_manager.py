@@ -750,10 +750,6 @@ class VideoSelectorTreeManager:
     # Double-click & Context-menu Handlers
     # ==================================================================
 
-    def on_project_overview_tree_double_click(self, event: Any | None = None) -> None:
-        """Handle double-click on project overview tree."""
-        self._on_project_overview_tree_double_click_impl(event)
-
     def _on_project_overview_tree_double_click_impl(self, event: Any | None = None) -> None:
         """Implement double-click handler for project overview tree."""
         if not hasattr(self.gui, "project_overview_widget"):
@@ -793,24 +789,6 @@ class VideoSelectorTreeManager:
                 self.dialog_manager.show_error(
                     _("Error"), _("Could not open the folder: {error}").format(error=e)
                 )
-
-    def on_project_overview_right_click(self, event: Any | None = None) -> None:
-        """Handle right-click on project overview tree."""
-        if not hasattr(self.gui, "project_overview_widget"):
-            return
-        if not self.gui.project_overview_widget:
-            return
-
-        tree = self.gui.project_overview_widget.tree
-        if not tree:
-            return
-        if event is None:
-            return
-
-        item_id = tree.identify_row(event.y)
-        if item_id:
-            tree.selection_set(item_id)
-            self.gui.menu_manager.show_project_overview_context_menu(event)
 
     def handle_project_overview_double_click(self, item_id: str) -> None:
         """Implement double-click logic on project overview tree."""
@@ -879,31 +857,9 @@ class VideoSelectorTreeManager:
     # Misc
     # ==================================================================
 
-    def refresh_openvino_summary(self) -> None:
-        """Refresh OpenVINO model summary display."""
-        if not hasattr(self.gui, "_openvino_display_var"):
-            return
-
-        openvino_status = self.gui.controller.hardware_vm.get_openvino_cache_status()
-        self.gui._openvino_display_var.set(openvino_status)
-
     # ==================================================================
     # Legacy stubs
     # ==================================================================
-
-    def populate_video_selector_tree(self, search_text: str = "") -> None:
-        """Populate video selector tree (LEGACY stub)."""
-        log.warning(
-            "video_selector_tree_manager.populate_video_selector_tree_deprecated",
-            message="This method is LEGACY and may be removed in future versions",
-        )
-
-    def refresh_video_selector_tree(self) -> None:
-        """Refresh the video selector tree (LEGACY stub)."""
-        log.warning(
-            "video_selector_tree_manager.refresh_video_selector_tree_deprecated",
-            message="This method is LEGACY and may be removed in future versions",
-        )
 
     # ==================================================================
     # Internal helpers

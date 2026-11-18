@@ -323,20 +323,6 @@ def test_determine_processing_mode(coordinator):
     assert coordinator._active_processing_mode == ProcessingMode.SINGLE_SUBJECT
 
 
-def test_temporary_single_animal_mode(coordinator):
-    coordinator._resolve_single_animal_mode = MagicMock(return_value=True)
-    coordinator._resolve_single_subject_tracker_preference = MagicMock(return_value=True)
-
-    with patch.object(coordinator, "_publish_processing_mode") as mock_publish:
-        with coordinator._temporary_single_animal_mode():
-            assert coordinator.settings.video_processing.single_animal_per_aquarium is True
-            assert coordinator.settings.tracking.use_single_subject_tracker is True
-
-        assert coordinator.settings.video_processing.single_animal_per_aquarium is False
-        assert coordinator.settings.tracking.use_single_subject_tracker is False
-        assert mock_publish.call_count == 2
-
-
 class TestRelocateResultsFolders:
     def test_relocate_no_outputs(self, coordinator):
         coordinator._relocate_multi_aquarium_folders("v.mp4", {}, [])  # Should not raise

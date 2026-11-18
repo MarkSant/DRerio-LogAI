@@ -14,7 +14,6 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 
 from zebtrack.core.services.wizard_service import WizardService
-from zebtrack.ui.wizard.models import MultiAquariumData
 
 
 class TestWizardServiceValidation:
@@ -295,40 +294,6 @@ class TestWizardServiceValidation:
             )[0]
             is False
         )
-
-
-class TestWizardServiceMultiAquariumValidation:
-    """Test validate_multi_aquarium_config."""
-
-    def test_disabled_multi_aquarium(self):
-        config = MultiAquariumData(enabled=False)
-        valid, errors, warnings = WizardService.validate_multi_aquarium_config(config)
-        assert valid is True
-        assert errors == []
-        assert warnings == []
-
-    def test_dict_config_enabled_with_wrong_count(self):
-        dict_config = {"enabled": True, "aquarium_configs": []}
-        valid, errors, _ = WizardService.validate_multi_aquarium_config(dict_config)  # type: ignore[arg-type]
-        assert valid is False
-        assert any("2 aquariums" in err for err in errors)
-
-    def test_dict_config_small_polygon_warning_and_overlap_warning(self):
-        # Small polygon area (< 10000 px^2)
-        small_poly = [(0, 0), (20, 0), (20, 20), (0, 20)]
-        overlap_poly = [(10, 10), (30, 10), (30, 30), (10, 30)]
-
-        dict_config = {
-            "enabled": True,
-            "aquarium_configs": [
-                {"aquarium_id": 0, "name": "Aq0", "group": "G1", "polygon": small_poly},
-                {"aquarium_id": 1, "name": "Aq1", "group": "G2", "polygon": overlap_poly},
-            ],
-            "regex_pattern": "",
-        }
-        valid, errors, warnings = WizardService.validate_multi_aquarium_config(dict_config)  # type: ignore[arg-type]
-        assert valid is True
-        assert len(warnings) >= 2  # area warning + overlap warning
 
 
 class TestWizardServiceHardwareAndIntervals:

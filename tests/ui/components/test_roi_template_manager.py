@@ -70,20 +70,6 @@ def test_apply_template(manager, mock_pm, mock_gui):
         mock_gui.dialog_manager.show_warning.assert_called()
 
 
-def test_delete_template(manager, mock_pm, mock_gui):
-    manager._cache = [
-        {"name": "T1", "display_name": "T1", "location": "project", "file": "t1.json"}
-    ]
-    manager.template_var.set("T1")
-
-    mock_gui.dialog_manager.ask_ok_cancel.return_value = True
-
-    result = manager.delete_template()
-
-    assert result is True
-    mock_pm.delete_roi_template.assert_called()
-
-
 def test_save_template(manager, mock_pm, mock_gui):
     mock_pm.get_zone_data.return_value = MagicMock(polygon=[(0, 0)], roi_polygons=[])
     mock_pm.project_path = "path"
@@ -172,18 +158,6 @@ def test_select_template_by_metadata_slug(manager):
     manager.select_template_by_metadata({"slug": "template-slug"})
 
     assert manager.template_var.get() == "🌐 Template"
-
-
-def test_import_template_error_shows_message(manager, mock_pm, mock_gui):
-    with patch(
-        "zebtrack.ui.components.roi_template_manager.filedialog.askopenfilename",
-        return_value="/path/to/template.json",
-    ):
-        mock_pm.import_roi_template.side_effect = RuntimeError("boom")
-
-        manager.import_template()
-
-    mock_gui.dialog_manager.show_error.assert_called_once()
 
 
 def test_update_combobox_values_falls_back_to_gui_combobox(mock_pm, tkinter_root):

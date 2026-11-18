@@ -657,22 +657,6 @@ class ReportsTreeManager:
     # Public API — Artifact helpers (delegate to ReportTreeBuilder/ReportAssetActions)
     # ------------------------------------------------------------------
 
-    def append_processing_reports_artifacts(
-        self,
-        tree: Any,
-        parent_id: str,
-        results_dir: Path | str,
-        metadata_store: dict,
-    ) -> None:
-        """Append report artifacts (docx, xlsx) to tree node."""
-        self._tree_builder.append_artifacts(tree, parent_id, results_dir, metadata_store)
-
-    def append_report_artifacts(
-        self, tree: Any, parent_id: str, results_dir: Path | str, metadata_store: dict
-    ) -> None:
-        """Legacy alias for ``append_processing_reports_artifacts``."""
-        self._tree_builder.append_artifacts(tree, parent_id, results_dir, metadata_store)
-
     def append_report_artifacts_from_entry(self, parent_id: str, entry: dict) -> None:
         """Append report artifacts (docx, xlsx) from video entry to reports tree."""
         self._assets.append_report_artifacts_from_entry(parent_id, entry)
@@ -731,35 +715,9 @@ class ReportsTreeManager:
         """Internal implementation — delegates to refresh_processing_reports_tab."""
         self.refresh_processing_reports_tab()
 
-    def _get_project_status_counts(self) -> dict[str, int]:
-        """Calculate status counts for the project."""
-        return self._tree_builder.get_project_status_counts()
-
-    def _populate_reports_tree_from_hierarchy(
-        self, tree: Any, hierarchy: dict, parent: str, metadata_store: dict
-    ) -> None:
-        """Populate reports tree from hierarchy data (compat shim)."""
-        self._tree_builder.populate_from_hierarchy(tree, hierarchy, parent, metadata_store)
-
     # ------------------------------------------------------------------
     # Deletion helpers (delegate to ReportAssetActions)
     # ------------------------------------------------------------------
-
-    def _delete_video_asset(self, video_path: Path | str, asset: str) -> None:
-        """Delete specific asset via MenuManager reuse."""
-        self._assets.delete_video_asset(video_path, asset)
-
-    def _delete_all_processing_data(self, video_path: Path | str) -> None:
-        """Delete all processing data (arena, rois, trajectory, summary)."""
-        self._assets.delete_all_processing_data(video_path)
-
-    def _delete_video_from_project(self, video_path: Path | str) -> None:
-        """Delete video from project."""
-        self._assets.delete_video_from_project(video_path)
-
-    def _delete_all_unified_reports(self, data: dict | None = None) -> None:
-        """Delete the entire unified_reports directory."""
-        self._generator.delete_all_unified_reports(data)
 
     # ------------------------------------------------------------------
     # Private utilities (delegate to ReportAssetActions)

@@ -113,11 +113,6 @@ class MultiAquariumZoneData:
         return ZoneData()
 
     @property
-    def aquarium_count(self) -> int:
-        """Return the number of configured aquariums."""
-        return len(self.aquariums)
-
-    @property
     def is_multi_aquarium(self) -> bool:
         """Return True if more than one aquarium is configured."""
         return len(self.aquariums) > 1

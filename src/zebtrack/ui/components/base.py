@@ -152,16 +152,6 @@ class BaseWidget(ttk.Frame):
                     exc_info=True,
                 )
 
-    def set_enabled(self, enabled: bool) -> None:
-        """
-        Enable or disable the entire widget.
-
-        Args:
-            enabled: True to enable, False to disable
-        """
-        state = "normal" if enabled else "disabled"
-        self._set_widget_state(self, state)
-
     def _set_widget_state(self, widget: ttk.Widget, state: str) -> None:
         """
         Recursively set the state of all child widgets.

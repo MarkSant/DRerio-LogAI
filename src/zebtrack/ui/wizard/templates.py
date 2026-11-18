@@ -562,37 +562,6 @@ class TemplateManager:
 
         return templates
 
-    def delete_template(self, name: str) -> bool:
-        """
-        Delete a template.
-
-        Args:
-            name: Template name
-
-        Returns:
-            bool: True if deleted successfully, False otherwise
-        """
-        try:
-            safe_name = self._sanitize_name(name)
-            template_path = self.templates_dir / f"{safe_name}.json"
-
-            if not template_path.exists():
-                log.warning("template_manager.template_not_found", name=name)
-                return False
-
-            template_path.unlink()
-            log.info("template_manager.template_deleted", name=name)
-            return True
-
-        except (OSError, PermissionError) as e:
-            log.error(
-                "template_manager.delete_error",
-                name=name,
-                error=str(e),
-                exc_info=True,
-            )
-            return False
-
     @staticmethod
     def _sanitize_name(name: str) -> str:
         """

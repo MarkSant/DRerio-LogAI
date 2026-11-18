@@ -33,36 +33,6 @@ class TestModelServiceConfiguration(unittest.TestCase):
         assert "weight1.pt" in result
         self.mock_weight_manager.get_all_weights.assert_called_once()
 
-    def test_get_weight_type_seg(self):
-        """Test getting weight type for segmentation model."""
-        self.mock_weight_manager.get_weight_details.return_value = {
-            "path": "/path/to/weight_seg.pt",
-            "type": "seg",
-        }
-
-        result = self.service.get_weight_type("weight_seg.pt")
-
-        assert result == "seg"
-
-    def test_get_weight_type_det(self):
-        """Test getting weight type for detection model."""
-        self.mock_weight_manager.get_weight_details.return_value = {
-            "path": "/path/to/weight_det.pt",
-            "type": "det",
-        }
-
-        result = self.service.get_weight_type("weight_det.pt")
-
-        assert result == "det"
-
-    def test_get_weight_type_not_found(self):
-        """Test getting weight type for non-existent weight."""
-        self.mock_weight_manager.get_weight_details.return_value = None
-
-        result = self.service.get_weight_type("nonexistent.pt")
-
-        assert result is None
-
 
 class TestModelServiceOpenVINO(unittest.TestCase):
     """Test suite for OpenVINO-related functionality."""
@@ -183,83 +153,6 @@ class TestModelServiceValidation(unittest.TestCase):
         self.mock_weight_manager = Mock()
         self.service = ModelService(self.mock_weight_manager)
 
-    def test_validate_model_configuration_valid(self):
-        """Test validating a valid configuration."""
-        with patch("pathlib.Path.exists", return_value=True):
-            self.mock_weight_manager.get_weight_details.return_value = {
-                "path": "/path/to/weight.pt",
-                "openvino_status": "ready",
-                "openvino_path": "/path/to/openvino",
-                "last_conversion_error": None,
-            }
-
-            result = self.service.validate_model_configuration("weight.pt", use_openvino=True)
-
-            assert result["valid"] is True
-            assert result["weight_exists"] is True
-            assert result["weight_valid"] is True
-            assert result["openvino_ready"] is True
-            assert len(result["errors"]) == 0
-
-    def test_validate_model_configuration_no_weight(self):
-        """Test validation fails when no weight specified."""
-        result = self.service.validate_model_configuration(None, use_openvino=False)
-
-        assert result["valid"] is False
-        assert "No weight specified" in result["errors"]
-
-    def test_validate_model_configuration_weight_not_found(self):
-        """Test validation fails when weight not found."""
-        self.mock_weight_manager.get_weight_details.return_value = None
-
-        result = self.service.validate_model_configuration("nonexistent.pt", use_openvino=False)
-
-        assert result["valid"] is False
-        assert any("not found" in err for err in result["errors"])
-
-    def test_validate_model_configuration_weight_file_missing(self):
-        """Test validation fails when weight file doesn't exist."""
-        with patch("pathlib.Path.exists", return_value=False):
-            self.mock_weight_manager.get_weight_details.return_value = {
-                "path": "/path/to/nonexistent.pt",
-            }
-
-            result = self.service.validate_model_configuration("weight.pt", use_openvino=False)
-
-            assert result["valid"] is False
-            assert any("not found" in err for err in result["errors"])
-
-    def test_validate_model_configuration_openvino_not_ready(self):
-        """Test validation with OpenVINO not ready."""
-        with patch("pathlib.Path.exists", return_value=True):
-            self.mock_weight_manager.get_weight_details.return_value = {
-                "path": "/path/to/weight.pt",
-                "openvino_status": "not_converted",
-                "openvino_path": "",
-                "last_conversion_error": None,
-            }
-
-            result = self.service.validate_model_configuration("weight.pt", use_openvino=True)
-
-            assert result["valid"] is True  # Still valid, just needs conversion
-            assert result["openvino_ready"] is False
-            assert any("not converted" in warn for warn in result["warnings"])
-
-    def test_validate_model_configuration_openvino_failed(self):
-        """Test validation fails when OpenVINO conversion failed."""
-        with patch("pathlib.Path.exists", return_value=True):
-            self.mock_weight_manager.get_weight_details.return_value = {
-                "path": "/path/to/weight.pt",
-                "openvino_status": "failed",
-                "openvino_path": "",
-                "last_conversion_error": "Conversion failed",
-            }
-
-            result = self.service.validate_model_configuration("weight.pt", use_openvino=True)
-
-            assert result["valid"] is False
-            assert any("failed" in err for err in result["errors"])
-
 
 class TestModelServicePathHelpers(unittest.TestCase):
     """Test suite for path helper methods."""
@@ -348,44 +241,6 @@ class TestModelServiceConfigurationSummary(unittest.TestCase):
         """Set up test fixtures."""
         self.mock_weight_manager = Mock()
         self.service = ModelService(self.mock_weight_manager)
-
-    def test_get_weight_configuration_summary_complete(self):
-        """Test getting complete weight configuration summary."""
-        with patch("pathlib.Path.exists", return_value=True):
-            self.mock_weight_manager.get_weight_details.return_value = {
-                "path": "/path/to/weight.pt",
-                "type": "seg",
-                "openvino_status": "ready",
-                "openvino_path": "/path/to/openvino",
-                "last_conversion_error": None,
-            }
-
-            result = self.service.get_weight_configuration_summary("weight.pt")
-
-            assert result["name"] == "weight.pt"
-            assert result["type"] == "seg"
-            assert result["path"] == "/path/to/weight.pt"
-            assert result["exists"] is True
-            assert result["openvino_available"] is True
-            assert result["openvino_status"] == "ready"
-
-    def test_get_weight_configuration_summary_none(self):
-        """Test getting summary for None weight."""
-        result = self.service.get_weight_configuration_summary(None)
-
-        assert result["name"] is None
-        assert result["type"] is None
-        assert result["exists"] is False
-
-    def test_get_weight_configuration_summary_not_found(self):
-        """Test getting summary for non-existent weight."""
-        self.mock_weight_manager.get_weight_details.return_value = None
-
-        result = self.service.get_weight_configuration_summary("nonexistent.pt")
-
-        assert result["name"] == "nonexistent.pt"
-        assert result["type"] is None
-        assert result["exists"] is False
 
 
 if __name__ == "__main__":

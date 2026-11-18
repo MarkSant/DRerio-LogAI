@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import tkinter as tk
 from pathlib import Path
-from tkinter import Frame, Label, Radiobutton, StringVar, Toplevel, ttk
 
 import structlog
 
@@ -40,25 +39,6 @@ class CommonWidgetsBuilder:
     # ------------------------------------------------------------------
     # Simple utilities
     # ------------------------------------------------------------------
-
-    def build_status_icon_legend_simple(self, *, include_summary: bool = False) -> str:
-        """Compose a compact legend string for the status glyphs."""
-        legend_parts = [
-            f"{STATUS_SYMBOLS['arena']} \u2713 Arena",
-            f"{STATUS_SYMBOLS['rois']} \u2713 ROIs",
-            f"{STATUS_SYMBOLS['trajectory']} \u2713 " + _("Trajectory"),
-        ]
-        if include_summary:
-            legend_parts.append(f"{STATUS_SYMBOLS['summary']} \u2713 " + _("Summary"))
-        legend_parts.append("\u2717 " + _("Missing"))
-        return _("Legend: ") + " | ".join(legend_parts)
-
-    def get_zone_summary_helper_text(self) -> str:
-        """Return helper text for zone summary section."""
-        return f"{STATUS_SYMBOLS['summary']} " + _(
-            "marks videos ready to generate trajectories (arena and ROIs "
-            "saved). The number shows how many are still awaiting processing."
-        )
 
     def build_day_title(self, day_value, metadata: dict | None = None) -> str:
         """Build formatted day title for display."""
@@ -111,119 +91,6 @@ class CommonWidgetsBuilder:
     # ------------------------------------------------------------------
     # Misc helpers
     # ------------------------------------------------------------------
-
-    def configure_styles(self) -> None:
-        """Configure custom styles for ttk components used by the GUI."""
-        style = ttk.Style(self.gui.root)
-        self.gui._style = style
-
-        try:
-            style.theme_use()
-        except tk.TclError:
-            style.theme_use("default")
-
-        base_background = (
-            style.lookup("TNotebook", "background", None)
-            or (
-                self.gui._ttkbootstrap_style.lookup("TFrame", "background")
-                if self.gui._ttkbootstrap_style is not None
-                else None
-            )
-            or "#f6f7fb"
-        )
-        accent_background = (
-            style.lookup("TNotebook.Tab", "background", None, ("selected",))
-            or style.lookup("TFrame", "background", None)
-            or "#ffffff"
-        )
-        tab_inactive = style.lookup("TNotebook.Tab", "background", None) or "#dce3ee"
-        border_color = (
-            style.lookup("TNotebook", "bordercolor", None)
-            or style.lookup("TNotebook", "lightcolor", None)
-            or "#c5ccd9"
-        )
-        text_active = style.lookup("TNotebook.Tab", "foreground", None, ("selected",)) or "#1d2733"
-        text_inactive = style.lookup("TNotebook.Tab", "foreground", None) or "#4a5568"
-
-        style.configure(
-            "Zebtrack.TNotebook",
-            background=base_background,
-            borderwidth=0,
-            tabmargins=(10, 6, 10, 0),
-        )
-
-        style.configure(
-            "Zebtrack.TNotebook.Tab",
-            background=tab_inactive,
-            padding=(18, 10),
-            font=("Segoe UI", 10, "bold"),
-            foreground=text_inactive,
-            bordercolor=border_color,
-        )
-
-        style.map(
-            "Zebtrack.TNotebook.Tab",
-            background=[("selected", accent_background), ("!selected", tab_inactive)],
-            foreground=[("selected", text_active), ("!selected", text_inactive)],
-            bordercolor=[("selected", "#4c6997"), ("!selected", border_color)],
-        )
-
-        style.configure(
-            "Zebtrack.TNotebook.Tab",
-            focuscolor="",
-        )
-        style.configure("Zebtrack.TNotebook", padding=(4, 4))
-
-    def prompt_for_weight_type(self):
-        """Prompt user to select weight type when it cannot be determined from filename."""
-        dialog = Toplevel(self.gui.root)
-        dialog.title(_("Weight Type"))
-        dialog.geometry("300x150")
-        dialog.resizable(False, False)
-        dialog.transient(self.gui.root)
-        dialog.grab_set()
-
-        self.gui.root.update_idletasks()
-        x = (self.gui.root.winfo_screenwidth() // 2) - (300 // 2)
-        y = (self.gui.root.winfo_screenheight() // 2) - (150 // 2)
-        dialog.geometry(f"+{x}+{y}")
-
-        Label(dialog, text=_("Select the model type:")).pack(pady=10)
-
-        weight_type_var = StringVar(value="seg")
-
-        Radiobutton(
-            dialog,
-            text=_("Segmentation (for masks and precise edges)"),
-            variable=weight_type_var,
-            value="seg",
-        ).pack(anchor="w", padx=20)
-
-        Radiobutton(
-            dialog,
-            text=_("Detection (for fast bounding boxes)"),
-            variable=weight_type_var,
-            value="det",
-        ).pack(anchor="w", padx=20)
-
-        result: list[str | None] = [None]
-
-        def on_ok():
-            result[0] = weight_type_var.get()
-            dialog.destroy()
-
-        def on_cancel():
-            result[0] = None
-            dialog.destroy()
-
-        button_frame = Frame(dialog)
-        button_frame.pack(pady=20)
-
-        ttk.Button(button_frame, text="OK", command=on_ok).pack(side="left", padx=5)
-        ttk.Button(button_frame, text=_("Cancel"), command=on_cancel).pack(side="left", padx=5)
-
-        dialog.wait_window()
-        return result[0]
 
     def display_welcome_logo(self) -> None:
         """Display the DRerio LogAI logo in the welcome frame."""

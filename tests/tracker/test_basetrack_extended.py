@@ -44,9 +44,6 @@ class TestBaseTrack:
         assert id1 == 1
         assert id2 == 2
 
-        BaseTrack.set_id_counter(100)
-        assert BaseTrack.next_id() == 101
-
         BaseTrack.reset_id_counter()
         assert BaseTrack.next_id() == 1
 

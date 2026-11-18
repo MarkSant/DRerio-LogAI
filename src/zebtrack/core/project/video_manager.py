@@ -515,19 +515,6 @@ class VideoManager:
                 yield batch, video
 
     @staticmethod
-    def refresh_complete_flag(video_entry: dict) -> None:
-        """Update the has_complete_data flag based on individual asset flags.
-
-        Args:
-            video_entry: Video entry dictionary to update (modified in place)
-        """
-        video_entry["has_complete_data"] = bool(
-            video_entry.get("has_arena")
-            and video_entry.get("has_rois")
-            and video_entry.get("has_trajectory")
-        )
-
-    @staticmethod
     def normalize_path(path: str | Path | None) -> str | None:
         """Robustly normalize path for cross-platform comparison."""
         if not path:

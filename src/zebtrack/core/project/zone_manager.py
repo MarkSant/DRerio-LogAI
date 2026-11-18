@@ -825,34 +825,6 @@ class ZoneManager:
             )
             return None
 
-    @staticmethod
-    def update_entry_zone_flags(
-        project_data: dict,
-        video_entry: dict,
-        video_path: Path | str,
-        zone_manager_instance: ZoneManager,
-    ) -> None:
-        """Update has_arena/has_rois flags from zone data when missing for a video entry.
-
-        Args:
-            project_data: The project data dictionary
-            video_entry: Video entry dictionary to update
-            video_path: Path to the video
-            zone_manager_instance: ZoneManager instance to use for getting zone data
-        """
-        video_path_str = str(Path(video_path) if isinstance(video_path, str) else video_path)
-        zone_data = zone_manager_instance.get_zone_data(
-            project_data, video_path_str, fallback_to_global=False
-        )
-        if not zone_data:
-            return
-        if zone_data.polygon and not video_entry.get("has_arena"):
-            video_entry["has_arena"] = True
-            log.info("zone_manager.arena_flag_updated", video=video_path_str)
-        if zone_data.roi_polygons and not video_entry.get("has_rois"):
-            video_entry["has_rois"] = True
-            log.info("zone_manager.rois_flag_updated", video=video_path_str)
-
     # =========================================================================
     # Multi-Aquarium Support Methods (Phase 2)
     # =========================================================================

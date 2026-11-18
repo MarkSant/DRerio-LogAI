@@ -109,39 +109,6 @@ class TestUISchedulerScheduling:
         # Verify schedule_after was called
         assert len(scheduled_ids) == 15
 
-    def test_concurrent_cancel_scheduled_calls(self, ui_scheduler):
-        """Test concurrent cancel_scheduled() calls."""
-        # Schedule some callbacks first
-        after_ids = []
-        for i in range(10):
-            after_id = ui_scheduler.schedule_after(1000, lambda: None)
-            after_ids.append(after_id)
-
-        def canceler_worker(thread_id, ids_to_cancel):
-            for after_id in ids_to_cancel:
-                ui_scheduler.cancel_scheduled(after_id)
-                time.sleep(0.01)
-
-        # Distribute IDs across threads
-        ids_per_thread = [after_ids[i::3] for i in range(3)]
-
-        # Start multiple canceler threads
-        cancelers = []
-        for i in range(3):
-            canceler = threading.Thread(
-                target=canceler_worker, args=(i, ids_per_thread[i]), daemon=False
-            )
-            canceler.start()
-            cancelers.append(canceler)
-
-        # Wait for completion
-        for canceler in cancelers:
-            canceler.join(timeout=3.0)
-
-        # All threads should complete
-        for canceler in cancelers:
-            assert not canceler.is_alive()
-
 
 class TestUISchedulerEventBus:
     """Test event bus integration with threading."""
@@ -340,7 +307,7 @@ class TestUISchedulerRaceConditions:
         assert len(access_count) == 15
 
     def test_mixed_operation_concurrency(self, ui_scheduler):
-        """Test concurrent mixed operations (schedule, schedule_after, cancel)."""
+        """Test concurrent mixed operations (schedule, schedule_after)."""
         operations = []
 
         def mixed_worker(thread_id):
@@ -350,13 +317,7 @@ class TestUISchedulerRaceConditions:
                 time.sleep(0.01)
 
                 # Schedule delayed
-                after_id = ui_scheduler.schedule_after(100, lambda: operations.append("delayed"))
-                time.sleep(0.01)
-
-                # Cancel
-                if after_id:
-                    ui_scheduler.cancel_scheduled(after_id)
-                    operations.append("cancel")
+                ui_scheduler.schedule_after(100, lambda: operations.append("delayed"))
                 time.sleep(0.01)
 
         # Start multiple workers

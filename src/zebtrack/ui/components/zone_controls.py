@@ -1541,11 +1541,6 @@ class ZoneControlsWidget(BaseWidget):
         if self.interactive_buttons_frame:
             self.interactive_buttons_frame.pack_forget()
 
-    def update_template_list(self, templates: list[str]) -> None:
-        """Update the template combobox with available templates."""
-        if self.roi_template_combobox:
-            self.roi_template_combobox.config(values=templates)
-
     def clear_zone_list(self) -> None:
         """Clear all items from the zone list."""
         if not self.zone_listbox:
@@ -1634,14 +1629,6 @@ class ZoneControlsWidget(BaseWidget):
         """Hide the aquarium selector frame."""
         if self.aquarium_selector_frame:
             self.aquarium_selector_frame.pack_forget()
-
-    def get_active_aquarium_id(self) -> int:
-        """Get the currently selected aquarium ID.
-
-        Returns:
-            Aquarium ID (0 for aquarium 1, 1 for aquarium 2).
-        """
-        return self.active_aquarium_var.get()
 
     def set_active_aquarium(self, aquarium_id: int) -> None:
         """Set the active aquarium programmatically.

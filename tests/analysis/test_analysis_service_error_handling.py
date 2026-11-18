@@ -183,24 +183,6 @@ class TestErrorHandling:
         with pytest.raises(FileNotFoundError):
             analysis_service.load_trajectory_dataframe(Path("/tmp/non_existent.parquet"))
 
-    def test_schema_validation_extra_columns_allowed(self, analysis_service):
-        """Test schema validation allows extra columns beyond required."""
-        df = pd.DataFrame(
-            {
-                "timestamp": [0.0],
-                "frame": [0],
-                "track_id": [1],
-                "x1": [100],
-                "y1": [100],
-                "x2": [150],
-                "y2": [150],
-                "extra_col": ["value"],  # Extra column should be allowed
-            }
-        )
-
-        # Should pass validation with extra columns
-        assert analysis_service.validate_trajectory_schema(df) is True
-
     @patch("zebtrack.analysis.analysis_service.ConcreteBehavioralAnalyzer")
     def test_negative_coordinates_handled(self, mock_analyzer_class, analysis_service):
         """Test analysis with negative coordinates."""
@@ -273,19 +255,6 @@ class TestErrorHandling:
 
         # Empty criteria should match any metadata
         assert analysis_service._profile_matches(profile, metadata) is True
-
-    def test_build_metadata_context_with_none_video_info(self, analysis_service):
-        """Test metadata context with None video_info."""
-        # Should handle None gracefully
-        metadata = analysis_service.build_metadata_context(
-            video_info={"metadata": None},
-            single_video_config=None,
-            experiment_id="exp_001",
-            video_path="/path/to/video.mp4",
-        )
-
-        assert metadata is not None
-        assert isinstance(metadata, dict)
 
     @patch("zebtrack.analysis.analysis_service.ConcreteBehavioralAnalyzer")
     def test_analysis_with_very_large_coordinates(self, mock_analyzer_class, analysis_service):

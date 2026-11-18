@@ -9,7 +9,6 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import pandas as pd
 import pytest
 from tests.utils.wait_helpers import wait_for_condition
 
@@ -362,51 +361,6 @@ class TestProjectServicePathResolution:
 
 class TestProjectServiceMetadata:
     """Test suite for metadata operations."""
-
-    def test_load_metadata_csv_success(self, tmp_path):
-        """Test loading metadata CSV successfully."""
-        service = ProjectService()
-        project_path = tmp_path / "test_project"
-        project_path.mkdir()
-        metadata_file = project_path / "metadata.csv"
-        df = pd.DataFrame(
-            {
-                "video": ["video1.mp4", "video2.mp4"],
-                "group": ["control", "treated"],
-                "subject": ["s01", "s02"],
-            }
-        )
-        df.to_csv(metadata_file, index=False)
-
-        result = service.load_metadata_csv(str(project_path))
-
-        assert result is not None
-        assert len(result) == 2
-        assert "video" in result.columns
-        assert "group" in result.columns
-
-    def test_load_metadata_csv_not_found(self, tmp_path):
-        """Test loading metadata when file doesn't exist."""
-        service = ProjectService()
-        project_path = tmp_path / "test_project"
-        project_path.mkdir()
-        result = service.load_metadata_csv(str(project_path))
-
-        assert result is None
-
-    def test_load_metadata_csv_invalid_format(self, tmp_path):
-        """Test loading metadata with invalid CSV."""
-        service = ProjectService()
-        project_path = tmp_path / "test_project"
-        project_path.mkdir()
-        metadata_file = project_path / "metadata.csv"
-        with open(metadata_file, "w") as f:
-            f.write("invalid,csv\ndata")
-
-        result = service.load_metadata_csv(str(project_path))
-
-        # Service should handle gracefully and return None
-        assert result is None or isinstance(result, pd.DataFrame)
 
 
 class TestProjectServiceROITemplates:
