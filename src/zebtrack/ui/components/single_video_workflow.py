@@ -389,12 +389,19 @@ class SingleVideoWorkflow:
             return True
 
         log.info("single_video_workflow.auto_detect.live_camera_route")
+
+        def _after_calibration(success: bool) -> None:
+            if success:
+                self._refresh_zone_tab_overlay(gui)
+
         try:
-            # Runs synchronously on the UI thread (opens a modal preview dialog),
-            # mirroring LiveCalibrationCoordinator's own "auto" calibration path.
+            # With a Tk root the camera warm-up and detection run on a worker
+            # and ``on_done`` fires on the Tk thread once the preview dialog is
+            # answered (A6-03); without one it all runs inline.
             success = calibration_coordinator.run_live_calibration(
                 stabilization_frames=max(stabilization_frames, 30),
                 show_preview=True,
+                on_done=_after_calibration,
             )
         except Exception as e:  # except Exception justified: camera + cv2 pipeline
             log.error("single_video_workflow.auto_detect.live_failed", error=str(e), exc_info=True)
@@ -404,8 +411,9 @@ class SingleVideoWorkflow:
             )
             return True
 
-        if success:
-            self._refresh_zone_tab_overlay(gui)
+        # Inline (no root): ``success`` is the outcome and ``on_done`` is not
+        # called. In the background: ``success`` is False until ``on_done``.
+        _after_calibration(bool(success))
         return True
 
     @staticmethod

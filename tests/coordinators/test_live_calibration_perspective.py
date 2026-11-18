@@ -38,6 +38,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
+from tests.utils.deferring_tk import bind_deferring_tk
 from zebtrack.coordinators.live_calibration_coordinator import LiveCalibrationCoordinator
 
 
@@ -109,9 +110,12 @@ def _run(coordinator, *, perspective: str | None) -> str | None:
         ),
     ):
         detector_cls.return_value = MagicMock()
+        tk_loop = bind_deferring_tk(coordinator.root)
         coordinator.run_live_calibration(
             stabilization_frames=4, show_preview=True, perspective=perspective
         )
+        # A6-03: the detection runs on a worker; let it deliver.
+        tk_loop.run_until_idle()
 
     calls = coordinator.weight_manager.get_weight_path_by_method.call_args_list
     assert calls, "a calibração nunca chegou a pedir um peso"

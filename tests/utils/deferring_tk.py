@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import threading
 import time
+from typing import Any
 
 
 class DeferringTk:
@@ -19,10 +20,13 @@ class DeferringTk:
     def __init__(self) -> None:
         self.pending: list = []
         self.after_threads: list[threading.Thread] = []
+        #: Every ``after`` request as ``(delay, callback)``, in order.
+        self.scheduled: list[tuple[Any, Any]] = []
         self.alive = True
 
     def after(self, _delay, callback=None, *args):
         self.after_threads.append(threading.current_thread())
+        self.scheduled.append((_delay, callback))
         if callback is not None:
             self.pending.append(lambda: callback(*args))
         return f"after#{len(self.after_threads)}"
