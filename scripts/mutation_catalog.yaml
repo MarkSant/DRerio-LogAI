@@ -5485,3 +5485,41 @@ _load_registry()"
         description: "A6-04: a troca de camera passa a usar a lista em cache (ordem velha)"
         find: 'lambda: WizardService.detect_available_cameras(use_cache=False),'
         replace: 'lambda: WizardService.detect_available_cameras(use_cache=True),'
+
+  # ---- A6-02: deleting the unified reports leaves the Tk thread ---------------
+  unified_reports_delete_off_tk:
+    source: src/zebtrack/ui/components/project_views/report_generator_actions.py
+    tests:
+      - tests/ui/components/test_report_generator_actions.py
+    mutations:
+      - id: delete-on-tk
+        description: "A6-02: 'Excluir relatorios unificados' volta a apagar no thread do Tk"
+        find: |-
+          run_in_background(
+                      owner,
+                      lambda: delete_unified_reports_dir(unified_dir),
+                      _done,
+                      _failed,
+                      name="delete-unified-reports",
+                  )
+        replace: |-
+          _done(delete_unified_reports_dir(unified_dir))
+      - id: pause-after-last-attempt
+        description: "A6-02: volta a dormir depois da ultima tentativa e atrasa o erro"
+        find: 'if attempt:'
+        replace: 'if True:'
+      - id: double-delete
+        description: "A6-02: segundo clique durante a exclusao dispara outra"
+        find: '        self._unified_delete_pending = True'
+        replace: '        self._unified_delete_pending = False'
+      - id: stuck-after-worker-error
+        description: "A6-02: depois de um erro inesperado o botao nunca mais apaga"
+        find: |-
+          self._unified_delete_pending = False
+                      error = exc if isinstance(exc, Exception) else RuntimeError(str(exc))
+        replace: |-
+          error = exc if isinstance(exc, Exception) else RuntimeError(str(exc))
+      - id: no-root-fallback
+        description: "A6-02: sem o widget da aba, a exclusao volta ao thread do Tk"
+        find: 'return root if root is not None and hasattr(root, "after") else None'
+        replace: 'return None'

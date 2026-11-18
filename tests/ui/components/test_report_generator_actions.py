@@ -13,11 +13,14 @@ import os
 import shutil
 import stat
 import sys
+import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from tests.utils.deferring_tk import bind_deferring_tk
 
 from zebtrack.ui import payloads
 from zebtrack.ui.components.project_views.report_generator_actions import (
@@ -466,7 +469,9 @@ class TestDeleteAllUnifiedReports:
             "Could not delete the folder.\nCheck whether a file is still open.\n\nError: "
         )
         assert "OneDrive" not in message
-        assert sleeps == [0.5, 0.5, 0.5], "three attempts, a pause after each failure"
+        # Three attempts, a pause BETWEEN them: no pause after the last one, which
+        # only delayed the error dialog (audit A6-02).
+        assert sleeps == [0.5, 0.5]
         assert widget.refreshed == [str(tmp_path)]
 
     def test_a_folder_under_onedrive_adds_the_lock_hint(self, tmp_path, monkeypatch):
@@ -502,3 +507,117 @@ class TestDeleteAllUnifiedReports:
         assert not (tmp_path / "unified_reports").exists()
         assert dialogs.infos == [("Success", "All unified reports have been deleted.")]
         assert dialogs.errors == []
+
+
+class _TkWidget(_ProcessingWidget):
+    """The reports tab widget with a deferring Tk loop (``after`` is queued)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.tk_loop = bind_deferring_tk(self)
+
+
+class TestDeleteAllUnifiedReportsOffTk:
+    """A6-02: the deletion runs on a worker; dialogs and buttons stay on Tk."""
+
+    def test_deletion_runs_off_tk_and_the_dialog_waits_for_the_tk_loop(self, tmp_path, monkeypatch):
+        _make_reports(tmp_path, "total", "a.docx")
+        real_rmtree = shutil.rmtree
+        threads: list = []
+
+        def rmtree(path: Any, onerror: Any = None, **kw: Any) -> None:
+            threads.append(threading.current_thread())
+            real_rmtree(path, onerror=onerror, **kw)
+
+        monkeypatch.setattr(shutil, "rmtree", rmtree)
+        widget = _TkWidget()
+        actions, dialogs, _dispatcher, _status = _actions(tmp_path, widget=widget)
+
+        actions.delete_all_unified_reports()
+        assert dialogs.infos == []
+        assert widget.refreshed == []
+
+        widget.tk_loop.run_until_idle()
+
+        assert len(threads) == 1
+        assert threads[0] is not threading.main_thread()
+        assert not (tmp_path / "unified_reports").exists()
+        assert dialogs.infos == [("Success", "All unified reports have been deleted.")]
+        assert widget.refreshed == [str(tmp_path)]
+
+    def test_a_second_request_while_deleting_is_ignored(self, tmp_path, monkeypatch):
+        _make_reports(tmp_path, "total", "a.docx")
+        release = threading.Event()
+        calls: list = []
+        real_rmtree = shutil.rmtree
+
+        def slow_rmtree(path: Any, onerror: Any = None, **kw: Any) -> None:
+            calls.append(1)
+            release.wait(5)
+            real_rmtree(path, onerror=onerror, **kw)
+
+        monkeypatch.setattr(shutil, "rmtree", slow_rmtree)
+        widget = _TkWidget()
+        actions, dialogs, _dispatcher, _status = _actions(tmp_path, widget=widget)
+
+        actions.delete_all_unified_reports()
+        actions.delete_all_unified_reports()
+        release.set()
+        widget.tk_loop.run_until_idle()
+
+        assert calls == [1]
+        assert dialogs.infos == [("Success", "All unified reports have been deleted.")]
+        assert dialogs.errors == []
+
+    def test_failure_is_reported_on_tk_and_a_new_attempt_is_allowed(self, tmp_path, monkeypatch):
+        _make_reports(tmp_path, "total", "a.docx")
+        TestDeleteAllUnifiedReports._locked_rmtree(monkeypatch, [])
+        widget = _TkWidget()
+        actions, dialogs, _dispatcher, _status = _actions(tmp_path, widget=widget)
+
+        actions.delete_all_unified_reports()
+        widget.tk_loop.run_until_idle()
+
+        assert [title for title, _msg in dialogs.errors] == ["Deletion Error"]
+        assert widget.refreshed == [str(tmp_path)]
+
+        actions.delete_all_unified_reports()
+        widget.tk_loop.run_until_idle()
+        assert len(dialogs.errors) == 2
+
+    def test_an_unexpected_worker_error_still_ends_in_the_error_dialog(self, tmp_path, monkeypatch):
+        _make_reports(tmp_path, "total", "a.docx")
+        from zebtrack.ui.components.project_views import report_generator_actions as module
+
+        def explode(_dir: str):
+            raise ValueError("bad path")
+
+        monkeypatch.setattr(module, "delete_unified_reports_dir", explode)
+        widget = _TkWidget()
+        actions, dialogs, _dispatcher, _status = _actions(tmp_path, widget=widget)
+
+        actions.delete_all_unified_reports()
+        widget.tk_loop.run_until_idle()
+
+        assert len(dialogs.errors) == 1
+        assert dialogs.errors[0][1].endswith("Error: bad path")
+        assert widget.refreshed == [str(tmp_path)]
+
+        # Not stuck: the next click runs again.
+        monkeypatch.setattr(module, "delete_unified_reports_dir", lambda _d: (True, None))
+        actions.delete_all_unified_reports()
+        widget.tk_loop.run_until_idle()
+        assert dialogs.infos == [("Success", "All unified reports have been deleted.")]
+
+    def test_the_gui_root_is_used_when_the_tab_widget_is_missing(self, tmp_path):
+        _make_reports(tmp_path, "total", "a.docx")
+        root = SimpleNamespace()
+        tk_loop = bind_deferring_tk(root)
+        actions, dialogs, _dispatcher, _status = _actions(tmp_path, widget=None)
+        dialogs.gui = SimpleNamespace(root=root)
+
+        actions.delete_all_unified_reports()
+        assert dialogs.infos == []
+
+        tk_loop.run_until_idle()
+        assert dialogs.infos == [("Success", "All unified reports have been deleted.")]
