@@ -1039,3 +1039,156 @@ with a docstring, comment, doc or context-file mention that must be edited in th
   treated as history.
 - Dead branches inside live functions, dead constants and unused parameters were not examined (the
   same scope as A2).
+
+## Deletion pass (2026-11-18)
+
+The maintainer approved the rows marked `(safe)` in the section "Safest deletion batch" and nothing else.
+Every row was re-verified against the tree as it was on the day of the pass (name search over `src/`,
+`scripts/`, `tests/`, `docs/`, `.copilot-impact-map.yaml` and `resources/`, including `getattr` and string
+dispatch), and each commit ran `ruff` and the touched tests. The rows in sections A, B and C above were not touched.
+
+### Result
+
+| | Rows | Lines (signature to last line, as counted above) |
+| --- | --- | --- |
+| Deleted | 154 | 2989 |
+| Skipped | 9 | 147 |
+| Total approved | 163 | 3136 |
+
+Net change of the commits `refactor(dead-code): ...`: `src/` 16 lines added and 3356 removed; `tests/` 93 added and 3693 removed. The `src/` figure also covers the cascade removals below and the unused imports they freed. Of the 163 rows, 154 were deleted and 9 skipped (3 alive or off limits, 6 not a clean delete).
+
+### Rows deleted
+
+All the rows of the table at the top of "Safest deletion batch", except the nine below. Commits, in order:
+
+| Commit | Scope | Rows (`A2-D-`) |
+| --- | --- | --- |
+| `f91f4a08` | analysis_service, roi | 101, 102, 109 |
+| `f6495935` | coordinators | 112, 113, 114, 116, 118, 120, 121, 122, 123, 124, 125 |
+| `7c468095` | core/detection, evaluator | 126-132, 135, 136, 139-143 |
+| `b85e2a1f` | core/project, the three `delete_template` | 144-154, 157, 158, 159, 287, 365 |
+| `f561075d` | core/services, recording, viewmodels | 163, 166, 167, 170, 173-181, 187, 197, 198, 201, 203, 204, 205 |
+| `362ecf18` | io, plugins, settings, tracker | 210, 211, 214-217, 219-221, 224, 227, 228, 231-236 |
+| `28c3c1eb` | UI builders and small components | 237-239, 242-249 |
+| `480e8e16` | DialogManager, MenuManager | 252-257, 259, 260, 266, 267 |
+| `b6ca4e29` | UI trees and synchronisers | 268, 269, 272-274, 276-286, 288-290 |
+| `a336b435` | ValidationManager | 291, 292, 294-303 |
+| `f2d653d4` | video_display, zone_controls, zone_edit_guard, progress dialog | 306-310, 315, 316, 317, 319 |
+| `aa025354` | ApplicationGUI, CustomRegexDialog | 343-351, 353, 360 |
+
+### Rows skipped
+
+| Row | Function | Verdict now | Reason |
+| --- | --- | --- | --- |
+| A2-D-169 | `RecordingService.set_ui_callbacks` | kept | not a clean delete: it is the only writer of `RecordingService._ui_callbacks`, which three methods read (`show_error`, `update_button_state`, `set_status`, the stop callback) and about 20 tests rely on. Nothing in production calls it, so those callbacks are never wired: a missing caller, not dead weight. |
+| A2-D-251 | `DialogManager.set_dialog_suppression` | kept | missing wiring, not dead code: `ProgressTrackingCoordinator._set_dialog_suppression` (called by the batch start) only touches the batch context and never forwards to `DialogManager.set_dialog_suppression`, so batch dialogs are never suppressed. |
+| A2-D-305 | `VideoDisplayWidget.load_frame` | kept | `load_frame` is the only publisher of `FRAME_DISPLAYED` and `FRAME_ERROR`; without it `tests/quality/test_no_orphan_ui_events.py` fails and the fix is deleting `UIEvents` members in `ui/event_bus_v2.py` (off limits). |
+| A2-D-312 | `ZoneControlsWidget._on_toggle_view_clicked` | kept | only publisher of `ZONE_TOGGLE_VIEW`; the event keeps its subscriber in `event_dispatcher.py` and its member in `event_bus_v2.py` (off limits), and the orphan-event guard fails without it. |
+| A2-D-313 | `ZoneControlsWidget._on_video_refresh_clicked` | kept | same as A2-D-312, for `ZONE_VIDEO_REFRESH`. |
+| A2-D-314 | `ZoneControlsWidget.set_roi_rule_config` | kept | the docstring says it re-displays the effective ROI rule after opening a project, and `tab_builder.py` resolves the rule only once at build time: looks like a missing caller, so it was left for a decision. |
+| A2-D-320 | `AquariumDetectionProgressDialog.close_dialog` | alive now | `UICoordinator._close_aquarium_detection_dialog` now calls `dialog.close_dialog()` on the `AquariumDetectionProgressDialog` it opened. |
+| A2-D-354 | `UICoordinator.get_statistics` | off limits | `ui/ui_coordinator.py` is being edited by the main session. |
+| A2-D-355 | `UICoordinator.reset_statistics` | off limits | `ui/ui_coordinator.py` is being edited by the main session. |
+
+### Removed along with them (cascade)
+
+Helpers, imports and attributes that only the deleted code used, re-verified the same way:
+
+- `AnalysisService._finalize_batch_processing`, `AnalysisService.build_metadata_context`: only `process_videos_batch` (A2-D-102) called them.
+- `BaseTrack.set_id_counter`: only `SingleDetector._restore_trackers` (A2-D-143) called it.
+- `ModelService.list_available_weights`: only `DetectorService.get_available_configs` (A2-D-173) called it.
+- `CommonWidgetsBuilder.get_zone_summary_helper_text`, `ZoneWidgetsBuilder.on_frame_configure`, `ZoneWidgetsBuilder.on_canvas_configure_scroll`: only the removed builders used them.
+- `MenuManager.get_overview_badge_font` and the `_overview_menu_font` attribute (menu manager and `gui.py`): only `show_overview_context_menu` (A2-D-267) used them.
+- `ApplicationGUI.show_project_model_configuration_tab`, `ApplicationGUI._reload_config_editor_values_widget`: only the removed `_open_project_calibration_window` and `_on_reset_global_config_form_widget` called them.
+- Imports freed by the deletions (`os`, `pandas`, `tkinter`, `cv2`, `yaml` and others), found with `ruff` F401.
+- Two mutations of `live_camera_mode_selector` in `scripts/mutation_catalog.yaml` (`plan-ids-one-based`, `plan-notes-zero-based`): their `find` text lived in `create_sequential_session_plan` (A2-D-166). The block keeps its other mutations.
+- Two entries of `tests/quality/shared_settings_allowlist.txt` that `_temporary_single_animal_mode` (A2-D-118) left stale.
+
+### Cascade candidates left for a decision
+
+No caller is left in `src/` or `scripts/` for these, but they are public members of other modules, vendored code, or have tests of their own, so they were not part of the approval:
+
+- `ProjectViewModel.apply_project_settings_to_batch`: its only caller was `process_videos_batch`; it delegates to `batch_configuration_service.apply_settings`, which is a further cascade.
+- `KalmanFilter.gating_distance`, `STrack.to_xyah`, `STrack.tlwh_to_tlbr`: vendored tracker API with their own tests; only the removed `tracker/matching.py` functions used them.
+- `PanelBuilder.create_zone_summary_cards`, `VideoSelectorTreeManager.update_zone_summary_cards`: other modules, own tests; only the removed zone-summary section used them.
+- `ReportAssetActions.delete_all_processing_data`: only the removed `ReportsTreeManager._delete_all_processing_data` shim called it.
+- `HardwareStatusViewModel.get_openvino_cache_status`: only the removed `VideoSelectorTreeManager.refresh_openvino_summary` called it.
+- `VideoSelectorTreeManager._on_project_overview_tree_double_click_impl`: only the removed `ApplicationGUI._on_project_overview_tree_double_click` and its tree-manager shim called it.
+- `CenterPeripheryDialog`, `TemplateDialog` (classes in `ui/dialogs/`): the `DialogManager` wrappers that opened them are gone; both are still exported from `ui/dialogs/__init__.py`.
+
+### Judgement calls in the edits
+
+- Tests that read a deleted accessor only to observe state now read the private attribute the accessor returned, so the check survives: `BboxAreaGate.rejections` and `sample_count` (`_rejections`, `_areas`), `Recorder.is_paused()`, `is_multi_aquarium_mode()` and the two sidecar names, `ArduinoManager.last_command()`, `FrameLedger.rows_snapshot()` in the pipeline helpers, `SingleDetector.is_single_subject_mode()`, `AnalysisWindowPanel.is_session_only`, `ClassRolesPanel.seed_fit()`, `ZoneControlsWidget.get_active_aquarium_id()` and the two `LiveBatchCoordinator` getters (`_active_batches`).
+- Tests that used `WeightManager.set_default_weight_by_type` only as set-up now call `set_default_weight_for` with the target that wrapper inferred (`zebrafish` for `seg`, `aquarium` for `det`). The wizard template test that used `TemplateManager.delete_template` to create the tombstone now unlinks the file.
+- `test_expand_and_collapse_tree_item` keeps its expand half (`test_expand_tree_item`); `test_detect_filters_multiple_detections_by_polygon` no longer patches the dead `_is_inside_polygon`.
+- The `check-path-consistency` hook flags every changed file that still has a path-like `str` parameter, so three untouched legacy signatures became `Path | str` with a `str(...)` at the use: `TrajectoryDataService.load_trajectory`, `VideoMetadataService.get_video_dimensions` and `VideoDisplayWidget.load_frame`.
+
+### Tests removed
+
+248 test functions went with the rows (counted by `def test_...` lines in the diffs; a few are parts of tests that were rewritten rather than removed). Whole files deleted: `tests/analysis/test_analysis_events.py`, `tests/core/test_wizard_service_multi_aquarium.py`. Per file:
+
+| File | Count | Tests |
+| --- | --- | --- |
+| `tests/analysis/test_analysis_events.py` | 1 | `test_process_videos_batch_publishes_social_summary_event` |
+| `tests/analysis/test_analysis_service.py` | 2 | `test_validate_trajectory_schema_success`, `test_validate_trajectory_schema_missing_columns` |
+| `tests/analysis/test_analysis_service_batch.py` | 9 | `test_process_videos_batch_initialization`, `test_process_videos_batch_with_single_video_config`, `test_process_videos_batch_cancellation`, `test_process_videos_batch_partial_processing`, `test_process_videos_batch_with_metadata_derivation`, `test_process_videos_batch_exception_handling`, `test_finalize_batch_processing_success`, `test_finalize_batch_processing_cancelled`, `test_finalize_batch_processing_empty_videos_list` |
+| `tests/analysis/test_analysis_service_error_handling.py` | 2 | `test_schema_validation_extra_columns_allowed`, `test_build_metadata_context_with_none_video_info` |
+| `tests/analysis/test_analysis_service_video_processing.py` | 5 | `test_validate_trajectory_schema_valid`, `test_validate_trajectory_schema_missing_columns`, `test_build_metadata_context_single_video`, `test_build_metadata_context_with_derive_callback`, `test_build_metadata_context_derive_callback_fails` |
+| `tests/coordinators/test_live_camera_session_coordinator.py` | 2 | `test_get_live_session_info_not_active`, `test_get_live_session_info_active` |
+| `tests/coordinators/test_live_camera_session_coordinator_extended.py` | 1 | `test_get_live_session_info_idle` |
+| `tests/coordinators/test_multi_aquarium_coordinator.py` | 1 | `test_temporary_single_animal_mode` |
+| `tests/coordinators/test_processing_coordinator_coverage.py` | 3 | `test_temporary_single_animal_mode_method_exists`, `test_temporary_single_animal_mode_is_context_manager`, `test_temporary_mode_infers_tracker_pref_from_single_animal` |
+| `tests/coordinators/test_project_lifecycle_coordinator.py` | 1 | `test_register_project_outputs` |
+| `tests/coordinators/test_recording_session_coordinator.py` | 2 | `test_get_recording_info`, `test_get_recording_info_not_recording` |
+| `tests/coordinators/test_ui_state_coordinator.py` | 7 | `test_no_active_video`, `test_apply_success`, `test_apply_file_not_found`, `test_apply_generic_exception`, `test_update_main_arena_success`, `test_prepare_processing_ui`, `test_finalize_processing_success_and_cancelled` |
+| `tests/core/project/test_asset_manager.py` | 5 | `test_ensure_roi_template_dir`, `test_ensure_roi_template_dir`, `test_ensure_roi_template_dir`, `test_ensure_roi_template_dir`, `test_ensure_roi_template_dir_empty_raises` |
+| `tests/core/project/test_roi_template_manager.py` | 1 | `test_delete_template` |
+| `tests/core/project/test_video_manager.py` | 1 | `test_refresh_complete_flag` |
+| `tests/core/recording/test_live_camera_mode_extended.py` | 4 | `test_one_single_aquarium_session_per_aquarium`, `test_zero_aquariums_is_an_empty_plan`, `test_every_mode_has_its_own_description`, `test_unknown_value_has_a_fallback` |
+| `tests/core/services/test_arduino_roi_evaluator_extended.py` | 1 | `test_centroid_of_bbox` |
+| `tests/core/services/test_detector_service_extended.py` | 2 | `test_get_active_config`, `test_get_available_configs_and_active_config` |
+| `tests/core/services/test_model_service_extended.py` | 2 | `test_list_available_weights`, `test_validate_weight` |
+| `tests/core/services/test_trajectory_data_service_extended.py` | 2 | `test_load_trajectory_safe_missing_returns_none`, `test_load_trajectory_safe_corrupt_returns_none` |
+| `tests/core/services/test_weight_manager_extended.py` | 1 | `test_set_default_weight_by_type` |
+| `tests/core/services/test_wizard_service_extended.py` | 3 | `test_disabled_multi_aquarium`, `test_dict_config_enabled_with_wrong_count`, `test_dict_config_small_polygon_warning_and_overlap_warning` |
+| `tests/core/test_analysis_control_view_model.py` | 3 | `test_auto_detect_zones_publishes_event`, `test_auto_detect_defaults_the_stabilization_and_the_path`, `test_auto_detect_without_a_bus_is_a_noop` |
+| `tests/core/test_aquarium_detector_multi.py` | 7 | `test_detect_from_frame_two_aquariums`, `test_detect_from_frame_wrong_expected_count`, `test_detect_from_frame_expected_count_one`, `test_validate_aquarium_pair_valid`, `test_validate_aquarium_pair_same_side`, `test_validate_aquarium_pair_size_mismatch`, `test_validate_aquarium_pair_wrong_count` |
+| `tests/core/test_arduino_roi_evaluator.py` | 1 | `test_centroid_of_bbox` |
+| `tests/core/test_detection_post_processor.py` | 4 | `test_empty_does_not_raise`, `test_all_none_track_ids_does_not_raise`, `test_gap_does_not_raise`, `test_duplicate_does_not_raise` |
+| `tests/core/test_detector_partitioned.py` | 6 | `test_is_multi_aquarium_mode_false`, `test_is_multi_aquarium_mode_true`, `test_point_inside`, `test_point_outside`, `test_point_on_boundary`, `test_empty_polygon` |
+| `tests/core/test_hardware_status_view_model.py` | 2 | `test_setup_arduino_is_deprecated_and_reports_failure`, `test_get_arduino_manager_returns_the_bootstrapped_manager` |
+| `tests/core/test_model_service.py` | 12 | `test_get_weight_type_seg`, `test_get_weight_type_det`, `test_get_weight_type_not_found`, `test_validate_model_configuration_valid`, `test_validate_model_configuration_no_weight`, `test_validate_model_configuration_weight_not_found`, `test_validate_model_configuration_weight_file_missing`, `test_validate_model_configuration_openvino_not_ready`, `test_validate_model_configuration_openvino_failed`, `test_get_weight_configuration_summary_complete`, `test_get_weight_configuration_summary_none`, `test_get_weight_configuration_summary_not_found` |
+| `tests/core/test_multi_aquarium_models.py` | 1 | `test_aquarium_count_property` |
+| `tests/core/test_processing_worker_unit.py` | 1 | `test_format_subject_handles_numeric_and_strings` |
+| `tests/core/test_project_manager_multi_aquarium.py` | 2 | `test_has_trajectory_data_for_aquarium_is_granular`, `test_has_summary_data_for_aquarium_is_granular` |
+| `tests/core/test_project_service.py` | 3 | `test_load_metadata_csv_success`, `test_load_metadata_csv_not_found`, `test_load_metadata_csv_invalid_format` |
+| `tests/core/test_trajectory_data_service.py` | 3 | `test_safe_load_success`, `test_safe_load_missing_returns_none`, `test_safe_load_corrupted_returns_none` |
+| `tests/core/test_ui_scheduler.py` | 3 | `test_cancel_scheduled`, `test_cancel_scheduled_without_root`, `test_cancel_scheduled_handles_exception` |
+| `tests/core/test_ui_scheduler_extended.py` | 2 | `test_cancel_scheduled_no_root`, `test_cancel_scheduled_calls_after_cancel` |
+| `tests/core/test_video_metadata_service.py` | 2 | `test_get_video_info_success`, `test_get_video_info_open_fail` |
+| `tests/core/test_wizard_service_multi_aquarium.py` | 18 | `test_validate_disabled_config`, `test_validate_enabled_with_2_aquariums`, `test_validate_missing_aquariums`, `test_validate_only_one_aquarium`, `test_validate_invalid_regex_pattern`, `test_validate_regex_missing_groups`, `test_validate_regex_with_correct_groups`, `test_validate_regex_against_matching_filenames`, `test_validate_regex_against_non_matching_filenames`, `test_validate_with_empty_regex`, `test_validate_partial_regex_match`, `test_validate_dict_like_config`, `test_validate_dict_enabled_missing_aquariums`, `test_validate_with_none_sample_filenames`, `test_validate_with_empty_sample_filenames`, `test_validate_complex_regex`, `test_validate_multiple_errors_accumulated`, `test_complete_wizard_flow_validation` |
+| `tests/core/video/test_video_metadata_service_extended.py` | 2 | `test_get_video_info_success`, `test_get_video_info_cannot_open_raises` |
+| `tests/integration/test_gui_component_integration.py` | 1 | `test_remove_selected_roi_confirm` |
+| `tests/io/test_recorder_multi_aquarium.py` | 1 | `test_writes_frame_to_correct_recorder` |
+| `tests/plugins/test_openvino_detector.py` | 1 | `test_tracking_hints_ignore_missing_and_non_positive_values` |
+| `tests/plugins/test_ultralytics_detector.py` | 2 | `test_ultralytics_detector_set_tracking_parameters`, `test_set_tracking_parameters` |
+| `tests/test_basetrack.py` | 2 | `test_set_id_counter`, `test_set_id_counter_zero` |
+| `tests/test_detector.py` | 2 | `test_is_inside_polygon`, `test_is_inside_polygon_four_corners_or_center` |
+| `tests/test_matching.py` | 10 | `test_identical_boxes_full_score`, `test_output_in_unit_range`, `test_consistent_matches_intersect`, `test_disjoint_matches_have_no_intersection`, `test_empty`, `test_identical_features_zero_distance`, `test_orthogonal_features_unit_distance`, `test_far_detection_is_gated_to_inf`, `test_close_detection_unchanged`, `test_empty_short_circuit` |
+| `tests/test_project_manager.py` | 1 | `test_validate_project_parameters_bounds` |
+| `tests/test_property_detection_types.py` | 1 | `test_aquarium_count_matches_list_length` |
+| `tests/test_settings.py` | 1 | `test_real_settings_expose_the_same_answer_as_the_property` |
+| `tests/test_ui_scheduler_threading.py` | 1 | `test_concurrent_cancel_scheduled_calls` |
+| `tests/ui/components/test_base_widget.py` | 1 | `test_set_enabled_updates_children` |
+| `tests/ui/components/test_canvas_renderer.py` | 1 | `test_clear_placeholder_logo_drops_tag_and_reference` |
+| `tests/ui/components/test_dialog_manager.py` | 17 | `test_open_global_calibration_window`, `test_open_project_calibration_window_no_project`, `test_open_project_calibration_window_success`, `test_show_template_save_dialog_returns_result`, `test_show_template_save_dialog_returns_none_on_cancel`, `test_open_center_periphery_dialog_returns_result`, `test_open_center_periphery_dialog_returns_none_on_cancel`, `test_open_template_rois_dialog_returns_result`, `test_open_template_rois_dialog_returns_none_on_cancel`, `test_open_single_video_config_dialog_returns_result`, `test_open_single_video_config_dialog_returns_none_on_cancel`, `test_confirm_delete_roi_template_confirmed`, `test_confirm_delete_roi_template_cancelled`, `test_open_path_in_explorer_delegates_to_os_opener`, `test_open_path_in_explorer_error`, `test_show_template_save_dialog_empty_result_dict`, `test_open_project_calibration_falls_back_to_dialog_when_tab_unavailable` |
+| `tests/ui/components/test_menu_manager.py` | 9 | `test_get_overview_badge_font_creates_font`, `test_get_overview_badge_font_caches_font`, `test_get_overview_badge_font_no_tree`, `test_resolve_overview_asset_from_click_no_tree`, `test_resolve_overview_asset_from_click_no_bbox`, `test_resolve_overview_asset_from_click_arena`, `test_show_overview_context_menu_no_tree`, `test_show_overview_context_menu_creates_menu`, `test_show_overview_context_menu_labels` |
+| `tests/ui/components/test_project_overview.py` | 1 | `test_expand_and_collapse_tree_item` |
+| `tests/ui/components/test_roi_template_manager.py` | 2 | `test_delete_template`, `test_import_template_error_shows_message` |
+| `tests/ui/components/test_state_synchronizer.py` | 1 | `test_default_analysis_metadata_text` |
+| `tests/ui/components/test_validation_manager.py` | 41 | `test_compose_overview_status_line_empty`, `test_compose_overview_status_line_negative_total`, `test_compose_overview_status_line_single_status`, `test_compose_overview_status_line_multiple_statuses`, `test_compose_overview_status_line_all_statuses`, `test_compose_overview_status_line_unknown_status`, `test_get_selected_roi_template_empty_cache`, `test_get_selected_roi_template_no_selection`, `test_get_selected_roi_template_found`, `test_get_selected_roi_template_not_found`, `test_validate_roi_template_data_none`, `test_validate_roi_template_data_no_polygon_no_rois`, `test_validate_roi_template_data_with_polygon`, `test_validate_roi_template_data_with_rois_only`, `test_validate_arena_for_analysis_none`, `test_validate_arena_for_analysis_empty`, `test_validate_arena_for_analysis_valid`, `test_validate_arena_polygon_data_none`, `test_validate_arena_polygon_data_no_polygon`, `test_validate_arena_polygon_data_valid`, `test_validate_positive_integer_valid`, `test_validate_positive_integer_invalid`, `test_validate_positive_integer_custom_field_name`, `test_validate_active_video_selection_none`, `test_validate_active_video_selection_empty`, `test_validate_active_video_selection_valid`, `test_format_roi_template_display_basic`, `test_format_roi_template_display_arena_and_rois`, `test_format_roi_template_display_global`, `test_format_roi_template_display_no_data`, `test_build_roi_template_identifier_project_with_slug`, `test_build_roi_template_identifier_with_file`, `test_build_roi_template_identifier_fallback_to_name`, `test_format_time_variations`, `test_format_subject_for_reports_is_alias`, `test_validate_positive_integer_with_float_string`, `test_compose_overview_status_line_only_unknown_statuses`, `test_build_roi_template_identifier_empty_template`, `test_save_global_config_validation_error`, `test_save_global_config_without_settings`, `test_save_global_config_success` |
+| `tests/ui/components/test_validation_manager_extended.py` | 13 | `test_compose_overview_status_line`, `test_save_global_config_from_widget_validation_errors`, `test_compose_overview_status_line_empty`, `test_compose_overview_status_line_populated`, `test_save_global_config_invalid_fps`, `test_save_global_config_invalid_processing_interval`, `test_save_global_config_invalid_flush_rows`, `test_save_global_config_invalid_polyorder`, `test_save_global_config_even_window_length`, `test_save_global_config_invalid_fps`, `test_save_global_config_invalid_processing_interval`, `test_save_global_config_invalid_display_interval`, `test_save_global_config_invalid_offset` |
+| `tests/ui/components/test_video_display_widget.py` | 3 | `test_get_image_size_defaults`, `test_set_image_updates_state`, `test_coordinate_conversions` |
+| `tests/ui/components/test_widget_factory.py` | 3 | `test_build_status_icon_legend_simple`, `test_get_zone_summary_helper_text`, `test_create_zone_summary_cards_section_updates_project_view_manager` |
+| `tests/ui/components/test_zone_controls_widget.py` | 1 | `test_update_template_list` |
+| `tests/ui/test_zone_controls_multi_aquarium.py` | 2 | `test_get_active_aquarium_id_default`, `test_get_active_aquarium_id_returns_set_value` |
