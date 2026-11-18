@@ -690,15 +690,6 @@ class ROIAnalyzer:
         """
         return self._unobserved_time_s
 
-    @property
-    def unobserved_time_s_by_track(self) -> dict[Any, float]:
-        """Tempo não observado de CADA animal, em segundos.
-
-        Vazio quando há um único sujeito: nesse caso
-        :attr:`unobserved_time_s` já é o número por animal.
-        """
-        return dict(self._unobserved_by_track)
-
     def _prepare_time_base(self) -> None:
         """Preenche a coluna ``dt``, aplica o teto e monta o relógio observado.
 
