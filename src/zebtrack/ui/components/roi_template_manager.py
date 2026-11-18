@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from tkinter import Misc, StringVar, Tcl, TclError, filedialog, ttk
+from tkinter import Misc, StringVar, Tcl, TclError, ttk
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -387,35 +386,6 @@ class ROITemplateManager:
             selected = self.get_selected_template()
             state = "normal" if selected else "disabled"
             btn["state"] = state
-
-    def import_template(self) -> None:
-        """Import a template file into the library."""
-        file_path = filedialog.askopenfilename(
-            title=_("Import ROI Template into the Library"),
-            filetypes=[
-                (_("ROI Templates"), "*.json"),
-                (_("All files"), "*.*"),
-            ],
-        )
-        if not file_path:
-            return
-
-        try:
-            metadata = self.project_manager.import_roi_template(file_path)
-        except (OSError, json.JSONDecodeError, ValueError, RuntimeError) as exc:
-            log.error("roi_templates.import_failed", error=str(exc), file=file_path)
-            self.dialog_manager.show_error(_("Import error"), str(exc))
-            return
-
-        self.refresh_templates()
-        self.select_template_by_metadata(metadata)
-
-        template_name = metadata.get("name", Path(file_path).stem)
-        message = _(
-            "Template '{name}' added to the library.\n\n"
-            "Use the 'Apply' button to use this template."
-        ).format(name=template_name)
-        self.dialog_manager.show_info(_("Template imported"), message)
 
     def select_template_by_metadata(self, metadata: dict[str, Any]) -> None:
         """Select a template in the dropdown by matching metadata."""

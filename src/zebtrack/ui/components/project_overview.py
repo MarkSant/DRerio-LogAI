@@ -386,11 +386,6 @@ class ProjectOverviewWidget(BaseWidget):
         if self.project_overview_tree:
             self.project_overview_tree.item(item_id, open=True)
 
-    def collapse_tree_item(self, item_id: str) -> None:
-        """Collapse a tree item to hide its children."""
-        if self.project_overview_tree:
-            self.project_overview_tree.item(item_id, open=False)
-
     def update_tree(self, snapshot: list[dict]) -> None:
         """Update tree with new snapshot data."""
         hierarchy_data = {"groups": snapshot}

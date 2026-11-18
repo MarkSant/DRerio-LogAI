@@ -160,18 +160,6 @@ def test_select_template_by_metadata_slug(manager):
     assert manager.template_var.get() == "🌐 Template"
 
 
-def test_import_template_error_shows_message(manager, mock_pm, mock_gui):
-    with patch(
-        "zebtrack.ui.components.roi_template_manager.filedialog.askopenfilename",
-        return_value="/path/to/template.json",
-    ):
-        mock_pm.import_roi_template.side_effect = RuntimeError("boom")
-
-        manager.import_template()
-
-    mock_gui.dialog_manager.show_error.assert_called_once()
-
-
 def test_update_combobox_values_falls_back_to_gui_combobox(mock_pm, tkinter_root):
     gui = MagicMock()
     gui.root = tkinter_root
