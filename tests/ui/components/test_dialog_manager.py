@@ -110,7 +110,6 @@ def mock_gui(tkinter_root, mock_validation_manager, mock_controller):
     gui.update_openvino_checkbox = Mock()
     gui.set_active_weight_in_dropdown = Mock()
     gui.update_openvino_status_display = Mock()
-    gui.show_project_model_configuration_tab = Mock(return_value=True)
     gui.weight_hardware_manager = Mock()
     gui.roi_template_manager = Mock()
     gui.roi_template_manager.refresh_templates = Mock()

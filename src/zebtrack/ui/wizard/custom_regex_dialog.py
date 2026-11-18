@@ -877,18 +877,3 @@ class CustomRegexDialog(Dialog):
         returns multiple results.
         """
         return match_path_rows(path, self._compiled_patterns, self._pattern_errors)
-
-    def _match_path(self, path: Path | str) -> dict[str, str]:
-        """Legacy method - returns first match only."""
-        path = str(path)
-        results = self._match_path_all(path)
-        return (
-            results[0]
-            if results
-            else {
-                "path": path[:65] if len(path) <= 65 else f"…{path[-64:]}",
-                "group": "-",
-                "day": "-",
-                "subject": "-",
-            }
-        )
