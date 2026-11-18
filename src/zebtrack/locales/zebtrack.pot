@@ -13896,3 +13896,7 @@ msgstr ""
 #: src/zebtrack/utils/report_files.py:117
 msgid "recorded video"
 msgstr ""
+
+#: src/zebtrack/core/recording/live_session_manager.py
+msgid "Finalizing recording..."
+msgstr ""

@@ -1288,18 +1288,29 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             # service callback, so suppress it for this path and finalize here.
             # ``cancelled=True``: este é o caminho do botão "Cancelar" — a sessão
             # é sempre descartada (pasta apagada, lote não registrado).
+            # The suppression lasts until the stop has FINISHED: with a Tk root
+            # the service tears down on a worker and fires ``on_session_stopped``
+            # later, from the Tk thread (A6-07). Clearing the flag in a
+            # ``finally`` right after the call would let that late callback run
+            # the finalization a second time.
             self._suppress_service_stop_callback = True
-            try:
-                service_result = self.live_camera_service.stop_session(cancelled=True)
-            finally:
-                self._suppress_service_stop_callback = False
 
-            success = bool(service_result)
-            return self._finalize_live_session_ui(
-                cancelled=True,
-                publish_refresh=success,
-                service_success=success,
-            )
+            def _after_stop(stopped: bool) -> None:
+                self._suppress_service_stop_callback = False
+                self._finalize_live_session_ui(
+                    cancelled=True,
+                    publish_refresh=stopped,
+                    service_success=stopped,
+                )
+
+            try:
+                service_result = self.live_camera_service.stop_session(
+                    cancelled=True, on_stopped=_after_stop
+                )
+            except Exception:
+                self._suppress_service_stop_callback = False
+                raise
+            return bool(service_result)
 
         except Exception as e:  # except Exception justified: graceful stop must not crash
             log.error(

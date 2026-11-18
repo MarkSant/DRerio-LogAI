@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from tests.utils.wait_helpers import wait_for_condition
+from tests.utils.wait_helpers import drain_background_tasks, wait_for_condition
 from zebtrack.ui.dialogs.live_analysis_dialog import LiveAnalysisDialog
 from zebtrack.ui.dialogs.live_preview_window import LivePreviewWindow
 
@@ -36,10 +36,15 @@ def prevent_dialog_blocking():
 
 
 def process_tk_events(root, iterations=10):
-    """Helper to process Tkinter events including after() callbacks."""
+    """Helper to process Tkinter events including after() callbacks.
+
+    Camera detection runs on a background worker (audit A6-04) and is delivered
+    by a Tk-side poll, so finish those tasks too.
+    """
     for _ in range(iterations):
         root.update()
         root.update_idletasks()
+    drain_background_tasks(root)
 
 
 # ==============================================================================
@@ -117,9 +122,7 @@ class TestLiveAnalysisDialog:
 
             # Process the after() callback that calls _detect_cameras
             # Need to process Tk events first to trigger the scheduled callback
-            tkinter_root.update_idletasks()
-            tkinter_root.update()
-            wait_for_condition(lambda: len(dialog.camera_index_map) >= 2, timeout=1.0)
+            process_tk_events(tkinter_root)
 
             # Verify camera index map populated
             assert len(dialog.camera_index_map) == 2
@@ -448,7 +451,7 @@ class TestLiveAnalysisDialog:
                 # Process events to trigger camera detection callback
                 tkinter_root.update_idletasks()
                 tkinter_root.update()
-                wait_for_condition(lambda: len(dialog.camera_index_map) >= 1, timeout=1.0)
+                drain_background_tasks(tkinter_root)
 
                 # Select camera
                 dialog.camera_combo.current(0)
@@ -519,7 +522,7 @@ class TestLiveAnalysisDialog:
                 dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
                 tkinter_root.update_idletasks()
                 tkinter_root.update()
-                wait_for_condition(lambda: len(dialog.camera_index_map) >= 1, timeout=1.0)
+                drain_background_tasks(tkinter_root)
                 dialog.camera_combo.current(0)
 
                 # Default: desligado (o laco de contagem bombeia o event loop).
@@ -651,7 +654,7 @@ class TestLiveAnalysisDialog:
                 dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
                 tkinter_root.update_idletasks()
                 tkinter_root.update()
-                wait_for_condition(lambda: len(dialog.camera_index_map) >= 1, timeout=1.0)
+                drain_background_tasks(tkinter_root)
 
                 # Select camera
                 dialog.camera_combo.current(0)
@@ -1579,3 +1582,84 @@ class TestWindowTriggerRejection:
         from zebtrack.ui.dialogs.live_analysis_dialog import TRIGGER_CONTEXT_KEYS
 
         assert TRIGGER_CONTEXT_KEYS == ("external_trigger_mode", "use_arduino", "arduino_port")
+
+
+# ==============================================================================
+# A6-04: camera detection on dialog open runs off the Tk thread
+# ==============================================================================
+
+
+def _detection_only_dialog():
+    """LiveAnalysisDialog stub with just the widgets ``_detect_cameras`` touches."""
+    from types import SimpleNamespace
+    from typing import Any, cast
+    from unittest.mock import MagicMock
+
+    from tests.utils.deferring_tk import bind_deferring_tk
+
+    dialog = cast(Any, LiveAnalysisDialog.__new__(LiveAnalysisDialog))
+    dialog.camera_status_label = MagicMock()
+    dialog.camera_combo = {}
+    dialog.camera_index_map = {}
+    selection = SimpleNamespace(value="")
+    dialog.camera_selection_var = SimpleNamespace(
+        get=lambda: selection.value, set=lambda v: setattr(selection, "value", v)
+    )
+    return dialog, bind_deferring_tk(dialog)
+
+
+def test_detect_cameras_runs_enumeration_off_tk_and_fills_the_combo_on_tk():
+    import threading
+
+    threads: list = []
+    cams = [{"index": 3, "description": "Cam three"}]
+
+    def _detect(*_a, **_k):
+        threads.append(threading.current_thread())
+        return cams
+
+    dialog, tk_loop = _detection_only_dialog()
+    with patch(
+        "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras",
+        side_effect=_detect,
+    ):
+        dialog._detect_cameras()
+        # Returned immediately: only the "Detecting..." label, no results yet.
+        dialog.camera_status_label.config.assert_called_once_with(text="Detecting...", fg="blue")
+        assert dialog.camera_combo == {}
+        dialog._detect_cameras()  # re-entry while in flight is ignored
+        tk_loop.run_until_idle()
+
+    assert len(threads) == 1
+    assert threads[0] is not threading.main_thread()
+    assert dialog.camera_combo["values"] == ["Cam three"]
+    assert dialog.camera_index_map == {"Cam three": 3}
+    assert dialog.camera_selection_var.get() == "Cam three"
+    dialog.camera_status_label.config.assert_called_with(text="✓ 1 camera detected", fg="green")
+
+
+def test_detect_cameras_failure_is_reported_on_tk_and_allows_a_retry():
+    import threading
+
+    shown: list = []
+    dialog, tk_loop = _detection_only_dialog()
+    with (
+        patch(
+            "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras",
+            side_effect=RuntimeError("driver gone"),
+        ),
+        patch(
+            "zebtrack.ui.dialogs.live_analysis_dialog.messagebox.showerror",
+            side_effect=lambda *a, **k: shown.append((a, threading.current_thread())),
+        ),
+    ):
+        dialog._detect_cameras()
+        tk_loop.run_until_idle()
+
+    assert len(shown) == 1
+    (title, message), thread = shown[0]
+    assert title == "Detection Error"
+    assert "driver gone" in message
+    assert thread is threading.main_thread()
+    dialog.camera_status_label.config.assert_called_with(text="✗ Error detecting cameras", fg="red")
+    assert dialog._camera_detection_pending is False

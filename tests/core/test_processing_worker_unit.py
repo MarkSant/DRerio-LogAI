@@ -2720,3 +2720,18 @@ class TestCheckCancellationQueueFaults:
         child.command_queue = cast(Any, _ScriptedQueue(["pause"]))
         assert child._check_cancellation() is False
         assert child._cancel_requested is False
+
+
+def test_worker_process_is_a_daemon_so_closing_the_app_never_waits_for_the_batch(
+    worker_config,
+):
+    """A6-S2: a non-daemon child is ``join()``-ed by multiprocessing at exit.
+
+    The monitor thread that would ``terminate()`` it is itself a daemon thread
+    and dies with the interpreter, so a worker that ignores the cancel kept the
+    closed application alive until the whole batch finished.
+    """
+    worker = _WorkerProcess(worker_config, mp.Queue(), mp.Queue())
+
+    assert worker.daemon is True
+    assert worker.name == "ZebTrack-ProcessingWorker"

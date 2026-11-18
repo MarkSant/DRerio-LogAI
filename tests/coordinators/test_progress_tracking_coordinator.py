@@ -428,12 +428,45 @@ class TestCancellation:
         coordinator._video_processing_coordinator = vpc
 
         coordinator.cancel_processing()
+        coordinator._cancel_thread.join(5)
 
         vpc.processing_worker.cancel.assert_called_once()
         _args, kwargs = vpc.processing_worker.cancel.call_args
         assert kwargs.get("timeout") == coordinator.WORKER_CANCEL_TIMEOUT_S, (
-            "cancel must be bounded — it runs on the Tk main thread"
+            "the wait for the worker must stay bounded"
         )
+
+    def test_cancel_does_not_wait_for_the_worker_on_the_calling_thread(self, coordinator):
+        """A6-11: the Cancel button must not freeze Tk while the worker winds down."""
+        import threading
+
+        from zebtrack.core.video.processing_worker import ProcessingWorker
+
+        release = threading.Event()
+        waited_on: list = []
+
+        def slow_cancel(timeout=None):
+            waited_on.append(threading.current_thread())
+            release.wait(5)
+            return True
+
+        vpc = MagicMock()
+        vpc.processing_worker = MagicMock(spec=ProcessingWorker)
+        vpc.processing_worker.cancel.side_effect = slow_cancel
+        coordinator._video_processing_coordinator = vpc
+
+        coordinator.cancel_processing()  # returns while the worker is still "busy"
+
+        assert coordinator.cancel_event.is_set()
+        coordinator.state_manager.update_processing_state.assert_called_with(
+            source="processing_coordinator.cancel_processing",
+            cancel_requested=True,
+        )
+        assert coordinator._cancel_thread.daemon is True
+        release.set()
+        coordinator._cancel_thread.join(5)
+        assert waited_on == [coordinator._cancel_thread]
+        assert waited_on[0] is not threading.main_thread()
 
     def test_cancel_processing_survives_worker_without_cancel(self, coordinator):
         """A worker double lacking the API must degrade, not raise."""

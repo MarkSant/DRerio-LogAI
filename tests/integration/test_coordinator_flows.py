@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
+from tests.helpers.fake_backends import stop_session_that_completes
 from zebtrack.coordinators.live_camera_session_coordinator import (
     LiveCameraSessionCoordinator,
     LiveCameraSessionCoordinatorError,
@@ -387,7 +388,7 @@ def test_live_camera_session_start_stop_happy_path(test_settings):
 
     live_camera_service = MagicMock()
     live_camera_service.start_session.return_value = True
-    live_camera_service.stop_session.return_value = True
+    live_camera_service.stop_session.side_effect = stop_session_that_completes()
 
     coordinator = LiveCameraSessionCoordinator(
         state_manager=state_manager,
@@ -631,7 +632,9 @@ def _make_live_project_coordinator(
 
     live_camera_service = MagicMock()
     live_camera_service.start_session.return_value = start_return
-    live_camera_service.stop_session.return_value = stop_return
+    live_camera_service.stop_session.side_effect = stop_session_that_completes(
+        stopped=stop_return, returns=stop_return
+    )
 
     pm = MagicMock()
     pm.get_project_type.return_value = "live"
@@ -723,7 +726,7 @@ def test_start_session_from_config_marks_and_stops_session(test_settings):
 
     live_camera_service = MagicMock()
     live_camera_service.start_session.return_value = True
-    live_camera_service.stop_session.return_value = True
+    live_camera_service.stop_session.side_effect = stop_session_that_completes()
 
     calibration = MagicMock()
     calibration.ensure_zones_before_recording.return_value = True
@@ -772,7 +775,7 @@ def test_start_session_from_config_no_project_defers_then_resumes(test_settings)
 
     live_camera_service = MagicMock()
     live_camera_service.start_session.return_value = True
-    live_camera_service.stop_session.return_value = True
+    live_camera_service.stop_session.side_effect = stop_session_that_completes()
 
     pm = MagicMock()
     pm.project_path = None  # sem projeto

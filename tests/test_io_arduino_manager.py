@@ -653,3 +653,85 @@ def test_ack_lines_are_not_events(mock_controller):
     _run_reader_once(manager, [b"Red LED 1 ON\n"])
 
     assert seen == []
+
+
+# ---------------------------------------------------------------------------
+# A6-06: the handshake does not hold the state lock
+# ---------------------------------------------------------------------------
+
+
+def _blocking_arduino(release, entered):
+    """An Arduino whose ``connect`` blocks like a ``ready_line`` handshake."""
+    arduino = MagicMock()
+    arduino.ser = MagicMock()
+    arduino.ser.is_open = True
+    arduino.ser.readline = MagicMock(return_value=b"")
+
+    def slow_connect():
+        entered.set()
+        assert release.wait(5)
+        return True
+
+    arduino.connect = MagicMock(side_effect=slow_connect)
+    return arduino
+
+
+def test_is_connected_answers_while_a_handshake_is_in_progress(mock_controller):
+    """The dashboard asks ``is_connected()`` on the Tk thread (audit A6-06)."""
+    import threading
+
+    release, entered = threading.Event(), threading.Event()
+    arduino = _blocking_arduino(release, entered)
+    manager = ArduinoManager(mock_controller, arduino_factory=lambda _p, _b: arduino)
+
+    worker = threading.Thread(target=manager.connect, args=("COM3", 9600), daemon=True)
+    worker.start()
+    assert entered.wait(5)
+
+    answered: list = []
+    probe = threading.Thread(target=lambda: answered.append(manager.is_connected()), daemon=True)
+    probe.start()
+    probe.join(1.0)
+    try:
+        assert answered == [False], "is_connected() waited for the handshake"
+    finally:
+        release.set()
+        worker.join(5)
+
+    assert manager.is_connected() is True
+    assert manager.current_port() == "COM3"
+    manager.disconnect()
+
+
+def test_concurrent_connects_are_serialised(mock_controller):
+    """Two connects must not open the same port twice at the same time."""
+    import threading
+
+    release, entered = threading.Event(), threading.Event()
+    arduino = _blocking_arduino(release, entered)
+    built: list = []
+
+    def factory(port, _baud):
+        built.append(port)
+        return arduino
+
+    manager = ArduinoManager(mock_controller, arduino_factory=factory)
+    first = threading.Thread(target=manager.connect, args=("COM3", 9600), daemon=True)
+    first.start()
+    assert entered.wait(5)
+
+    second_result: list = []
+    second = threading.Thread(
+        target=lambda: second_result.append(manager.connect("COM3", 9600)), daemon=True
+    )
+    second.start()
+    second.join(0.3)
+    assert built == ["COM3"], "a second candidate was built while the first handshake ran"
+
+    release.set()
+    first.join(5)
+    second.join(5)
+    # The second call found the port already connected and reused it.
+    assert second_result == [True]
+    assert built == ["COM3"]
+    manager.disconnect()

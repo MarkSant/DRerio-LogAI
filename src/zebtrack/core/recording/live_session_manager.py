@@ -14,6 +14,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -85,6 +86,11 @@ class LiveSessionManagerMixin:
     _saved_detector_context: str | None
     _session_duration_s: float
     _preview_window_destroyed: bool
+    # A6-07: asynchronous stop bookkeeping (Tk thread only).
+    _stop_in_progress: bool = False
+    _stop_waiters: list = []  # noqa: RUF012 - replaced per stop, never mutated here
+    _stop_thread: threading.Thread | None = None
+    _stop_busy_dialog: Any = None
     _current_base_name: str
     _actual_fps: float
     _actual_height: int
@@ -738,30 +744,50 @@ class LiveSessionManagerMixin:
                 )
 
             if self.root and self.recording_service:
-                countdown_done = threading.Event()
-
+                # No nested event loop here (audit A6-08). The old
+                # ``while: root.update()`` pump re-entered Tk from inside this
+                # handler, so the operator could press Start again, close the
+                # window or switch tabs while the session was half set up. The
+                # countdown window already ticks with ``root.after``; the rest
+                # of the start runs from its completion callback, and this call
+                # returns True meaning "armed".
                 def _on_countdown_complete() -> None:
-                    countdown_done.set()
-
-                self.recording_service._run_countdown(countdown_seconds, _on_countdown_complete)
-
-                while not countdown_done.is_set():
                     if self.exit_event.is_set():
                         log.warning("live_camera_service.countdown.aborted")
-                        return False
-                    try:
-                        self.root.update_idletasks()
-                        self.root.update()
-                    except tk.TclError as exc:
-                        log.warning(
-                            "live_camera_service.countdown.root_update_failed",
-                            error=str(exc),
-                        )
-                        break
-                    time.sleep(0.05)
-            else:
-                time.sleep(countdown_seconds)
+                        return
+                    if not self._finish_start_after_countdown(
+                        duration_s=duration_s,
+                        record_video=record_video,
+                        zone_data=zone_data,
+                        output_dir=output_dir,
+                    ):
+                        self._report_deferred_start_failure()
 
+                self.recording_service._run_countdown(countdown_seconds, _on_countdown_complete)
+                log.info("live_camera_service.countdown.armed", seconds=countdown_seconds)
+                return True
+            time.sleep(countdown_seconds)
+
+        return self._finish_start_after_countdown(
+            duration_s=duration_s,
+            record_video=record_video,
+            zone_data=zone_data,
+            output_dir=output_dir,
+        )
+
+    def _finish_start_after_countdown(
+        self,
+        *,
+        duration_s: float,
+        record_video: bool,
+        zone_data: Any,
+        output_dir: Path,
+    ) -> bool:
+        """Second half of ``start_session``: threads, recorder, status (Tk thread).
+
+        Runs inline when there is no countdown, and from the countdown's
+        completion callback otherwise (audit A6-08).
+        """
         # Show thread startup status
         self._publish_startup_status(_("⏳ Starting capture..."))
 
@@ -845,6 +871,30 @@ class LiveSessionManagerMixin:
 
         log.info("live_camera_service.session_started", output_dir=str(output_dir))
         return True
+
+    def _report_deferred_start_failure(self) -> None:
+        """A start that failed AFTER the countdown has no caller left to tell.
+
+        Before A6-08 ``start_session`` returned False and the coordinator
+        showed the error; now that the countdown returns first, the error is
+        shown here and the session is stopped so ``on_session_stopped``
+        brings the analysis tab to a final state.
+        """
+        log.error("live_camera_service.start_after_countdown.failed")
+        if self.event_bus:
+            from zebtrack.ui import payloads
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.SHOW_ERROR,
+                    data=payloads.MessagePayload(
+                        title=_("Error"), message=_("Could not start the recording.")
+                    ),
+                )
+            )
+        if not self.exit_event.is_set():
+            self.stop_session()
 
     def _detect_and_mark_cancellation(self, *, force: bool = False, keep: bool = False) -> bool:
         """Audit Erro 1 round 4 (2026-05-25): detect early user stop.
@@ -1012,7 +1062,13 @@ class LiveSessionManagerMixin:
         self._on_session_complete(Path(output_dir), keep_data=True)
         return True
 
-    def stop_session(self, *, cancelled: bool = False, keep_data: bool = False) -> bool:  # noqa: C901
+    def stop_session(
+        self,
+        *,
+        cancelled: bool = False,
+        keep_data: bool = False,
+        on_stopped: Callable[[bool], None] | None = None,
+    ) -> bool:
         """Stop the current live camera analysis session.
 
         Args:
@@ -1030,8 +1086,33 @@ class LiveSessionManagerMixin:
                 propósito, apagando uma gravação boa. Ignora ``cancelled``:
                 entre descartar e preservar sob instruções contraditórias,
                 preservar é o único erro reversível.
+            on_stopped: called with ``True`` (or ``False`` when the teardown
+                raised) once the session is FULLY stopped: threads joined,
+                recorder flushed, camera released, UI restored. Anything that
+                reads the session files (post-analysis) or depends on the UI
+                being final must go here, not after the call.
+
+        Threading (audit A6-07): with a Tk root the teardown -- queue drain,
+        joins, frame ledger, recorder flush, discard ``rmtree``, camera
+        release; up to ~18 s by construction -- runs on a daemon worker while
+        a modal "Finalizing recording..." window is shown, and the Tk steps
+        (preview window, state, buttons, ``on_session_stopped``, then
+        ``on_stopped``) run back on the Tk thread. Without a root (headless,
+        the end-to-end tests) everything runs inline, as before, and
+        ``on_stopped`` is called before this returns. A stop requested while
+        one is in flight only queues its ``on_stopped``.
+
+        Returns:
+            ``True``: the stop was performed (no root) or started (root).
         """
         log.info("live_camera_service.stop_session", cancelled=cancelled, keep_data=keep_data)
+
+        if self._stop_in_progress:
+            # Timer and Stop button (or two clicks) racing: one teardown only.
+            log.info("live_camera_service.stop_session.already_stopping")
+            if on_stopped is not None:
+                self._stop_waiters.append(on_stopped)
+            return True
 
         # Audit Erro 1 round 4 (2026-05-25): detect user cancellation and
         # mark the session with .cancelled marker + clear ghost polygon.
@@ -1048,6 +1129,46 @@ class LiveSessionManagerMixin:
             except tk.TclError as e:
                 log.warning("live_camera_service.timer_cancel_error", error=str(e))
 
+        def _teardown() -> None:
+            self._stop_teardown_off_tk(
+                cancelled=cancelled,
+                keep_data=keep_data,
+                cancelled_session=cancelled_session,
+            )
+
+        waiters: list[Callable[[bool], None]] = [on_stopped] if on_stopped else []
+
+        if self.root is None:
+            _teardown()
+            self._stop_finish_on_tk(cancelled_session, ok=True, waiters=waiters)
+            return True
+
+        from zebtrack.ui.background_task import run_in_background
+
+        self._stop_in_progress = True
+        self._stop_waiters = waiters
+        self._stop_busy_dialog = self._open_stop_busy_dialog()
+
+        def _done(_result: None) -> None:
+            self._stop_finish_on_tk(cancelled_session, ok=True, waiters=self._stop_waiters)
+
+        def _failed(exc: BaseException) -> None:
+            log.error(
+                "live_camera_service.stop_session.teardown_failed",
+                error=str(exc),
+                exc_info=exc,
+            )
+            self._stop_finish_on_tk(cancelled_session, ok=False, waiters=self._stop_waiters)
+
+        self._stop_thread = run_in_background(
+            self.root, _teardown, _done, _failed, name="live-session-stop"
+        )
+        return True
+
+    def _stop_teardown_off_tk(
+        self, *, cancelled: bool, keep_data: bool, cancelled_session: bool
+    ) -> None:
+        """Blocking half of ``stop_session``: no Tk call allowed here (A6-07)."""
         # Audit Erro 3 round 5 (2026-05-25): RACE CONDITION FIX.
         # Previously the order was: stop_recording → clear_queues → exit_event.set → join.
         # That left a window between writer release and worker shutdown where the
@@ -1168,6 +1289,23 @@ class LiveSessionManagerMixin:
                 )
             self.current_output_dir = None
 
+        # Release camera
+        if self.camera:
+            self.camera.release()
+            self.camera = None
+
+    def _stop_finish_on_tk(
+        self,
+        cancelled_session: bool,
+        *,
+        ok: bool,
+        waiters: list[Callable[[bool], None]],
+    ) -> None:
+        """Tk half of ``stop_session``: windows, state, buttons, callbacks."""
+        self._stop_in_progress = False
+        self._stop_waiters = []
+        self._close_stop_busy_dialog()
+
         # Close preview window
         if self.preview_window:
             try:
@@ -1176,11 +1314,6 @@ class LiveSessionManagerMixin:
             except tk.TclError as e:
                 log.warning("live_camera_service.preview_close_error", error=str(e))
             self.preview_window = None
-
-        # Release camera
-        if self.camera:
-            self.camera.release()
-            self.camera = None
 
         # Restore detector context to original state
         if hasattr(self, "_saved_detector_context") and self._saved_detector_context:
@@ -1243,7 +1376,51 @@ class LiveSessionManagerMixin:
                     exc_info=True,
                 )
 
-        return True
+        for waiter in waiters:
+            try:
+                waiter(ok)
+            # except Exception justified: one caller's follow-up must not
+            # stop the next one from running.
+            except Exception:
+                log.error(
+                    "live_camera_service.stop_session.on_stopped_failed",
+                    exc_info=True,
+                )
+
+    def _open_stop_busy_dialog(self) -> Any:
+        """Modal "Finalizing recording..." over the root while the teardown runs."""
+        if not isinstance(self.root, tk.Misc):
+            return None
+        from zebtrack.ui.dialogs.busy_dialog import BusyDialog
+
+        try:
+            return BusyDialog(self.root, _("Finalizing recording..."))
+        except tk.TclError as exc:
+            log.warning("live_camera_service.stop_busy_dialog.failed", error=str(exc))
+            return None
+
+    def _close_stop_busy_dialog(self) -> None:
+        dialog = getattr(self, "_stop_busy_dialog", None)
+        self._stop_busy_dialog = None
+        if dialog is not None:
+            dialog.close()
+
+    def wait_for_pending_stop(self, timeout: float) -> bool:
+        """Block until an in-flight teardown has flushed (app exit only).
+
+        The teardown thread is a daemon: closing the app while it runs would
+        kill it in the middle of the recorder flush. ``join_threads`` calls
+        this before the interpreter exits.
+
+        Returns:
+            ``True`` when no teardown is left running.
+        """
+        thread = getattr(self, "_stop_thread", None)
+        if thread is None or not thread.is_alive():
+            return True
+        log.info("live_camera_service.wait_for_pending_stop", timeout=timeout)
+        thread.join(timeout)
+        return not thread.is_alive()
 
     def _finalize_recorder(self, *, cancelled_session: bool, threads_hung: bool) -> None:
         """Close the recorder at the end of a session and report a failed save.

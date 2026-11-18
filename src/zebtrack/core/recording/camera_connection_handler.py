@@ -7,6 +7,7 @@ Provides the ``CameraConnectionMixin`` mixed into ``LiveCameraService``.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import is_dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -67,7 +68,11 @@ class CameraConnectionMixin:
     preview_window: LivePreviewWindow | None
 
     def stop_session(  # type: ignore[empty-body]  # from LiveSessionManagerMixin
-        self, *, cancelled: bool = False, keep_data: bool = False
+        self,
+        *,
+        cancelled: bool = False,
+        keep_data: bool = False,
+        on_stopped: Callable[[bool], None] | None = None,
     ) -> bool: ...
 
     def _setup_camera(self, camera_index: int) -> bool:

@@ -1420,6 +1420,20 @@ keeps `discard=True` as its default (the Cancel button), and
 `_on_session_complete` the timer uses. The Arduino "stop" code (`0`) now calls
 `discard=False` — a firmware stop is end-of-protocol, not a cancellation.
 
+**3. Stopping is asynchronous with a Tk root (A6-07).** `stop_session` returns
+once the stop has STARTED: the timer is cancelled on Tk, the teardown (drain,
+joins, ledger, recorder flush, discard `rmtree`, camera release) runs on a
+daemon worker under a modal "Finalizing recording..." window, and the Tk half
+(preview, state, buttons, `on_session_stopped`, then `on_stopped(ok)`) runs back
+on Tk. Anything that reads the session files or needs the final UI goes in
+`on_stopped`, never after the call: the post-analysis and the coordinator's
+Cancel finalization do. A stop requested during a stop only queues its
+callback, and `join_threads` waits for an in-flight teardown before exit.
+Without a root (headless, the end-to-end tests) the stop runs inline. The
+countdown likewise no longer pumps `root.update()` (A6-08): `start_session`
+returns `True` once the countdown is armed and the rest of the start runs from
+its completion callback.
+
 **3. The Analysis tab owns the live controls.** `UIEvents.LIVE_SESSION_FINISH_REQUESTED`
 (payload `EmptyPayload`) is published by `AnalysisDisplayWidget`'s "⏹ Finish and
 Save" and handled by `AnalysisWidgetsBuilder.handle_live_finish_requested`.

@@ -34,6 +34,7 @@ from zebtrack.core.recording.live_camera_mode import (
 )
 from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.i18n import _
+from zebtrack.ui.background_task import run_in_background
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
@@ -157,6 +158,10 @@ class LiveConfigStep(WizardStep):
         # hardware once and reconcile the saved camera/Arduino against it (see
         # on_show). Subsequent shows must not clobber the user's edits.
         self._hw_restored_from_template = False
+        # In-flight hardware detections (audit A6-04/A6-05): a second click is
+        # ignored instead of starting a parallel scan of the same devices.
+        self._camera_detection_pending = False
+        self._arduino_detection_pending = False
 
         # Hardware capability (v2.2.0)
         self.hardware_report: HardwareCapabilityReport | None = None
@@ -506,14 +511,37 @@ class LiveConfigStep(WizardStep):
         if not has_saved_hw:
             return
 
-        # Populate the available-hardware maps before restoring (cached in
-        # WizardService, so this is cheap and happens at most once).
-        self._detect_cameras()
-        if self.wizard_data.get("use_arduino"):
-            self._detect_arduino_ports()
-
-        self.set_data(self.wizard_data)
+        # Populate the available-hardware maps before restoring. Detection opens
+        # every camera index and probes every COM port (seconds), so it runs off
+        # the Tk thread (audit A6-04/A6-05); ``set_data`` replays on Tk once the
+        # maps are filled, because ``_restore_camera``/``_restore_arduino``
+        # match against them.
         self._hw_restored_from_template = True
+        want_arduino = bool(self.wizard_data.get("use_arduino"))
+        self.camera_status_label.config(text=_("Detecting..."), fg="blue")
+        if want_arduino:
+            self.arduino_status_label.config(text=_("Detecting..."), fg="blue")
+
+        def _work() -> tuple[list[dict[str, Any]], list[dict[str, Any]] | None]:
+            cameras = WizardService.detect_available_cameras()
+            ports = WizardService.detect_arduino_ports() if want_arduino else None
+            return cameras, ports
+
+        def _done(result: tuple[list[dict[str, Any]], list[dict[str, Any]] | None]) -> None:
+            cameras, ports = result
+            self._apply_camera_results(cameras)
+            if ports is not None:
+                self._apply_arduino_results(ports)
+            self.set_data(self.wizard_data)
+
+        def _failed(exc: BaseException) -> None:
+            log.error("live_config.template_hw_detection.failed", error=str(exc))
+            self._apply_camera_results([])
+            if isinstance(exc, ImportError):
+                self._show_pyserial_missing()
+            self.set_data(self.wizard_data)
+
+        run_in_background(self, _work, _done, _failed, name="wizard-template-hw")
 
     def _update_template_banner(self):
         banner_text = format_template_banner(self.wizard_data.get("template_metadata"))
@@ -719,13 +747,37 @@ class LiveConfigStep(WizardStep):
                     widget.config(state="disabled")
 
     def _detect_cameras(self):
-        """Detect available cameras using WizardService."""
+        """Detect available cameras using WizardService, off the Tk thread.
+
+        Enumeration opens each camera index and waits up to 3 s for a frame
+        (audit A6-04), so it runs on a daemon thread and the result is applied
+        on Tk by ``_apply_camera_results``. A second click while one detection
+        is in flight is ignored.
+        """
+        if self._camera_detection_pending:
+            return
+        self._camera_detection_pending = True
         self.camera_status_label.config(text=_("Detecting..."), fg="blue")
-        self.update_idletasks()
 
-        # Use WizardService for camera detection
-        cameras = WizardService.detect_available_cameras()
+        def _done(cameras: list[dict[str, Any]]) -> None:
+            self._camera_detection_pending = False
+            self._apply_camera_results(cameras)
 
+        def _failed(exc: BaseException) -> None:
+            self._camera_detection_pending = False
+            log.error("live_config.camera_detection.failed", error=str(exc))
+            self._apply_camera_results([])
+
+        run_in_background(
+            self,
+            WizardService.detect_available_cameras,
+            _done,
+            _failed,
+            name="wizard-cameras",
+        )
+
+    def _apply_camera_results(self, cameras: list[dict[str, Any]]) -> None:
+        """Fill the camera combo and status label (Tk thread only)."""
         if cameras:
             # Build display list with camera names and map to indices
             camera_list = []
@@ -763,74 +815,101 @@ class LiveConfigStep(WizardStep):
             )
 
     def _detect_arduino_ports(self):
-        """Detect available Arduino ports using WizardService."""
-        try:
-            self.arduino_status_label.config(text=_("Detecting..."), fg="blue")
-            self.update_idletasks()
+        """Detect available Arduino ports using WizardService, off the Tk thread.
 
-            # Use WizardService for Arduino port detection
-            ports_info = WizardService.detect_arduino_ports()
+        The scan opens every COM port and waits up to 1.5 s for the handshake
+        line (audit A6-05), so it runs on a daemon thread and the result is
+        applied on Tk by ``_apply_arduino_results``.
+        """
+        if self._arduino_detection_pending:
+            return
+        self._arduino_detection_pending = True
+        self.arduino_status_label.config(text=_("Detecting..."), fg="blue")
 
-            if ports_info:
-                # Build display strings using display_name from service
-                display_list = [port["display_name"] for port in ports_info]
-                self.arduino_port_map.clear()
+        def _done(ports_info: list[dict[str, Any]]) -> None:
+            self._arduino_detection_pending = False
+            self._apply_arduino_results(ports_info)
 
-                for port_info in ports_info:
-                    # Map display text to actual device
-                    self.arduino_port_map[port_info["display_name"]] = port_info["device"]
+        def _failed(exc: BaseException) -> None:
+            self._arduino_detection_pending = False
+            if isinstance(exc, ImportError):
+                self._show_pyserial_missing()
+                return
+            log.error("live_config.arduino_detection.failed", error=str(exc))
+            self._apply_arduino_results([])
 
-                # Update combobox
-                self.arduino_port_combo["values"] = display_list
+        run_in_background(
+            self,
+            WizardService.detect_arduino_ports,
+            _done,
+            _failed,
+            name="wizard-arduino-ports",
+        )
 
-                self.arduino_status_label.config(
-                    text=(
-                        _("✓ 1 port detected")
-                        if len(ports_info) == 1
-                        else _("✓ {count} ports detected").format(count=len(ports_info))
-                    ),
-                    fg="green",
-                )
+    def _show_pyserial_missing(self) -> None:
+        """Status label for a host without pyserial (Tk thread only)."""
+        self.arduino_status_label.config(
+            text=_("✗ pyserial not installed"),
+            fg="red",
+        )
+        log.warning("live_config.pyserial_not_available")
 
-                # Auto-seleção: só quando o usuário ainda não escolheu nada, para
-                # não sobrescrever uma seleção manual nem a porta restaurada de
-                # um template (ver ``_restore_arduino``).
-                if not self.arduino_port_var.get():
-                    chosen = pick_default_arduino_port(ports_info)
-                    if chosen is not None:
-                        self.arduino_port_var.set(chosen["display_name"])
-                        # Dizer QUAL porta foi escolhida — auto-seleção silenciosa
-                        # parece mágica e o usuário não confere.
-                        self.arduino_status_label.config(
-                            text=(
-                                _("✓ 1 port — using {device}").format(device=chosen["device"])
-                                if len(ports_info) == 1
-                                else _("✓ {count} ports — using {device}").format(
-                                    count=len(ports_info), device=chosen["device"]
-                                )
-                            ),
-                            fg="green",
-                        )
-                        log.info(
-                            "live_config.arduino_port.auto_selected",
-                            device=chosen["device"],
-                            description=chosen.get("description"),
-                            has_handshake=bool(chosen.get("has_handshake")),
-                            candidates=len(ports_info),
-                        )
-            else:
-                self.arduino_port_combo["values"] = []
-                self.arduino_port_map.clear()
-                self.arduino_status_label.config(
-                    text=_("✗ No port detected"),
-                    fg="red",
-                )
-        except ImportError:
+    def _apply_arduino_results(self, ports_info: list[dict[str, Any]]) -> None:
+        """Fill the Arduino port combo and status label (Tk thread only)."""
+        if ports_info:
+            # Build display strings using display_name from service
+            display_list = [port["display_name"] for port in ports_info]
+            self.arduino_port_map.clear()
+
+            for port_info in ports_info:
+                # Map display text to actual device
+                self.arduino_port_map[port_info["display_name"]] = port_info["device"]
+
+            # Update combobox
+            self.arduino_port_combo["values"] = display_list
+
             self.arduino_status_label.config(
-                text=_("✗ pyserial not installed"),
+                text=(
+                    _("✓ 1 port detected")
+                    if len(ports_info) == 1
+                    else _("✓ {count} ports detected").format(count=len(ports_info))
+                ),
+                fg="green",
+            )
+
+            # Auto-seleção: só quando o usuário ainda não escolheu nada, para
+            # não sobrescrever uma seleção manual nem a porta restaurada de
+            # um template (ver ``_restore_arduino``).
+            if not self.arduino_port_var.get():
+                chosen = pick_default_arduino_port(ports_info)
+                if chosen is not None:
+                    self.arduino_port_var.set(chosen["display_name"])
+                    # Dizer QUAL porta foi escolhida — auto-seleção silenciosa
+                    # parece mágica e o usuário não confere.
+                    self.arduino_status_label.config(
+                        text=(
+                            _("✓ 1 port — using {device}").format(device=chosen["device"])
+                            if len(ports_info) == 1
+                            else _("✓ {count} ports — using {device}").format(
+                                count=len(ports_info), device=chosen["device"]
+                            )
+                        ),
+                        fg="green",
+                    )
+                    log.info(
+                        "live_config.arduino_port.auto_selected",
+                        device=chosen["device"],
+                        description=chosen.get("description"),
+                        has_handshake=bool(chosen.get("has_handshake")),
+                        candidates=len(ports_info),
+                    )
+        else:
+            self.arduino_port_combo["values"] = []
+            self.arduino_port_map.clear()
+            self.arduino_status_label.config(
+                text=_("✗ No port detected"),
                 fg="red",
             )
-            log.warning("live_config.pyserial_not_available")
 
     def _test_arduino_connection(self):
         """Test Arduino connection with selected port."""
