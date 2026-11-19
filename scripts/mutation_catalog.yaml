@@ -5861,3 +5861,79 @@ _load_registry()"
         description: "A5-S-011: captura fica aberta quando a leitura falha"
         find: "            finally:\n                cap.release()"
         replace: "            finally:\n                pass\n            cap.release()"
+
+# utils property tests (TASK-087 item 1.8): defects only an invariant notices
+  geometry_properties:
+    source: src/zebtrack/utils/geometry.py
+    tests:
+      - tests/utils/test_geometry.py
+    mutations:
+      - id: centroid-exact-zero-only
+        description: "poligono colinear em float volta a ganhar um centroide fora da propria reta"
+        find: '    if abs(area_twice) <= _DEGENERATE_AREA_RTOL * len(points) * extent * (extent + magnitude):'
+        replace: '    if area_twice == 0.0:'
+      - id: centroid-shift-not-undone
+        description: "centroide sai relativo ao primeiro vertice e deixa de acompanhar a translacao"
+        find: 'return ox + cx * factor, oy + cy * factor'
+        replace: 'return cx * factor, cy * factor'
+      - id: centroid-orientation-dropped
+        description: "poligono no sentido horario passa a ter outro centroide"
+        find: '        cx += (x0 + x1) * cross'
+        replace: '        cx += (x0 + x1) * abs(cross)'
+      - id: snap-tie-goes-to-last
+        description: "no empate o ultimo candidato vence e um candidato no limiar passa a encaixar"
+        find: '        if distance < best_distance:'
+        replace: '        if distance <= best_distance:'
+      - id: snap-anchor-axes-swapped
+        description: "ancora tenta o eixo horizontal antes do vertical e o desempate muda"
+        find: "        _consider((ax, py))  # Vertical alignment\n        _consider((px, ay))  # Horizontal alignment"
+        replace: "        _consider((px, ay))  # Horizontal alignment\n        _consider((ax, py))  # Vertical alignment"
+      - id: snap-threshold-loosened
+        description: "encaixe aceita candidatos alem do limiar"
+        find: 'best_distance = threshold'
+        replace: 'best_distance = threshold * 1.5'
+      - id: simplify-epsilon-tripled
+        description: "simplificacao afasta o contorno alem da tolerancia do Douglas-Peucker"
+        find: 'epsilon = max(1.0, epsilon_factor * perimeter)'
+        replace: 'epsilon = max(1.0, 3.0 * epsilon_factor * perimeter)'
+      - id: simplify-vertices-shifted
+        description: "contorno simplificado deixa de ser um subconjunto dos vertices da mascara"
+        find: 'contour = np.asarray(raw_polygon, dtype=np.float32).reshape(-1, 1, 2)'
+        replace: 'contour = np.asarray(raw_polygon, dtype=np.float32).reshape(-1, 1, 2) + 1.0'
+  ttl_cache_model:
+    source: src/zebtrack/utils/cache.py
+    tests:
+      - tests/utils/test_cache.py
+    mutations:
+      - id: get-ttl-boundary-inclusive
+        description: "get devolve a entrada no instante exato em que o TTL vence"
+        find: "                if (time.time() - ts) < self._ttl:\n                    self._hits += 1"
+        replace: "                if (time.time() - ts) <= self._ttl:\n                    self._hits += 1"
+      - id: contains-ttl-boundary-inclusive
+        description: "'in' ainda ve a entrada no instante exato em que o TTL vence"
+        find: "            if (time.time() - ts) < self._ttl:\n                return True"
+        replace: "            if (time.time() - ts) <= self._ttl:\n                return True"
+      - id: purge-keeps-entry-at-ttl
+        description: "set deixa de purgar a entrada que venceu exatamente agora"
+        find: 'if (now - ts) >= self._ttl]'
+        replace: 'if (now - ts) > self._ttl]'
+      - id: evict-newest
+        description: "limite de tamanho despeja a entrada mais nova em vez da mais antiga"
+        find: 'oldest = min(self._store, key=lambda k: self._store[k][1])'
+        replace: 'oldest = max(self._store, key=lambda k: self._store[k][1])'
+      - id: rewrite-keeps-first-slot
+        description: "chave reescrita no mesmo tique e despejada como se fosse a mais antiga"
+        find: "            self._store.pop(key, None)\n            self._store[key] = (value, now)"
+        replace: "            self._store[key] = (value, now)"
+      - id: hits-not-counted
+        description: "acerto deixa de ser contado em info()"
+        find: '                    self._hits += 1'
+        replace: '                    pass'
+      - id: clear-keeps-counters
+        description: "clear() esvazia o cache mas preserva acertos e falhas"
+        find: "            self._store.clear()\n            self._hits = 0"
+        replace: "            self._store.clear()"
+      - id: kwargs-mark-dropped
+        description: "f(('a', 1)) e f(a=1) voltam a compartilhar a mesma entrada"
+        find: 'key = (*args, _KWARGS_MARK, *sorted(kwargs.items())) if kwargs else args'
+        replace: 'key = args + tuple(sorted(kwargs.items()))'
