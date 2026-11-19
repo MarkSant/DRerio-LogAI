@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from pydantic import ValidationError
+from structlog.testing import capture_logs
 
 from zebtrack.core.conditions import (
     AllOf,
@@ -852,6 +853,19 @@ class TestAnalysisWindowPanel:
             panel.open_editor()
         root.update_idletasks()
         return panel, pm, bus
+
+    def test_failing_project_zone_data_is_logged_and_degrades(self, tkinter_root: Any) -> None:
+        panel, pm, _bus = self._panel(tkinter_root, {}, roi_names=["toca"], open_editor=False)
+        pm.get_zone_data.side_effect = RuntimeError("zones broken")
+
+        with capture_logs() as logs:
+            names = panel._roi_names()
+
+        assert names == []
+        failed = [e for e in logs if e["event"] == "analysis_window.zone_data.failed"]
+        assert len(failed) == 1
+        assert failed[0]["log_level"] == "warning"
+        assert failed[0]["error"] == "zones broken"
 
     @staticmethod
     def _tree_rows(panel: AnalysisWindowPanel, section: Any) -> list[tuple[str, ...]]:

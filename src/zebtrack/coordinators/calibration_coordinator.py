@@ -86,7 +86,8 @@ class CalibrationCoordinator(BaseCoordinator):
         if project_loaded and hasattr(self.project_manager, "get_project_name"):
             try:
                 project_name = self.project_manager.get_project_name()
-            except Exception:
+            except Exception as exc:
+                log.debug("calibration_scope.project_name.failed", error=str(exc))
                 project_name = None
 
         overrides_active = self.model_override_service.has_project_override_settings()

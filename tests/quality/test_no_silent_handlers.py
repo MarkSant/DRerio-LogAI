@@ -49,10 +49,6 @@ _FALLBACK = (ast.Return, ast.Assign, ast.AnnAssign, ast.AugAssign)
 
 _SRC = "src/zebtrack/"
 _DEAD_WIDGET = "Tk widget or canvas already destroyed; 'gone' is the answer (legitimate)"
-_LIVE_PROBE = (
-    "UI gating probe 'is a live session active'; on failure falls through to the next "
-    "source of truth (should log, diagnostic)"
-)
 
 # Verdicts from reading each handler on 2026-11-19; details per site in
 # docs/audits/2026-11_A5_remaining_handlers.md. None hides a data failure.
@@ -61,32 +57,15 @@ ALLOWED_SILENT: dict[str, tuple[int, str]] = {
         1,
         "crash reporter runs before logging exists; the default log path is the point",
     ),
-    _SRC + "coordinators/calibration_coordinator.py::CalibrationCoordinator"
-    ".get_calibration_scope_info": (
-        1,
-        "project name label only; an unnamed project is shown (should log, diagnostic)",
-    ),
     _SRC + "coordinators/video_processing_coordinator.py::VideoProcessingCoordinator"
     "._get_video_dimensions": (
         1,
         "cv2 fallback that runs only without the injected metadata service (A2-07, A5-S-011)",
     ),
-    _SRC + "core/recording/live_session_manager.py::LiveSessionManagerMixin"
-    "._detect_and_mark_cancellation": (
-        1,
-        "elapsed time only feeds the text of the .cancelled marker (should log, diagnostic)",
-    ),
     _SRC + "core/video/shared_frame_buffer.py::SharedFrameBuffer.close": (
         1,
         "SharedMemory.close() during cleanup must not propagate (legitimate)",
     ),
-    _SRC + "io/arduino.py::Arduino.probe_port": (
-        1,
-        "serial read error ends the probe like a timeout: the panel says 'no answer' "
-        "(should log, diagnostic)",
-    ),
-    _SRC + "ui/components/analysis_view_controller.py::AnalysisViewController"
-    "._is_live_session_active": (2, _LIVE_PROBE),
     _SRC + "ui/components/canvas/event_handler.py::CanvasEventHandler._editing_canvas": (
         1,
         _DEAD_WIDGET,
@@ -101,37 +80,15 @@ ALLOWED_SILENT: dict[str, tuple[int, str]] = {
         1,
         "cosmetic day label in the trigger notice; falls back to the raw day (legitimate)",
     ),
-    _SRC + "ui/components/event_dispatcher.py::EventDispatcher._is_live_metadata_context": (
-        2,
-        _LIVE_PROBE,
-    ),
     _SRC + "ui/components/global_model_configuration_panel.py::GlobalModelConfigurationPanel"
     ".destroy": (1, "after_cancel during destroy(); the poller may already be gone (legitimate)"),
-    _SRC + "ui/components/menu_manager.py::MenuManager.show_about_dialog": (
-        1,
-        "About dialog shows version 'Unknown' if pyproject cannot be read (should log)",
-    ),
-    _SRC + "ui/components/model_diagnostics_panel.py::ModelDiagnosticsPanel"
-    "._refresh_project_weight_summary": (
-        1,
-        "a failing resolve_project_model_settings shows OpenVINO as off in the summary "
-        "(should log, ux; display only)",
-    ),
     _SRC + "ui/components/polygon_drawing_service.py::_is_multi_aquarium_context": (
         1,
         "reads a Tk variable of a panel that may be destroyed; single is the safe answer",
     ),
-    _SRC + "ui/components/state_synchronizer.py::StateSynchronizer._is_live_session_active": (
-        2,
-        _LIVE_PROBE,
-    ),
     _SRC + "ui/components/video_display.py::VideoDisplayWidget._draw_bg_image_to_canvas": (
         1,
         "Pillow resampling constant moved between versions; BICUBIC is the last resort",
-    ),
-    _SRC + "ui/dialogs/block_detail_dialog.py::BlockDetailDialog.__init__": (
-        1,
-        "only drives the 'reused arena' badge of the dialog (should log, diagnostic)",
     ),
     _SRC + "ui/wizard/custom_regex_dialog.py::CustomRegexDialog._initialize_geometry": (
         1,

@@ -179,7 +179,8 @@ class AnalysisViewController:
         if callable(get_processing_state):
             try:
                 processing_state = get_processing_state()
-            except Exception:
+            except Exception as exc:
+                log.debug("analysis_view.live_state_probe.failed", error=str(exc))
                 processing_state = None
             if processing_state is not None:
                 state_flag = bool(getattr(processing_state, "is_live_session_active", False))
@@ -194,7 +195,8 @@ class AnalysisViewController:
         if callable(is_active_fn):
             try:
                 return bool(is_active_fn())
-            except Exception:
+            except Exception as exc:
+                log.debug("analysis_view.live_coordinator_probe.failed", error=str(exc))
                 return False
 
         return False

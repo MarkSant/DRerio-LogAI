@@ -250,7 +250,8 @@ class Arduino:
             while time.time() < deadline:
                 try:
                     raw_line = ser.readline()
-                except Exception:
+                except Exception as exc:
+                    log.debug("arduino.probe_read.failed", error=str(exc))
                     break
                 if not raw_line:
                     continue

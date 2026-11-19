@@ -183,7 +183,8 @@ class StateSynchronizer:
             if callable(get_processing_state):
                 try:
                     processing_state = get_processing_state()
-                except Exception:
+                except Exception as exc:
+                    log.debug("state_synchronizer.live_state_probe.failed", error=str(exc))
                     processing_state = None
                 if processing_state is not None:
                     return bool(getattr(processing_state, "is_live_session_active", False))
@@ -195,7 +196,8 @@ class StateSynchronizer:
         if callable(is_active_fn):
             try:
                 return bool(is_active_fn())
-            except Exception:
+            except Exception as exc:
+                log.debug("state_synchronizer.live_coordinator_probe.failed", error=str(exc))
                 return False
 
         return False
