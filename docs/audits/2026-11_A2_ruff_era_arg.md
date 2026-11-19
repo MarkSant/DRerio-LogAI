@@ -5,6 +5,11 @@ fixed**: each row is a candidate for the maintainer. The rules are not enabled i
 `pyproject.toml`; most hits are signatures that a caller imposes, and turning the rules
 on would mean dozens of `noqa` comments that say nothing.
 
+**Follow-up (#726):** the rows marked `real` were triaged one by one: 33 honoured or removed
+from the signature and its callers, and `core/ui_scheduler.py` `event_bus` kept on purpose with
+a justification comment (a `noqa: ARG002` would trip RUF100 while ARG is not selected). The
+triage table is in the #726 commit message.
+
 ## Method
 
 ```bash

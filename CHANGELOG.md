@@ -14,6 +14,21 @@ suíte core, um teste ponta a ponta por fluxo, e os defeitos que esses testes en
 
 ### Fixed
 
+- **Pontas soltas da TASK-087 (#724–#730):**
+  - `performance.enable_parallel_analysis = false` e `performance.memory_mode = "low"` agora
+    valem: os gráficos do relatório são desenhados um a um, sem pool, e o modo econômico limita
+    o `batch_nireq` do OpenVINO a 1 no próprio leitor. Antes o benchmark gravava os dois e nada
+    os lia, e a máquina fraca acreditava estar no modo econômico (#725).
+  - 34 parâmetros documentados que a função ignorava foram honrados ou removidos. Entre os
+    honrados: `max_area_ratio` da detecção de vários aquários (agora lido de
+    `detection_zones.max_aquarium_area_ratio`) e o aviso de erro do processamento sequencial,
+    que passa a dizer qual vídeo falhou (#726).
+  - 14 sondas de hardware e rótulos de UI que engoliam a exceção agora registram no log (#727).
+  - `TTLCache` usa o relógio monotônico (um ajuste do relógio do sistema não antecipa nem
+    prolonga a validade) e `len()` não conta entradas vencidas (#730).
+  - O `mutation_check` roda também os testes `gui`/`slow` (com um Xvfb por worker no Linux) e
+    um baseline que roda 0 testes sai com código 2: antes, o bloco só de GUI relatava todo
+    mutante como sobrevivente sem ter testado nenhum (#724).
 - **Remover um vídeo com "apagar arquivos" apagava a pasta inteira** dele: num projeto
   pré-gravado, os vídeos vizinhos (ou o projeto todo, se o vídeo estava na raiz) iam junto.
   Agora saem só os arquivos daquele vídeo, e a pasta só se ficar vazia.
@@ -37,6 +52,10 @@ suíte core, um teste ponta a ponta por fluxo, e os defeitos que esses testes en
 
 ### Removed
 
+- Dois registros de DI nunca resolvidos (`Settings`, `RecorderFactory`) (#728); um ramo
+  inalcançável no recorder, um ramo morto no preset Barnes e dois testes ocos que conferiam a
+  própria cópia da aritmética da reinjeção (#729); os stubs `_pattern_days_as_folders` e
+  `_pattern_mixed_folders` do assistente, que sempre devolviam `None` (#726).
 - Código morto: cerca de 10 mil linhas de `src` (classes, módulos, 154 funções sem chamador,
   76 eventos sem publicador ou sem ouvinte, registros de DI não usados) e os testes que só os
   exercitavam. A janela de prévia de dois aquários, que nunca chegava a ser construída, saiu;
