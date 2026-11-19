@@ -309,7 +309,29 @@ def test_model_delete_and_load_splat_their_payloads() -> None:
 
     assert vm.hardware_vm.calls == [
         ("delete_weight", (), {"name": "old.pt"}),
-        ("load_new_weight", (), {"filepath": "/w/new.pt"}),
+        ("load_new_weight", (), {"filepath": "/w/new.pt", "weight_type": None}),
+    ]
+
+
+def test_model_load_new_weight_maps_the_typed_payload_to_filepath() -> None:
+    """The panel publishes ``ModelLoadNewWeightPayload(weight_path=...)``.
+
+    Splatting it into ``load_new_weight`` raised ``TypeError: unexpected keyword
+    argument 'weight_path'`` — swallowed by the bus, so adding a weight did nothing.
+    """
+    from zebtrack.ui import payloads
+
+    vm = _vm()
+
+    _runtime(vm).handle_event(
+        UIEvents.MODEL_LOAD_NEW_WEIGHT,
+        cast(
+            Any, payloads.ModelLoadNewWeightPayload(weight_path="D:/ext/rat.pt", weight_type="det")
+        ),
+    )
+
+    assert vm.hardware_vm.calls == [
+        ("load_new_weight", (), {"filepath": "D:/ext/rat.pt", "weight_type": "det"}),
     ]
 
 
