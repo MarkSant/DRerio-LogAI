@@ -101,6 +101,7 @@ pytest-rerunfailures = "^16.0"
 pytest-repeat = "^0.9.4"
 bandit = "^1.9.4"
 pip-audit = "^2.10.1"
+vulture = "^2.14"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

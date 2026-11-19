@@ -430,3 +430,45 @@ string occurrence of the name in `src`.
 | A2-D-365 | `ui/wizard/templates.py:565` | method | `TemplateManager.delete_template` | 3 | likely |
 | A2-D-366 | `ui/wizard/wizard_dialog.py:191` | method | `WizardDialog.buttonbox` | 0 | needs maintainer |
 | A2-D-367 | `utils/cache.py:163` | function | `ttl_cache` | 1 | likely |
+
+## Guard that stays (2026-11-19)
+
+`tests/quality/test_no_dead_code.py` runs `vulture` (dev dependency, `^2.14`, locked at 2.16)
+over `src/zebtrack` and compares the findings with `tests/quality/vulture_whitelist.txt`.
+Tests are not scanned, so a name only a test uses counts as dead in production.
+
+- A finding that is not on the list fails: a new unused function, method, class, attribute,
+  variable or unreachable block.
+- An entry vulture no longer reports fails too (stale), so the list only shrinks.
+- Keys are `<path>::<kind>::<qualified name>` with no line number; a method that shares its
+  name with a live one elsewhere is still its own entry.
+- Every entry sits under a `[tag] reason` section. The baseline of 423 keys (465 vulture
+  lines; write-only attributes assigned in several places collapse to one key):
+
+| Section | Entries | Why it stays |
+|---|---|---|
+| `pydantic` | 61 | `model_config` and validators, run by Pydantic |
+| `tk-hook` | 26 | `apply`/`buttonbox`/`body`, called by `simpledialog.Dialog` |
+| `public-api` | 1 | `ApplicationGUI.ask_missing_metadata` (A2-D-352) |
+| `enum-member` | 5 | reached by value or iteration, persisted by name |
+| `schema-field` | 55 | Pydantic/dataclass/TypedDict fields read by serialization |
+| `signature` | 1 | `exc_info` imposed by `shutil.rmtree(onerror=...)` |
+| `certain` | 4 | 100% confidence and real: three ignored parameters and an unreachable `return True` in `ROITemplateManager._validate_template_file` |
+| `baseline` | 270 | not reviewed one by one; candidate dead code (write-only attributes, 50 unused classes, all of them `ui/payloads.py` payloads with no entry in the `event_bus_v2` registry, and methods nobody names) |
+
+The `getattr` reaches listed in the tail review (A2-D-133/138/161/162/165/168/218/223) do not
+appear: they were deleted in the deletion pass or share their name with a live member, which
+vulture, like the original scan, cannot tell apart (tail review, section D).
+
+### Proof that the guard sees
+
+1. Planted `def _planted_dead_helper(): return 42` at the end of
+   `src/zebtrack/analysis/track_significance.py`. The guard failed with
+   `src/zebtrack/analysis/track_significance.py::function::_planted_dead_helper (line 259, 60% confidence)`.
+   Restored by copy; SHA-256 prefix `c96417b230549832` before and after.
+2. Appended `src/zebtrack/analysis/track_significance.py::function::gone_long_ago` to the
+   whitelist. The stale-entry test failed naming that key. Restored; SHA-256 prefix
+   `3661bae0b01338e5` before and after.
+
+The exploratory `ruff --select ERA,ARG` pass the plan asked for is in
+[`2026-11_A2_ruff_era_arg.md`](2026-11_A2_ruff_era_arg.md): 196 hits, 34 real, nothing fixed.
