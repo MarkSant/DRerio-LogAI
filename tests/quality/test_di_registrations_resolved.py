@@ -32,14 +32,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = REPO_ROOT / "src" / "zebtrack"
 REGISTRATIONS = PACKAGE_ROOT / "core" / "di_registrations.py"
 
-# Found by this guard on 2026-11-19, after A3-02 was closed. Every factory in
-# ``build_container`` reads the local ``settings_obj`` and
-# ``context.recorder_factory`` directly, and nothing in src (or tests) resolves
-# either key. Deleting the two lines is the maintainer's decision.
-ALLOWED_UNRESOLVED: dict[str, str] = {
-    "Settings": "decorative since A3: factories close over the local settings_obj",
-    "RecorderFactory": "decorative since A3: coordinators get context.recorder_factory by hand",
-}
+# Shrink-only. Empty since #728: the two decorative registrations found on 2026-11-19
+# (``Settings`` and ``RecorderFactory``, never resolved) were deleted.
+ALLOWED_UNRESOLVED: dict[str, str] = {}
 
 
 def _call_name(call: ast.Call) -> str | None:

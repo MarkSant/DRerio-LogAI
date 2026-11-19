@@ -99,11 +99,9 @@ def build_container(context: ContainerContext) -> punq.Container:
     # Pristine copy for project-scoped analysis; see ``ContainerContext``.
     settings_baseline = context.settings_baseline or settings_obj.model_copy(deep=True)
 
-    container.register(Settings, instance=settings_obj)
     container.register(EventBusV2, instance=context.event_bus)
     container.register(StateManager, instance=context.state_manager)
     container.register(UIScheduler, instance=context.ui_coordinator)
-    container.register(RecorderFactory, instance=context.recorder_factory)
     container.register(LazyRef, instance=context.controller_ref)
 
     container.register(
