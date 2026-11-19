@@ -182,3 +182,30 @@ Measured values: 10033 tests collected; 8635 fast; 1374 `gui`; 24 `slow`.
 
 Run from the worktree with `source scripts/wt-env.sh`: see the commit messages and the final
 report of the session for the exact `ruff`, `mypy` and `pytest` results.
+
+## Guard that stays (2026-11-19)
+
+`tests/quality/test_settings_fields_have_readers.py` walks `Settings.model_fields` recursively
+(145 fields, sections included, into `Optional`/`list`/`dict` models) and fails on a field whose
+name nothing in `src/zebtrack` reads: attribute load, `getattr`/`hasattr` argument, subscript or
+`.get()` key, or a string key constant (`_KEY_ENTER: Final[str] = "roi_flutter_enter_frames"`,
+the way `roi_rule_resolver` reads the ROI fields). An assignment is a store, not a reader. The
+match is by name, like A7-C-07, so a field whose name is read elsewhere looks read.
+
+`ALLOWED_UNREAD` (shrink-only, stale entries fail) holds the five fields of A7-01 with the
+`extra="forbid"` reason, and two this guard found on its first run, missed by A7-C-07 because
+its textual search counted a write as a reader:
+
+| Field | Evidence |
+| --- | --- |
+| `performance.enable_parallel_analysis` | Added with the comment `# (futuro)` in the first commit; never read. `core/app_runner.py` sets it to `False` when the startup benchmark recommends low memory, and `docs/performance/HARDWARE_OPTIMIZATION_GUIDE.md` promises "Sequential analysis"; `CLAUDE.md` lists it under Parallelism. |
+| `performance.memory_mode` | Written by the same benchmark step (`settings_obj.performance.memory_mode = rec.recommended_memory_mode`); read by nothing. The guide promises "Reduces peak RAM usage". |
+
+The low-memory mode therefore changes `openvino.batch_nireq` (which is read) and nothing
+through these two fields (register row A7-02).
+
+### Proof that the guard sees
+
+Added `planted_unread_knob: int = 0` to the performance section of `src/zebtrack/settings.py`,
+right above `enable_parallel_analysis`. The guard failed with `performance.planted_unread_knob`.
+Restored by copy; SHA-256 prefix `6ba43b799f3e3e69` before and after.
