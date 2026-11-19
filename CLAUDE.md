@@ -608,7 +608,7 @@ what produced 47 byte-identical duplicates and made it impossible to see what wa
   - **Never put `delay()` in the sketch's `loop()`.** It blocks the serial read for its full duration, so an enter/exit pair collapses into an invisible flash when the queue finally drains, and `serial_act_ms` in the closed-loop log measures the block rather than the pipeline. Use `millis()` timing and `INPUT_PULLUP` on button pins (a floating `INPUT` pin self-triggers).
 - **Camera**: `camera.index` in `config.local.yaml` (machine-specific).
 - **OpenVINO**: model cache in `openvino_model_cache/`.
-- **Parallelism**: `performance.max_parallel_videos` (2), `performance.max_parallel_plots` (3), `performance.parquet_compression` ("snappy"), `performance.enable_parallel_analysis` (true).
+- **Parallelism**: `performance.max_parallel_videos` (2), `performance.max_parallel_plots` (3), `performance.parquet_compression` ("snappy"), `performance.enable_parallel_analysis` (true; `false` or `memory_mode: "low"` ⇒ sequential report figures, and `"low"` also caps OpenVINO `batch_nireq` at 1 — one rule in `utils/performance_policy.py`).
 
 Tuning details: [`docs/guides/developer/performance-tuning.md`](docs/guides/developer/performance-tuning.md), [`docs/performance/HARDWARE_OPTIMIZATION_GUIDE.md`](docs/performance/HARDWARE_OPTIMIZATION_GUIDE.md).
 

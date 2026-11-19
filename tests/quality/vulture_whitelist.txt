@@ -119,9 +119,7 @@ src/zebtrack/core/video/processing_worker.py::variable::ProcessingContext.retry_
 src/zebtrack/settings.py::variable::DetectionZonesSettings.max_aquarium_area_ratio
 src/zebtrack/settings.py::variable::LiveAnalysisSettings.auto_stop_on_limit
 src/zebtrack/settings.py::variable::LiveAnalysisSettings.show_countdown
-src/zebtrack/settings.py::variable::PerformanceSettings.enable_parallel_analysis
 src/zebtrack/settings.py::variable::PerformanceSettings.max_parallel_videos
-src/zebtrack/settings.py::variable::PerformanceSettings.memory_mode
 src/zebtrack/settings.py::variable::Settings.roi_flutter_enter_frames
 src/zebtrack/settings.py::variable::Settings.roi_flutter_exit_frames
 src/zebtrack/settings.py::variable::Settings.roi_max_gap_s
@@ -200,8 +198,6 @@ src/zebtrack/coordinators/multi_aquarium_coordinator.py::attribute::MultiAquariu
 src/zebtrack/coordinators/progress_tracking_coordinator.py::method::ProgressTrackingCoordinator.make_progress_callback
 src/zebtrack/coordinators/project_lifecycle_coordinator.py::attribute::ProjectLifecycleCoordinator._zone_manager
 src/zebtrack/coordinators/recording_session_coordinator.py::attribute::RecordingSessionCoordinator._pending_recording_trigger_source
-src/zebtrack/core/app_runner.py::attribute::enable_parallel_analysis
-src/zebtrack/core/app_runner.py::attribute::memory_mode
 src/zebtrack/core/detection/aquarium_detector.py::variable::ULTRALYTICS_AVAILABLE
 src/zebtrack/core/detection/multi_aquarium_detector.py::method::MultiAquariumDetector._crop_aquarium_region
 src/zebtrack/core/detection/multi_aquarium_detector.py::method::MultiAquariumDetector.detect_partitioned_parallel

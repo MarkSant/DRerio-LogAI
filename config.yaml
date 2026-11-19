@@ -517,15 +517,17 @@ performance:
   #   - "none": No compression (fastest but larger files)
   parquet_compression: "snappy"
 
-  # Enable parallel execution of independent analysis components
-  # When true, BehavioralAnalyzer and ROIAnalyzer may run concurrently
+  # Allow analysis-side work to run on more than one worker
+  # When true, report figures are rendered by up to max_parallel_plots threads.
+  # When false (or memory_mode "low"), figures are rendered inline, one at a time.
   enable_parallel_analysis: true
 
   # Memory usage mode for constrained hardware
   # Options:
-  #   - "normal": Full parallelism and buffering (default)
-  #   - "low": Reduces batch_nireq to 1, disables parallel analysis,
-  #            increases processing interval. Auto-detected if RAM < 8 GB.
+  #   - "normal": batch_nireq and enable_parallel_analysis apply as configured (default)
+  #   - "low": OpenVINO batch inference keeps 1 request in flight and analysis is
+  #            sequential, whatever batch_nireq / enable_parallel_analysis say.
+  #            processing_interval is never touched. Auto-detected if RAM < 8 GB.
   memory_mode: "normal"
 
   # Automatically select inference_size based on hardware benchmark

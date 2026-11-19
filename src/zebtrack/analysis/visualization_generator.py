@@ -34,6 +34,7 @@ from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.analysis.time_axis import time_axis_label, time_origin
 from zebtrack.constants import DEFAULT_MAX_PARALLEL_PLOTS
+from zebtrack.utils.performance_policy import analysis_max_workers
 
 __all__ = ["VisualizationGenerator"]
 
@@ -1260,6 +1261,9 @@ class VisualizationGenerator:
 
         Performance:
             - Respects settings.performance.max_parallel_plots (default: 3)
+            - Runs inline, one plot at a time and without a pool, when
+              ``analysis_max_workers`` says 1: ``enable_parallel_analysis``
+              is False or ``memory_mode`` is "low" (#725)
             - Each plot has PLOT_GENERATION_TIMEOUT_SECONDS timeout
             - Failed plots return empty buffers to avoid blocking report generation
 
@@ -1281,6 +1285,17 @@ class VisualizationGenerator:
                 "max_parallel_plots",
                 DEFAULT_MAX_PARALLEL_PLOTS,
             )
+        max_workers = analysis_max_workers(self.settings, max_workers)
+
+        if max_workers == 1:
+            # Sequential analysis: no pool, so at most one figure is alive at a
+            # time. generate_single_plot_thread_safe already turns a failing
+            # plot into an empty buffer, so the report keeps its order.
+            log.debug("visualization.plots.sequential", count=len(plot_configs))
+            return [
+                self.generate_single_plot_thread_safe(plot_func, name)
+                for plot_func, name in plot_configs
+            ]
 
         # Store results with their original indices to maintain order
         indexed_results: dict[int, tuple[io.BytesIO, str]] = {}

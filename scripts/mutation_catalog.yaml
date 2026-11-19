@@ -5937,6 +5937,56 @@ _load_registry()"
         description: "f(('a', 1)) e f(a=1) voltam a compartilhar a mesma entrada"
         find: 'key = (*args, _KWARGS_MARK, *sorted(kwargs.items())) if kwargs else args'
         replace: 'key = args + tuple(sorted(kwargs.items()))'
+  performance_policy:
+    # #725 (A7-02): enable_parallel_analysis / memory_mode had writers and no reader.
+    source: src/zebtrack/utils/performance_policy.py
+    tests:
+      - tests/utils/test_performance_policy.py
+      - tests/analysis/test_visualization_generator.py
+      - tests/plugins/test_openvino_detector.py
+    mutations:
+      - id: low-mode-does-not-imply-sequential
+        description: "memory_mode low volta a deixar a analise paralela se enable_parallel_analysis ficou True"
+        find: "    if is_low_memory_mode(settings_obj):\n        return False"
+        replace: "    if False:\n        return False"
+      - id: parallel-flag-ignored
+        description: "enable_parallel_analysis=False volta a nao ter efeito"
+        find: 'return bool(getattr(performance, "enable_parallel_analysis", True))'
+        replace: 'return True'
+      - id: sequential-keeps-requested-width
+        description: "analise sequencial volta a usar max_parallel_plots workers"
+        find: "    if not parallel_analysis_enabled(settings_obj):\n        return 1"
+        replace: "    if not parallel_analysis_enabled(settings_obj):\n        return max(1, int(requested))"
+      - id: low-mode-keeps-batch-nireq
+        description: "memory_mode low volta a respeitar batch_nireq > 1 no lote OpenVINO"
+        find: "    if is_low_memory_mode(settings_obj):\n        return 1"
+        replace: "    if False:\n        return 1"
+      - id: low-mode-misspelled
+        description: "a leitura de memory_mode deixa de reconhecer o modo low"
+        find: 'LOW_MEMORY_MODE = "low"'
+        replace: 'LOW_MEMORY_MODE = "Low"'
+  performance_policy_call_sites:
+    source: src/zebtrack/analysis/visualization_generator.py
+    tests:
+      - tests/analysis/test_visualization_generator.py
+    mutations:
+      - id: plots-ignore-sequential-rule
+        description: "figuras do relatorio voltam a ignorar enable_parallel_analysis/memory_mode"
+        find: '        max_workers = analysis_max_workers(self.settings, max_workers)'
+        replace: '        max_workers = max_workers'
+      - id: sequential-still-builds-pool
+        description: "analise sequencial volta a criar um ThreadPoolExecutor de 1 worker"
+        find: '        if max_workers == 1:'
+        replace: '        if False:'
+  performance_policy_openvino:
+    source: src/zebtrack/plugins/openvino_detector.py
+    tests:
+      - tests/plugins/test_openvino_detector.py
+    mutations:
+      - id: batch-nireq-ignores-low-mode
+        description: "lote OpenVINO volta a abrir batch_nireq requisicoes em memory_mode low"
+        find: '        nireq = effective_batch_nireq(self._settings, nireq)'
+        replace: '        nireq = nireq'
   pragma_review_evaluator_unknown_nodes:
     source: src/zebtrack/core/conditions/evaluator.py
     tests:

@@ -984,6 +984,26 @@ class TestDetectBatch:
         (queue,) = built.compiled_model.async_queues
         assert queue.jobs == expected_jobs
 
+    @pytest.mark.parametrize(
+        ("memory_mode", "expected_jobs"),
+        [("low", 1), ("normal", 3)],
+    )
+    def test_low_memory_mode_keeps_one_request_whatever_batch_nireq_says(
+        self,
+        model_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        memory_mode: str,
+        expected_jobs: int,
+    ) -> None:
+        """#725: memory_mode="low" is enforced by the reader of batch_nireq."""
+        settings_obj = openvino_settings(batch_nireq=8)
+        settings_obj.performance = SimpleNamespace(memory_mode=memory_mode)
+        built, _backend = _build(monkeypatch, model_dir, settings_obj=settings_obj)
+        built.compiled_model.queue_results(detection_tensor([], num_classes=2))
+        built.detect_batch([_frame() for _ in range(3)])
+        (queue,) = built.compiled_model.async_queues
+        assert queue.jobs == expected_jobs
+
     def test_without_settings_four_requests_are_used(self, plugin: OpenVINOPlugin) -> None:
         plugin.compiled_model.queue_results(detection_tensor([], num_classes=2))
         plugin.detect_batch([_frame() for _ in range(6)])
