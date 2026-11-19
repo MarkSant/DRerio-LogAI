@@ -158,3 +158,18 @@ Proof (both planted in one run, then restored by copy):
   that already holds one allowed call: rule (b) failed with
   `..._unified_report_mixin.py::UnifiedReportMixin._video_zone_sets (1)`.
   `31a3b98f12433b0b` before and after.
+
+## Follow-up issues
+
+Findings of the three closing sessions (PRs #721, #722 and #723, merged into PR #717) that were
+recorded and not changed. Each one is tracked as an issue:
+
+| Issue | Finding |
+| --- | --- |
+| #724 | `scripts/mutation_check.py` skips `gui` tests: a GUI-only block has baseline 0 and every mutant "survives" |
+| #725 | A7-02: `performance.enable_parallel_analysis` and `performance.memory_mode` are written and never read |
+| #726 | ruff ARG: 34 real cases of a documented parameter the function ignores |
+| #727 | A5: 14 broad `except` handlers that should log |
+| #728 | A3-04: `Settings` and `RecorderFactory` registered in the container and never resolved |
+| #729 | Dead code and hollow tests found by the pragma review |
+| #730 | `TTLCache` uses the wall clock and `len()` counts expired entries |
