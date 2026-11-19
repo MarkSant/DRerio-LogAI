@@ -117,9 +117,8 @@ class ProjectService:
         # Write initial project configuration
         self.save_project_config(project_path, project_data)
 
-        # Note: Settings snapshot is now handled by ProjectManager
-        # which has access to injected settings via DI
-        # self._save_settings_snapshot(project_path) - DEPRECATED
+        # The settings snapshot is written by ProjectManager, which holds the
+        # injected settings (DI); this service never saves one.
 
         return project_data
 

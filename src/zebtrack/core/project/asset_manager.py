@@ -180,7 +180,6 @@ class AssetManager:
         project_path: Path | str,
         name: str,
         zone_data: ZoneData,
-        zone_data_to_dict_fn: Callable[[ZoneData | None], dict],
         *,
         save_arena: bool = True,
         save_rois: bool = True,
@@ -191,12 +190,14 @@ class AssetManager:
     ) -> dict[str, Any]:
         """Save a ROI template to project or global storage.
 
+        Serialisation is ``ROITemplateManager.save_template``'s job; this method
+        takes no converter of its own.
+
         Args:
             project_data: The project data dictionary to modify
             project_path: Path to the project directory
             name: Template name
             zone_data: ZoneData to save
-            zone_data_to_dict_fn: Function to serialize ZoneData
             save_arena: Whether to include arena polygon
             save_rois: Whether to include ROIs
             save_location: Where to save ("project", "global", "custom")
@@ -327,7 +328,6 @@ class AssetManager:
         project_path: Path | str | None,
         file_path: Path | str,
         zone_data_from_dict_fn: Callable[[dict], ZoneData],
-        zone_data_to_dict_fn: Callable[[ZoneData | None], dict],
         *,
         name: str | None = None,
         persist_callback: Callable[[], None] | None = None,
@@ -339,7 +339,6 @@ class AssetManager:
             project_path: Path to the project directory (None if no project loaded)
             file_path: Path to the template JSON file
             zone_data_from_dict_fn: Function to deserialize ZoneData
-            zone_data_to_dict_fn: Function to serialize ZoneData
             name: Optional custom name for imported template
             persist_callback: Optional callback to persist project after import
 
@@ -376,7 +375,6 @@ class AssetManager:
             project_path=project_path or "",
             name=template_name,
             zone_data=zone_data,
-            zone_data_to_dict_fn=zone_data_to_dict_fn,
             save_arena=has_arena,
             save_rois=has_rois,
             save_location=target_location,

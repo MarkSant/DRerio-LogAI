@@ -15,15 +15,13 @@ from __future__ import annotations
 import os
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import structlog
 
 if TYPE_CHECKING:
-    from zebtrack.core.detection import Detector
     from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.services.weight_manager import WeightManager
-    from zebtrack.io.recorder import Recorder
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
@@ -49,15 +47,15 @@ class TrackingSessionRunnerMixin:
         video_path: Path | str,
         results_dir: Path | str,
         experiment_id: str,
-        detector: Detector | None = None,
-        recorder: Recorder | None = None,
         progress_callback=None,
-        calibration_data: dict | None = None,
         analysis_interval_frames: int = 10,
         display_interval_frames: int = 10,
-        video_context: Any | None = None,
     ) -> tuple[bool, list[list[int]] | list | None]:
         """Run tracking process using multiprocessing worker to bypass GIL.
+
+        The worker builds its own detector and recorder from the resolved model
+        spec, and opens the video itself. It never receives a calibration: the
+        trajectory stays in raw video pixels (see the module docstring).
 
         Returns:
             Tuple of (success: bool, arena_polygon: list | None)

@@ -174,14 +174,17 @@ def test_generate_parquet_summaries(mock_process, coordinator):
     entries = [{"path": "1.mp4"}, {"path": "2.mp4"}, {"path": "3.mp4"}]
     with patch.object(coordinator, "_find_project_roi_names") as mock_find:
         mock_find.return_value = ["ROI1"]
-        coordinator.generate_parquet_summaries(entries, coordinator.settings)
+        coordinator.generate_parquet_summaries(entries)
         assert mock_process.call_count == 3
+        assert [c.args for c in mock_process.call_args_list] == [
+            (entry, ["ROI1"]) for entry in entries
+        ]
         coordinator.project_manager.save_project.assert_called_once()
 
 
 def test_process_summary_video_no_path(coordinator):
     with patch.object(coordinator, "_ensure_analysis_service_ready"):
-        status, msg, path, changed = coordinator._process_summary_video({}, coordinator.settings)
+        status, msg, path, changed = coordinator._process_summary_video({})
         assert status == "skipped"
         assert path is None
 
@@ -194,9 +197,7 @@ def test_process_summary_video_multi(mock_multi, coordinator):
     mock_multi.return_value = ("completed", "msg", "path", True)
     with patch.object(coordinator, "_create_project_settings_snapshot"):
         with patch.object(coordinator, "_ensure_analysis_service_ready"):
-            status, msg, path, changed = coordinator._process_summary_video(
-                video, coordinator.settings
-            )
+            status, msg, path, changed = coordinator._process_summary_video(video)
             assert status == "completed"
             mock_multi.assert_called_once()
 
@@ -207,13 +208,15 @@ def test_process_summary_video_multi(mock_multi, coordinator):
 def test_process_summary_video_standard(mock_std, coordinator):
     video = {"path": "test.mp4"}
     mock_std.return_value = ("completed", "msg", "path", True)
-    with patch.object(coordinator, "_create_project_settings_snapshot"):
+    with patch.object(coordinator, "_create_project_settings_snapshot") as snapshot:
         with patch.object(coordinator, "_ensure_analysis_service_ready"):
-            status, msg, path, changed = coordinator._process_summary_video(
-                video, coordinator.settings
-            )
+            status, msg, path, changed = coordinator._process_summary_video(video, ["ROI1"])
             assert status == "completed"
-            mock_std.assert_called_once()
+            # The PROJECT snapshot (built from the injected settings) is what the
+            # summary is computed with -- never a caller-supplied settings object.
+            mock_std.assert_called_once_with(
+                video, "test", "test.mp4", snapshot.return_value, ["ROI1"]
+            )
 
 
 @patch(

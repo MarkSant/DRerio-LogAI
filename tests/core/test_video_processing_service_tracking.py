@@ -108,7 +108,6 @@ class TestRunTrackingIfNeeded:
             results_dir="/fake/results",
             experiment_id="test_001",
             analysis_interval_frames=1,
-            calibration_data={"aquarium_width_cm": 10.0, "aquarium_height_cm": 5.0},
         )
 
         # Verify worker creation
@@ -204,7 +203,6 @@ class TestRunTrackingIfNeeded:
             results_dir="/fake/results",
             experiment_id="test_001",
             analysis_interval_frames=5,  # Process every 5th frame
-            calibration_data={"aquarium_width_cm": 10.0, "aquarium_height_cm": 5.0},
         )
 
         # Verify context has correct interval
@@ -240,7 +238,7 @@ class TestRunTrackingIfNeeded:
 
     @patch("zebtrack.core.video.processing_worker.ProcessingWorker")
     @patch("zebtrack.core.video.tracking_session_runner.os.path.exists")
-    def test_includes_calibration_data(self, mock_exists, mock_worker, video_processing_service):
+    def test_includes_zone_data(self, mock_exists, mock_worker, video_processing_service):
         """Test that zone data is passed to worker context."""
         mock_exists.return_value = False
 

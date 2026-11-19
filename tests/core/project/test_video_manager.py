@@ -157,7 +157,6 @@ def test_remove_video_entry(tmp_path):
     changed = VideoManager.remove_video_entry(
         project_data,
         video_path=Path(target),
-        video_entry={"path": target},
         clear_zones_callback=_clear,
     )
 

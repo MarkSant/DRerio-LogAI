@@ -359,7 +359,7 @@ class DetectorService:
         """Return current detector parameters."""
         return self.get_detector_parameters()
 
-    def get_parameter_definitions(self, config_name: str | None = None) -> dict[str, str]:
+    def get_parameter_definitions(self) -> dict[str, str]:
         """Return parameter definitions (type, range, defaults) for the UI."""
         return {
             "conf_threshold": "float",

@@ -156,19 +156,30 @@ class TestCapabilityTier:
             cpu_cores=cores,
             total_memory_gb=memory_gb,
             has_gpu=has_gpu,
-            cpu_usage=10.0,
-            memory_usage=10.0,
         )
         assert tier is expected
 
+    @pytest.mark.parametrize(("cpu_percent", "memory_percent"), [(5.0, 10.0), (99.0, 99.0)])
     def test_current_load_does_not_change_the_tier(
-        self, detector: HardwareCapabilityDetector
+        self,
+        detector: HardwareCapabilityDetector,
+        monkeypatch: pytest.MonkeyPatch,
+        cpu_percent: float,
+        memory_percent: float,
     ) -> None:
         # The tier describes the machine, not the moment: load only adds warnings.
-        tier = detector._calculate_capability_tier(
-            cpu_cores=8, total_memory_gb=16.0, has_gpu=True, cpu_usage=99.0, memory_usage=99.0
+        _machine(
+            monkeypatch,
+            cores=8,
+            total_gb=16.0,
+            available_gb=8.0,
+            memory_percent=memory_percent,
+            cpu_percent=cpu_percent,
         )
-        assert tier is Tier.EXCELLENT
+        _cuda(monkeypatch, name="RTX 3060")
+        _no_openvino(monkeypatch)
+
+        assert detector.assess_capability().capability is Tier.EXCELLENT
 
 
 class TestMaxAquariums:

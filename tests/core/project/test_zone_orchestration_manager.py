@@ -355,7 +355,6 @@ class TestFlagSyncAndClear:
         }
 
         ZoneOrchestrationManager.sync_multi_aquarium_flags(
-            {},
             iter_project_videos_fn=lambda: [({}, e) for e in entries],
             get_multi_aquarium_zone_data_fn=registry.get,
         )

@@ -1011,10 +1011,12 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         display_interval_frames: int = 1,
         record_video: bool = True,
         output_base_dir: Path | str | None = None,
-        zones: list[dict] | None = None,
         wizard_data: dict | None = None,
     ) -> bool:
         """Start a live camera analysis session.
+
+        Zones are not a parameter: the session reads them from the project (the
+        same source every live entry point uses), never from the caller.
 
         Args:
             camera_index: Camera device index to use
@@ -1024,7 +1026,6 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             display_interval_frames: Display every N frames (default: 1 = every frame)
             record_video: Whether to record video during session
             output_base_dir: Custom output directory (default: live_analysis_sessions/)
-            zones: Optional zone configurations for detection
             wizard_data: Batch metadata for LiveBatchCoordinator (v2.3.0)
 
         Returns:

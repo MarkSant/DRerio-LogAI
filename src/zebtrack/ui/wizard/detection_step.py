@@ -399,11 +399,11 @@ class DetectionStep(WizardStep):
                 )
                 return custom_result
 
-        # Try built-in patterns (v1.0: 4 patterns)
+        # Built-in patterns. Days-as-folders and mixed-folder layouts were listed
+        # here as stubs that always returned None (#726); a day folder is still
+        # read by the groups-as-folders pattern, which searches the whole path.
         patterns = [
             self._pattern_groups_as_folders,
-            self._pattern_days_as_folders,
-            self._pattern_mixed_folders,
             self._pattern_filename_based,
         ]
 
@@ -703,17 +703,8 @@ class DetectionStep(WizardStep):
             "pattern_used": "groups_as_folders",
         }
 
-    def _pattern_days_as_folders(self, paths: list[Path]) -> dict | None:
-        """Pattern 2: Days as folders (e.g., /Day1/Control/video.mp4)."""
-        # Similar logic but prioritize day detection
-        return None  # Simplified for MVP - implement if needed
-
-    def _pattern_mixed_folders(self, paths: list[Path]) -> dict | None:
-        """Pattern 3: Mixed folders (e.g., /Exp1/Control/D01/video.mp4)."""
-        return None  # Simplified for MVP
-
     def _pattern_filename_based(self, paths: list[Path]) -> dict | None:
-        """Pattern 4: Filename-based (e.g., Control_Day1_S01.mp4)."""
+        """Pattern 2: Filename-based (e.g., Control_Day1_S01.mp4)."""
         # Extract from filenames only
         groups_found = set()
         days_found = set()

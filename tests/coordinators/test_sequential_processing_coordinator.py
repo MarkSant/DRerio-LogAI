@@ -161,6 +161,32 @@ def test_start_single_aquarium_for_sequential(mock_worker_class, coordinator):
 
 
 @patch("zebtrack.core.video.processing_worker.ProcessingWorker")
+def test_sequential_aquarium_error_names_the_failing_video(mock_worker_class, coordinator):
+    """``on_error`` receives ``(exception, experiment_id)``; the warning must say which video."""
+    from structlog.testing import capture_logs
+
+    zone_data = MagicMock(video_width=100, video_height=100)
+    zone_data.to_zone_data.return_value = MagicMock(
+        polygon=[], roi_polygons=[], roi_names=[], roi_colors=[], metadata={}
+    )
+    aquarium = MagicMock(id=1, polygon=[])
+    ctx = {"video_path": "test.mp4", "multi_zone_data": zone_data, "current_index": 0}
+    coordinator.project_manager.resolve_results_directory.return_value = "res_dir"
+
+    with patch("cv2.VideoCapture"):
+        coordinator._start_single_aquarium_for_sequential(aquarium, ctx)
+
+    callbacks = mock_worker_class.call_args.kwargs["callbacks"]
+    with capture_logs() as logs:
+        callbacks.on_error(RuntimeError("decode failed"), "Dia_2_CECT_4")
+
+    (warning,) = [e for e in logs if e["event"] == "processing_coordinator.sequential.aq_error"]
+    assert warning["video"] == "Dia_2_CECT_4"
+    assert warning["aquarium"] == 1
+    assert warning["error"] == "decode failed"
+
+
+@patch("zebtrack.core.video.processing_worker.ProcessingWorker")
 def test_sequential_aquarium_ships_the_project_weight(mock_worker_class, coordinator, tmp_path):
     """Each sequential pass runs a worker too: it must load the PROJECT's weight."""
     rat = tmp_path / "best_det_topdown_rat_v1.pt"

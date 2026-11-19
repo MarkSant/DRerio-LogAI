@@ -454,6 +454,20 @@ modules:
         find: 'use_masks = preserve_real_shape and self.mode == "seg"'
         replace: 'use_masks = False'
 
+  aquarium_detector_multi_area_ratio:
+    source: src/zebtrack/core/detection/aquarium_detector.py
+    tests:
+      - tests/core/test_aquarium_detector_multi.py
+    mutations:
+      - id: max-area-ratio-ignored
+        description: "#726: dois aquarios voltam a ignorar o max_area_ratio documentado"
+        find: 'multi_max_ratio = min(max_area_ratio, MULTI_AQUARIUM_MAX_AREA_RATIO)'
+        replace: 'multi_max_ratio = MULTI_AQUARIUM_MAX_AREA_RATIO'
+      - id: two-tank-cap-lost
+        description: "#726: o teto de meio quadro por aquario some e 0.98 aceita caixas gigantes"
+        find: 'multi_max_ratio = min(max_area_ratio, MULTI_AQUARIUM_MAX_AREA_RATIO)'
+        replace: 'multi_max_ratio = max_area_ratio'
+
   sharp_turn_threshold:
     source: src/zebtrack/analysis/analysis_service.py
     tests:
@@ -3088,6 +3102,44 @@ modules:
         description: "coordenador nao consulta a regra unica do projeto"
         find: 'return None if decision is None else decision.single'
         replace: 'return None'
+
+  multi_aquarium_coordinator_area_bounds:
+    source: src/zebtrack/coordinators/multi_aquarium_coordinator.py
+    tests:
+      - tests/coordinators/test_multi_aquarium_coordinator.py
+    mutations:
+      - id: max-area-ratio-not-forwarded
+        description: "#726: detection_zones.max_aquarium_area_ratio deixa de chegar ao detector"
+        find: "                    max_area_ratio=max_area_ratio,\n"
+        replace: ""
+      - id: max-area-setting-not-read
+        description: "#726: o teto configurado e trocado pelo padrao 0.98"
+        find: '_ratio(getattr(zones, "max_aquarium_area_ratio", None), _DEFAULT_MAX_AQUARIUM_AREA_RATIO)'
+        replace: '_ratio(None, _DEFAULT_MAX_AQUARIUM_AREA_RATIO)'
+      - id: bool-accepted-as-ratio
+        description: "#726: um True nas settings vira razao 1.0 em vez de cair no padrao"
+        find: 'if isinstance(value, bool) or not isinstance(value, int | float):'
+        replace: 'if not isinstance(value, int | float):'
+
+  sequential_processing_error_names_video:
+    source: src/zebtrack/coordinators/sequential_processing_coordinator.py
+    tests:
+      - tests/coordinators/test_sequential_processing_coordinator.py
+    mutations:
+      - id: error-drops-the-video
+        description: "#726: o aviso de erro por aquario volta a nao dizer qual video falhou"
+        find: 'video=exp_id,'
+        replace: 'video=None,'
+
+  report_summary_project_snapshot:
+    source: src/zebtrack/coordinators/report_generation_coordinator.py
+    tests:
+      - tests/coordinators/test_report_generation_coordinator.py
+    mutations:
+      - id: summary-uses-shared-settings
+        description: "#726: o sumario volta a usar as settings compartilhadas, nao o snapshot do projeto"
+        find: 'video, experiment_id, path, settings_snapshot, expected_roi_names'
+        replace: 'video, experiment_id, path, self.settings, expected_roi_names'
 
   track_significance:
     source: src/zebtrack/analysis/track_significance.py

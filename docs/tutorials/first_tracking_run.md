@@ -149,9 +149,10 @@ Actions available in this step:
 - **✏️ Edit Design** — manually correct groups/days/subjects when detection gets it wrong
 - **🔧 Custom Regex** — supply your own group/day/subject patterns; the preview updates live as you type, and errors show inline instead of as interruptive pop-ups
 
-The wizard recognizes folder-based patterns (groups and/or days as folders,
-mixed folder layouts) as well as filename-based patterns
-(`Control_Day01_Subject01.mp4`-style names).
+The wizard recognizes groups as folders (the first folder level under the
+common parent; a day such as `Day1/` or `D01` is read from anywhere in the path)
+as well as filename-based patterns (`Control_Day01_Subject01.mp4`-style names).
+For any other layout, use **🔧 Custom Regex**.
 
 ---
 

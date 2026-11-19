@@ -520,13 +520,13 @@ class StateManager:
         key: str,
         old_value: Any,
         new_value: Any,
-        timeout_seconds: float = 5.0,
     ) -> None:
         """
         Call observer asynchronously without blocking the caller.
 
         Task 2.3 (FIXED): Prevent hanging observers from freezing the application.
-        Observers are submitted to thread pool but caller does NOT wait for result.
+        Observers are submitted to thread pool but caller does NOT wait for result,
+        so there is no timeout to configure: nothing here ever waits.
 
         This eliminates UI freezing (ANR - Application Not Responding) that occurred
         when observers took several seconds to complete.
@@ -537,7 +537,6 @@ class StateManager:
             key: State key that changed
             old_value: Previous value
             new_value: New value
-            timeout_seconds: Maximum time to wait for observer (unused, kept for API compat)
 
         Logs:
             - observer.callback_failed: If observer raises exception (via callback)

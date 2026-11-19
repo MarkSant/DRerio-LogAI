@@ -440,15 +440,18 @@ class UIStateController:
     def _publish_processing_mode(
         self,
         source: str = "unknown",
-        force: bool = False,
         mode_override: ProcessingMode | None = None,
     ) -> None:
         """
         Publish the current processing mode to the UI.
 
+        Always publishes: this method keeps no "last published mode" to compare
+        against, so there is nothing a ``force`` flag could override. The
+        de-duplicating variant (with ``force``) is
+        ``MultiAquariumCoordinator._publish_processing_mode``.
+
         Args:
             source: Source of the update request (for logging).
-            force: Whether to force update even if mode hasn't changed.
             mode_override: Force a specific mode for this update.
         """
         if mode_override:

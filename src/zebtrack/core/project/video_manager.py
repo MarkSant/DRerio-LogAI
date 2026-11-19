@@ -595,15 +595,16 @@ class VideoManager:
     def remove_video_entry(
         project_data: dict[str, Any],
         video_path: Path | str,
-        video_entry: dict[str, Any],
         clear_zones_callback: Callable[[str], None] | None = None,
     ) -> bool:
         """Remove a video entry from project data.
 
+        The entry is found by ``video_path`` in every batch; no entry object is
+        needed.
+
         Args:
             project_data: The project data dictionary to modify
             video_path: Path to the video to remove
-            video_entry: The video entry dictionary (for reference)
             clear_zones_callback: Optional callback to clear zone data for video
 
         Returns:

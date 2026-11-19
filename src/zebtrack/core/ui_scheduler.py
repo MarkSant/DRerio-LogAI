@@ -46,7 +46,10 @@ class UIScheduler:
     def __init__(
         self,
         root: Tk | None = None,
-        event_bus: Any = None,  # Kept for backward-compat signature; ignored in v2
+        # Deliberately accepted and ignored (backward-compat, documented below): the
+        # v1 bus routed callbacks, EventBusV2 does not (#726 kept it on purpose).
+        # No ``noqa: ARG002``: ARG is not in the ruff selection, so RUF100 rejects it.
+        event_bus: Any = None,
     ):
         """
         Initialize UIScheduler.
@@ -67,9 +70,10 @@ class UIScheduler:
         Phase 4: Consolidates scheduling logic from _schedule_on_ui.
 
         This method attempts to schedule the function via:
-        1. Event bus (if available)
-        2. root.after(0, ...) (if root available)
-        3. Direct execution as fallback
+        1. root.after(0, ...) (if root available)
+        2. Direct execution as fallback
+
+        The event bus is never used (``event_bus`` is ignored since v2).
 
         Args:
             func: Function to execute

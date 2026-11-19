@@ -141,8 +141,6 @@ class HardwareCapabilityDetector:
             cpu_cores=cpu_cores,
             total_memory_gb=total_memory_gb,
             has_gpu=has_gpu,
-            cpu_usage=cpu_percent,
-            memory_usage=memory_usage_percent,
         )
 
         # Calculate max recommended aquariums
@@ -267,17 +265,17 @@ class HardwareCapabilityDetector:
         cpu_cores: int,
         total_memory_gb: float,
         has_gpu: bool,
-        cpu_usage: float,
-        memory_usage: float,
     ) -> MultiAquariumCapability:
         """Calculate hardware capability tier.
+
+        The tier depends on the machine, never on its current load: live CPU and
+        memory usage feed the warnings and recommendations, not the tier, so the
+        classification stays stable between runs.
 
         Args:
             cpu_cores: Number of logical CPU cores
             total_memory_gb: Total RAM in GB (not available, for stable classification)
             has_gpu: Whether GPU is detected
-            cpu_usage: Current CPU usage percentage
-            memory_usage: Current memory usage percentage
 
         Returns:
             Capability tier enum

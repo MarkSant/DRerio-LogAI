@@ -614,7 +614,6 @@ class AnalysisControlViewModel:
 
         return self.video_processing_service.process_single_video(
             detector=detector,
-            recorder=self.recorder,
             processing_report_callback=report_callback,
             **kwargs,
         )

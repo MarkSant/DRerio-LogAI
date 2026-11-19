@@ -839,9 +839,7 @@ class TestSummaryVideoProcessing:
 
         # Should not raise, should log warning
         try:
-            coordinator._report_coordinator._process_summary_video(
-                video_entry, coordinator.settings
-            )
+            coordinator._report_coordinator._process_summary_video(video_entry)
         except FileNotFoundError:
             pass  # Expected - no trajectory file
         except Exception:

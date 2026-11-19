@@ -532,6 +532,33 @@ def test_multi_aquarium_branch_honours_the_arena_policy(coordinator):
     assert detect_kwargs["polygon_epsilon_factor"] == 0.005
 
 
+def test_multi_aquarium_branch_honours_the_area_bounds(coordinator):
+    """``detection_zones.{min,max}_aquarium_area_ratio`` reach the detector (#726).
+
+    ``max_aquarium_area_ratio`` had no reader (A7-01) and the detector ignored its
+    own ``max_area_ratio``: the setting changed nothing.
+    """
+    coordinator.settings.detection_zones.min_aquarium_area_ratio = 0.12
+    coordinator.settings.detection_zones.max_aquarium_area_ratio = 0.4
+
+    _ctor, detect_kwargs = _multi_arena_detection_case(coordinator, project_data={})
+
+    assert detect_kwargs["min_area_ratio"] == 0.12
+    assert detect_kwargs["max_area_ratio"] == 0.4
+
+
+@pytest.mark.parametrize("value", [None, "0.4", True, MagicMock()])
+def test_unusable_area_bounds_fall_back_to_the_defaults(value):
+    from types import SimpleNamespace
+
+    from zebtrack.coordinators.multi_aquarium_coordinator import _aquarium_area_bounds
+
+    zones = SimpleNamespace(min_aquarium_area_ratio=value, max_aquarium_area_ratio=value)
+
+    assert _aquarium_area_bounds(SimpleNamespace(detection_zones=zones)) == (0.10, 0.98)
+    assert _aquarium_area_bounds(None) == (0.10, 0.98)
+
+
 # ---------------------------------------------------------------------------
 # A degraded or absent detection must reach the USER, not only the log
 # ---------------------------------------------------------------------------

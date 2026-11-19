@@ -68,13 +68,11 @@ class CalibrationCoordinator(BaseCoordinator):
 
     def get_calibration_scope_info(
         self,
-        get_active_weight_name: Callable[[], str | None] | None = None,
         gui_instance: Any | None = None,
     ) -> dict[str, Any]:
         """Get calibration scope information for UI display.
 
         Args:
-            get_active_weight_name: Callback to get active weight name
             gui_instance: Optional GUI instance for single-video mode check
 
         Returns:

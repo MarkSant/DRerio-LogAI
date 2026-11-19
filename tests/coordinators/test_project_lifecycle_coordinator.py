@@ -303,9 +303,11 @@ def test_save_project_model_slot_overrides(coordinator):
 def test_get_calibration_scope_info(coordinator):
     coordinator._calibration_coordinator.get_calibration_scope_info.return_value = {"scope": "test"}
 
-    result = coordinator.get_calibration_scope_info()
+    gui = object()
+    result = coordinator.get_calibration_scope_info(gui)
 
     assert result == {"scope": "test"}
+    coordinator._calibration_coordinator.get_calibration_scope_info.assert_called_once_with(gui)
 
 
 def test_build_calibration_context(coordinator):

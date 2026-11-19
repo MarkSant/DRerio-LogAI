@@ -457,7 +457,6 @@ class TestBasicCalibrationMatchesTheDomain:
                     display_interval_frames=10,
                     camera_index=0,
                     project_type="Pre-recorded",
-                    video_files=["a.mp4"],
                 )
                 domain_ok = True
             except ValueError:

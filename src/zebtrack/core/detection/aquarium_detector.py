@@ -56,6 +56,11 @@ PROVENANCE_MASK = "mask"
 PROVENANCE_BBOX = "bbox"
 PROVENANCE_SYNTHETIC_DEFAULT = "synthetic_default"
 
+#: Geometric ceiling for ONE of two aquariums in the same frame: two tanks side
+#: by side cannot each cover more than half of it. ``detect_multiple_aquariums``
+#: honours a smaller ``max_area_ratio`` and never a larger one.
+MULTI_AQUARIUM_MAX_AREA_RATIO = 0.50
+
 
 def _clamp_confidence(value: float | None, *, default: float) -> float:
     """Clamp a confidence value to ``[0.01, 0.95]``.
@@ -957,7 +962,10 @@ class AquariumDetector:
             expected_count: Expected number of aquariums (must be 2).
             stabilization_frames: Number of frames to analyze.
             min_area_ratio: Minimum area ratio per aquarium.
-            max_area_ratio: Maximum area ratio per aquarium.
+            max_area_ratio: Maximum area ratio per aquarium. Never above
+                ``MULTI_AQUARIUM_MAX_AREA_RATIO`` (0.50): two tanks side by side
+                cannot each cover more than half the frame, so a larger value
+                (the 0.98 default, sized for ONE tank) leaves that cap in force.
             confidence_threshold: YOLO prediction confidence. ``None`` falls back
                 to the historical 0.05. Clamped to ``[0.01, 0.95]``.
             preserve_real_shape: In ``"seg"`` mode, keep each aquarium's mask
@@ -983,6 +991,8 @@ class AquariumDetector:
 
         video_path_str = str(Path(video_path) if isinstance(video_path, str) else video_path)
         conf = _clamp_confidence(confidence_threshold, default=0.05)
+        # The caller's ceiling, never above the geometric one for two tanks.
+        multi_max_ratio = min(max_area_ratio, MULTI_AQUARIUM_MAX_AREA_RATIO)
         log.info(
             "aquarium_detector.detect_multiple.start",
             video_path=video_path_str,
@@ -990,6 +1000,8 @@ class AquariumDetector:
             confidence_threshold=conf,
             mode=self.mode,
             preserve_real_shape=preserve_real_shape,
+            min_area_ratio=min_area_ratio,
+            max_area_ratio=multi_max_ratio,
         )
 
         # Try YOLO-based detection first
@@ -1062,7 +1074,7 @@ class AquariumDetector:
                         box_area = (x2 - x1) * (y2 - y1)
                         area_ratio = box_area / frame_area
 
-                        if min_area_ratio <= area_ratio <= 0.50:  # Cap max at 50 for multi
+                        if min_area_ratio <= area_ratio <= multi_max_ratio:
                             polygon = self._multi_aquarium_outline(
                                 (x1, y1, x2, y2),
                                 mask_xy=mask_xy,

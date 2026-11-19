@@ -22,7 +22,7 @@ class TestWindowUtilsExtended:
     def test_try_actions_first_succeeds(self):
         action1 = MagicMock()
         action2 = MagicMock()
-        result = _try_actions(None, (action1, action2))
+        result = _try_actions((action1, action2))
         assert result is True
         action1.assert_called_once()
         action2.assert_not_called()
@@ -30,7 +30,7 @@ class TestWindowUtilsExtended:
     def test_try_actions_second_succeeds(self):
         action1 = MagicMock(side_effect=TclError("Fail 1"))
         action2 = MagicMock()
-        result = _try_actions(None, (action1, action2))
+        result = _try_actions((action1, action2))
         assert result is True
         action1.assert_called_once()
         action2.assert_called_once()
@@ -38,7 +38,7 @@ class TestWindowUtilsExtended:
     def test_try_actions_all_fail(self):
         action1 = MagicMock(side_effect=TclError("Fail 1"))
         action2 = MagicMock(side_effect=Exception("Fail 2"))
-        result = _try_actions(None, (action1, action2))
+        result = _try_actions((action1, action2))
         assert result is False
 
     def test_maximize_window_state_zoomed_succeeds(self):
@@ -119,7 +119,7 @@ class TestWindowUtilsExtended2:
     def test_try_actions_first_succeeds(self):
         act1 = MagicMock()
         act2 = MagicMock()
-        res = _try_actions(None, (act1, act2))
+        res = _try_actions((act1, act2))
         assert res is True
         act1.assert_called_once()
         act2.assert_not_called()
@@ -127,7 +127,7 @@ class TestWindowUtilsExtended2:
     def test_try_actions_first_fails_second_succeeds(self):
         act1 = MagicMock(side_effect=TclError("fail"))
         act2 = MagicMock()
-        res = _try_actions(None, (act1, act2))
+        res = _try_actions((act1, act2))
         assert res is True
         act1.assert_called_once()
         act2.assert_called_once()
@@ -135,7 +135,7 @@ class TestWindowUtilsExtended2:
     def test_try_actions_all_fail(self):
         act1 = MagicMock(side_effect=TclError("fail1"))
         act2 = MagicMock(side_effect=RuntimeError("fail2"))
-        res = _try_actions(None, (act1, act2))
+        res = _try_actions((act1, act2))
         assert res is False
 
     def test_reset_geometry_if_not_maximized(self):

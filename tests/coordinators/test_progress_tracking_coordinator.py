@@ -264,11 +264,14 @@ class TestProcessingLifecycle:
         coordinator.root.after.assert_called_once()
 
     def test_update_frame_display_no_view(self, headless_coordinator):
-        headless_coordinator._update_frame_display(None, [], 0)
+        headless_coordinator._update_frame_display(None, [])
 
     def test_update_frame_display_with_canvas(self, coordinator):
-        coordinator._update_frame_display(MagicMock(), [{"class": 0}], 42)
-        coordinator.view.canvas_manager.update_video_frame.assert_called_once()
+        frame = MagicMock()
+        coordinator._update_frame_display(frame, [{"class": 0}])
+        coordinator.view.canvas_manager.update_video_frame.assert_called_once_with(
+            frame, [{"class": 0}], class_roles=None
+        )
 
     def test_worker_roles_reach_the_canvas(self, coordinator):
         """The map the worker's detector resolved is drawn with (#645)."""

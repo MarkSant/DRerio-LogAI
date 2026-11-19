@@ -285,7 +285,6 @@ class ZoneOrchestrationManager:
 
     @staticmethod
     def sync_multi_aquarium_flags(
-        project_data: dict[str, Any],
         *,
         iter_project_videos_fn: Callable,
         get_multi_aquarium_zone_data_fn: Callable,

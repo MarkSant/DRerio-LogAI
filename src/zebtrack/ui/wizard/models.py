@@ -284,14 +284,14 @@ class MultiAquariumData(BaseModel):
         group_pattern: str | None = None,
         day_pattern: str | None = None,
         subject_pattern: str | None = None,
-        *,
-        separator: str = r"(?:--|_)",
     ) -> str:
         """Build a combined regex pattern from individual patterns.
 
         Combines separate group, day, and subject patterns into a single
         pattern with named capture groups that can be used with ``re.finditer``
         to extract multiple subjects from filenames like ``G1_D1_S1--G1_D1_S2``.
+        The pattern matches ONE block; ``finditer`` finds every block, whatever
+        separates them, so there is no separator to configure.
 
         Supports two pattern styles:
 
@@ -312,8 +312,6 @@ class MultiAquariumData(BaseModel):
             group_pattern: Pattern for capturing group ID
             day_pattern: Pattern for capturing day
             subject_pattern: Pattern for capturing subject
-            separator: Regex pattern for block separator (unused for atomic,
-                kept for API compatibility)
 
         Returns:
             Combined regex with named groups, or ``""`` if nothing provided.
