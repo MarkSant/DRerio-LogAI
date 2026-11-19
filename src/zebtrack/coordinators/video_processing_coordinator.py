@@ -1057,8 +1057,6 @@ class VideoProcessingCoordinator(
         ptc = self._progress_coordinator
         if ptc:
             ptc._init_batch_context(len(final_tasks))
-            if len(final_tasks) > 1 and self.view:
-                ptc._set_dialog_suppression(True)
 
         try:
             callbacks = self.create_processing_callbacks(final_tasks)

@@ -136,10 +136,6 @@ class TestZoneControlsExtended:
         widget._on_draw_roi_clicked()
         assert widget.emit_event.call_args[0][0] == UIEvents.ZONE_DRAW_ROI
 
-        # Toggle view
-        widget._on_toggle_view_clicked()
-        assert widget.emit_event.call_args[0][0] == UIEvents.ZONE_TOGGLE_VIEW
-
         # Apply template
         widget._on_apply_template_clicked()
         assert widget.emit_event.call_args[0][0] == UIEvents.ZONE_TEMPLATE_APPLY

@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import UIEvents
 
@@ -30,9 +31,11 @@ def test_emit_event_with_bus(tkinter_root):
     event_bus = Mock()
     widget = _DummyWidget(tkinter_root, event_bus=event_bus)
 
-    widget.emit_event(UIEvents.FRAME_ERROR, {"a": 1})
+    payload = payloads.StatusPayload(message="a")
 
-    event_bus.publish.assert_called_once_with(UIEvents.FRAME_ERROR, {"a": 1})
+    widget.emit_event(UIEvents.SET_STATUS, payload)
+
+    event_bus.publish.assert_called_once_with(UIEvents.SET_STATUS, payload)
 
 
 @pytest.mark.gui
@@ -42,9 +45,9 @@ def test_bind_callback_with_bus(tkinter_root):
     widget = _DummyWidget(tkinter_root, event_bus=event_bus)
     handler = Mock()
 
-    widget.bind_callback(UIEvents.FRAME_ERROR, handler)
+    widget.bind_callback(UIEvents.SET_STATUS, handler)
 
-    event_bus.subscribe.assert_called_once_with(UIEvents.FRAME_ERROR, handler)
+    event_bus.subscribe.assert_called_once_with(UIEvents.SET_STATUS, handler)
 
 
 @pytest.mark.gui
@@ -60,11 +63,11 @@ def test_destroy_unsubscribes_what_the_widget_bound(tkinter_root):
     event_bus = Mock()
     widget = _DummyWidget(tkinter_root, event_bus=event_bus)
     handler = Mock()
-    widget.bind_callback(UIEvents.FRAME_ERROR, handler)
+    widget.bind_callback(UIEvents.SET_STATUS, handler)
 
     widget.destroy()
 
-    event_bus.unsubscribe.assert_called_once_with(UIEvents.FRAME_ERROR, handler)
+    event_bus.unsubscribe.assert_called_once_with(UIEvents.SET_STATUS, handler)
 
 
 @pytest.mark.gui
@@ -79,11 +82,11 @@ def test_destroying_the_parent_unsubscribes_the_child(tkinter_root):
     container = ttk.Frame(tkinter_root)
     widget = _DummyWidget(container, event_bus=event_bus)
     handler = Mock()
-    widget.bind_callback(UIEvents.FRAME_ERROR, handler)
+    widget.bind_callback(UIEvents.SET_STATUS, handler)
 
     container.destroy()
 
-    event_bus.unsubscribe.assert_called_once_with(UIEvents.FRAME_ERROR, handler)
+    event_bus.unsubscribe.assert_called_once_with(UIEvents.SET_STATUS, handler)
 
 
 @pytest.mark.gui
@@ -92,7 +95,7 @@ def test_destroy_only_drops_what_bind_callback_registered(tkinter_root):
     event_bus = Mock()
     widget = _DummyWidget(tkinter_root, event_bus=event_bus)
     someone_elses = Mock()
-    event_bus.subscribe(UIEvents.FRAME_ERROR, someone_elses)  # sem bind_callback
+    event_bus.subscribe(UIEvents.SET_STATUS, someone_elses)  # sem bind_callback
 
     widget.destroy()
 
@@ -105,7 +108,7 @@ def test_destroy_survives_a_bus_that_refuses_to_unsubscribe(tkinter_root):
     event_bus = Mock()
     event_bus.unsubscribe.side_effect = RuntimeError("bus caiu")
     widget = _DummyWidget(tkinter_root, event_bus=event_bus)
-    widget.bind_callback(UIEvents.FRAME_ERROR, Mock())
+    widget.bind_callback(UIEvents.SET_STATUS, Mock())
 
     widget.destroy()  # nao levanta
 

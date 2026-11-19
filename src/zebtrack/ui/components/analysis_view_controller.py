@@ -94,19 +94,6 @@ class AnalysisViewController:
     # View toggling
     # ------------------------------------------------------------------
 
-    def toggle_canvas_view(self) -> None:
-        """Toggle between zone drawing view and analysis progress view."""
-        if not self._notebook or not self._analysis_tab_frame or not self._zone_tab_frame:
-            return
-
-        current_tab = self._notebook.select()
-        analysis_tab_id = str(self._analysis_tab_frame)
-
-        if current_tab != analysis_tab_id:
-            self.switch_to_analysis_view()
-        else:
-            self.switch_to_zones_view()
-
     def switch_to_analysis_view(self) -> None:
         """Switch to analysis progress view.
 

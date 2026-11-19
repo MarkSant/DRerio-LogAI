@@ -23,31 +23,11 @@ class TestDialogManagerExtended:
         dm = DialogManager(mock_gui)
         assert dm.zone_context_service is mock_gui._zone_context_service
 
-    def test_dialog_suppression_toggle(self):
-        dm = DialogManager(MagicMock())
-        assert dm._suppress_batch_dialogs is False
-
-        dm.set_dialog_suppression(True)
-        assert dm._suppress_batch_dialogs is True
-
-        dm.set_dialog_suppression(False)
-        assert dm._suppress_batch_dialogs is False
-
     @patch("tkinter.messagebox.showerror")
     def test_show_error_unsuppressed(self, mock_showerror):
         dm = DialogManager(MagicMock())
         dm.show_error("Error Title", "Something failed")
         mock_showerror.assert_called_once_with("Error Title", "Something failed")
-
-    @patch("tkinter.messagebox.showerror")
-    def test_show_error_suppressed(self, mock_showerror):
-        mock_gui = MagicMock()
-        dm = DialogManager(mock_gui)
-        dm.set_dialog_suppression(True)
-
-        dm.show_error("Error Title", "Something failed")
-        mock_showerror.assert_not_called()
-        mock_gui.status_var.set.assert_called_once()
 
     @patch("tkinter.messagebox.showwarning")
     def test_show_warning_unsuppressed(self, mock_showwarning):
@@ -55,31 +35,11 @@ class TestDialogManagerExtended:
         dm.show_warning("Warning Title", "Careful")
         mock_showwarning.assert_called_once_with("Warning Title", "Careful")
 
-    @patch("tkinter.messagebox.showwarning")
-    def test_show_warning_suppressed(self, mock_showwarning):
-        mock_gui = MagicMock()
-        dm = DialogManager(mock_gui)
-        dm.set_dialog_suppression(True)
-
-        dm.show_warning("Warning Title", "Careful")
-        mock_showwarning.assert_not_called()
-        mock_gui.status_var.set.assert_called_once()
-
     @patch("tkinter.messagebox.showinfo")
     def test_show_info_unsuppressed(self, mock_showinfo):
         dm = DialogManager(MagicMock())
         dm.show_info("Info Title", "Process completed")
         mock_showinfo.assert_called_once_with("Info Title", "Process completed")
-
-    @patch("tkinter.messagebox.showinfo")
-    def test_show_info_suppressed(self, mock_showinfo):
-        mock_gui = MagicMock()
-        dm = DialogManager(mock_gui)
-        dm.set_dialog_suppression(True)
-
-        dm.show_info("Info Title", "Process completed")
-        mock_showinfo.assert_not_called()
-        mock_gui.status_var.set.assert_called_once()
 
     @patch("tkinter.messagebox.askyesno", return_value=True)
     def test_ask_yes_no_returns_bool(self, mock_askyesno):
@@ -129,59 +89,6 @@ class TestDialogManagerExtended:
 
 
 class TestDialogManagerExtended2:
-    def test_set_dialog_suppression(self):
-        gui = MagicMock()
-        manager = DialogManager(gui)
-        assert manager._suppress_batch_dialogs is False
-
-        manager.set_dialog_suppression(True)
-        assert manager._suppress_batch_dialogs is True
-
-        manager.set_dialog_suppression(False)
-        assert manager._suppress_batch_dialogs is False
-
-    def test_show_error_suppressed(self):
-        gui = MagicMock()
-        manager = DialogManager(gui)
-        manager.set_dialog_suppression(True)
-
-        manager.show_error("Validation Fail", "Missing polygon coordinates")
-        gui.status_var.set.assert_called_once()
-        args = gui.status_var.set.call_args[0][0]
-        assert "Validation Fail" in args
-        assert "Missing polygon coordinates" in args
-
-    def test_show_warning_suppressed(self):
-        gui = MagicMock()
-        manager = DialogManager(gui)
-        manager.set_dialog_suppression(True)
-
-        manager.show_warning("Low FPS", "Camera dropped below 15 fps")
-        gui.status_var.set.assert_called_once()
-        args = gui.status_var.set.call_args[0][0]
-        assert "Low FPS" in args
-        assert "Camera dropped below 15 fps" in args
-
-    def test_show_info_suppressed(self):
-        gui = MagicMock()
-        manager = DialogManager(gui)
-        manager.set_dialog_suppression(True)
-
-        manager.show_info("Batch Done", "All 10 videos processed")
-        gui.status_var.set.assert_called_once()
-        args = gui.status_var.set.call_args[0][0]
-        assert "Batch Done" in args
-        assert "All 10 videos processed" in args
-
-    def test_update_status_bar_truncation(self):
-        gui = MagicMock()
-        manager = DialogManager(gui)
-
-        long_text = "A" * 300
-        manager._update_status_bar(long_text)
-        gui.status_var.set.assert_called_once()
-        assert len(gui.status_var.set.call_args[0][0]) == 200
-
     def test_choose_processing_reports_delete_mode_options(self):
         gui = MagicMock()
         manager = DialogManager(gui)
@@ -208,48 +115,6 @@ class TestDialogManagerExtended2:
         )
         assert confirmed is False
         assert delete_disk is False
-
-
-class TestDialogManagerExtended4:
-    def test_show_error_suppressed(self, monkeypatch: pytest.MonkeyPatch):
-        gui = MagicMock()
-        dm = DialogManager(gui)
-        dm._suppress_batch_dialogs = True
-        mock_status = MagicMock()
-        monkeypatch.setattr(dm, "_update_status_bar", mock_status)
-
-        dm.show_error("Disk Error", "Failed to save file")
-        mock_status.assert_called_once()
-        assert "Disk Error" in mock_status.call_args[0][0]
-
-    def test_show_warning_suppressed(self, monkeypatch: pytest.MonkeyPatch):
-        gui = MagicMock()
-        dm = DialogManager(gui)
-        dm._suppress_batch_dialogs = True
-        mock_status = MagicMock()
-        monkeypatch.setattr(dm, "_update_status_bar", mock_status)
-
-        dm.show_warning("Low Memory", "RAM usage is high")
-        mock_status.assert_called_once()
-        assert "Low Memory" in mock_status.call_args[0][0]
-
-    def test_show_info_suppressed(self, monkeypatch: pytest.MonkeyPatch):
-        gui = MagicMock()
-        dm = DialogManager(gui)
-        dm._suppress_batch_dialogs = True
-        mock_status = MagicMock()
-        monkeypatch.setattr(dm, "_update_status_bar", mock_status)
-
-        dm.show_info("Done", "Process complete")
-        mock_status.assert_called_once_with("Done: Process complete")
-
-    def test_update_status_bar_truncation(self):
-        gui = MagicMock()
-        dm = DialogManager(gui)
-        long_message = "A" * 300
-
-        dm._update_status_bar(long_message)
-        gui.status_var.set.assert_called_once_with("A" * 200)
 
 
 class TestDialogManagerExtended5:

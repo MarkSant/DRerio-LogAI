@@ -16,6 +16,7 @@ from zebtrack.core.services.roi_rule_resolver import (
     DEFAULT_BUFFER_RADIUS_VALUE,
     DEFAULT_MIN_BBOX_OVERLAP_RATIO,
     DEFAULT_ROI_INCLUSION_RULE,
+    resolve_roi_rule,
 )
 from zebtrack.i18n import _
 from zebtrack.settings import Settings
@@ -476,6 +477,20 @@ class AnalysisWidgetsBuilder:
             self._update_current_project_settings(validated)
         else:
             self._update_global_settings_file(update_payload, validated)
+        self._refresh_zone_tab_roi_rule()
+
+    def _refresh_zone_tab_roi_rule(self) -> None:
+        """Show the just-saved ROI rule in the Zones tab panel (A2-13).
+
+        The panel is seeded only when the Zones tab is built (project open), so a
+        rule saved here kept showing the old one there until the tab was rebuilt.
+        Same resolver, same precedence (project > settings > default).
+        """
+        zone_controls = getattr(self.gui, "zone_controls", None)
+        if zone_controls is None or not hasattr(zone_controls, "set_roi_rule_config"):
+            return
+        project_data = getattr(self.gui.controller.project_manager, "project_data", None)
+        zone_controls.set_roi_rule_config(resolve_roi_rule(project_data, self._settings))
 
     def _validate_config_values(self, values: dict) -> None:
         """Validate configuration values."""

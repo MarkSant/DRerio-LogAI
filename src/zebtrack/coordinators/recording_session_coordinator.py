@@ -128,6 +128,20 @@ class RecordingSessionCoordinator(BaseCoordinator):
         self._pending_recording_trigger_source: str | None = None
         self._pending_recording_project_data: dict[str, Any] | None = None
 
+        # The plain RecordingService path (legacy Record button, external trigger)
+        # reports through these callbacks. Nothing wired them, so a timed
+        # recording never stopped by itself and its status and error messages
+        # reached nobody (A2-13).
+        if recording_service is not None:
+            recording_service.set_ui_callbacks(
+                {
+                    "stop_recording_callback": self.stop_recording,
+                    "show_error": self._show_service_error,
+                    "set_status": self._show_service_status,
+                    "update_button_state": self._update_service_button,
+                }
+            )
+
         log.info(
             "recording_session_coordinator.initialized",
             has_recording_service=recording_service is not None,
@@ -733,16 +747,6 @@ class RecordingSessionCoordinator(BaseCoordinator):
                     experiment_id=experiment_id,
                     duration=duration_s,
                 )
-                # Publish event
-                self._publish_event(
-                    UIEvents.RECORDING_STARTED,
-                    {
-                        "folder_name": context.get("folder_name"),
-                        "output_folder": output_folder,
-                        "trigger_source": trigger_source,
-                        "mode": "live_analysis",
-                    },
-                )
 
                 # FIX Bug 3: Enable cancel button in integrated canvas mode
                 if self.view and hasattr(self.view, "show_progress_bar"):
@@ -781,20 +785,23 @@ class RecordingSessionCoordinator(BaseCoordinator):
             trigger_source=trigger_source,
         )
 
-        # Publish event
-        self._publish_event(
-            UIEvents.RECORDING_STARTED,
-            {
-                "folder_name": context.get("folder_name"),
-                "output_folder": context.get("output_folder"),
-                "trigger_source": trigger_source,
-                "duration": effective_duration,
-            },
-        )
-
     # =============================================================================
     # EVENT LISTENERS
     # =============================================================================
+
+    def _show_service_error(self, title: str, message: str) -> None:
+        self._publish_event(
+            UIEvents.SHOW_ERROR, payloads.MessagePayload(title=title, message=message)
+        )
+
+    def _show_service_status(self, message: str) -> None:
+        self._publish_event(UIEvents.UI_SET_STATUS, payloads.StatusPayload(message=message))
+
+    def _update_service_button(self, button: str, state: str) -> None:
+        self._publish_event(
+            UIEvents.UI_UPDATE_BUTTON_STATE,
+            payloads.UpdateButtonStatePayload(button_name=button, state=state),
+        )
 
     def _setup_event_listeners(self):
         """Setup event listeners for coordination."""

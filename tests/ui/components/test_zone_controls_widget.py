@@ -180,7 +180,6 @@ def test_reconfigure_subjects_updates_metadata_and_refreshes(widget, event_bus):
         {"group": "Tratamento", "day": 2, "subject": "S02"},
     )
     event_types = [call.args[0] for call in event_bus.publish.call_args_list]
-    assert UIEvents.VIDEO_METADATA_UPDATED in event_types
     assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
 
 

@@ -623,3 +623,27 @@ def test_empty_detection_warns_instead_of_failing_in_silence(coordinator):
     )
 
     assert _warning_titles(publish)
+
+
+@pytest.mark.parametrize("outcome", ["nothing_found", "raises"])
+@patch("zebtrack.core.detection.aquarium_detector.AquariumDetector")
+def test_a_failed_multi_detection_tells_the_user(mock_detector_class, coordinator, outcome):
+    # A1-02: only an unsubscribed event went out, so Auto-detect looked dead
+    # whenever the two-aquarium detection failed.
+    detector = mock_detector_class.return_value
+    if outcome == "raises":
+        detector.detect_multiple_aquariums.side_effect = RuntimeError("model crashed")
+    else:
+        detector.detect_multiple_aquariums.return_value = []
+    coordinator.weight_manager.get_weight_path_by_method.return_value = "model.pt"
+
+    result = coordinator.run_aquarium_detection("test.mp4", multi_aquarium=True, count=2)
+
+    assert result is None
+    warnings = [
+        call[0][0].data
+        for call in coordinator.event_bus.publish.call_args_list
+        if call[0][0].type == UIEvents.UI_SHOW_WARNING
+    ]
+    assert len(warnings) == 1
+    assert "Draw each arena by hand" in warnings[0].message

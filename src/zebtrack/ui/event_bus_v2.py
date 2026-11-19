@@ -37,7 +37,6 @@ class UIEvents(Enum):
 
     # ── Recording ─────────────────────────────────────────────────────
     RECORDING_START = auto()
-    RECORDING_STARTED = auto()  # Internal fire-and-forget
     RECORDING_STOP = auto()
     RECORDING_STOPPED = auto()  # Internal: coordinator publishes after stop
 
@@ -90,13 +89,11 @@ class UIEvents(Enum):
     # ── Zone Widget Component Events ──────────────────────────────────
     ZONE_DRAW_ARENA = auto()
     ZONE_DRAW_ROI = auto()
-    ZONE_TOGGLE_VIEW = auto()
     ZONE_TEMPLATE_APPLY = auto()
     ZONE_TEMPLATE_SAVE = auto()
     ZONE_TEMPLATE_IMPORT = auto()
     ZONE_TEMPLATE_CLEAR_APPLIED = auto()
     ZONE_VIDEO_SEARCH_CHANGED = auto()
-    ZONE_VIDEO_REFRESH = auto()
     ZONE_VIDEO_DOUBLE_CLICK = auto()
     ZONE_VIDEO_FRAME_LOAD = auto()
     ZONE_LIST_ITEM_RIGHT_CLICK = auto()
@@ -112,15 +109,12 @@ class UIEvents(Enum):
 
     # ── Multi-Aquarium ────────────────────────────────────────────────
     ZONE_MULTI_AUTO_DETECT_SUCCESS = auto()
-    ZONE_MULTI_AUTO_DETECT_FAILED = auto()
     ZONE_AQUARIUM_SELECTED = auto()
     ZONE_AQUARIUM_ASSIGNMENT_COMPLETED = auto()
     ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG = auto()
     ZONE_PROCESSING_MODE_CHANGED = auto()
 
     # ── Processing Reports ────────────────────────────────────────────
-    PROCESSING_EXPORT_SUMMARIES = auto()
-    REPORTS_GENERATE_PARTIAL = auto()
 
     # ── Calibration ───────────────────────────────────────────────────
 
@@ -183,21 +177,14 @@ class UIEvents(Enum):
     LIVE_POLYGON_SOURCE_CHANGED = auto()
 
     # ── Widget Internal Events (formerly raw strings) ─────────────────
-    BEHAVIORAL_CONFIG_PERSPECTIVE_CHANGED = auto()
-    BEHAVIORAL_CONFIG_VALUES_CHANGED = auto()
-    BEHAVIORAL_CONFIG_GEOTAXIS_TOGGLED = auto()
     CONFIG_SAVE_REQUESTED = auto()
     CONFIG_VALIDATION_ERROR = auto()
     CONFIG_RESET_REQUESTED = auto()
-    CONFIG_ROI_RULE_CHANGED = auto()
     CONFIG_OPEN_CALIBRATION_DIALOG = auto()
     PROJECT_REFRESH_REQUESTED = auto()
     PROJECT_VIDEO_DOUBLE_CLICK_WIDGET = auto()
     PROJECT_VIDEO_RIGHT_CLICK_WIDGET = auto()
-    PROJECT_ITEM_DOUBLE_CLICK = auto()
     REPORTS_DELETE_UNIFIED = auto()
-    FRAME_ERROR = auto()
-    VIDEO_METADATA_UPDATED = auto()
     ANALYSIS_TRACK_SELECTED = auto()
     ANALYSIS_CANCEL_REQUESTED = auto()
     LIVE_SESSION_FINISH_REQUESTED = auto()
@@ -222,7 +209,6 @@ class UIEvents(Enum):
     ANALYSIS_WINDOW_STATE_CHANGED = auto()
     # -- end v8 F5 --
     ERROR_OCCURRED = auto()
-    FRAME_DISPLAYED = auto()
     CAMERA_DISCONNECT_DETECTED = auto()
     CAMERA_DISCONNECT_USER_ACTION = auto()
     CAMERA_RECONNECTED = auto()
@@ -234,7 +220,6 @@ class UIEvents(Enum):
 _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     # Recording
     UIEvents.RECORDING_START: payloads.RecordingStartPayload,
-    UIEvents.RECORDING_STARTED: payloads.RecordingStartedPayload,
     UIEvents.RECORDING_STOP: payloads.EmptyPayload,
     UIEvents.RECORDING_STOPPED: payloads.RecordingStoppedPayload,
     # Project
@@ -278,13 +263,11 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     # Zone Widget Component Events
     UIEvents.ZONE_DRAW_ARENA: payloads.EmptyPayload,
     UIEvents.ZONE_DRAW_ROI: payloads.EmptyPayload,
-    UIEvents.ZONE_TOGGLE_VIEW: payloads.EmptyPayload,
     UIEvents.ZONE_TEMPLATE_APPLY: payloads.ZoneTemplateApplyPayload,
     UIEvents.ZONE_TEMPLATE_SAVE: payloads.EmptyPayload,
     UIEvents.ZONE_TEMPLATE_IMPORT: payloads.EmptyPayload,
     UIEvents.ZONE_TEMPLATE_CLEAR_APPLIED: payloads.EmptyPayload,
     UIEvents.ZONE_VIDEO_SEARCH_CHANGED: payloads.ZoneVideoSearchChangedPayload,
-    UIEvents.ZONE_VIDEO_REFRESH: payloads.EmptyPayload,
     UIEvents.ZONE_VIDEO_DOUBLE_CLICK: payloads.ZoneVideoDoubleClickPayload,
     UIEvents.ZONE_VIDEO_FRAME_LOAD: payloads.ZoneVideoFrameLoadPayload,
     UIEvents.ZONE_LIST_ITEM_RIGHT_CLICK: payloads.ZoneListItemRightClickPayload,
@@ -299,14 +282,11 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.ZONE_CONCLUDE_VIDEO: payloads.EmptyPayload,
     # Multi-Aquarium
     UIEvents.ZONE_MULTI_AUTO_DETECT_SUCCESS: payloads.ZoneMultiAutoDetectSuccessPayload,
-    UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED: payloads.ZoneMultiAutoDetectFailedPayload,
     UIEvents.ZONE_AQUARIUM_SELECTED: payloads.ZoneAquariumSelectedPayload,
     UIEvents.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED: payloads.ZoneAquariumAssignmentCompletedPayload,
     UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG: payloads.ZoneShowAquariumAssignmentDialogPayload,
     UIEvents.ZONE_PROCESSING_MODE_CHANGED: payloads.ZoneProcessingModeChangedPayload,
     # Processing Reports
-    UIEvents.PROCESSING_EXPORT_SUMMARIES: payloads.ProcessingExportSummariesPayload,
-    UIEvents.REPORTS_GENERATE_PARTIAL: payloads.ReportsGeneratePartialPayload,
     # Calibration
     # Arduino
     UIEvents.ARDUINO_PORT_UPDATE_REQUESTED: payloads.ArduinoPortUpdateRequestedPayload,
@@ -357,23 +337,14 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.LIVE_RECORDING_CANCELLED: payloads.LiveRecordingCancelledPayload,
     UIEvents.LIVE_POLYGON_SOURCE_CHANGED: payloads.LivePolygonSourceChangedPayload,
     # Widget Internal Events
-    UIEvents.BEHAVIORAL_CONFIG_PERSPECTIVE_CHANGED: (
-        payloads.BehavioralConfigPerspectiveChangedPayload
-    ),
-    UIEvents.BEHAVIORAL_CONFIG_VALUES_CHANGED: payloads.BehavioralConfigValuesChangedPayload,
-    UIEvents.BEHAVIORAL_CONFIG_GEOTAXIS_TOGGLED: payloads.BehavioralConfigGeotaxisToggledPayload,
     UIEvents.CONFIG_SAVE_REQUESTED: payloads.ConfigSaveRequestedPayload,
     UIEvents.CONFIG_VALIDATION_ERROR: payloads.ConfigValidationErrorPayload,
     UIEvents.CONFIG_RESET_REQUESTED: payloads.EmptyPayload,
-    UIEvents.CONFIG_ROI_RULE_CHANGED: payloads.ConfigRoiRuleChangedPayload,
     UIEvents.CONFIG_OPEN_CALIBRATION_DIALOG: payloads.EmptyPayload,
     UIEvents.PROJECT_REFRESH_REQUESTED: payloads.ProjectRefreshRequestedPayload,
     UIEvents.PROJECT_VIDEO_DOUBLE_CLICK_WIDGET: payloads.ItemIdPayload,
     UIEvents.PROJECT_VIDEO_RIGHT_CLICK_WIDGET: payloads.ProjectContextMenuClickPayload,
-    UIEvents.PROJECT_ITEM_DOUBLE_CLICK: payloads.ItemIdPayload,
     UIEvents.REPORTS_DELETE_UNIFIED: payloads.ReportsDeleteUnifiedPayload,
-    UIEvents.FRAME_ERROR: payloads.FrameErrorPayload,
-    UIEvents.VIDEO_METADATA_UPDATED: payloads.VideoMetadataUpdatedPayload,
     UIEvents.ANALYSIS_TRACK_SELECTED: payloads.TrackIdPayload,
     UIEvents.ANALYSIS_CANCEL_REQUESTED: payloads.EmptyPayload,
     UIEvents.LIVE_SESSION_FINISH_REQUESTED: payloads.EmptyPayload,
@@ -397,7 +368,6 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.ANALYSIS_WINDOW_STATE_CHANGED: payloads.AnalysisWindowStatePayload,
     # -- end v8 F5 --
     UIEvents.ERROR_OCCURRED: payloads.ErrorOccurredPayload,
-    UIEvents.FRAME_DISPLAYED: payloads.FramePayload,
     UIEvents.CAMERA_DISCONNECT_DETECTED: payloads.CameraDisconnectPayload,
     UIEvents.CAMERA_DISCONNECT_USER_ACTION: payloads.CameraDisconnectPayload,
     UIEvents.CAMERA_RECONNECTED: payloads.CameraDisconnectPayload,

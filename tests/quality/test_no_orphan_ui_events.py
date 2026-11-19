@@ -93,24 +93,7 @@ PUBLISH_CALLS = frozenset(
 EVENT_KEYWORDS = ("event_type", "event", "event_name")
 
 # Published today with nobody listening. NEVER add to this list.
-ALLOWED_ORPHANS = frozenset(
-    {
-        # -- notificações redundantes, ao lado de um callback direto que funciona --
-        "BEHAVIORAL_CONFIG_GEOTAXIS_TOGGLED",
-        "BEHAVIORAL_CONFIG_PERSPECTIVE_CHANGED",
-        "BEHAVIORAL_CONFIG_VALUES_CHANGED",
-        "CONFIG_ROI_RULE_CHANGED",
-        "PROCESSING_EXPORT_SUMMARIES",
-        "PROJECT_ITEM_DOUBLE_CLICK",
-        "REPORTS_GENERATE_PARTIAL",
-        # -- telemetria de ciclo de vida sem consumidor de UI --
-        "FRAME_DISPLAYED",
-        "FRAME_ERROR",
-        "RECORDING_STARTED",
-        "VIDEO_METADATA_UPDATED",
-        "ZONE_MULTI_AUTO_DETECT_FAILED",
-    }
-)
+ALLOWED_ORPHANS: frozenset[str] = frozenset()
 
 # Subscribed today with nobody publishing: the handler cannot run. NEVER add.
 # Classification (delete / wire / keep) in docs/audits/2026-11_A1_events.md.

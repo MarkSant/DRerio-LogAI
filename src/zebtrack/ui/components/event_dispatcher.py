@@ -976,10 +976,6 @@ class EventDispatcher:
         event_bus.subscribe(
             UIEvents.ZONE_DRAW_ROI, lambda d: gui.canvas_manager.start_roi_drawing()
         )
-        event_bus.subscribe(
-            UIEvents.ZONE_TOGGLE_VIEW,
-            lambda d: gui.analysis_view_controller.toggle_canvas_view(),
-        )
 
         # ROI Templates
         event_bus.subscribe(
@@ -1007,10 +1003,6 @@ class EventDispatcher:
         event_bus.subscribe(
             UIEvents.ZONE_VIDEO_SEARCH_CHANGED,
             lambda d: gui._filter_video_tree(),
-        )
-        event_bus.subscribe(
-            UIEvents.ZONE_VIDEO_REFRESH,
-            lambda d: gui.video_selector_manager._populate_video_selector_tree(filter_text=None),
         )
         event_bus.subscribe(
             UIEvents.ZONE_VIDEO_DOUBLE_CLICK,

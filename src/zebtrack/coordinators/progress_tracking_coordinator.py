@@ -140,13 +140,6 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             )
         return ctx
 
-    def _set_dialog_suppression(self, suppress: bool) -> None:
-        """Enable/disable dialog suppression for batch processing."""
-        if suppress and not self._batch_context:
-            self._init_batch_context(total_videos=0)
-        elif not suppress and self._batch_context:
-            self._finalize_batch_context()
-
     # ========================================================================
     # Active processing count (card "Processando" ao vivo)
     # ========================================================================
@@ -514,6 +507,8 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             error=error_msg,
             video=os.path.basename(video) if video else "unknown",
         )
+        # The run stops here: a batch it belonged to will not finish either.
+        self._finalize_batch_context()
 
         # Reset processing state (zera o card "Processando" ao vivo) num único
         # update para não expor snapshot incoerente (is_processing=False + count>0).
@@ -672,6 +667,12 @@ class ProgressTrackingCoordinator(BaseCoordinator):
 
         if self.cancel_event:
             self.cancel_event.set()
+
+        # A cancelled batch never reaches its last video, so nothing else would
+        # close its context: the next run (a single video, say) was then read as
+        # part of the old batch, with no completion message and a summary
+        # waiting for the stale total.
+        self._finalize_batch_context()
 
         # ``cancel``, not ``stop``: ProcessingWorker has never had a ``stop``,
         # so the ``hasattr`` guard silently skipped this every single time and

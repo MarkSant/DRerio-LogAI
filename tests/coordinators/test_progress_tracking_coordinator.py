@@ -108,13 +108,20 @@ class TestBatchContext:
         ctx = coordinator._finalize_batch_context()
         assert ctx is None
 
-    def test_set_dialog_suppression_enable(self, coordinator):
-        coordinator._set_dialog_suppression(True)
-        assert coordinator._is_batch_processing() is True
+    def test_a_cancelled_batch_does_not_swallow_the_next_run(self, coordinator):
+        # A cancelled batch never reaches its last video; its context used to
+        # stay open, and the next run was read as part of it (A2-13 review).
+        coordinator._init_batch_context(3)
 
-    def test_set_dialog_suppression_disable(self, coordinator):
-        coordinator._init_batch_context(2)
-        coordinator._set_dialog_suppression(False)
+        coordinator.cancel_processing()
+
+        assert coordinator._is_batch_processing() is False
+
+    def test_a_fatal_error_closes_the_batch_it_stopped(self, coordinator):
+        coordinator._init_batch_context(3)
+
+        coordinator._on_processing_fatal_error({"error": "boom", "video_path": "a.mp4"})
+
         assert coordinator._is_batch_processing() is False
 
 

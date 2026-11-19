@@ -881,9 +881,4 @@ class ConfigEditorWidget(BaseWidget):
 
     def _on_roi_rule_changed(self, event=None) -> None:
         """Handle ROI rule combobox change."""
-        selected_rule = self.roi_inclusion_rule_var.get()
         self._refresh_seg_overlap_warning()
-        self.emit_event(
-            UIEvents.CONFIG_ROI_RULE_CHANGED,
-            payloads.ConfigRoiRuleChangedPayload(rule=selected_rule),
-        )

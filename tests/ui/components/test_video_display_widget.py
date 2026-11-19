@@ -6,7 +6,6 @@ import pytest
 from PIL import Image
 
 from zebtrack.ui.components.video_display import VideoDisplayWidget
-from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 @pytest.fixture
@@ -36,18 +35,6 @@ def test_clear_resets_state(widget):
     assert widget._raw_bg_image is None
     assert widget._canvas_bg_image is None
     assert widget._canvas_bg_position is None
-
-
-@pytest.mark.gui
-def test_load_frame_missing_path_emits_error(widget, event_bus, monkeypatch):
-    monkeypatch.setattr("zebtrack.ui.components.video_display.os.path.exists", lambda _: False)
-
-    assert widget.load_frame("missing.mp4") is False
-
-    event_bus.publish.assert_called_once_with(
-        UIEvents.FRAME_ERROR,
-        {"reason": "video_not_found", "path": "missing.mp4"},
-    )
 
 
 @pytest.mark.gui

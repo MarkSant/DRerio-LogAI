@@ -45,8 +45,3 @@ class TestMultiAutoDetectSuccessFailEvents:
         """Test ZONE_MULTI_AUTO_DETECT_SUCCESS event constant exists."""
         assert hasattr(UIEvents, "ZONE_MULTI_AUTO_DETECT_SUCCESS")
         assert isinstance(UIEvents.ZONE_MULTI_AUTO_DETECT_SUCCESS, UIEvents)
-
-    def test_zone_multi_auto_detect_failed_event_exists(self):
-        """Test ZONE_MULTI_AUTO_DETECT_FAILED event constant exists."""
-        assert hasattr(UIEvents, "ZONE_MULTI_AUTO_DETECT_FAILED")
-        assert isinstance(UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED, UIEvents)

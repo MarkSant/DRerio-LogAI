@@ -15,9 +15,8 @@ from zebtrack.settings import (
     MAX_PLAUSIBLE_SPEED_LIMIT_CM_S,
     THIGMOTAXIS_MAX_DISTANCE_CM,
 )
-from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.event_bus_v2 import EventBusV2
 from zebtrack.ui.wizard.models import AquariumPerspective, GeotaxisMode
 
 log = structlog.get_logger()
@@ -230,8 +229,6 @@ class BehavioralConfigWidget(BaseWidget):
             format="%.1f",
         )
         self.thigmotaxis_spinbox.pack(side="left")
-        self.thigmotaxis_spinbox.bind("<FocusOut>", self._on_value_changed)
-        self.thigmotaxis_spinbox.bind("<Return>", self._on_value_changed)
 
         ttk.Label(input_frame, text=_("(default: 1.5 cm)")).pack(side="left", padx=(10, 0))
 
@@ -297,7 +294,6 @@ class BehavioralConfigWidget(BaseWidget):
             format="%.1f",
         )
         self.geotaxis_distance_spinbox.pack(side="left")
-        self.geotaxis_distance_spinbox.bind("<FocusOut>", self._on_value_changed)
 
         # Zones mode options
         self.zones_frame = ttk.Frame(self.geotaxis_options_frame)
@@ -318,7 +314,6 @@ class BehavioralConfigWidget(BaseWidget):
             width=5,
         )
         self.num_zones_spinbox.pack(side="left")
-        self.num_zones_spinbox.bind("<FocusOut>", self._on_value_changed)
 
         ttk.Label(zones_row1, text=_("vertical zones")).pack(side="left", padx=(5, 0))
 
@@ -337,7 +332,6 @@ class BehavioralConfigWidget(BaseWidget):
             width=5,
         )
         self.bottom_zones_spinbox.pack(side="left")
-        self.bottom_zones_spinbox.bind("<FocusOut>", self._on_value_changed)
 
         ttk.Label(zones_row2, text=_("lowest zone(s)")).pack(side="left", padx=(5, 0))
 
@@ -373,8 +367,6 @@ class BehavioralConfigWidget(BaseWidget):
             format="%.1f",
         )
         self.max_speed_spinbox.pack(side="left")
-        self.max_speed_spinbox.bind("<FocusOut>", self._on_value_changed)
-        self.max_speed_spinbox.bind("<Return>", self._on_value_changed)
 
     # Event handlers
 
@@ -410,37 +402,14 @@ class BehavioralConfigWidget(BaseWidget):
                 self.geotaxis_check.configure(state="disabled")
 
         self._update_geotaxis_visibility()
-        self.emit_event(
-            UIEvents.BEHAVIORAL_CONFIG_PERSPECTIVE_CHANGED,
-            payloads.BehavioralConfigPerspectiveChangedPayload(perspective=perspective),
-        )
-        self._emit_values_changed()
 
     def _on_geotaxis_toggled(self, event=None) -> None:
         """Handle geotaxis enable/disable toggle."""
         self._update_geotaxis_visibility()
-        enabled = self.geotaxis_enabled_var.get()
-        self.emit_event(
-            UIEvents.BEHAVIORAL_CONFIG_GEOTAXIS_TOGGLED,
-            payloads.BehavioralConfigGeotaxisToggledPayload(enabled=enabled),
-        )
-        self._emit_values_changed()
 
     def _on_mode_changed(self, event=None) -> None:
         """Handle geotaxis mode change (distance vs zones)."""
         self._update_geotaxis_visibility()
-        self._emit_values_changed()
-
-    def _on_value_changed(self, event=None) -> None:
-        """Handle any configuration value change."""
-        self._emit_values_changed()
-
-    def _emit_values_changed(self) -> None:
-        """Emit event with current configuration values."""
-        self.emit_event(
-            UIEvents.BEHAVIORAL_CONFIG_VALUES_CHANGED,
-            payloads.BehavioralConfigValuesChangedPayload(config=self.get_values()),
-        )
 
     def _update_geotaxis_visibility(self) -> None:
         """Update visibility of geotaxis sub-options based on current state."""

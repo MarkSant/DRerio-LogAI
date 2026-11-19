@@ -1,17 +1,14 @@
 """Video display widget component - handles canvas rendering and video frame display."""
 
-import os
 import tkinter as tk
-from pathlib import Path
 from tkinter import Canvas
 from typing import Any
 
-import cv2
 import structlog
 from PIL import Image, ImageTk
 
 from zebtrack.ui.components.base import BaseWidget
-from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
 
@@ -94,93 +91,6 @@ class VideoDisplayWidget(BaseWidget):
             if hasattr(self, "_redraw_job") and self._redraw_job:
                 self.after_cancel(self._redraw_job)
             self._redraw_job = self.after(100, self._draw_bg_image_to_canvas)
-
-    def load_frame(self, video_path: Path | str, frame_number: int = 0) -> bool:
-        """
-        Load a specific frame from a video file.
-
-        Args:
-            video_path: Path to the video file
-            frame_number: Frame index to load (0-based)
-
-        Returns:
-            True if frame was loaded successfully, False otherwise
-
-        Emits:
-            - frame.loaded on success
-            - frame.error on failure
-        """
-        if video_path:
-            video_path = str(video_path)
-        if not video_path or not os.path.exists(video_path):
-            self._log.error("video_display.load_frame.no_video", path=video_path)
-            self.emit_event(
-                UIEvents.FRAME_ERROR,
-                {"reason": "video_not_found", "path": video_path},
-            )
-            return False
-
-        try:
-            cap = cv2.VideoCapture(video_path)
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-            ret, frame = cap.read()
-            cap.release()
-
-            if not ret:
-                self._log.error(
-                    "video_display.load_frame.failed",
-                    path=video_path,
-                    frame=frame_number,
-                )
-                self.emit_event(
-                    UIEvents.FRAME_ERROR,
-                    {
-                        "reason": "read_failed",
-                        "path": video_path,
-                        "frame": frame_number,
-                    },
-                )
-                return False
-
-            # Convert BGR to RGB
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            self._original_image = Image.fromarray(frame_rgb)
-            self._raw_bg_image = self._original_image
-
-            # Display the frame
-            self._draw_bg_image_to_canvas()
-
-            self._log.info("video_display.frame_loaded", path=video_path, frame=frame_number)
-
-            self.emit_event(
-                UIEvents.FRAME_DISPLAYED,
-                {
-                    "path": video_path,
-                    "frame": frame_number,
-                    "width": frame.shape[1],
-                    "height": frame.shape[0],
-                },
-            )
-
-            return True
-
-        except Exception as e:
-            self._log.error(
-                "video_display.load_frame.error",
-                path=video_path,
-                frame=frame_number,
-                error=str(e),
-            )
-            self.emit_event(
-                UIEvents.FRAME_ERROR,
-                {
-                    "reason": "exception",
-                    "path": video_path,
-                    "frame": frame_number,
-                    "error": str(e),
-                },
-            )
-            return False
 
     def clear(self) -> None:
         """Clear the canvas and reset image state."""

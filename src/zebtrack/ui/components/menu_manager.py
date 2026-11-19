@@ -393,16 +393,6 @@ class MenuManager:
         if self.gui.event_bus_v2:
             self.gui.event_bus_v2.publish(
                 Event(
-                    type=UIEvents.VIDEO_METADATA_UPDATED,
-                    data=payloads.VideoMetadataUpdatedPayload(
-                        video_path=video_path,  # type: ignore[arg-type]
-                        metadata=dialog.result,
-                    ),
-                    source="MenuManager._edit_video_metadata",
-                )
-            )
-            self.gui.event_bus_v2.publish(
-                Event(
                     type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
                     data=payloads.ProjectViewsRefreshRequestedPayload(
                         reason=status_message,

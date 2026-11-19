@@ -142,24 +142,6 @@ def test_event_emission_on_reset(config_widget, event_bus):
     assert len(events_received) == 1
 
 
-def test_event_emission_on_roi_rule_change(config_widget, event_bus):
-    """Test that ROI rule change emits CONFIG_ROI_RULE_CHANGED event."""
-    events_received = []
-
-    def handler(data):
-        events_received.append(data)
-
-    event_bus.subscribe(UIEvents.CONFIG_ROI_RULE_CHANGED, handler)
-
-    # Change rule
-    config_widget.roi_inclusion_rule_var.set("seg_overlap")
-    config_widget._on_roi_rule_changed()
-
-    # Handler should have been called synchronously
-    assert len(events_received) == 1
-    assert events_received[0].get("rule") == "seg_overlap"
-
-
 def test_invalid_input_handling(config_widget):
     """Test that invalid inputs raise ValueError when getting values."""
     config_widget.fps_var.set("invalid")

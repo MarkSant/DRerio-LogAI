@@ -372,13 +372,9 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     }
                 else:
                     log.warning("processing_coordinator.aquarium_detection.multi_failed")
-                    self._publish_event(
-                        UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED,
-                        payloads.ZoneMultiAutoDetectFailedPayload(
-                            video_path=str(video_path),
-                            reason=_("Detection failed"),
-                        ),
-                    )
+                    # Only an unsubscribed event used to go out here, so the
+                    # Auto-detect button looked dead whenever it failed (A1-02).
+                    self._warn_multi_detection_failed()
                 return None
             else:
                 # Single aquarium detection.
@@ -456,13 +452,23 @@ class MultiAquariumCoordinator(BaseCoordinator):
                 exc_info=True,
             )
             if multi_aquarium:
-                self._publish_event(
-                    UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED,
-                    {"video_path": video_path, "reason": str(exc)},
-                )
+                self._warn_multi_detection_failed()
             return None
         finally:
             self._is_detecting_aquarium = False
+
+    def _warn_multi_detection_failed(self) -> None:
+        self._publish_event(
+            UIEvents.UI_SHOW_WARNING,
+            payloads.MessagePayload(
+                title=_("Aquariums not detected"),
+                message=_(
+                    "The model did not find the aquariums in the first frames of this "
+                    "video. Draw each arena by hand, or try again with a lower "
+                    "confidence threshold."
+                ),
+            ),
+        )
 
     def _warn_about_arena_provenance(self, provenance: str, policy: Any) -> None:
         """Tell the user when the arena is not what they asked for.

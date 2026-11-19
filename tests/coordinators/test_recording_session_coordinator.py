@@ -347,3 +347,49 @@ class TestStartRecordingDetailsAndExplicitPath:
 
         coordinator.on_arduino_event(0)
         assert coordinator._pending_external_trigger is None
+
+
+def test_the_recording_service_reports_through_the_coordinator(
+    mock_state_manager,
+    mock_live_camera_service,
+    mock_project_manager,
+    mock_settings,
+    mock_live_calibration_coordinator,
+    mock_event_bus,
+):
+    """A2-13: the plain RecordingService path had no UI callbacks wired.
+
+    A timed recording therefore never stopped by itself, and the service's
+    status and error messages reached nobody. The real service now calls back
+    into the coordinator, which publishes on the bus.
+    """
+    from zebtrack.core.recording.recording_service import RecordingService
+    from zebtrack.ui import payloads
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    service = RecordingService(state_manager=MagicMock(), project_manager=MagicMock())
+    coord = RecordingSessionCoordinator(
+        state_manager=mock_state_manager,
+        recording_service=service,
+        live_camera_service=mock_live_camera_service,
+        project_manager=mock_project_manager,
+        settings_obj=mock_settings,
+        live_calibration_coordinator=mock_live_calibration_coordinator,
+        event_bus=mock_event_bus,
+    )
+    mock_event_bus.publish.reset_mock()
+
+    assert service._ui_callbacks["stop_recording_callback"] == coord.stop_recording
+    service._show_error("Camera", "not found")
+    service._set_status("Recording session: S1")
+    service._update_button_state("record", "disabled")
+
+    published = [(c.args[0].type, c.args[0].data) for c in mock_event_bus.publish.call_args_list]
+    assert published == [
+        (UIEvents.SHOW_ERROR, payloads.MessagePayload(title="Camera", message="not found")),
+        (UIEvents.UI_SET_STATUS, payloads.StatusPayload(message="Recording session: S1")),
+        (
+            UIEvents.UI_UPDATE_BUTTON_STATE,
+            payloads.UpdateButtonStatePayload(button_name="record", state="disabled"),
+        ),
+    ]

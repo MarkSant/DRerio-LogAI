@@ -207,7 +207,6 @@ class ProcessingReportsWidget(BaseWidget):
 
         # Bind events
         self.tree.bind("<<TreeviewSelect>>", self._on_selection_changed)
-        self.tree.bind("<Double-Button-1>", self._on_item_double_click)
         self.tree.bind("<Button-3>", self._on_item_right_click)
 
     def _build_selection_info(self) -> None:
@@ -370,27 +369,6 @@ class ProcessingReportsWidget(BaseWidget):
         )
         self._update_button_states()
 
-    def _on_item_double_click(self, event) -> None:
-        """Handle item double-click in tree."""
-        if not self.tree:
-            return
-
-        # Get item at click position or from selection
-        item_id = None
-        if event is not None:
-            item_id = self.tree.identify_row(event.y)
-        if not item_id:
-            selection = self.tree.selection()
-            if selection:
-                item_id = selection[0]
-
-        if item_id:
-            log.debug("processing_reports.item_double_clicked", item_id=item_id)
-            self.emit_event(
-                UIEvents.PROJECT_ITEM_DOUBLE_CLICK,
-                payloads.ItemIdPayload(item_id=item_id),
-            )
-
     def _on_item_right_click(self, event) -> None:
         """Handle item right-click in tree."""
         if not self.tree:
@@ -422,22 +400,12 @@ class ProcessingReportsWidget(BaseWidget):
     def _on_export_summaries_clicked(self) -> None:
         """Handle Export Summaries button click."""
         log.info("processing_reports.export_summaries_clicked")
-        selection = self.tree.selection() if self.tree else []
-        self.emit_event(
-            UIEvents.PROCESSING_EXPORT_SUMMARIES,
-            payloads.ProcessingExportSummariesPayload(selection=selection),
-        )
         if self._on_export_summaries:
             self._on_export_summaries()
 
     def _on_generate_partial_clicked(self) -> None:
         """Handle Generate Partial Report button click."""
         log.info("processing_reports.generate_partial_report_clicked")
-        selection = self.tree.selection() if self.tree else []
-        self.emit_event(
-            UIEvents.REPORTS_GENERATE_PARTIAL,
-            payloads.ReportsGeneratePartialPayload(selection=selection),
-        )
         if self._on_generate_partial_report:
             self._on_generate_partial_report()
 

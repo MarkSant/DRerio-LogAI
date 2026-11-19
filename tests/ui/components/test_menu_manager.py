@@ -304,7 +304,6 @@ class TestProjectOverviewContextMenu:
         event_types = [
             call.args[0].type for call in menu_manager.gui.event_bus_v2.publish.call_args_list
         ]
-        assert UIEvents.VIDEO_METADATA_UPDATED in event_types
         assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
         assert UIEvents.VIDEO_TREE_REFRESH_REQUESTED in event_types
 

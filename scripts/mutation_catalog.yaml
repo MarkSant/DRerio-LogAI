@@ -5857,3 +5857,51 @@ _load_registry()"
                   )
         replace: |-
           self._apply_retry_result(confidence, retry(confidence), None)
+  recording_service_callbacks_wired:
+    source: src/zebtrack/coordinators/recording_session_coordinator.py
+    tests:
+      - tests/coordinators/test_recording_session_coordinator.py
+    mutations:
+      - id: timed-stop-not-wired
+        description: "A2-13: gravacao temporizada volta a nao parar sozinha"
+        find: '                    "stop_recording_callback": self.stop_recording,'
+        replace: '                    "stop_recording_callback": None,'
+      - id: service-errors-dropped
+        description: "erros do servico de gravacao voltam a nao chegar a ninguem"
+        find: '                    "show_error": self._show_service_error,'
+        replace: '                    "show_error": lambda title, message: None,'
+  batch_context_closed_on_stop:
+    source: src/zebtrack/coordinators/progress_tracking_coordinator.py
+    tests:
+      - tests/coordinators/test_progress_tracking_coordinator.py
+    mutations:
+      - id: cancelled-batch-left-open
+        description: "lote cancelado continua aberto e engole a proxima execucao"
+        find: "        # waiting for the stale total.\n        self._finalize_batch_context()"
+        replace: "        # waiting for the stale total."
+      - id: fatal-error-batch-left-open
+        description: "erro fatal deixa o lote aberto"
+        find: "        # The run stops here: a batch it belonged to will not finish either.\n        self._finalize_batch_context()"
+        replace: "        # The run stops here: a batch it belonged to will not finish either."
+  zone_tab_roi_rule_refresh:
+    source: src/zebtrack/ui/builders/analysis_widgets.py
+    tests:
+      - tests/ui/builders/test_analysis_widgets.py
+    mutations:
+      - id: panel-not-refreshed
+        description: "A2-13: painel de zonas continua com a regra de ROI antiga depois de salvar"
+        find: '        self._refresh_zone_tab_roi_rule()'
+        replace: '        pass'
+  multi_detection_failure_warns:
+    source: src/zebtrack/coordinators/multi_aquarium_coordinator.py
+    tests:
+      - tests/coordinators/test_multi_aquarium_coordinator.py
+    mutations:
+      - id: empty-result-silent
+        description: "A1-02: deteccao de dois aquarios sem resultado volta a ficar muda"
+        find: '                    self._warn_multi_detection_failed()'
+        replace: '                    pass'
+      - id: exception-silent
+        description: "deteccao de dois aquarios que levanta volta a ficar muda"
+        find: "            if multi_aquarium:\n                self._warn_multi_detection_failed()"
+        replace: "            if multi_aquarium:\n                pass"
