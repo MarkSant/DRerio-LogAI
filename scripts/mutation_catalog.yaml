@@ -4382,8 +4382,8 @@ _load_registry()"
     mutations:
       - id: locked-folder-reported-as-deleted
         description: "pasta que continua no disco volta a ser anunciada como apagada"
-        find: 'if not os.path.exists(unified_dir):'
-        replace: 'if True:'
+        find: '        last_error = OSError(_("the folder still exists after the deletion attempt"))'
+        replace: '        return True, None'
       - id: partial-scope-checks-total-folder
         description: "relatorio parcial passa a checar a pasta do total para perguntar sobre substituicao"
         find: 'scope_dir = "selecionados" if scope == "selected" else "total"'
@@ -4394,8 +4394,8 @@ _load_registry()"
         replace: 'return True'
       - id: single-delete-attempt
         description: "a exclusao deixa de ser repetida contra travas transitorias do OneDrive"
-        find: 'for _attempt in range(3):'
-        replace: 'for _attempt in range(1):'
+        find: 'for attempt in range(UNIFIED_DELETE_ATTEMPTS):'
+        replace: 'for attempt in range(1):'
 
   report_asset_actions_decisions:
     source: src/zebtrack/ui/components/project_views/report_asset_actions.py
@@ -5120,7 +5120,7 @@ _load_registry()"
         replace: '                    if False:'
       - id: countdown-sleep-skipped
         description: "contagem regressiva sem Tk deixa de esperar"
-        find: '                time.sleep(countdown_seconds)'
+        find: '            time.sleep(countdown_seconds)'
         replace: '                pass'
 
   live_camera_service_facade:
