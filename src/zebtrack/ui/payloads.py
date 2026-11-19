@@ -623,6 +623,9 @@ class ZoneShowAquariumAssignmentDialogPayload:
     count: int
     entry_metadata: Mapping[str, Any] | None = None
     multi_aquarium_config: Any | None = None
+    # The project's groups. Without them the dialog offered its hardcoded
+    # placeholders ("Controle", "Tratamento") and matched the regex against those.
+    available_groups: Sequence[str] = ()
 
 
 @dataclass(frozen=True)
@@ -932,7 +935,15 @@ class ArduinoLogEventPayload:
 
 @dataclass(frozen=True)
 class ArduinoPortUpdateRequestedPayload:
-    ports: Sequence[str]
+    """The user picked a new Arduino port; the dispatcher reconnects on it.
+
+    Declared as ``ports: Sequence[str]`` until #733's audit, while the dashboard
+    sent ``{"port": ...}``: coercion failed, the handler read ``None`` and never
+    reconnected, although the dashboard said it was reconnecting.
+    """
+
+    port: str
+    old_port: str | None = None
 
 
 @dataclass(frozen=True)

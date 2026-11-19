@@ -19,6 +19,7 @@ import structlog
 
 # Local imports
 from zebtrack.i18n import _
+from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
@@ -296,7 +297,9 @@ class ArduinoDashboardWidget(BaseWidget):
                     # Emit event to notify controller
                     self.emit_event(
                         UIEvents.ARDUINO_PORT_UPDATE_REQUESTED,
-                        {"port": selected_device, "old_port": old_port},
+                        payloads.ArduinoPortUpdateRequestedPayload(
+                            port=selected_device, old_port=old_port
+                        ),
                     )
                 else:
                     messagebox.showwarning(

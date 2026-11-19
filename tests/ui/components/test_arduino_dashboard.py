@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
 
+from zebtrack.ui import payloads
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
@@ -315,7 +316,11 @@ class TestArduinoDashboardWidget:
         event_bus.publish.assert_called()
         call_args = event_bus.publish.call_args
         assert call_args[0][0] == UIEvents.ARDUINO_PORT_UPDATE_REQUESTED
-        assert call_args[0][1]["port"] == "COM4"
+        sent = call_args[0][1]
+        # Typed payload: a {"port": ...} dict failed coercion to the declared
+        # payload and reached the reconnect handler as an empty UnknownPayload.
+        assert isinstance(sent, payloads.ArduinoPortUpdateRequestedPayload)
+        assert sent.port == "COM4"
 
     @patch("zebtrack.ui.components.arduino_dashboard.serial.tools.list_ports.comports")
     @patch("zebtrack.ui.components.arduino_dashboard.messagebox.showwarning")

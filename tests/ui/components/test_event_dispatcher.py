@@ -887,3 +887,32 @@ class TestDisplayFrameCarriesTheDetectorsRoles:
         assert handler is not None
         handler(payloads.FrameDisplayPayload(frame="f"))
         gui.canvas_manager.update_video_frame.assert_called_once_with("f", None, class_roles=None)
+
+
+class TestAquariumAssignmentDialogGroups:
+    """The project's groups reach the assignment dialog (payload-key drift audit)."""
+
+    def test_project_groups_reach_the_dialog_through_the_bus(self):
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import _coerce_payload
+
+        dialog_manager = MagicMock()
+        dialog_manager.show_aquarium_assignment_dialog.return_value = (None, False)
+        gui = SimpleNamespace(event_bus=None, dialog_manager=dialog_manager)
+        dispatcher = EventDispatcher(cast(Any, gui))
+        delivered = _coerce_payload(
+            UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
+            payloads.ZoneShowAquariumAssignmentDialogPayload(
+                video_path="v.mp4",
+                polygons=[],
+                count=2,
+                available_groups=("Grupo_A", "Grupo_B"),
+            ),
+        )
+
+        dispatcher._on_show_aquarium_assignment_dialog(delivered)
+
+        kwargs = dialog_manager.show_aquarium_assignment_dialog.call_args.kwargs
+        # Before the fix the payload had no such field and the dialog got [],
+        # falling back to its hardcoded "Controle"/"Tratamento" placeholders.
+        assert kwargs["available_groups"] == ["Grupo_A", "Grupo_B"]

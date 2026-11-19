@@ -210,7 +210,14 @@ class MainViewModelRuntime:
         elif event_name is UIEvents.MODEL_DELETE_WEIGHT:
             vm.hardware_vm.delete_weight(**payload_dict)
         elif event_name is UIEvents.MODEL_LOAD_NEW_WEIGHT:
-            vm.hardware_vm.load_new_weight(**payload_dict)
+            # ModelLoadNewWeightPayload names the file ``weight_path``, while
+            # load_new_weight() takes ``filepath``. Splatting the payload raised
+            # TypeError, which EventBusV2 logs and swallows: the "Add weight"
+            # button of the model panel silently did nothing.
+            vm.hardware_vm.load_new_weight(
+                filepath=payload_dict.get("weight_path") or payload_dict.get("filepath"),
+                weight_type=payload_dict.get("weight_type"),
+            )
         elif event_name is UIEvents.MODEL_SET_DEFAULT_FOR:
             vm.hardware_vm.set_default_weight_for(
                 payload_dict["name"],
@@ -321,13 +328,11 @@ class MainViewModelRuntime:
             if video_path:
                 vm.project_vm.on_video_selected(video_path)
         elif event_name is UIEvents.PROJECT_SELECTION_CHANGED:
-            video_path = _payload_get(data, "video_path")
-            if not video_path:
-                selection = _payload_get(data, "selection", [])
-                if selection:
-                    video_path = selection[0]
-            if video_path:
-                vm.project_vm.on_video_selected(video_path)
+            # ProjectSelectionChangedPayload carries only ``selection``; a
+            # ``video_path`` key never survives the bus's coercion.
+            selection = _payload_get(data, "selection", [])
+            if selection:
+                vm.project_vm.on_video_selected(selection[0])
 
     def _handle_project_deletion_events(
         self,

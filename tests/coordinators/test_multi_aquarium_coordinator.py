@@ -207,6 +207,7 @@ def test_wizard_regex_reaches_the_assignment_dialog(mock_detector_class, coordin
     detector.get_last_source_dimensions.return_value = (800, 600)
     coordinator.weight_manager.get_weight_path_by_method.return_value = "model.pt"
     coordinator.project_manager.find_video_entry.return_value = None
+    coordinator.project_manager.get_available_groups.return_value = ["Grupo_A", "Grupo_B"]
     coordinator.project_manager.project_data = {
         "_wizard_metadata": {
             "custom_regex_patterns": {
@@ -225,6 +226,8 @@ def test_wizard_regex_reaches_the_assignment_dialog(mock_detector_class, coordin
         if call[0][0].type == UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG
     ]
     assert len(dialog_payloads) == 1
+    # The project's groups reach the dialog; without them it offered placeholders.
+    assert dialog_payloads[0].available_groups == ("Grupo_A", "Grupo_B")
     config = dialog_payloads[0].multi_aquarium_config
     assert config.extract_metadata("G2_D3_S4--G5_D3_S6.mp4") == [
         {"group": "2", "subject": "4", "day": "3"},

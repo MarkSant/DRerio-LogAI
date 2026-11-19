@@ -309,7 +309,29 @@ def test_model_delete_and_load_splat_their_payloads() -> None:
 
     assert vm.hardware_vm.calls == [
         ("delete_weight", (), {"name": "old.pt"}),
-        ("load_new_weight", (), {"filepath": "/w/new.pt"}),
+        ("load_new_weight", (), {"filepath": "/w/new.pt", "weight_type": None}),
+    ]
+
+
+def test_model_load_new_weight_maps_the_typed_payload_to_filepath() -> None:
+    """The panel publishes ``ModelLoadNewWeightPayload(weight_path=...)``.
+
+    Splatting it into ``load_new_weight`` raised ``TypeError: unexpected keyword
+    argument 'weight_path'`` — swallowed by the bus, so adding a weight did nothing.
+    """
+    from zebtrack.ui import payloads
+
+    vm = _vm()
+
+    _runtime(vm).handle_event(
+        UIEvents.MODEL_LOAD_NEW_WEIGHT,
+        cast(
+            Any, payloads.ModelLoadNewWeightPayload(weight_path="D:/ext/rat.pt", weight_type="det")
+        ),
+    )
+
+    assert vm.hardware_vm.calls == [
+        ("load_new_weight", (), {"filepath": "D:/ext/rat.pt", "weight_type": "det"}),
     ]
 
 
@@ -680,17 +702,6 @@ def test_selection_changed_uses_the_first_selected_item() -> None:
     )
 
     assert vm.project_vm.only("on_video_selected") == (("/first.mp4",), {})
-
-
-def test_selection_changed_prefers_an_explicit_video_path() -> None:
-    vm = _vm()
-
-    _runtime(vm).handle_event(
-        UIEvents.PROJECT_SELECTION_CHANGED,
-        cast(Any, {"video_path": "/explicit.mp4", "selection": ["/first.mp4"]}),
-    )
-
-    assert vm.project_vm.only("on_video_selected") == (("/explicit.mp4",), {})
 
 
 def test_selection_changed_with_nothing_selected_does_nothing() -> None:

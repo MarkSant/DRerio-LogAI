@@ -394,6 +394,9 @@ class MultiAquariumCoordinator(BaseCoordinator):
                             count=len(polygon_lists),
                             entry_metadata=entry_metadata,
                             multi_aquarium_config=multi_aquarium_config,
+                            available_groups=tuple(
+                                self.project_manager.get_available_groups() or ()
+                            ),
                         ),
                     )
                     return {

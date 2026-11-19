@@ -52,10 +52,15 @@ if ($All) {
     # pytest loads conftests on its own, and two changed conftest.py files in
     # folders without __init__.py collide as the same module "conftest"
     # ("import file mismatch"), aborting collection before any test runs.
-    $testFiles = $changedFiles |
-        Sort-Object -Unique |
-        Where-Object { $_ -match "^tests/" -and ($_ -match "(^|/)test_[^/]*\.py$" -or $_ -match "_test\.py$") } |
-        Where-Object { Test-Path $_ }
+    # @(...) is required: a pipeline yielding ONE file returns a bare string, and
+    # the batching below would slice its characters ($testFiles[0..0] -> "t"),
+    # handing pytest a path that does not exist.
+    $testFiles = @(
+        $changedFiles |
+            Sort-Object -Unique |
+            Where-Object { $_ -match "^tests/" -and ($_ -match "(^|/)test_[^/]*\.py$" -or $_ -match "_test\.py$") } |
+            Where-Object { Test-Path $_ }
+    )
 
     if ($testFiles.Count -eq 0) {
         Write-Host "  No changed test files detected. Nothing to run." -ForegroundColor Green

@@ -31,6 +31,28 @@ def test_port_update_reconnects_with_settings():
     dashboard.update_status.assert_called_once_with(connected=True, port="COM4")
 
 
+def test_port_update_reconnects_through_the_bus_coercion():
+    """Drive the payload the dashboard really publishes through EventBusV2's coercion.
+
+    The handler tests above feed a hand-made dict and never see coercion. While the
+    payload declared ``ports`` and the dashboard sent ``port``, coercion failed into an
+    ``UnknownPayload``, the handler read ``None`` and returned without reconnecting.
+    """
+    from zebtrack.ui import payloads
+    from zebtrack.ui.event_bus_v2 import UIEvents, _coerce_payload
+
+    dispatcher, manager, dashboard = _make_dispatcher(connect_result=True)
+    delivered = _coerce_payload(
+        UIEvents.ARDUINO_PORT_UPDATE_REQUESTED,
+        payloads.ArduinoPortUpdateRequestedPayload(port="COM4", old_port="COM3"),
+    )
+
+    dispatcher._handle_arduino_port_update(delivered)
+
+    manager.connect.assert_called_once_with("COM4", 9600, handshake="none", ack="none")
+    dashboard.update_status.assert_called_once_with(connected=True, port="COM4")
+
+
 def test_port_update_failure_reports_disconnected():
     dispatcher, manager, dashboard = _make_dispatcher(connect_result=False)
     dispatcher._handle_arduino_port_update({"port": "COM9"})
