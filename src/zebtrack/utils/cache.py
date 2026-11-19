@@ -33,6 +33,9 @@ F = TypeVar("F", bound=Callable[..., Any])
 class TTLCache:
     """Thread-safe key→value store where entries auto-expire.
 
+    Expiry is measured on ``time.monotonic()``, so a wall-clock step (NTP, DST,
+    a manual change) never makes an entry expire early or outlive its TTL.
+
     Args:
         ttl_seconds: Time-to-live in seconds for each entry.
         maxsize: Optional maximum number of entries.  When exceeded,
@@ -56,7 +59,7 @@ class TTLCache:
     ) -> None:
         self._ttl = ttl_seconds
         self._maxsize = maxsize
-        # key → (value, timestamp)
+        # key → (value, monotonic timestamp)
         self._store: dict[Any, tuple[Any, float]] = {}
         self._lock = threading.Lock()
         self._hits = 0
@@ -80,7 +83,7 @@ class TTLCache:
             entry = self._store.get(key)
             if entry is not None:
                 value, ts = entry
-                if (time.time() - ts) < self._ttl:
+                if (time.monotonic() - ts) < self._ttl:
                     self._hits += 1
                     return value
                 # Expired — remove lazily
@@ -90,7 +93,7 @@ class TTLCache:
 
     def set(self, key: Any, value: Any) -> None:
         """Store *value* under *key* with the current timestamp."""
-        now = time.time()
+        now = time.monotonic()
         with self._lock:
             # Re-insert rather than overwrite: a dict keeps an overwritten key in
             # its FIRST slot, and eviction breaks timestamp ties by slot. Under a
@@ -112,8 +115,9 @@ class TTLCache:
             self._misses = 0
 
     def info(self) -> CacheInfo:
-        """Return ``CacheInfo(hits, misses, maxsize, currsize)``."""
+        """Return ``CacheInfo(hits, misses, maxsize, currsize)`` (live entries only)."""
         with self._lock:
+            self._purge_expired(time.monotonic())
             return CacheInfo(
                 self._hits,
                 self._misses,
@@ -129,17 +133,20 @@ class TTLCache:
             if entry is None:
                 return False
             _, ts = entry
-            if (time.time() - ts) < self._ttl:
+            if (time.monotonic() - ts) < self._ttl:
                 return True
             del self._store[key]
             return False
 
     def __len__(self) -> int:
+        """Number of LIVE entries: expired ones are purged before counting."""
         with self._lock:
+            self._purge_expired(time.monotonic())
             return len(self._store)
 
     def __repr__(self) -> str:
         with self._lock:
+            self._purge_expired(time.monotonic())
             currsize = len(self._store)
             ttl_seconds = self._ttl
             maxsize = self._maxsize
@@ -147,12 +154,15 @@ class TTLCache:
 
     # -- internal -----------------------------------------------------------
 
-    def _evict_if_needed(self, now: float) -> None:
-        """Remove expired + over-cap entries (caller holds lock)."""
-        # Purge expired
+    def _purge_expired(self, now: float) -> None:
+        """Drop every entry whose TTL has run out (caller holds lock)."""
         expired = [k for k, (_, ts) in self._store.items() if (now - ts) >= self._ttl]
         for k in expired:
             del self._store[k]
+
+    def _evict_if_needed(self, now: float) -> None:
+        """Remove expired + over-cap entries (caller holds lock)."""
+        self._purge_expired(now)
         # Evict oldest until within maxsize
         if self._maxsize is not None:
             while len(self._store) > self._maxsize:

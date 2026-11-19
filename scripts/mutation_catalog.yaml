@@ -5907,12 +5907,12 @@ _load_registry()"
     mutations:
       - id: get-ttl-boundary-inclusive
         description: "get devolve a entrada no instante exato em que o TTL vence"
-        find: "                if (time.time() - ts) < self._ttl:\n                    self._hits += 1"
-        replace: "                if (time.time() - ts) <= self._ttl:\n                    self._hits += 1"
+        find: "                if (time.monotonic() - ts) < self._ttl:\n                    self._hits += 1"
+        replace: "                if (time.monotonic() - ts) <= self._ttl:\n                    self._hits += 1"
       - id: contains-ttl-boundary-inclusive
         description: "'in' ainda ve a entrada no instante exato em que o TTL vence"
-        find: "            if (time.time() - ts) < self._ttl:\n                return True"
-        replace: "            if (time.time() - ts) <= self._ttl:\n                return True"
+        find: "            if (time.monotonic() - ts) < self._ttl:\n                return True"
+        replace: "            if (time.monotonic() - ts) <= self._ttl:\n                return True"
       - id: purge-keeps-entry-at-ttl
         description: "set deixa de purgar a entrada que venceu exatamente agora"
         find: 'if (now - ts) >= self._ttl]'
@@ -5933,6 +5933,18 @@ _load_registry()"
         description: "clear() esvazia o cache mas preserva acertos e falhas"
         find: "            self._store.clear()\n            self._hits = 0"
         replace: "            self._store.clear()"
+      - id: get-reads-the-wall-clock
+        description: "get mede o TTL no relogio de parede: um salto de NTP/DST expira ou eterniza a entrada"
+        find: "                if (time.monotonic() - ts) < self._ttl:\n                    self._hits += 1"
+        replace: "                if (time.time() - ts) < self._ttl:\n                    self._hits += 1"
+      - id: set-stamps-the-wall-clock
+        description: "set carimba a entrada com o relogio de parede"
+        find: "        now = time.monotonic()\n        with self._lock:\n            # Re-insert"
+        replace: "        now = time.time()\n        with self._lock:\n            # Re-insert"
+      - id: len-counts-expired-entries
+        description: "len() volta a contar entradas vencidas ate o proximo purge"
+        find: "            self._purge_expired(time.monotonic())\n            return len(self._store)"
+        replace: "            return len(self._store)"
       - id: kwargs-mark-dropped
         description: "f(('a', 1)) e f(a=1) voltam a compartilhar a mesma entrada"
         find: 'key = (*args, _KWARGS_MARK, *sorted(kwargs.items())) if kwargs else args'
