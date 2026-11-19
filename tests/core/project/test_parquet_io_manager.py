@@ -548,3 +548,35 @@ class TestCopyZoneParquets:
         assert self._copy(tmp_path, source, target, entries={}, scan=scan, saved=saves) == {}
         assert self._copy(tmp_path, source, target, entries={}, saved=saves) == {}
         assert saves == []
+
+    def test_failed_destination_does_not_stop_the_other_copy(self, tmp_path, monkeypatch):
+        """F2: a locked hierarchical folder must not lose the copy next to the video."""
+        import zebtrack.core.project.parquet_io_manager as module
+
+        src_dir = tmp_path / "src_results"
+        src_dir.mkdir()
+        arena = _arena_file(src_dir / "anything.parquet", [[0, 0], [1, 0], [1, 1]])
+        source = tmp_path / "src" / "a.mp4"
+        target = tmp_path / "dst" / "b.mp4"
+        target_entry: dict = {"path": str(target), "group": "G", "metadata": {}}
+        entries = {
+            "a.mp4": {"parquet_files": {"arena": arena, "rois": None}},
+            "b.mp4": target_entry,
+        }
+        real_copy2 = module.shutil.copy2
+        locked = tmp_path / "proj" / "Grupo_G" / "b"
+
+        def copy2(src, dst):
+            if Path(dst).parent == locked:
+                raise PermissionError("folder locked by OneDrive")
+            return real_copy2(src, dst)
+
+        monkeypatch.setattr(module.shutil, "copy2", copy2)
+
+        copied = self._copy(tmp_path, source, target, entries=entries, saved=[])
+
+        sibling = tmp_path / "dst" / "1_ProcessingArea_b.parquet"
+        assert copied == {"arena": str(sibling)}
+        assert sibling.is_file()
+        assert not (locked / "1_ProcessingArea_b.parquet").exists()
+        assert target_entry["parquet_files"] == {"arena": str(sibling)}

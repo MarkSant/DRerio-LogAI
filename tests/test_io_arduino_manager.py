@@ -735,3 +735,65 @@ def test_concurrent_connects_are_serialised(mock_controller):
     assert second_result == [True]
     assert built == ["COM3"]
     manager.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# F2 pragma review: hardware and controller failures never escape the manager
+# ---------------------------------------------------------------------------
+
+
+def test_connect_reports_false_when_the_port_object_cannot_be_built(mock_controller):
+    def failing_factory(port: str, baud_rate: int):
+        raise ValueError("baud rate not supported")
+
+    manager = ArduinoManager(mock_controller, arduino_factory=failing_factory)
+
+    assert manager.connect("COM9", 12345) is False
+    assert manager.arduino is None
+    assert manager.is_connected() is False
+    mock_controller.log_arduino_event.assert_called_once_with(
+        "Failed to initialize the Arduino on port COM9."
+    )
+
+
+def test_disconnect_completes_when_close_fails(mock_controller, arduino_factory, mock_arduino):
+    manager = ArduinoManager(mock_controller, arduino_factory=arduino_factory)
+    manager.connect("COM3", 9600)
+    mock_arduino.close.side_effect = OSError("handle already gone")
+
+    manager.disconnect()
+
+    assert manager.arduino is None
+    assert manager.current_port() is None
+    mock_controller.on_arduino_status_change.assert_called_with(False, None)
+
+
+def test_a_failing_controller_handler_does_not_stop_the_reader(mock_controller):
+    mock_controller.on_arduino_event.side_effect = RuntimeError("handler bug")
+    manager = ArduinoManager(mock_controller)
+
+    _run_reader_once(manager, [b"1\n", b"2\n"])
+
+    assert [c.args for c in mock_controller.on_arduino_event.call_args_list] == [(1,), (2,)]
+
+
+def test_failing_controller_callbacks_do_not_break_connect_send_or_disconnect(
+    arduino_factory, mock_arduino
+):
+    controller = MagicMock()
+    for name in (
+        "on_arduino_status_change",
+        "log_arduino_event",
+        "on_arduino_command_sent",
+    ):
+        getattr(controller, name).side_effect = RuntimeError(f"{name} bug")
+    manager = ArduinoManager(controller, arduino_factory=arduino_factory)
+
+    assert manager.connect("COM3", 9600) is True
+    manager.disconnect()
+    assert manager.send_command(5) is False
+
+    assert manager.arduino is None
+    controller.on_arduino_status_change.assert_called_with(False, None)
+    controller.log_arduino_event.assert_called_with("Could not send command: Arduino disconnected.")
+    controller.on_arduino_command_sent.assert_called_once_with(5, False, "auto")

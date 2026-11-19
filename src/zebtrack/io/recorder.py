@@ -530,7 +530,7 @@ class Recorder:
                 self._flush_mask_data()
                 self._flush_object_data()
             # except Exception justified: long-running worker, never crash recorder
-            except Exception as exc:  # pragma: no cover - defensive
+            except Exception as exc:
                 log.error("recorder.flush_loop.error", error=str(exc), exc_info=True)
 
         if self._flush_drain_on_stop:
@@ -539,7 +539,7 @@ class Recorder:
                 self._flush_mask_data(force=True)
                 self._flush_object_data(force=True)
             # except Exception justified: final drain best-effort
-            except Exception as exc:  # pragma: no cover - defensive
+            except Exception as exc:
                 log.error(
                     "recorder.flush_loop.final_drain_error",
                     error=str(exc),
@@ -1261,7 +1261,7 @@ class Recorder:
                 log.info("recorder.masks.writer_created", path=self._mask_parquet_filename)
             self._mask_parquet_writer.write_table(table)
             log.debug("recorder.masks.flush.success", rows=table.num_rows)
-        except Exception as exc:  # pragma: no cover - best effort, nunca derruba a sessão
+        except Exception as exc:
             # O sidecar é OPCIONAL: perdê-lo degrada a regra ``seg_overlap``
             # para ``bbox_intersects`` com aviso no relatório. Derrubar a
             # gravação por causa dele perderia também a trajetória, que é o
@@ -1281,7 +1281,7 @@ class Recorder:
         try:
             self._mask_parquet_writer.close()
             log.info("recorder.masks.writer_closed", path=path)
-        except Exception as exc:  # pragma: no cover - best effort close
+        except Exception as exc:
             log.error("recorder.masks.writer_close_error", path=path, error=str(exc))
         finally:
             self._mask_parquet_writer = None
@@ -1479,7 +1479,7 @@ class Recorder:
         try:
             self._object_parquet_writer.close()
             log.info("recorder.object_sidecar.writer_closed", path=path)
-        except Exception as exc:  # pragma: no cover - best effort close
+        except Exception as exc:
             log.error("recorder.object_sidecar.writer_close_error", path=path, error=str(exc))
         finally:
             self._object_parquet_writer = None
@@ -1686,7 +1686,7 @@ class Recorder:
             log.error("recorder.flush.critical_error", exc_info=e)
             self.stop_recording(force_stop=True)
             raise  # Re-raise the exception to notify the caller
-        except Exception as e:  # pragma: no cover - unexpected failures logged
+        except Exception as e:
             # Best-effort recovery: re-inject snapshot for retry on next flush,
             # but respect the safety cap to prevent unbounded growth.
             with self._data_lock:
@@ -1838,7 +1838,7 @@ class Recorder:
             # Phase 5.3: Verify integrity after closing streaming writer
             if parquet_path:
                 self._verify_parquet_integrity(parquet_path)
-        except Exception as e:  # pragma: no cover - best effort close
+        except Exception as e:
             log.error(
                 "recorder.parquet_writer.close_error",
                 path=parquet_path,

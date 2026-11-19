@@ -89,6 +89,20 @@ def test_get_calibration_scope_info_project_inheriting(coordinator):
     assert info["inheriting_globals"]
 
 
+def test_get_calibration_scope_info_survives_an_unreadable_project_name(coordinator):
+    """F2: a project whose name cannot be read still gets a project label, unnamed."""
+    coordinator.project_manager.get_project_name.side_effect = KeyError("project_name")
+    coordinator.model_override_service.has_project_override_settings.return_value = True
+    coordinator.model_override_service._using_project_overrides = True
+
+    info = coordinator.get_calibration_scope_info()
+
+    assert info["scope"] == "project"
+    assert info["project_name"] is None
+    assert info["label"] == "Scope: Project"
+    assert info["project_path"] == "test/path"
+
+
 def test_get_calibration_scope_info_single_video(coordinator):
     gui_mock = MagicMock()
     gui_mock.pending_single_video_path = "some/path.mp4"

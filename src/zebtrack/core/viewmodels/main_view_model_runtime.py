@@ -524,7 +524,7 @@ class MainViewModelRuntime:
             if service and hasattr(service, "_on_project_manager_replaced"):
                 try:
                     service._on_project_manager_replaced(data)
-                except Exception as exc:  # pragma: no cover - orchestration boundary
+                except Exception as exc:
                     log.error(
                         "main_view_model.project_manager_replaced.service_update_failed",
                         service=name,

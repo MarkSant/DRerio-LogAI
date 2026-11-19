@@ -471,7 +471,7 @@ class ParquetIOManager:
                         destination=dest_file_path,
                     )
                     updated_video_entry = True
-                except (OSError, PermissionError) as exc:  # pragma: no cover - defensive
+                except (OSError, PermissionError) as exc:
                     log.error(
                         "project_manager.zones.copy_failed",
                         source=source_file_path,

@@ -391,3 +391,37 @@ def test_default_setup_detector(coordinator):
         source="project_lifecycle_coordinator.openvino_fallback",
         use_openvino=False,
     )
+
+
+# ---------------------------------------------------------------------------
+# F2 pragma review: a failing ProjectManager never escapes to the UI caller
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("method", "pm_method", "kwargs"),
+    [
+        ("delete_project_asset", "remove_asset", {"asset": "arena"}),
+        ("delete_aquarium_scope", "remove_aquarium_scope", {"aquarium_id": 1}),
+        ("clear_aquarium_subject", "clear_aquarium_subject", {"aquarium_id": 1}),
+        ("reset_analysis_data", "reset_analysis_data", {"aquarium_id": 0}),
+    ],
+)
+def test_removal_failure_reports_false_and_refreshes_nothing(
+    coordinator, mock_event_bus, method, pm_method, kwargs
+):
+    getattr(coordinator.project_manager, pm_method).side_effect = OSError("file locked")
+
+    result = getattr(coordinator, method)("video.mp4", **kwargs)
+
+    assert result is False
+    mock_event_bus.publish.assert_not_called()
+
+
+def test_can_remove_failure_refuses_with_a_message(coordinator):
+    coordinator.project_manager.can_remove_asset.side_effect = KeyError("video")
+
+    allowed, reason = coordinator.can_remove_project_asset("video.mp4", "arena")
+
+    assert allowed is False
+    assert reason == "Could not validate the requested removal."

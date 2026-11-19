@@ -5861,3 +5861,311 @@ _load_registry()"
         description: "A5-S-011: captura fica aberta quando a leitura falha"
         find: "            finally:\n                cap.release()"
         replace: "            finally:\n                pass\n            cap.release()"
+  pragma_review_evaluator_unknown_nodes:
+    source: src/zebtrack/core/conditions/evaluator.py
+    tests:
+      - tests/core/conditions/test_evaluator.py
+    mutations:
+      - id: unknown-level-compiles-to-false
+        description: "F2: no de nivel desconhecido vira um nivel sempre falso em silencio"
+        find: '    raise TypeError(f"Unknown level node: {type(node).__name__}")'
+        replace: '    return lambda obs: False'
+      - id: unknown-trigger-compiles-to-end-of-stream
+        description: "F2: gatilho desconhecido vira fim de fluxo em silencio"
+        find: '    raise TypeError(f"Unknown trigger node: {type(node).__name__}")'
+        replace: '    return _EndOfStream()'
+  pragma_review_zone_autoimport_unusable_path:
+    source: src/zebtrack/core/services/zone_autoimport_policy.py
+    tests:
+      - tests/core/services/test_zone_autoimport_policy.py
+    mutations:
+      - id: unusable-path-raises
+        description: "F2: caminho ilegivel no projeto derruba a decisao em vez de nunca casar"
+        find: "    except Exception:\n        return \"\""
+        replace: "    except TypeError:\n        return \"\""
+  pragma_review_asset_manager:
+    source: src/zebtrack/core/project/asset_manager.py
+    tests:
+      - tests/core/project/test_asset_manager.py
+    mutations:
+      - id: global-template-failure-propagates
+        description: "F2: biblioteca global quebrada esconde os templates do projeto"
+        find: "                global_entries = self.roi_template_manager.list_global_templates()\n            except Exception as exc:"
+        replace: "                global_entries = self.roi_template_manager.list_global_templates()\n            except KeyError as exc:"
+      - id: empty-criterion-rejects-profile
+        description: "F2: criterio sem valores passa a recusar o perfil"
+        find: "            if expected_values in (None, [], ()):\n                continue"
+        replace: "            if expected_values in (None, [], ()):\n                return False"
+      - id: delete-failure-propagates
+        description: "F2: falha do SO ao apagar derruba a remocao do asset"
+        find: "        except Exception as exc:\n            log.warning(\n                \"asset_manager.file_delete_failed\","
+        replace: "        except ValueError as exc:\n            log.warning(\n                \"asset_manager.file_delete_failed\","
+  pragma_review_parquet_io_copy_failure:
+    source: src/zebtrack/core/project/parquet_io_manager.py
+    tests:
+      - tests/core/project/test_parquet_io_manager.py
+    mutations:
+      - id: copy-failure-propagates
+        description: "F2: pasta hierarquica travada derruba a copia das zonas"
+        find: "                except (OSError, PermissionError) as exc:"
+        replace: "                except (KeyError,) as exc:"
+  pragma_review_project_manager_unknown_asset:
+    source: src/zebtrack/core/project/project_manager.py
+    tests:
+      - tests/test_project_manager.py
+    mutations:
+      - id: unknown-asset-silently-unchanged
+        description: "F2: tipo de asset desconhecido deixa de falhar e vira nao-remocao muda"
+        find: "            raise ValueError(f\"Asset type '{asset}' desconhecido.\")"
+        replace: "            changed = False"
+  pragma_review_state_manager_inline_observers:
+    source: src/zebtrack/core/state_manager.py
+    tests:
+      - tests/test_state_manager_observer_pattern.py
+    mutations:
+      - id: inline-observer-failure-propagates
+        description: "F2: observador que falha apos o shutdown derruba a atualizacao de estado"
+        find: "                observer(category, key, old_value, new_value)\n            except Exception as exc:"
+        replace: "                observer(category, key, old_value, new_value)\n            except KeyError as exc:"
+  pragma_review_project_lifecycle_failures:
+    source: src/zebtrack/coordinators/project_lifecycle_coordinator.py
+    tests:
+      - tests/coordinators/test_project_lifecycle_coordinator.py
+    mutations:
+      - id: can-remove-failure-propagates
+        description: "F2: falha ao validar a remocao escapa para a UI"
+        find: "        except Exception as exc:\n            self.logger.error(\n                \"project.asset.can_remove_failed\","
+        replace: "        except OSError as exc:\n            self.logger.error(\n                \"project.asset.can_remove_failed\","
+      - id: asset-removal-failure-propagates
+        description: "F2: falha ao remover o asset escapa para a UI"
+        find: "        except Exception as exc:\n            self.logger.error(\n                \"project.asset.remove_failed\","
+        replace: "        except KeyError as exc:\n            self.logger.error(\n                \"project.asset.remove_failed\","
+      - id: aquarium-delete-failure-propagates
+        description: "F2: falha ao apagar o escopo do aquario escapa para a UI"
+        find: "        except Exception as exc:\n            self.logger.error(\n                \"project.aquarium_delete.failed\","
+        replace: "        except KeyError as exc:\n            self.logger.error(\n                \"project.aquarium_delete.failed\","
+      - id: aquarium-clear-failure-propagates
+        description: "F2: falha ao limpar o sujeito do aquario escapa para a UI"
+        find: "        except Exception as exc:\n            self.logger.error(\n                \"project.aquarium_subject_clear.failed\","
+        replace: "        except KeyError as exc:\n            self.logger.error(\n                \"project.aquarium_subject_clear.failed\","
+      - id: analysis-reset-failure-propagates
+        description: "F2: falha ao resetar a analise escapa para a UI"
+        find: "        except Exception as exc:\n            self.logger.error(\n                \"project.analysis_reset.failed\","
+        replace: "        except KeyError as exc:\n            self.logger.error(\n                \"project.analysis_reset.failed\","
+  pragma_review_project_lifecycle_live_stop:
+    source: src/zebtrack/coordinators/project_lifecycle_coordinator.py
+    tests:
+      - tests/coordinators/test_project_lifecycle_coordinator_unit.py
+    mutations:
+      - id: live-stop-failure-blocks-close
+        description: "F2: sessao ao vivo que nao para impede fechar o projeto"
+        find: "        except Exception as exc:\n            self.logger.warning(\n                \"project.close.live_session_stop_failed\""
+        replace: "        except KeyError as exc:\n            self.logger.warning(\n                \"project.close.live_session_stop_failed\""
+  pragma_review_calibration_scope_name:
+    source: src/zebtrack/coordinators/calibration_coordinator.py
+    tests:
+      - tests/coordinators/test_calibration_coordinator.py
+    mutations:
+      - id: unreadable-name-breaks-scope-info
+        description: "F2: nome de projeto ilegivel derruba a janela de calibracao"
+        find: "                project_name = self.project_manager.get_project_name()\n            except Exception:"
+        replace: "                project_name = self.project_manager.get_project_name()\n            except OSError:"
+  pragma_review_live_calibration_release:
+    source: src/zebtrack/coordinators/live_calibration_coordinator.py
+    tests:
+      - tests/coordinators/test_live_calibration_coordinator.py
+    mutations:
+      - id: stop-signal-failure-skips-release
+        description: "F2: evento de parada que falha impede liberar a camera"
+        find: "            except Exception:\n                log.debug(\"live_calibration_coordinator.camera.stop_signal_failed\")"
+        replace: "            except KeyError:\n                log.debug(\"live_calibration_coordinator.camera.stop_signal_failed\")"
+      - id: release-failure-propagates
+        description: "F2: camera ja liberada pelo SO derruba o encerramento da calibracao"
+        find: "            except Exception:\n                log.debug(\"live_calibration_coordinator.camera.release_failed\")"
+        replace: "            except KeyError:\n                log.debug(\"live_calibration_coordinator.camera.release_failed\")"
+  pragma_review_model_diagnostics_openvino:
+    source: src/zebtrack/coordinators/model_diagnostics_coordinator.py
+    tests:
+      - tests/coordinators/test_model_diagnostics_coordinator.py
+    mutations:
+      - id: openvino-failure-not-reported
+        description: "F2: falha do OpenVINO no diagnostico deixa de avisar o quadro"
+        find: "                    except Exception as exc:\n                        log.error(\n                            \"diagnostic.thread.openvino_predict_error\","
+        replace: "                    except KeyError as exc:\n                        log.error(\n                            \"diagnostic.thread.openvino_predict_error\","
+  pragma_review_single_detector_degrades:
+    source: src/zebtrack/core/detection/single_detector.py
+    tests:
+      - tests/core/detection/test_single_detector_extended.py
+    mutations:
+      - id: plugin-mode-failure-propagates
+        description: "F2: plugin que recusa o modo sujeito unico derruba a troca de modo"
+        find: "                self.plugin.set_use_single_subject_mode(enabled)\n            except Exception:"
+        replace: "                self.plugin.set_use_single_subject_mode(enabled)\n            except KeyError:"
+      - id: plugin-reset-failure-skips-id-reset
+        description: "F2: reset do plugin que falha impede reiniciar os ids entre videos"
+        find: "                self.plugin.reset_tracking_state()\n            except Exception:"
+        replace: "                self.plugin.reset_tracking_state()\n            except KeyError:"
+      - id: tracker-build-failure-propagates
+        description: "F2: falha ao montar o ByteTrack derruba o quadro em vez de rastrear sem ele"
+        find: "        except Exception:\n            log.warning(\"single_detector.bytetrack.init_failed\", exc_info=True)"
+        replace: "        except KeyError:\n            log.warning(\"single_detector.bytetrack.init_failed\", exc_info=True)"
+  pragma_review_frame_pipeline_teardown:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_frame_processing_pipeline_extended.py
+    mutations:
+      - id: after-failure-drops-status
+        description: "F2: root.after que falha no encerramento perde o status do preview"
+        find: "            except Exception:\n                log.debug(\"live_camera_service.post_preview_status.after_failed\")"
+        replace: "            except Exception:\n                return"
+      - id: ledger-finalize-failure-propagates
+        description: "F2: ledger anterior que nao finaliza impede iniciar a nova sessao"
+        find: "            except Exception:\n                log.warning(\"frame_ledger.previous_finalize_failed\")"
+        replace: "            except KeyError:\n                log.warning(\"frame_ledger.previous_finalize_failed\")"
+  pragma_review_video_context_results_dir:
+    source: src/zebtrack/core/video/video_context_factory.py
+    tests:
+      - tests/core/test_video_context_factory.py
+    mutations:
+      - id: snapshot-failure-propagates
+        description: "F2: pasta de resultados ocupada por um arquivo derruba a analise"
+        find: "            return {item.name for item in results_path.iterdir()}\n        except Exception:"
+        replace: "            return {item.name for item in results_path.iterdir()}\n        except KeyError:"
+      - id: cleanup-failure-propagates
+        description: "F2: limpeza apos cancelamento que falha derruba o cancelamento"
+        find: "        except Exception:\n            log.warning(\n                \"controller.results.cleanup_unexpected_error\","
+        replace: "        except KeyError:\n            log.warning(\n                \"controller.results.cleanup_unexpected_error\","
+  pragma_review_runtime_manager_replaced_isolation:
+    source: src/zebtrack/core/viewmodels/main_view_model_runtime.py
+    tests:
+      - tests/core/viewmodels/test_main_view_model_runtime.py
+    mutations:
+      - id: failing-hook-stops-the-rest
+        description: "F2: um servico que falha ao trocar de projeto deixa os seguintes no projeto fechado"
+        find: "                    service._on_project_manager_replaced(data)\n                except Exception as exc:"
+        replace: "                    service._on_project_manager_replaced(data)\n                except KeyError as exc:"
+  pragma_review_progress_notifier_metadata:
+    source: src/zebtrack/core/video/progress_notifier.py
+    tests:
+      - tests/core/test_video_processing_service_helpers.py
+    mutations:
+      - id: derive-failure-propagates
+        description: "F2: metadado que nao deriva derruba o processamento do video"
+        find: "            metadata_context.update(derived_metadata)\n        except Exception:"
+        replace: "            metadata_context.update(derived_metadata)\n        except KeyError:"
+  pragma_review_set_seed_torch:
+    source: src/zebtrack/utils/__init__.py
+    tests:
+      - tests/utils/test_utils_init.py
+    mutations:
+      - id: torch-never-seeded
+        description: "F2: torch disponivel deixa de receber a semente"
+        find: "    if torch_available and torch_module is not None:"
+        replace: "    if False:"
+      - id: cuda-never-seeded
+        description: "F2: GPU visivel deixa de receber a semente"
+        find: "        if torch_module.cuda.is_available():"
+        replace: "        if False:"
+  pragma_review_arduino_probe_quirks:
+    source: src/zebtrack/io/arduino.py
+    tests:
+      - tests/test_arduino.py
+    mutations:
+      - id: unsupported-flush-aborts-probe
+        description: "F2: driver sem flush faz a sondagem da porta explodir"
+        find: "                ser.reset_input_buffer()\n            except Exception:"
+        replace: "                ser.reset_input_buffer()\n            except KeyError:"
+      - id: failed-read-keeps-polling
+        description: "F2: leitura que falha prende a sondagem ate o timeout"
+        find: "                    raw_line = ser.readline()\n                except Exception:\n                    break"
+        replace: "                    raw_line = ser.readline()\n                except Exception:\n                    continue"
+      - id: failed-close-propagates
+        description: "F2: close que falha transforma uma porta que respondeu em erro"
+        find: "                ser.close()\n            except Exception:"
+        replace: "                ser.close()\n            except KeyError:"
+      - id: missing-list-ports-propagates
+        description: "F2: pyserial sem list_ports derruba a busca de portas"
+        find: "            from serial.tools import list_ports\n        except Exception:"
+        replace: "            from serial.tools import list_ports\n        except KeyError:"
+      - id: enumeration-failure-propagates
+        description: "F2: driver que nao enumera portas derruba a busca"
+        find: "            ports = list(list_ports.comports())\n        except Exception as exc:"
+        replace: "            ports = list(list_ports.comports())\n        except KeyError as exc:"
+  pragma_review_arduino_manager_failures:
+    source: src/zebtrack/io/arduino_manager.py
+    tests:
+      - tests/test_io_arduino_manager.py
+    mutations:
+      - id: factory-failure-propagates
+        description: "F2: porta que nao instancia derruba o connect em vez de responder False"
+        find: "                candidate.handshake = handshake\n            except Exception:"
+        replace: "                candidate.handshake = handshake\n            except KeyError:"
+      - id: close-failure-propagates
+        description: "F2: close que falha impede desconectar"
+        find: "                self.arduino.close()\n            except Exception:"
+        replace: "                self.arduino.close()\n            except KeyError:"
+      - id: handler-failure-kills-reader
+        description: "F2: handler do controller que falha mata a thread leitora"
+        find: "                self.controller.on_arduino_event(event_code)\n        except Exception:"
+        replace: "                self.controller.on_arduino_event(event_code)\n        except KeyError:"
+      - id: status-callback-failure-propagates
+        description: "F2: callback de status da UI que falha derruba o connect"
+        find: "                self.controller.on_arduino_status_change(connected, port)\n        except Exception:"
+        replace: "                self.controller.on_arduino_status_change(connected, port)\n        except KeyError:"
+      - id: log-callback-failure-propagates
+        description: "F2: callback de log da UI que falha derruba o connect"
+        find: "                self.controller.log_arduino_event(message)\n        except Exception:"
+        replace: "                self.controller.log_arduino_event(message)\n        except KeyError:"
+      - id: command-callback-failure-propagates
+        description: "F2: callback de comando da UI que falha derruba o envio"
+        find: "                self.controller.on_arduino_command_sent(command, success, source)\n        except Exception:"
+        replace: "                self.controller.on_arduino_command_sent(command, success, source)\n        except KeyError:"
+  pragma_review_camera_reconnect_abort:
+    source: src/zebtrack/io/camera.py
+    tests:
+      - tests/io/test_camera.py
+    mutations:
+      - id: abort-release-failure-propagates
+        description: "F2: release que falha ao desistir da reconexao deixa a thread viva"
+        find: "                self.cap.release()\n        except Exception as exc:"
+        replace: "                self.cap.release()\n        except KeyError as exc:"
+  pragma_review_recorder_failures:
+    source: src/zebtrack/io/recorder.py
+    tests:
+      - tests/io/test_recorder_async_flush.py
+      - tests/io/test_recorder_masks.py
+      - tests/io/test_recorder_extended.py
+      - tests/io/test_recorder_buffer_cap.py
+    mutations:
+      - id: flush-loop-error-kills-thread
+        description: "F2: um flush que falha mata a thread de gravacao em disco"
+        find: "            except Exception as exc:\n                log.error(\"recorder.flush_loop.error\""
+        replace: "            except KeyError as exc:\n                log.error(\"recorder.flush_loop.error\""
+      - id: final-drain-error-escapes
+        description: "F2: dreno final que falha deixa a thread de flush viva"
+        find: "            except Exception as exc:\n                log.error(\n                    \"recorder.flush_loop.final_drain_error\","
+        replace: "            except KeyError as exc:\n                log.error(\n                    \"recorder.flush_loop.final_drain_error\","
+      - id: mask-sidecar-failure-costs-trajectory
+        description: "F2: falha do sidecar de mascaras derruba a gravacao da trajetoria"
+        find: "        except Exception as exc:\n            # O sidecar"
+        replace: "        except KeyError as exc:\n            # O sidecar"
+      - id: mask-close-failure-propagates
+        description: "F2: close do sidecar de mascaras que falha escapa"
+        find: "        except Exception as exc:\n            log.error(\"recorder.masks.writer_close_error\""
+        replace: "        except KeyError as exc:\n            log.error(\"recorder.masks.writer_close_error\""
+      - id: object-close-failure-propagates
+        description: "F2: close do sidecar de objetos que falha escapa"
+        find: "        except Exception as exc:\n            log.error(\"recorder.object_sidecar.writer_close_error\""
+        replace: "        except KeyError as exc:\n            log.error(\"recorder.object_sidecar.writer_close_error\""
+      - id: failed-write-drops-rows
+        description: "F2: escrita que falha perde as linhas em vez de tentar de novo"
+        find: "                self.detection_data = combined\n            log.error(\n                \"recorder.flush.error\","
+        replace: "                self.detection_data = []\n            log.error(\n                \"recorder.flush.error\","
+      - id: reinjection-ignores-the-cap
+        description: "F2: reinjecao apos falha ignora o teto do buffer"
+        find: "                if len(combined) > self._max_buffer_rows:"
+        replace: "                if False:"
+      - id: parquet-close-failure-propagates
+        description: "F2: close do parquet principal que falha escapa"
+        find: "        except Exception as e:\n            log.error(\n                \"recorder.parquet_writer.close_error\","
+        replace: "        except KeyError as e:\n            log.error(\n                \"recorder.parquet_writer.close_error\","

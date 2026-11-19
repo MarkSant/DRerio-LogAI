@@ -147,3 +147,57 @@ def test_synchronous_fallback_when_no_flush_thread() -> None:
         recorder._flush_detection_data = real  # type: ignore[method-assign]
 
     assert called["sync"] == 1
+
+
+def test_flush_thread_survives_a_failing_flush_and_drains_later(recorder_setup) -> None:
+    """F2 pragma review: one failing flush must not kill the long-running thread."""
+    recorder, output = recorder_setup
+    recorder.start_recording(output, 640, 480, zones=ZoneData(), is_video_file=True)
+    real_flush = recorder._flush_detection_data
+    failures: list[int] = []
+
+    def flaky(force: bool = False) -> None:
+        if not failures:
+            failures.append(1)
+            raise OSError("transient disk error")
+        real_flush(force=force)
+
+    recorder._flush_detection_data = flaky  # type: ignore[method-assign]
+    recorder.write_detection_data(0.0, 1, [(0, 0, 10, 10, 0.9, 1)])
+
+    assert _wait(lambda: failures == [1] and recorder.detection_data == [], timeout=3.0)
+    assert recorder._flush_thread is not None
+    assert recorder._flush_thread.is_alive()
+    recorder.stop_recording()
+
+
+def test_failing_final_drain_still_stops_the_thread(recorder_setup, monkeypatch) -> None:
+    """F2 pragma review: a drain that raises on stop is handled inside the thread."""
+    recorder, output = recorder_setup
+    escaped: list[BaseException | None] = []
+    monkeypatch.setattr(threading, "excepthook", lambda args: escaped.append(args.exc_value))
+    recorder._flush_row_threshold = 10_000
+    recorder._flush_interval_seconds = 9999.0
+    recorder.start_recording(output, 640, 480, zones=ZoneData(), is_video_file=True)
+    flush_thread = recorder._flush_thread
+    real_drain = recorder._flush_detection_data
+    drains: list[bool] = []
+
+    def failing_once(force: bool = False) -> None:
+        drains.append(force)
+        if len(drains) == 1:
+            raise OSError("disk unplugged during the final drain")
+        real_drain(force=force)
+
+    recorder._flush_detection_data = failing_once  # type: ignore[method-assign]
+    recorder.write_detection_data(0.0, 1, [(0, 0, 10, 10, 0.9, 1)])
+
+    recorder.stop_recording()
+
+    # The thread's drain failed; ``stop_recording`` still saved the row itself.
+    assert drains[0] is True
+    assert escaped == []
+    assert recorder.detection_data == []
+    assert flush_thread is not None
+    assert not flush_thread.is_alive()
+    assert recorder._flush_thread is None

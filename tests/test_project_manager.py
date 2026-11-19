@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import shutil
@@ -977,6 +978,21 @@ class TestProjectManager(unittest.TestCase):
         self.assertEqual(len(batch_videos), 0)
         self.assertFalse(pm.project_data.get("zones_by_video"))
         self.assertTrue(os.path.exists(video_path))
+
+    def test_remove_unknown_asset_type_is_refused_and_changes_nothing(self):
+        """F2: a typo in the asset name must fail loudly, never report "removed"."""
+        pm, video_path, files = self._create_manager_with_assets(
+            "proj_remove_unknown", include_summary=False
+        )
+        before = copy.deepcopy(pm.find_video_entry(path=video_path))
+
+        with pytest.raises(ValueError, match="'thumbnail'"):
+            pm.remove_asset(video_path, "thumbnail")  # type: ignore[arg-type]
+
+        self.assertEqual(pm.find_video_entry(path=video_path), before)
+        for path in files.values():
+            if path:
+                self.assertTrue(os.path.exists(path))
 
     def test_load_nonexistent_project(self):
         """Test loading from a directory with no config file."""

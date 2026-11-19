@@ -129,7 +129,7 @@ class AssetManager:
         if include_global:
             try:
                 global_entries = self.roi_template_manager.list_global_templates()
-            except Exception as exc:  # pragma: no cover - defensive telemetry
+            except Exception as exc:
                 log.warning(
                     "asset_manager.roi_templates.global_list_failed",
                     error=str(exc),
@@ -532,7 +532,7 @@ class AssetManager:
             True if all criteria match, False otherwise
         """
         for key, expected_values in criteria.items():
-            if expected_values in (None, [], ()):  # pragma: no cover - defensive
+            if expected_values in (None, [], ()):
                 continue
 
             expected_set = {
@@ -596,7 +596,7 @@ class AssetManager:
         except FileNotFoundError:
             log.debug("asset_manager.file_missing", path=str(path))
             return False
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             log.warning(
                 "asset_manager.file_delete_failed",
                 path=str(path),

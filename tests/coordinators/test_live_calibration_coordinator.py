@@ -726,6 +726,19 @@ def test_release_calibration_camera_swallows_release_exceptions():
     flaky_camera._stopped.set.assert_called()
 
 
+def test_release_calibration_camera_still_releases_when_stop_signal_fails():
+    """F2: a stop event that raises must not skip the device release."""
+    coordinator = _make_coordinator()
+    camera = MagicMock()
+    camera._stopped.set.side_effect = RuntimeError("event torn down")
+    coordinator.camera = camera
+
+    coordinator._release_calibration_camera(reason="test")
+
+    camera.release.assert_called_once_with()
+    assert coordinator.camera is None
+
+
 # ---------------------------------------------------------------------------
 # Bug fix — auto-detect approval must refresh the zone tab so the polygon
 # renders and the ROI/Concluir buttons enable.

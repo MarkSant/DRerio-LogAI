@@ -274,7 +274,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             try:
                 stopped_event.set()
             # except Exception justified: defensive — release must not throw.
-            except Exception:  # pragma: no cover
+            except Exception:
                 log.debug("live_calibration_coordinator.camera.stop_signal_failed")
         release_fn = getattr(camera, "release", None)
         if callable(release_fn):
@@ -282,7 +282,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 release_fn()
             # except Exception justified: hardware/OS may already have torn
             # the device down — log and continue rather than propagating.
-            except Exception:  # pragma: no cover
+            except Exception:
                 log.debug("live_calibration_coordinator.camera.release_failed")
         self.camera = None
         log.info("live_calibration_coordinator.camera_released", reason=reason)

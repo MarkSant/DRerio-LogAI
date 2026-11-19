@@ -555,7 +555,7 @@ class StateManager:
             # Executor might be shutting down; fall back to inline execution
             try:
                 observer(category, key, old_value, new_value)
-            except Exception as exc:  # pragma: no cover - logged for visibility
+            except Exception as exc:
                 log.error(
                     "state.observer.callback_failed",
                     category=category.name,

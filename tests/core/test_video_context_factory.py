@@ -409,3 +409,21 @@ class TestResultsDirCleanup:
         factory._cleanup_cancelled_results(results, set())
 
         assert not results.exists()
+
+
+class TestResultsDirectoryThatIsAFile:
+    """F2 pragma review: a results path taken by a FILE must not break the run."""
+
+    def test_snapshot_of_a_file_is_empty(self, factory, tmp_path):
+        clash = tmp_path / "results"
+        clash.write_text("not a folder")
+
+        assert factory._snapshot_results_dir(clash) == set()
+
+    def test_cleanup_of_a_file_leaves_it_alone(self, factory, tmp_path):
+        clash = tmp_path / "results"
+        clash.write_text("not a folder")
+
+        factory._cleanup_cancelled_results(clash, baseline_items=set())
+
+        assert clash.read_text() == "not a folder"

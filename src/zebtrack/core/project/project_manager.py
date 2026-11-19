@@ -880,7 +880,7 @@ class ProjectManager:
                 clear_zone_data_fn=lambda vp: self.clear_zone_data_for_video(vp, persist=False),
                 refresh_last_zone_source_fn=self._refresh_last_zone_source,
             )
-        else:  # pragma: no cover - guarded by type
+        else:
             raise ValueError(f"Asset type '{asset}' desconhecido.")
 
         if changed:

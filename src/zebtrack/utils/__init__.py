@@ -63,9 +63,9 @@ def set_seed(seed: int) -> None:
 
     torch_available = __getattr__("TORCH_AVAILABLE")
     torch_module = __getattr__("torch")
-    if torch_available and torch_module is not None:  # pragma: no cover - depends on torch
+    if torch_available and torch_module is not None:
         torch_module.manual_seed(seed)
-        if torch_module.cuda.is_available():  # pragma: no cover - GPU specific
+        if torch_module.cuda.is_available():
             torch_module.cuda.manual_seed(seed)
             torch_module.cuda.manual_seed_all(seed)
             torch_module.backends.cudnn.deterministic = True
