@@ -11,6 +11,7 @@ import structlog
 
 from zebtrack.plugins.base import DetectorPlugin, bytetrack_threshold_hints
 from zebtrack.utils import IntegrityError, calculate_sha256
+from zebtrack.utils.performance_policy import effective_batch_nireq
 
 ov: Any | None
 torch: Any | None = None
@@ -550,6 +551,9 @@ class OpenVINOPlugin(DetectorPlugin):
             and hasattr(self._settings.openvino, "batch_nireq")
         ):
             nireq = self._settings.openvino.batch_nireq
+        # memory_mode="low" keeps a single in-flight request whatever batch_nireq
+        # says (#725): the benchmark's write of batch_nireq=1 is not the only guard.
+        nireq = effective_batch_nireq(self._settings, nireq)
         nireq = max(1, min(nireq, len(frames)))
 
         # Temporarily override confidence threshold if provided

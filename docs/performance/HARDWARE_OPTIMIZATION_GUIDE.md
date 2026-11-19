@@ -22,9 +22,9 @@ Typical for Brazilian university labs. DRerio LogAI auto-detects and applies:
 
 | Setting                  | Auto Value | Effect                        |
 | ------------------------ | ---------- | ----------------------------- |
-| `performance.memory_mode`| `low`      | Reduces peak RAM usage        |
+| `performance.memory_mode`| `low`      | Forces the two rows below, even if they are edited back |
 | `openvino.batch_nireq`   | `1`        | Single inference request      |
-| `enable_parallel_analysis`| `false`   | Sequential analysis           |
+| `enable_parallel_analysis`| `false`   | Sequential analysis (report figures rendered one at a time, no thread pool) |
 | `yolo_model.inference_size`| `320-416`| Smaller input, faster inference |
 
 **Expected performance**: 5-15 FPS on i5 with OpenVINO, sufficient for
@@ -126,15 +126,27 @@ yolo_model:
 
 ### Normal Mode (default)
 
-- `batch_nireq: 4` — overlaps preprocessing with inference
-- `enable_parallel_analysis: true` — concurrent analysis components
+- `batch_nireq: 4` — overlaps preprocessing with inference in OpenVINO batch detection
+- `enable_parallel_analysis: true` — report figures rendered by up to
+  `max_parallel_plots` threads
 - Suitable for 8+ GB RAM systems
 
 ### Low Mode (auto-detected for < 8 GB RAM)
 
-- `batch_nireq: 1` — single inference request (saves ~200 MB)
-- `enable_parallel_analysis: false` — sequential analysis
-- Reduces peak RAM by approximately 30-40%
+`memory_mode: "low"` is enforced where the values are read
+(`zebtrack/utils/performance_policy.py`), not only written by the benchmark, so it
+wins over a hand-edited `batch_nireq` or `enable_parallel_analysis`:
+
+- OpenVINO batch detection keeps a single inference request in flight, whatever
+  `batch_nireq` says (each in-flight request holds its own input/output tensors)
+- Analysis is sequential, whatever `enable_parallel_analysis` says: report figures
+  are rendered inline, one at a time, so only one figure is alive at once
+- `processing_interval` is never changed: that would change which frames are
+  detected, i.e. the data, not just the memory use
+
+`enable_parallel_analysis: false` on its own makes analysis sequential and leaves
+`batch_nireq` alone. The RAM saved depends on the model and the report; no figure
+is promised here.
 
 ## Benchmark Interpretation
 

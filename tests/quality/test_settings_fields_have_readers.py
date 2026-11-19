@@ -18,13 +18,13 @@ Matching is by NAME, as in the audit: a field whose name is shared with
 something that is read elsewhere looks read. The guard is therefore blind to
 those, and sharp on the case that matters -- a name nobody reads at all.
 
-``ALLOWED_UNREAD`` holds the five fields of A7-01 and the two this guard found
+``ALLOWED_UNREAD`` holds the fields of A7-01. They stay: ``Settings`` is
+``extra="forbid"``, so removing a field makes every ``config.local.yaml`` that
+still names it fail at start-up. The list only SHRINKS: an entry that gains a
+reader, or whose field is gone, fails as stale. The two fields this guard found
 on its first run (A7-02: ``performance.enable_parallel_analysis`` and
 ``performance.memory_mode``, written by the startup benchmark and read by
-nothing). They stay: ``Settings`` is ``extra="forbid"``, so removing a field
-makes every ``config.local.yaml`` that still names it fail at start-up. The
-list only SHRINKS: an entry that gains a reader, or whose field is gone, fails
-as stale.
+nothing) were wired up in #725 through ``utils/performance_policy.py``.
 
 An assignment such as ``settings.performance.memory_mode = "low"`` is a STORE,
 not a reader: writing a value nobody reads is exactly what A7-02 is.
@@ -56,14 +56,6 @@ ALLOWED_UNREAD: dict[str, str] = {
     "ui_features.use_wizard_for_project_creation": _FORBID_REASON
     + "; the docs still present it as a switch",
     "performance.max_parallel_videos": _FORBID_REASON + "; CLAUDE.md and the FAQ document it",
-    # Found by this guard (A7-02): marked "(futuro)" when added, never given a
-    # reader, yet the startup benchmark WRITES both on a low-memory machine and
-    # HARDWARE_OPTIMIZATION_GUIDE.md promises "Sequential analysis" and "Reduces
-    # peak RAM usage". The low-memory mode changes nothing through them.
-    "performance.enable_parallel_analysis": "written by the startup benchmark, read by nothing "
-    "(A7-02); wiring it up or removing it is the maintainer's decision",
-    "performance.memory_mode": "written by the startup benchmark, read by nothing (A7-02); "
-    "wiring it up or removing it is the maintainer's decision",
 }
 
 

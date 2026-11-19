@@ -1165,16 +1165,21 @@ class PerformanceSettings(BaseModel):
     enable_parallel_analysis: bool = Field(
         True,
         description=(
-            "Enable parallel execution of independent analysis components. "
-            "When True, BehavioralAnalyzer and ROIAnalyzer may run concurrently where possible."
+            "Allow analysis-side work to run on more than one worker. "
+            "When True, report figures are rendered by up to max_parallel_plots threads. "
+            "When False (or when memory_mode is 'low'), analysis is sequential: "
+            "figures are rendered inline, one at a time, without a thread pool."
         ),
     )
     memory_mode: Literal["normal", "low"] = Field(
         "normal",
         description=(
-            "Memory usage mode. 'normal' uses full parallelism and buffering. "
-            "'low' reduces batch_nireq to 1, disables parallel analysis, "
-            "and increases processing_interval to reduce peak RAM. "
+            "Memory usage mode. 'normal' honours openvino.batch_nireq and "
+            "enable_parallel_analysis as configured. "
+            "'low' caps the OpenVINO batch-inference request pool at 1 (whatever "
+            "batch_nireq says) and makes analysis sequential (whatever "
+            "enable_parallel_analysis says), to reduce peak RAM. It never changes "
+            "processing_interval, which would change the data being recorded. "
             "Auto-detected at startup if system has less than 8 GB RAM."
         ),
     )
