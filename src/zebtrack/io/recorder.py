@@ -1810,8 +1810,6 @@ class Recorder:
         """
         try:
             meta = pq.read_metadata(path)
-            if meta.num_row_groups < 0:  # pragma: no cover - defensive
-                return False
             log.debug(
                 "recorder.parquet_verify.ok",
                 path=path,
