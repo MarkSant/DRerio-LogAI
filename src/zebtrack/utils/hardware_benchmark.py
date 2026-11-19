@@ -768,10 +768,12 @@ def _generate_recommendation(
         if "CUDA" in compute_results:
             recommendation.estimated_fps_live = compute_results["CUDA"].fps
             recommendation.estimated_fps_batch = compute_results["CUDA"].fps
-        return recommendation
+        # No early return: the decode backend and the memory sizing below apply
+        # to a CUDA machine too. Returning here meant an NVIDIA laptop with
+        # little RAM never got the low-memory mode (A4-11).
 
     # For OpenVINO-based systems
-    if profile.openvino_available:
+    elif profile.openvino_available:
         # Find best device for live (prioritize latency)
         best_live_fps = 0.0
         for _key, result in pipeline_live_results.items():
@@ -813,7 +815,8 @@ def _generate_recommendation(
         elif profile.gpu_type == GPUType.INTEL_NPU:
             recommendation.recommended_batch_size = 1  # NPU: single request is optimal
         else:
-            recommendation.recommended_batch_size = min(4, int(profile.gpu_memory_gb))
+            # At least 1: a GPU without reported memory gave a batch size of 0 (A2-11).
+            recommendation.recommended_batch_size = max(1, min(4, int(profile.gpu_memory_gb)))
 
     # Find best decode backend
     best_decode_fps = 0.0

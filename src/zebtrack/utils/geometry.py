@@ -81,11 +81,13 @@ def snap_point_to_axes(
         _consider((ax, py))  # Vertical alignment
         _consider((px, ay))  # Horizontal alignment
 
+    # The center itself is tried first: on a tie (``<``) it wins over the axis
+    # projections. This is the order the app has always used.
     for center in centers or []:
         cx, cy = center
+        _consider((cx, cy))  # Snap directly to center intersection
         _consider((cx, py))  # Snap to vertical axis through center
         _consider((px, cy))  # Snap to horizontal axis through center
-        _consider((cx, cy))  # Snap directly to center intersection
 
     return best_point
 

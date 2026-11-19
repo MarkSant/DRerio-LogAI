@@ -293,10 +293,7 @@ class OpenVINOPlugin(DetectorPlugin):
                 and hasattr(self._settings, "openvino")
                 and self._settings.openvino.npu_turbo
             ):
-                try:
-                    config["NPU_TURBO"] = True
-                except Exception:
-                    log.debug("openvino.npu_turbo.not_supported")
+                config["NPU_TURBO"] = True
 
         try:
             self.compiled_model = core.compile_model(

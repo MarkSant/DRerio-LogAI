@@ -349,9 +349,10 @@ class MetadataManager:
                     log.warning("project.scan.invalid_folder_name", name=entry_name)
 
         # Scan project root for session folders.
-        for item in os.scandir(project_path):
-            if item.is_dir() and not (Path(item.path) / ".cancelled").exists():
-                _match_and_add(item.name)
+        with os.scandir(project_path) as entries:
+            for item in entries:
+                if item.is_dir() and not (Path(item.path) / ".cancelled").exists():
+                    _match_and_add(item.name)
 
         # Audit Erro 2 follow-up (2026-05-25): also scan the legacy live
         # recorder output directory. ``LiveSessionManager`` writes new live
@@ -361,9 +362,10 @@ class MetadataManager:
         # Progresso grid stays stuck on "pending" forever.
         live_dir = Path(project_path) / "live_analysis_sessions"
         if live_dir.exists() and live_dir.is_dir():
-            for item in os.scandir(live_dir):
-                if item.is_dir() and not (Path(item.path) / ".cancelled").exists():
-                    _match_and_add(item.name)
+            with os.scandir(live_dir) as entries:
+                for item in entries:
+                    if item.is_dir() and not (Path(item.path) / ".cancelled").exists():
+                        _match_and_add(item.name)
 
         # Audit Erro 2 follow-up round 3 (2026-05-25): the modern live flow
         # uses a hierarchical layout — ``<project>/Grupo_X/Dia_Y/Sujeito_Z/
@@ -389,7 +391,8 @@ class MetadataManager:
         day_re = re.compile(r"^Dia_0*(\d+)$")
         subject_re = re.compile(r"^Sujeito_0*(\d+)$")
         try:
-            group_entries = list(os.scandir(project_root))
+            with os.scandir(project_root) as scan:
+                group_entries = list(scan)
         except OSError:
             log.debug(
                 "project.scan.hierarchical_root_scan_failed",
@@ -416,7 +419,8 @@ class MetadataManager:
         completed: set[tuple[int, str, str]],
     ) -> None:
         try:
-            day_entries = list(os.scandir(group_dir))
+            with os.scandir(group_dir) as scan:
+                day_entries = list(scan)
         except OSError:
             return
         for day_entry in day_entries:
@@ -442,7 +446,8 @@ class MetadataManager:
         completed: set[tuple[int, str, str]],
     ) -> None:
         try:
-            subject_entries = list(os.scandir(day_dir))
+            with os.scandir(day_dir) as scan:
+                subject_entries = list(scan)
         except OSError:
             return
         for subject_entry in subject_entries:
@@ -471,14 +476,17 @@ class MetadataManager:
         user into thinking a video existed when only a stray, aborted
         session folder did."""
         try:
-            for session_entry in os.scandir(subject_dir):
-                if not session_entry.is_dir():
-                    continue
-                session_path = Path(session_entry.path)
-                if (session_path / ".cancelled").exists():
-                    continue
-                if any(session_path.glob("3_CoordMovimento_*.parquet")):
-                    return True
+            # ``with``: returning from inside the loop left the iterator open,
+            # and on Windows that keeps the subject folder locked (A8-003).
+            with os.scandir(subject_dir) as entries:
+                for session_entry in entries:
+                    if not session_entry.is_dir():
+                        continue
+                    session_path = Path(session_entry.path)
+                    if (session_path / ".cancelled").exists():
+                        continue
+                    if any(session_path.glob("3_CoordMovimento_*.parquet")):
+                        return True
         except OSError:
             log.debug(
                 "project.scan.hierarchical_session_scan_failed",

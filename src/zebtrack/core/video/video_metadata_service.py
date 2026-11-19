@@ -26,13 +26,17 @@ class VideoMetadataService:
         """
         try:
             cap = cv2.VideoCapture(str(video_path))
+            # ``finally``: an error between open and release left the handle open,
+            # and on Windows that keeps the video locked for a move or delete
+            # (A5-S-011).
+            try:
+                if not cap.isOpened():
+                    raise ValueError(f"Could not open video: {video_path}")
 
-            if not cap.isOpened():
-                raise ValueError(f"Could not open video: {video_path}")
-
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            cap.release()
+                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            finally:
+                cap.release()
 
             if width <= 0 or height <= 0:
                 raise ValueError(f"Invalid dimensions: {width}x{height}")

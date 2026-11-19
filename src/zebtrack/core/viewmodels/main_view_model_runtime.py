@@ -228,7 +228,7 @@ class MainViewModelRuntime:
             import threading
 
             threading.Thread(
-                target=vm.hardware_vm.force_benchmark,
+                target=self._run_force_benchmark,
                 name="force-benchmark",
                 daemon=True,
             ).start()
@@ -238,11 +238,57 @@ class MainViewModelRuntime:
                 import threading
 
                 threading.Thread(
-                    target=vm.hardware_vm.convert_weight_to_openvino,
+                    target=self._run_openvino_conversion,
                     args=(name,),
                     name=f"openvino-convert-{name}",
                     daemon=True,
                 ).start()
+
+    # The two worker threads below used to discard their result: a success
+    # showed nothing and a failure only reached the log, so both buttons looked
+    # dead (A5-S-008). The message subscribers marshal onto the Tk thread.
+
+    def _run_force_benchmark(self) -> None:
+        result = self._vm.hardware_vm.force_benchmark()
+        if result is None:
+            self._publish_message(
+                UIEvents.UI_SHOW_ERROR,
+                _("Benchmark failed"),
+                _("The hardware benchmark did not finish. The log has the details."),
+            )
+            return
+        self._publish_message(
+            UIEvents.UI_SHOW_INFO,
+            _("Benchmark finished"),
+            _("Recommended backend: {backend}, live device: {device}.").format(
+                backend=result.get("backend") or "-", device=result.get("device_live") or "-"
+            ),
+        )
+
+    def _run_openvino_conversion(self, name: str) -> None:
+        converted = self._vm.hardware_vm.convert_weight_to_openvino(name)
+        if converted is None:
+            self._publish_message(
+                UIEvents.UI_SHOW_ERROR,
+                _("Conversion failed"),
+                _(
+                    "The weight {name} could not be converted to OpenVINO. The log has the details."
+                ).format(name=name),
+            )
+            return
+        self._publish_message(
+            UIEvents.UI_SHOW_INFO,
+            _("Conversion finished"),
+            _("The weight {name} was converted to OpenVINO: {path}").format(
+                name=name, path=converted
+            ),
+        )
+
+    def _publish_message(self, event_type: UIEvents, title: str, message: str) -> None:
+        if self._vm.ui_event_bus:
+            self._vm.ui_event_bus.publish(
+                Event(event_type, payloads.MessagePayload(title=title, message=message))
+            )
 
     def _handle_video_event(self, event_name: UIEvents, data: payloads.EventPayload) -> None:
         vm = self._vm

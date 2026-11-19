@@ -85,6 +85,11 @@ class HardwareCapabilityReport:
         )
 
 
+#: Memory the OS does not report as installed (firmware, integrated GPU), added
+#: back before comparing with the nominal tier thresholds (A4-12).
+RESERVED_MEMORY_ALLOWANCE_GB = 1.0
+
+
 class HardwareCapabilityDetector:
     """Detects hardware capability for live multi-aquarium processing.
 
@@ -277,6 +282,12 @@ class HardwareCapabilityDetector:
         Returns:
             Capability tier enum
         """
+        # The thresholds are NOMINAL sizes (4/6/8/16 GB), but the OS reports less:
+        # a 16 GB machine shows about 15.8 GiB, and less still when an integrated
+        # GPU reserves memory. Compared raw, every machine fell one tier below the
+        # one documented for it (A4-12).
+        total_memory_gb = total_memory_gb + RESERVED_MEMORY_ALLOWANCE_GB
+
         # Insufficient: Cannot process in real-time
         if cpu_cores < 2 or total_memory_gb < 4:
             return MultiAquariumCapability.INSUFFICIENT

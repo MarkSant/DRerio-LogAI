@@ -272,24 +272,20 @@ class TestCreatePreviewWindow:
     @pytest.fixture
     def windows(self, monkeypatch):
         import zebtrack.ui.dialogs as dialogs
-        import zebtrack.ui.dialogs.multi_aquarium_live_preview_window as multi_mod
 
         single = Mock(name="LivePreviewWindow")
-        multi = Mock(name="MultiAquariumLivePreviewWindow")
         monkeypatch.setattr(dialogs, "LivePreviewWindow", single)
-        monkeypatch.setattr(multi_mod, "MultiAquariumLivePreviewWindow", multi)
-        return single, multi
+        return single
 
     def test_single_zone_builds_single_preview(self, windows):
         from zebtrack.core.detection import ZoneData
 
-        single, multi = windows
+        single = windows
         host = _Host()
         host.project_manager.get_zone_data.return_value = ZoneData()
 
         host._create_preview_window(4, 60.0)
 
-        multi.assert_not_called()
         kwargs = single.call_args.kwargs
         assert kwargs["camera_index"] == 4
         assert kwargs["duration_s"] == 60.0
@@ -298,30 +294,14 @@ class TestCreatePreviewWindow:
         kwargs["on_stop_callback"]()
         assert host.stop_calls == 1
 
-    def test_multi_aquarium_zone_builds_multi_preview_with_count(self, windows):
-        from zebtrack.core.project.zone_manager import MultiAquariumZoneData
-
-        single, multi = windows
-        zone = MultiAquariumZoneData()
-        zone.aquariums = [Mock(), Mock(), Mock()]
-        host = _Host()
-        host.project_manager.get_zone_data.return_value = zone
-
-        host._create_preview_window(1, 30.0)
-
-        single.assert_not_called()
-        assert multi.call_args.kwargs["num_aquariums"] == 3
-        assert host.preview_window is multi.return_value
-
     def test_without_project_manager_uses_single_preview(self, windows):
-        single, multi = windows
+        single = windows
         host = _Host()
         host.project_manager = None
 
         host._create_preview_window(0, 10.0)
 
         single.assert_called_once()
-        multi.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

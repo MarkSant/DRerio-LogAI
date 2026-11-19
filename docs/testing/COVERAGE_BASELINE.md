@@ -22,16 +22,19 @@ Two things made the drift invisible:
 
 ## Current baseline
 
-Measured by CI on 2026-11-15 at `008f3271` (PR #717, the TASK-087 coverage campaign, after the
-UI-dialog and `core/project` fronts). Earlier in the same campaign, `ec86f146` measured
-66.32 / 36.12 / 58.24 %; the baseline before the campaign, 2026-08-19 at `e313a5ed`, was
-58.19 / 33.18 / 51.92 %.
+Measured by CI on 2026-11-18 at `e2fbff4c` (PR #717, the TASK-087 coverage campaign, after the
+`core/recording`, UI, A2 and A8 fronts). Earlier in the same campaign: `008f3271` measured
+68.87 / 37.23 / 59.91 % and `ec86f146` 66.32 / 36.12 / 58.24 %; the baseline before the campaign,
+2026-08-19 at `e313a5ed`, was 58.19 / 33.18 / 51.92 %.
 
 | Suite            | CI command                                             | Measured | Gate    |
 | ---------------- | ------------------------------------------------------ | -------- | ------- |
-| core (Linux)     | `pytest -m "not gui"`                                  | 68.87 %  | 68.0 %  |
-| GUI (Linux)      | `pytest -m gui -n0`                                    | 37.23 %  | 36.5 %  |
-| core (Windows)   | `pytest -m "not gui" --ignore=tests/ui`                | 59.91 %  | 59.0 %  |
+| core (Linux)     | `pytest -m "not gui"`                                  | 70.50 %  | 69.5 %  |
+| GUI (Linux)      | `pytest -m gui -n0`                                    | 37.42 %  | 36.5 %  |
+| core (Windows)   | `pytest -m "not gui" --ignore=tests/ui`                | 61.03 %  | 60.0 %  |
+
+The GUI gate stays at 36.5 % on purpose: the final pass removed the never-built two-aquarium
+preview window, which the GUI suite covered well (about 0.4 point of the measurement).
 
 The gate sits roughly one point below the measurement (0.7 pp for GUI, whose absolute headroom is
 smallest). That margin absorbs the platform differences between this measurement (Windows) and the
@@ -51,7 +54,7 @@ therefore get a floor of their own, checked right after the core suite on Linux:
 ```bash
 python scripts/coverage_summary.py coverage-core.xml \
     --fail-under plugins=94 --fail-under utils=92 \
-    --fail-under core.viewmodels=96 --fail-under core.video=94 \n    --fail-under core.project=95
+    --fail-under core.viewmodels=96 --fail-under core.video=94 \n    --fail-under core.project=95 --fail-under core.recording=93
 ```
 
 | Package    | Before (`b03e5546`) | Measured (2026-11-14) | Floor  |
@@ -60,7 +63,8 @@ python scripts/coverage_summary.py coverage-core.xml \
 | `utils`    | 66.4 %              | 97.5 %                | 92.0 % |
 | `core.viewmodels` | 63.7 %       | 99.2 %                | 96.0 % |
 | `core.video` | 80.1 %            | 97.3 %                | 94.0 % |
-| `core.project` | 73.7 %          | 96.2 % (Linux, CI, `008f3271`) | 95.0 % |
+| `core.project` | 73.7 %          | 97.5 % (Linux, CI, `e2fbff4c`) | 95.0 % |
+| `core.recording` | 83.0 %        | 95.5 % (Linux, CI, `e2fbff4c`) | 93.0 % |
 
 A floor covers the package and its sub-packages, fails with exit code 1, and exits 2 when the
 package is not in the report at all — a typo must not pass as "nothing to check". The margin under

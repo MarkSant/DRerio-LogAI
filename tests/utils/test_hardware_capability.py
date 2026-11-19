@@ -119,21 +119,25 @@ class TestCapabilityTier:
     @pytest.mark.parametrize(
         ("cores", "memory_gb", "has_gpu", "expected"),
         [
+            # The memory thresholds are NOMINAL sizes: the OS reports up to 1 GB
+            # less than installed (A4-12), so a reported 15.0 GiB is a 16 GB machine.
             # Under 2 cores or under 4 GB: record-only.
             (1, 64.0, True, Tier.INSUFFICIENT),
-            (16, 3.9, True, Tier.INSUFFICIENT),
+            (16, 2.9, True, Tier.INSUFFICIENT),
             # 2-3 cores or under 6 GB: one aquarium.
-            (2, 4.0, False, Tier.LIMITED),
+            (2, 3.0, False, Tier.LIMITED),
             (3, 64.0, True, Tier.LIMITED),
-            (16, 5.9, True, Tier.LIMITED),
+            (16, 4.9, True, Tier.LIMITED),
             # 4-5 cores or under 8 GB: two aquariums.
-            (4, 6.0, False, Tier.MODERATE),
+            (4, 5.0, False, Tier.MODERATE),
             (5, 64.0, True, Tier.MODERATE),
-            (16, 7.9, True, Tier.MODERATE),
+            (16, 6.9, True, Tier.MODERATE),
             # 6-7 cores or under 16 GB: two to three.
-            (6, 8.0, False, Tier.GOOD),
+            (6, 7.0, False, Tier.GOOD),
             (7, 64.0, True, Tier.GOOD),
-            (16, 15.9, True, Tier.GOOD),
+            (16, 14.9, True, Tier.GOOD),
+            # A nominal 16 GB laptop reports about 15.8 GiB: it is a 16 GB machine.
+            (8, 15.8, True, Tier.EXCELLENT),
             # 8+ cores and 16+ GB only become EXCELLENT with a GPU.
             (8, 16.0, True, Tier.EXCELLENT),
             (8, 16.0, False, Tier.GOOD),

@@ -350,7 +350,9 @@ class MultiAquariumCoordinator(BaseCoordinator):
                                         regex_day_field="day",
                                         aquarium_configs=[],
                                     )
-                    except Exception:
+                    except ValueError as exc:  # pydantic.ValidationError is a ValueError
+                        # The dialog still opens, without the regex prefill; say why.
+                        log.warning("multi_aquarium.assignment.config_invalid", error=str(exc))
                         multi_aquarium_config = None
 
                     # Trigger assignment dialog

@@ -24,6 +24,10 @@ block:
 | A5-S-005 | A failed thigmotaxis or geotaxis adds a warning to the report | `876b7a39` |
 | A5-S-006 | A failing multi-aquarium detection is shown once per session | this change |
 | A5-S-007 | A recorder that does not start after the arena is shown to the operator | this change |
+| A5-S-008 | The benchmark and OpenVINO-conversion buttons report success or failure (`UI_SHOW_INFO`/`UI_SHOW_ERROR`) | final pass, 2026-11-18 |
+| A5-S-009 | The camera-disconnect dialog callback failure is logged and the buttons come back | earlier in this PR |
+| A5-S-010 | An invalid stored multi-aquarium config is logged (`multi_aquarium.assignment.config_invalid`) instead of swallowed | final pass, 2026-11-18 |
+| A5-S-011 | `VideoMetadataService.get_video_dimensions` releases the capture in `finally`; the other sites either hand the capture to its owner or are unreachable fallbacks (A2-07) | final pass, 2026-11-18 |
 
 Two limits of these fixes, on purpose: A5-S-006 and A5-S-007 tell the operator but do not stop the
 session by themselves (the caller runs on the processing thread, and stopping from there needs its

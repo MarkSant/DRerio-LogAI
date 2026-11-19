@@ -36,6 +36,18 @@ class TestVideoMetadataServiceExtended:
             with pytest.raises(ValueError, match="Could not open video"):
                 VideoMetadataService.get_video_dimensions("/bad/video.mp4")
 
+    def test_the_capture_is_released_when_reading_it_fails(self):
+        # A5-S-011: an error between open and release kept the file locked on Windows.
+        mock_cap = MagicMock()
+        mock_cap.isOpened.return_value = True
+        mock_cap.get.side_effect = cv2.error("backend lost the stream")
+
+        with patch("cv2.VideoCapture", return_value=mock_cap):
+            with pytest.raises(cv2.error):
+                VideoMetadataService.get_video_dimensions("/flaky/video.mp4")
+
+        mock_cap.release.assert_called_once_with()
+
     def test_get_video_dimensions_zero_dimensions_raises(self):
         mock_cap = MagicMock()
         mock_cap.isOpened.return_value = True

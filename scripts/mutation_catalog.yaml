@@ -4325,28 +4325,6 @@ _load_registry()"
         find: 'if self.countdown_remaining <= 0:'
         replace: 'if self.countdown_remaining < 0:'
 
-  multi_aquarium_preview_layout:
-    source: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py
-    tests:
-      - tests/ui/dialogs/test_multi_aquarium_live_preview_window.py
-    mutations:
-      - id: four-aquariums-use-three-columns
-        description: "4 aquarios deixam de caber em 2 colunas"
-        find: 'cols = 2 if num_aquariums <= 4 else 3'
-        replace: 'cols = 2 if num_aquariums < 4 else 3'
-      - id: row-height-uses-column-count
-        description: "altura da janela passa a depender do numero de colunas e nao de linhas"
-        find: 'return cols, rows, 400 * cols + 40, 350 * rows + 150'
-        replace: 'return cols, rows, 400 * cols + 40, 350 * cols + 150'
-      - id: progress-not-clamped-below
-        description: "progresso negativo (relogio andando para tras) deixa de ser limitado a zero"
-        find: 'return max(0.0, min(100.0, (elapsed_s / duration_s) * 100.0))'
-        replace: 'return min(100.0, (elapsed_s / duration_s) * 100.0)'
-      - id: eta-hour-boundary
-        description: "ETA de exatamente uma hora deixa de usar horas"
-        find: 'if minutes < 60:'
-        replace: 'if minutes <= 60:'
-
   aquarium_detection_thumbnail:
     source: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py
     tests:
@@ -4753,72 +4731,6 @@ _load_registry()"
         description: "A6-01: a sondagem de hardware volta a travar o Tk a cada visita ao passo"
         find: '        if self.hardware_report is not None:'
         replace: '        if False:'
-
-  multi_aquarium_preview_update_frame:
-    source: src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py
-    tests:
-      - tests/ui/dialogs/test_multi_aquarium_live_preview_window.py
-    mutations:
-      - id: crop-left-edge-not-clipped
-        description: "F2-UI-002: regiao que passa da borda esquerda do quadro nao e recortada"
-        find: 'x1, x2 = max(0, x1), min(width, x2)'
-        replace: 'x1, x2 = x1, x2'
-      - id: crop-top-edge-not-clipped
-        description: "regiao que passa da borda de cima do quadro nao e recortada"
-        find: 'y1, y2 = max(0, y1), min(height, y2)'
-        replace: 'y1, y2 = y1, y2'
-      - id: zero-width-region-has-a-crop
-        description: "regiao de largura zero vira um recorte vazio em vez de nenhum"
-        find: 'if x2 <= x1 or y2 <= y1:'
-        replace: 'if x2 < x1 or y2 < y1:'
-      - id: crop-origin-lost
-        description: "o recorte nao informa onde comeca no quadro"
-        find: 'return frame[y1:y2, x1:x2], x1, y1'
-        replace: 'return frame[y1:y2, x1:x2], 0, 0'
-      - id: centre-is-top-left-corner
-        description: "a deteccao pertence ao painel pelo canto e nao pelo centro"
-        find: 'cx = (detection[0] + detection[2]) / 2.0'
-        replace: 'cx = detection[0]'
-      - id: seam-goes-to-the-left-panel
-        description: "o centro exatamente na divisa vai para o painel da esquerda"
-        find: 'return region[0] <= cx < region[2] and region[1] <= cy < region[3]'
-        replace: 'return region[0] < cx <= region[2] and region[1] <= cy < region[3]'
-      - id: stopped-window-still-draws
-        description: "janela parada continua desenhando quadros"
-        find: "        if self.is_stopped:\n            return\n\n        if recorded_count is not None:"
-        replace: "        if recorded_count is not None:"
-      - id: recorded-count-ignored-when-given
-        description: "o contador de quadros gravados so atualiza quando NAO vem"
-        find: 'if recorded_count is not None:'
-        replace: 'if recorded_count is None:'
-      - id: no-region-shows-the-shared-frame
-        description: "sem regiao o painel pinta direto no quadro compartilhado com o gravador"
-        find: 'view = frame.copy()'
-        replace: 'view = frame'
-      - id: region-crop-painted-in-place
-        description: "com regiao o painel pinta direto no quadro compartilhado"
-        find: 'view = crop.copy()'
-        replace: 'view = crop'
-      - id: no-region-shows-no-detections
-        description: "painel sem regiao nao recebe nenhuma deteccao"
-        find: 'own: list[Sequence[float]] = list(detections)'
-        replace: 'own: list[Sequence[float]] = []'
-      - id: every-detection-in-every-panel
-        description: "cada painel recebe todas as deteccoes do quadro"
-        find: 'own = [d for d in detections if detection_belongs_to_region(d, region)]'
-        replace: 'own = list(detections)'
-      - id: box-not-translated-to-crop
-        description: "a caixa e desenhada nas coordenadas do quadro, nao do recorte"
-        find: 'cv2.rectangle(view, (x1 - x_off, y1 - y_off), (x2 - x_off, y2 - y_off), GREEN, 2)'
-        replace: 'cv2.rectangle(view, (x1, y1), (x2, y2), GREEN, 2)'
-      - id: panel-count-is-whole-frame
-        description: "o rotulo de cada painel mostra o total do quadro"
-        find: 'views[aquarium_id] = (view, len(own))'
-        replace: 'views[aquarium_id] = (view, len(detections))'
-      - id: empty-region-aborts-the-others
-        description: "um aquario fora do quadro derruba o desenho dos demais"
-        find: "            if cropped is None:\n                continue"
-        replace: "            if cropped is None:\n                break"
 
   ui_coordinator_camera_disconnect_dialog:
     source: src/zebtrack/ui/ui_coordinator.py
@@ -5905,3 +5817,47 @@ _load_registry()"
         description: "deteccao de dois aquarios que levanta volta a ficar muda"
         find: "            if multi_aquarium:\n                self._warn_multi_detection_failed()"
         replace: "            if multi_aquarium:\n                pass"
+  benchmark_recommendation_cuda_and_batch:
+    source: src/zebtrack/utils/hardware_benchmark.py
+    tests:
+      - tests/utils/test_hardware_benchmark.py
+    mutations:
+      - id: cuda-returns-early
+        description: "A4-11: maquina NVIDIA volta a pular o modo de pouca memoria"
+        find: "    elif profile.openvino_available:"
+        replace: "    if profile.gpu_type == GPUType.NVIDIA and profile.cuda_available:\n        return recommendation\n    if profile.openvino_available:"
+      - id: batch-of-zero
+        description: "A2-11: GPU sem memoria informada volta a lote 0"
+        find: "recommended_batch_size = max(1, min(4, int(profile.gpu_memory_gb)))"
+        replace: "recommended_batch_size = min(4, int(profile.gpu_memory_gb))"
+  capability_tier_nominal_memory:
+    source: src/zebtrack/utils/hardware_capability.py
+    tests:
+      - tests/utils/test_hardware_capability.py
+    mutations:
+      - id: raw-memory-compared
+        description: "A4-12: maquina de 16 GB volta a cair um nivel abaixo"
+        find: "        total_memory_gb = total_memory_gb + RESERVED_MEMORY_ALLOWANCE_GB"
+        replace: "        total_memory_gb = total_memory_gb"
+  runtime_worker_results_reported:
+    source: src/zebtrack/core/viewmodels/main_view_model_runtime.py
+    tests:
+      - tests/core/viewmodels/test_main_view_model_runtime.py
+    mutations:
+      - id: benchmark-failure-silent
+        description: "A5-S-008: benchmark que falha volta a nao dizer nada"
+        find: "        result = self._vm.hardware_vm.force_benchmark()\n        if result is None:"
+        replace: "        result = self._vm.hardware_vm.force_benchmark()\n        if False:"
+      - id: conversion-success-silent
+        description: "conversao OpenVINO que deu certo volta a nao dizer nada"
+        find: "        if converted is None:"
+        replace: "        if True:"
+  video_metadata_capture_released:
+    source: src/zebtrack/core/video/video_metadata_service.py
+    tests:
+      - tests/core/video/test_video_metadata_service_extended.py
+    mutations:
+      - id: release-not-in-finally
+        description: "A5-S-011: captura fica aberta quando a leitura falha"
+        find: "            finally:\n                cap.release()"
+        replace: "            finally:\n                pass\n            cap.release()"

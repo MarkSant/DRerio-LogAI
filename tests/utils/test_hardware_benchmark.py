@@ -915,7 +915,8 @@ class TestRecommendation:
             openvino_precision="FP32",
             enable_model_cache=True,
             decode_backend="AUTO",
-            recommended_batch_size=0,
+            # 1, not 0: no reported GPU memory used to give a batch of 0 (A2-11).
+            recommended_batch_size=1,
             estimated_fps_live=0.0,
             estimated_fps_batch=0.0,
             recommended_inference_size=640,
@@ -949,6 +950,19 @@ class TestRecommendation:
             120.0,
             120.0,
         )
+
+    def test_nvidia_with_little_ram_still_gets_the_low_memory_mode(self) -> None:
+        # A4-11: the CUDA branch returned before the sizing and the decoder.
+        profile = HardwareProfile(gpu_type=GPUType.NVIDIA, cuda_available=True, total_memory_gb=6)
+        recommendation = _recommend(profile, decode={"FFMPEG": _result("CPU", 300.0)})
+        assert recommendation.recommended_memory_mode == "low"
+        assert recommendation.decode_backend == "FFMPEG"
+
+    def test_a_gpu_without_reported_memory_still_batches_one(self) -> None:
+        profile = HardwareProfile(
+            gpu_type=GPUType.UNKNOWN, openvino_available=True, gpu_memory_gb=0.0
+        )
+        assert _recommend(profile).recommended_batch_size == 1
 
     def test_nvidia_without_a_cuda_measurement_estimates_zero(self) -> None:
         profile = HardwareProfile(gpu_type=GPUType.NVIDIA, cuda_available=True)

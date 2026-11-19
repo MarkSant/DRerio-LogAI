@@ -114,23 +114,18 @@ def analysis_params(mock_settings):
 
 @pytest.mark.unit
 class TestReporterLegacyConstructor:
-    """Test legacy Reporter constructor (DEPRECATED but still functional)."""
+    """Test the direct Reporter constructor (the path the project reports use)."""
 
-    def test_legacy_constructor_emits_deprecation_warning(
+    def test_direct_constructor_is_supported_and_silent(
         self, sample_trajectory_df, sample_rois, analysis_params
     ):
-        """Test that legacy constructor emits DeprecationWarning."""
+        """A4-05: the project report path uses this constructor; no deprecation."""
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
             ReporterContext(trajectory_df=sample_trajectory_df, rois=sample_rois, **analysis_params)
 
-            # Verify warning was emitted
-            assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "trajectory_df is DEPRECATED" in str(w[0].message)
-            assert "ReporterContext.from_analysis" in str(w[0].message)
-            assert "v3.0" in str(w[0].message)
+            assert [x for x in w if issubclass(x.category, DeprecationWarning)] == []
 
     def test_legacy_constructor_creates_valid_reporter(
         self, sample_trajectory_df, sample_rois, analysis_params

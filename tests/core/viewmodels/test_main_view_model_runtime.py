@@ -371,11 +371,12 @@ def test_force_benchmark_runs_on_a_named_daemon_thread(monkeypatch: pytest.Monke
     probe = _ThreadProbe(monkeypatch)
     vm = _vm()
 
-    _runtime(vm).handle_event(UIEvents.MODEL_FORCE_BENCHMARK, cast(Any, None))
+    runtime = _runtime(vm)
+    runtime.handle_event(UIEvents.MODEL_FORCE_BENCHMARK, cast(Any, None))
 
     assert len(probe.started) == 1
     record = probe.started[0]
-    assert record["target"] == vm.hardware_vm.force_benchmark
+    assert record["target"] == runtime._run_force_benchmark
     assert record["name"] == "force-benchmark"
     assert record["daemon"] is True
     assert vm.hardware_vm.calls == []  # the UI thread itself never runs the benchmark
@@ -395,7 +396,7 @@ def test_convert_openvino_prefers_weight_name_then_name(monkeypatch: pytest.Monk
         (("w.pt",), "openvino-convert-w.pt", True),
         (("n.pt",), "openvino-convert-n.pt", True),
     ]
-    assert probe.started[0]["target"] == vm.hardware_vm.convert_weight_to_openvino
+    assert probe.started[0]["target"] == runtime._run_openvino_conversion
 
 
 def test_convert_openvino_without_a_name_starts_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -404,6 +405,50 @@ def test_convert_openvino_without_a_name_starts_nothing(monkeypatch: pytest.Monk
     _runtime(_vm()).handle_event(UIEvents.MODEL_CONVERT_OPENVINO, cast(Any, {"name": ""}))
 
     assert probe.started == []
+
+
+@pytest.mark.parametrize(
+    ("result", "event", "title"),
+    [
+        (None, UIEvents.UI_SHOW_ERROR, "Benchmark failed"),
+        (
+            {"backend": "openvino", "device_live": "GPU"},
+            UIEvents.UI_SHOW_INFO,
+            "Benchmark finished",
+        ),
+    ],
+)
+def test_the_benchmark_result_reaches_the_user(result: Any, event: UIEvents, title: str) -> None:
+    # A5-S-008: the worker thread used to discard the result.
+    vm = _vm()
+    vm.hardware_vm.force_benchmark = lambda: result
+
+    _runtime(vm)._run_force_benchmark()
+
+    [published] = vm.ui_event_bus.published
+    assert (published.type, published.data.title) == (event, title)
+    if result is not None:
+        assert "openvino" in published.data.message and "GPU" in published.data.message
+
+
+@pytest.mark.parametrize(
+    ("converted", "event", "title"),
+    [
+        (None, UIEvents.UI_SHOW_ERROR, "Conversion failed"),
+        ("C:/w_openvino_model", UIEvents.UI_SHOW_INFO, "Conversion finished"),
+    ],
+)
+def test_the_conversion_result_reaches_the_user(
+    converted: Any, event: UIEvents, title: str
+) -> None:
+    vm = _vm()
+    vm.hardware_vm.convert_weight_to_openvino = lambda name: converted
+
+    _runtime(vm)._run_openvino_conversion("w.pt")
+
+    [published] = vm.ui_event_bus.published
+    assert (published.type, published.data.title) == (event, title)
+    assert "w.pt" in published.data.message
 
 
 # ------------------------------------------------------------------------ video / zone
