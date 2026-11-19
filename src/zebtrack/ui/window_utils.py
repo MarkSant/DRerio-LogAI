@@ -20,7 +20,7 @@ except ImportError:  # pragma: no cover - optional dependency
     ttkb = cast(Any, None)
 
 
-def _try_actions(window: Any, actions: tuple[Callable[[], None], ...]) -> bool:
+def _try_actions(actions: tuple[Callable[[], None], ...]) -> bool:
     for action in actions:
         try:
             action()
@@ -44,7 +44,7 @@ def maximize_window(window: Any) -> None:
     def _attributes_zoomed() -> None:
         window.attributes("-zoomed", True)
 
-    if _try_actions(window, (_state_zoomed, _attributes_zoomed)):
+    if _try_actions((_state_zoomed, _attributes_zoomed)):
         return
 
     try:

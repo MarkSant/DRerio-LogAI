@@ -203,7 +203,6 @@ class ProjectLifecycleManager:
         display_interval_frames: int,
         camera_index: int,
         project_type: str,
-        video_files: list | None,
     ) -> None:
         """Validate project creation parameters.
 
@@ -219,7 +218,6 @@ class ProjectLifecycleManager:
             display_interval_frames: Overlay update interval in frames
             camera_index: Camera device index
             project_type: Type of project ("Pre-recorded" or "Live")
-            video_files: Optional list of video files
 
         Raises:
             ValueError: If any parameter is invalid.
@@ -345,13 +343,10 @@ class ProjectLifecycleManager:
         project_type: str,
         settings_obj: Any,
         default_analysis_profile_fn,
-        add_video_batch_fn,
-        save_project_fn,
         *,
         use_openvino: bool = False,
         openvino_device: str = "AUTO",
         active_weight: str | None = None,
-        video_files: list | None = None,
         num_aquariums: int = 1,
         animals_per_aquarium: int = 1,
         aquarium_width_cm: float = 0.0,
@@ -379,15 +374,16 @@ class ProjectLifecycleManager:
         """Initialize a new project, creating its directory and config file.
 
         Returns the assembled ``project_data`` dict (the caller must assign it
-        to ``self.project_data`` and ``self.project_path``).
+        to ``self.project_data`` and ``self.project_path``). Adding the initial
+        videos and persisting the project are the CALLER's steps
+        (``ProjectManager.create_new_project`` does both); this method neither
+        receives the videos nor saves.
 
         Args:
             project_path: Directory where the project lives.
             project_type: "Pre-recorded" or "Live".
             settings_obj: Injected Settings instance (may be None in tests).
             default_analysis_profile_fn: Callable returning a default profile dict.
-            add_video_batch_fn: Callable(video_files, save_project=False) for initial videos.
-            save_project_fn: Callable() to persist the project JSON.
             **kwargs: All remaining project parameters — see ``ProjectManager.create_new_project``.
 
         Returns:
@@ -415,7 +411,6 @@ class ProjectLifecycleManager:
             display_interval_frames=display_interval_frames,
             camera_index=camera_index,
             project_type=project_type,
-            video_files=video_files,
         )
 
         try:

@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import pytest
+from structlog.testing import capture_logs
 
 from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.ui.components.analysis_view_controller import AnalysisViewController
@@ -164,3 +165,32 @@ def test_detection_overlay_falls_back_to_the_project_roles():
     gui.canvas_manager.renderer.update_overlay.assert_called_once_with(
         [], True, class_roles={0: "arena"}, class_names=None
     )
+
+
+def test_failing_state_probe_is_logged_and_falls_through_to_the_coordinator():
+    gui = _make_gui(is_live_session_active=False, coordinator_live_active=True)
+    gui.controller.state_manager.get_processing_state.side_effect = RuntimeError("state down")
+    controller = AnalysisViewController(gui)
+
+    with capture_logs() as logs:
+        result = controller._is_live_session_active()
+
+    assert result is True
+    failed = [e for e in logs if e["event"] == "analysis_view.live_state_probe.failed"]
+    assert [e["error"] for e in failed] == ["state down"]
+    assert failed[0]["log_level"] == "debug"
+
+
+def test_failing_coordinator_probe_is_logged_and_means_not_live():
+    gui = _make_gui(is_live_session_active=False)
+    coordinator = gui.controller.live_camera_session_coordinator
+    coordinator.is_live_session_active.side_effect = RuntimeError("coord down")
+    controller = AnalysisViewController(gui)
+
+    with capture_logs() as logs:
+        result = controller._is_live_session_active()
+
+    assert result is False
+    failed = [e for e in logs if e["event"] == "analysis_view.live_coordinator_probe.failed"]
+    assert [e["error"] for e in failed] == ["coord down"]
+    assert failed[0]["log_level"] == "debug"

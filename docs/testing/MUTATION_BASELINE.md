@@ -16,7 +16,13 @@ poetry run python scripts/mutation_check.py --list
 
 Exit codes: `0` every mutation killed, `1` at least one survivor, `2` the run cannot vouch for
 its verdicts (a red baseline, the runner's own tests failing, a copy that drifted from the
-checkout or could not be built, the checkout edited during the run).
+checkout or could not be built, the checkout edited during the run, a baseline that ran 0
+tests or whose `gui` tests were skipped for lack of a display).
+
+Every marker runs (#724): each block's tests are invoked with `-m "" -n0`, so `gui`- and
+`slow`-marked tests are not deselected by `pytest.ini`. On Linux without `DISPLAY` each worker
+starts its own Xvfb (`-displayfd`); if Xvfb cannot start the run exits 2. Before #724 a block
+whose tests were all `gui` ran 0 tests and reported every mutant as a survivor.
 
 ## Why this exists
 

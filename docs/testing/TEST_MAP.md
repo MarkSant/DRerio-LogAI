@@ -39,7 +39,7 @@ The test tree mirrors `src/zebtrack/`, with two exceptions:
 | `src/zebtrack/ui/dialogs/`            | 25    | `tests/ui/dialogs/test_*.py` + `test_dialogs_batch*.py` | 10 |
 | `src/zebtrack/ui/wizard/`             | 18    | `tests/ui/wizard/test_*.py`                     | 13    |
 | `src/zebtrack/ui/` (root)             | 11    | `tests/ui/test_*.py`                            | 16    |
-| `src/zebtrack/utils/`                 | 11    | `tests/utils/test_*.py` (one per module)        | 12    |
+| `src/zebtrack/utils/`                 | 12    | `tests/utils/test_*.py` (one per module)        | 13    |
 
 **Cross-cutting (no source mirror):**
 
@@ -154,6 +154,7 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `core/video/tracking_session_runner.py` (hands tracking to the worker) | `tests/core/test_video_processing_service_tracking.py` |
 | `core/project/parquet_io_manager.py` (sidecar set on import) | `tests/test_parquet_import.py` + `--module parquet_import_sidecars` |
 | `utils/report_files.py` (`3c_`/`7_` labels) | `tests/utils/test_report_files.py` + `--module session_output_labels` |
+| `utils/performance_policy.py` (`enable_parallel_analysis`/`memory_mode`, #725) | `tests/utils/test_performance_policy.py`, `tests/analysis/test_visualization_generator.py`, `tests/plugins/test_openvino_detector.py` + `--module performance_policy` |
 | `core/conditions/*.py` | `tests/core/conditions/` (unit + Barnes VFR + hypothesis properties: batch ≡ online, back-dating, STOP ≥ START, duplicates) + `--module conditions_model`, `conditions_evaluator`, `conditions_artifact` |
 | `core/conditions/presets.py` | `tests/core/conditions/test_presets.py` (Barnes preset ≡ acceptance fixture by hash with `burrow_roi=None`; burrow STOP #650; legacy-trigger preset), `tests/core/recording/test_condition_runtime.py` (`TestBarnesBurrowParity`: live ≡ analysis STOP), `tests/integration/test_barnes_window_e2e.py` + `--module conditions_presets` |
 | `analysis/window_observations.py` | `tests/analysis/test_window_observations.py` (3c heartbeat → observations, report ROI rule, external events, trajectory-only fallback, `missing_inputs`, report subject screening #671) + `--module window_observations` |

@@ -418,12 +418,9 @@ def test_calibration_scope_info_returns_the_coordinators_dict(view_model):
     view_model.project_lifecycle_coordinator.get_calibration_scope_info.return_value = info
 
     assert view_model.get_calibration_scope_info() is info
-    reader = view_model.project_lifecycle_coordinator.get_calibration_scope_info.call_args.kwargs[
-        "get_active_weight_name"
-    ]
-    assert reader() == "weights.pt"
-    view_model.state_manager = None
-    assert reader() is None
+    # The scope does not depend on the active weight: no callback is handed over
+    # (#726 -- the coordinator used to accept one and never call it).
+    view_model.project_lifecycle_coordinator.get_calibration_scope_info.assert_called_once_with()
 
 
 def test_copy_to_project_builds_global_defaults_from_settings(view_model):

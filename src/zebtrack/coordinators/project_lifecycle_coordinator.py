@@ -1121,14 +1121,11 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
     def get_calibration_scope_info(
         self,
-        get_active_weight_name: Callable[[], str | None] | None = None,
         gui_instance: Any | None = None,
     ) -> dict[str, Any]:
         """Get calibration scope information for UI display."""
         if self._calibration_coordinator:
-            return self._calibration_coordinator.get_calibration_scope_info(
-                get_active_weight_name, gui_instance
-            )
+            return self._calibration_coordinator.get_calibration_scope_info(gui_instance)
         return {
             "scope": "global",
             "project_loaded": False,

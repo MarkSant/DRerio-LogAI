@@ -258,7 +258,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         )
 
         entries = [self.project_manager.find_video_entry(path=p) for p in video_paths]
-        self.generate_parquet_summaries([e for e in entries if e], self.settings)
+        self.generate_parquet_summaries([e for e in entries if e])
 
         count, errors = 0, []
         self._ensure_analysis_service_ready()
@@ -625,21 +625,19 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
     # Parquet Summary Generation
     # ========================================================================
 
-    def generate_parquet_summaries(
-        self,
-        video_entries: list[dict],
-        settings_obj: Any = None,
-    ) -> None:
+    def generate_parquet_summaries(self, video_entries: list[dict]) -> None:
         """Generate parquet summaries for video entries.
+
+        Each summary is computed with the PROJECT's settings snapshot, built from
+        the injected ``self.settings`` (``_create_project_settings_snapshot``).
+        There is no settings argument: one used to be accepted and silently
+        replaced by that snapshot (#726).
 
         Args:
             video_entries: List of video entry dicts from ProjectManager.
-            settings_obj: Settings instance (uses self.settings if None).
         """
         if not video_entries:
             return
-
-        settings = settings_obj or self.settings
 
         # Find expected ROI names for schema consistency
         video_paths = [v.get("path", "") for v in video_entries if v.get("path")]
@@ -648,7 +646,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         completed, failed, skipped = 0, 0, 0
         for video in video_entries:
             status, msg, _summary_path, _changed = self._process_summary_video(
-                video, settings, expected_roi_names
+                video, expected_roi_names
             )
             if status == "completed":
                 completed += 1
@@ -695,7 +693,6 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
     def _process_summary_video(
         self,
         video: dict,
-        settings_obj: Any,
         expected_roi_names: list[str] | None = None,
     ) -> tuple[str, str | None, str | None, bool]:
         """Process a single video for summary generation."""

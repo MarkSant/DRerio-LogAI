@@ -276,16 +276,18 @@ def export_multi_aquarium_reports(
     output_dirs_by_aquarium: dict[int, Path],
     base_name: str,
     aquarium_configs: list | None = None,
-    settings_obj: Any = None,
 ) -> dict[int, dict[str, str]]:
     """Export separate reports for each aquarium in multi-aquarium mode.
+
+    The reporters are built with ``ReporterContext.from_analysis``, exactly like
+    the single-aquarium report path: every setting the report needs is already
+    resolved inside each ``AnalysisResult``, so this function takes no settings.
 
     Args:
         results_by_aquarium: ``{aquarium_id: AnalysisResult | None}``.
         output_dirs_by_aquarium: ``{aquarium_id: output_dir_path}``.
         base_name: Base name for output files (e.g. video stem).
         aquarium_configs: Optional list of ``AquariumConfig`` objects.
-        settings_obj: Optional Settings instance.
 
     Returns:
         ``{aquarium_id: {"summary_path": ..., "report_path": ...}}``.

@@ -91,7 +91,7 @@ class DialogCoordinator:
             return self._handle_mixed_case(scanned_videos, with_data, without_data)
         elif with_data and not without_data:
             # All selected videos have data
-            return self._handle_all_have_data(scanned_videos, with_data)
+            return self._handle_all_have_data(with_data)
         else:
             # No videos have data, process all
             return without_data
@@ -136,14 +136,12 @@ class DialogCoordinator:
 
     def _handle_all_have_data(
         self,
-        scanned_videos: list[dict],
         with_data: list[dict],
     ) -> list[dict] | None:
         """Handle case where all videos already have data.
 
         Args:
-            scanned_videos: All scanned videos.
-            with_data: Videos that have data (same as scanned_videos in this case).
+            with_data: Videos that have data (every scanned video, in this case).
 
         Returns:
             Videos to process, or None if none should be processed.

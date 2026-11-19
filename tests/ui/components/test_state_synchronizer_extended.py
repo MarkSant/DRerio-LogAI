@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from structlog.testing import capture_logs
 
 from zebtrack.core.state_manager import StateCategory
 from zebtrack.core.video.processing_mode import ProcessingMode
@@ -265,3 +266,42 @@ class TestStateSynchronizerExtended7:
         gui = MagicMock()
         sync = StateSynchronizer(gui)
         assert sync.gui is gui
+
+
+class TestLiveSessionProbeFailures:
+    """A failing probe is logged and degrades to "no live session"."""
+
+    def test_failing_state_probe_is_logged_and_falls_through(self):
+        mock_sm = MagicMock()
+        mock_sm.get_processing_state.side_effect = RuntimeError("state down")
+        mock_gui = MagicMock()
+        mock_gui.controller.live_camera_session_coordinator.is_live_session_active.return_value = (
+            True
+        )
+        sync = StateSynchronizer(mock_gui, state_manager=mock_sm)
+
+        with capture_logs() as logs:
+            result = sync._is_live_session_active()
+
+        assert result is True  # the coordinator probe still decides
+        failed = [e for e in logs if e["event"] == "state_synchronizer.live_state_probe.failed"]
+        assert [e["error"] for e in failed] == ["state down"]
+        assert failed[0]["log_level"] == "debug"
+
+    def test_failing_coordinator_probe_is_logged_and_means_not_live(self):
+        mock_sm = MagicMock()
+        mock_sm.get_processing_state.return_value = None
+        mock_gui = MagicMock()
+        coordinator = mock_gui.controller.live_camera_session_coordinator
+        coordinator.is_live_session_active.side_effect = RuntimeError("coord down")
+        sync = StateSynchronizer(mock_gui, state_manager=mock_sm)
+
+        with capture_logs() as logs:
+            result = sync._is_live_session_active()
+
+        assert result is False
+        failed = [
+            e for e in logs if e["event"] == "state_synchronizer.live_coordinator_probe.failed"
+        ]
+        assert [e["error"] for e in failed] == ["coord down"]
+        assert failed[0]["log_level"] == "debug"

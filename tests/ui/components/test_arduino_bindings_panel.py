@@ -7,6 +7,7 @@ from typing import Any, TypeVar
 from unittest.mock import MagicMock
 
 import pytest
+from structlog.testing import capture_logs
 
 from zebtrack.core.detection.detection_types import AquariumData, MultiAquariumZoneData
 from zebtrack.core.services.arduino_bindings import ArduinoBinding
@@ -102,6 +103,20 @@ class TestArduinoBindingsPanel:
         panel = ArduinoBindingsPanel(tkinter_root, controller)
         tkinter_root.update_idletasks()
         assert list(_nn(panel._roi_combo)["values"]) == ["Direita", "Esquerda"]
+
+    def test_failing_zone_data_is_logged_and_offers_no_rois(self, tkinter_root):
+        controller, pm = _make_controller({"use_arduino": True}, ["Direita"])
+        panel = ArduinoBindingsPanel(tkinter_root, controller)
+        pm.get_zone_data.side_effect = RuntimeError("zones broken")
+
+        with capture_logs() as logs:
+            names = panel._project_roi_names()
+
+        assert names == []
+        failed = [e for e in logs if e["event"] == "arduino_bindings.zone_data.failed"]
+        assert len(failed) == 1
+        assert failed[0]["log_level"] == "warning"
+        assert failed[0]["error"] == "zones broken"
 
     def test_add_binding_persists_and_saves(self, tkinter_root):
         pd = {"use_arduino": True}

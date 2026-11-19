@@ -445,14 +445,13 @@ class ProgressTrackingCoordinator(BaseCoordinator):
 
         detections = frame_data.get("detections", [])
         frame = frame_data.get("frame")
-        frame_number = frame_data.get("frame_number", 0)
         class_roles = frame_data.get("class_roles")
 
         if frame is not None:
             self.root.after(
                 0,
-                lambda f=frame, d=detections, n=frame_number, r=class_roles: (
-                    self._update_frame_display(f, d, n, class_roles=r)
+                lambda f=frame, d=detections, r=class_roles: (
+                    self._update_frame_display(f, d, class_roles=r)
                 ),
             )
 
@@ -460,7 +459,6 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         self,
         frame: Any,
         detections: list,
-        frame_number: int,
         class_roles: Mapping[int, str] | None = None,
     ) -> None:
         """Update frame display with detections overlay (must run on main thread).

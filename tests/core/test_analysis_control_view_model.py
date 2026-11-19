@@ -557,7 +557,7 @@ def test_shutdown_without_a_coordinator_only_handles_the_legacy_side(view_model)
 # ---------------------------------------------------------------------------
 
 
-def test_process_single_video_forwards_detector_recorder_and_kwargs(view_model):
+def test_process_single_video_forwards_detector_and_kwargs(view_model):
     view_model.video_processing_service.process_single_video.return_value = "done"
     detector = object()
 
@@ -566,7 +566,8 @@ def test_process_single_video_forwards_detector_recorder_and_kwargs(view_model):
     assert result == "done"
     call = view_model.video_processing_service.process_single_video.call_args
     assert call.kwargs["detector"] is detector
-    assert call.kwargs["recorder"] is view_model.recorder
+    # The worker records with its own recorder: none is handed over (#726).
+    assert "recorder" not in call.kwargs
     assert call.kwargs["video_path"] == "/v.mp4"
     assert call.kwargs["config"] == {"a": 1}
 

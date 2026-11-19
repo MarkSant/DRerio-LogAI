@@ -1592,7 +1592,7 @@ class TestProjectManagerExtended:
             roi_names=["zone1"],
             roi_colors=[(255, 0, 0)],
         )
-        serialized = pm._zone_data_to_dict(zone_data)
+        serialized = ZoneManager.zone_data_to_dict(zone_data)
         assert "polygon" in serialized or "arena" in serialized or "roi_polygons" in serialized
 
         restored = pm._zone_data_from_dict(serialized)
@@ -1638,7 +1638,7 @@ class TestProjectManagerExtended2:
             roi_polygons=[[[1, 1], [2, 2], [1, 2]]],
             roi_names=["R1"],
         )
-        d = pm._zone_data_to_dict(zone)
+        d = ZoneManager.zone_data_to_dict(zone)
         assert "polygon" in d
         assert "roi_names" in d
 

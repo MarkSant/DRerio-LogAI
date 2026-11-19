@@ -1304,9 +1304,9 @@ class AnalysisWindowPanel(ttk.Frame):
         roi_names = self._roi_names()
         spec = barnes_maze_preset(burrow_roi=match_roi_name(BARNES_BURROW_ROI, roi_names))
         drafts = drafts_from_spec(spec)
-        if drafts is None:  # pragma: no cover - guarded by the round-trip test
-            log.error("analysis_window_panel.preset.not_representable")
-            return
+        # The Barnes preset is always representable as editor lines: guaranteed by
+        # TestDraftsFromSpec.test_round_trip_is_exact (barnes_maze_preset case).
+        assert drafts is not None
         self.drafts = {"start": drafts[0], "stop": drafts[1]}
         self.on_start_not_met.set(on_start_not_met_labels()[spec.on_start_not_met])
         self.on_stop.set(on_stop_labels()[spec.on_stop])
@@ -1573,7 +1573,8 @@ class AnalysisWindowPanel(ttk.Frame):
         try:
             zone_data = self.project_manager.get_zone_data()
         # except Exception justified: zone data may be unavailable early on.
-        except Exception:
+        except Exception as exc:
+            log.warning("analysis_window.zone_data.failed", error=str(exc))
             zone_data = None
         names = [str(n) for n in (getattr(zone_data, "roi_names", []) or []) if str(n).strip()]
         for name in ZoneManager.roi_names_in_project(self._project_data()):

@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from typing import Any, cast
 from unittest import mock
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, rule
@@ -380,9 +381,15 @@ class _FakeClock:
 
     def __init__(self) -> None:
         self.now = 1_000.0
+        #: The wall clock, deliberately unrelated to ``now``: expiry must follow
+        #: ``monotonic()`` and ignore wherever this one is (NTP step, DST, manual change).
+        self.wall = 9_000_000.0
+
+    def monotonic(self) -> float:
+        return self.now
 
     def time(self) -> float:
-        return self.now
+        return self.wall
 
 
 @contextmanager
@@ -583,6 +590,10 @@ class TTLCacheMachine(RuleBasedStateMachine):
         self.hits = 0
         self.misses = 0
 
+    @rule(jump=st.integers(-10_000, 10_000))
+    def wall_clock_jumps(self, jump: int) -> None:
+        self.clock.wall += jump
+
     @rule(ttl=st.integers(1, 6))
     def change_ttl(self, ttl: int) -> None:
         self.cache.ttl_seconds = float(ttl)
@@ -590,6 +601,10 @@ class TTLCacheMachine(RuleBasedStateMachine):
 
     @invariant()
     def size_and_counters_match_the_model(self) -> None:
+        # ``info`` and ``len`` purge what expired, and a purge is permanent: a
+        # later TTL increase must not bring the entry back, so the model drops it too.
+        for stale in [k for k in self.model if not self._alive(k)]:
+            del self.model[stale]
         info = self.cache.info()
         assert info == (self.hits, self.misses, self.maxsize, len(self.model))
         assert len(self.cache) == len(self.model)
@@ -598,6 +613,76 @@ class TTLCacheMachine(RuleBasedStateMachine):
 
 
 TestTTLCacheModel = TTLCacheMachine.TestCase
+
+
+class TestTTLCacheClock:
+    """Expiry runs on the monotonic clock, and ``len`` counts only live entries."""
+
+    @pytest.mark.parametrize("jump", [3_600.0, -3_600.0, 86_400.0 * 365])
+    def test_a_wall_clock_step_does_not_change_expiry(self, jump):
+        with _frozen_clock() as clock:
+            cache = TTLCache(ttl_seconds=10.0)
+            cache.set("a", 1)
+            clock.wall += jump  # NTP step / DST / manual change
+            assert cache.get("a") == 1
+            assert "a" in cache
+            assert len(cache) == 1
+            clock.now += 10.0  # the monotonic clock reaches the TTL
+            clock.wall -= jump  # and the wall clock moves back to where it was
+            assert cache.get("a") is None
+
+    def test_expiry_follows_monotonic_time(self):
+        with _frozen_clock() as clock:
+            cache = TTLCache(ttl_seconds=5.0)
+            cache.set("a", 1)
+            clock.now += 4.0
+            assert cache.get("a") == 1
+            clock.now += 1.0
+            assert cache.get("a") is None
+
+    def test_set_stamps_the_entry_with_monotonic_time(self):
+        with _frozen_clock() as clock:
+            cache = TTLCache(ttl_seconds=5.0, maxsize=2)
+            cache.set("old", 1)
+            clock.now += 1.0
+            cache.set("new", 2)
+            clock.wall -= 1_000_000.0  # a wall-clock stamp would make "new" the oldest
+            clock.now += 1.0
+            cache.set("third", 3)
+            assert cache.get("new") == 2
+            assert cache.get("old") is None
+
+    def test_len_excludes_expired_entries_without_a_prior_read(self):
+        with _frozen_clock() as clock:
+            cache = TTLCache(ttl_seconds=5.0)
+            cache.set("a", 1)
+            clock.now += 3.0
+            cache.set("b", 2)
+            clock.now += 2.0  # "a" is now exactly at its TTL, "b" is still live
+            assert len(cache) == 1
+            assert cache.get("b") == 2
+            clock.now += 3.0
+            assert len(cache) == 0
+
+    def test_decorator_expiry_ignores_the_wall_clock(self):
+        calls = []
+
+        with _frozen_clock() as clock:
+
+            @ttl_cache(ttl_seconds=10.0)
+            def compute(x):
+                calls.append(x)
+                return x * 2
+
+            assert compute(2) == 4
+            clock.wall += 86_400.0
+            assert compute(2) == 4
+            assert calls == [2]
+            clock.now += 10.0
+            assert compute(2) == 4
+            assert calls == [2, 2]
+
+
 TestTTLCacheModel.settings = settings(
     max_examples=60,
     stateful_step_count=30,

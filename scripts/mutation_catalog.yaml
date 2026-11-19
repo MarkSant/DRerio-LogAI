@@ -454,6 +454,20 @@ modules:
         find: 'use_masks = preserve_real_shape and self.mode == "seg"'
         replace: 'use_masks = False'
 
+  aquarium_detector_multi_area_ratio:
+    source: src/zebtrack/core/detection/aquarium_detector.py
+    tests:
+      - tests/core/test_aquarium_detector_multi.py
+    mutations:
+      - id: max-area-ratio-ignored
+        description: "#726: dois aquarios voltam a ignorar o max_area_ratio documentado"
+        find: 'multi_max_ratio = min(max_area_ratio, MULTI_AQUARIUM_MAX_AREA_RATIO)'
+        replace: 'multi_max_ratio = MULTI_AQUARIUM_MAX_AREA_RATIO'
+      - id: two-tank-cap-lost
+        description: "#726: o teto de meio quadro por aquario some e 0.98 aceita caixas gigantes"
+        find: 'multi_max_ratio = min(max_area_ratio, MULTI_AQUARIUM_MAX_AREA_RATIO)'
+        replace: 'multi_max_ratio = max_area_ratio'
+
   sharp_turn_threshold:
     source: src/zebtrack/analysis/analysis_service.py
     tests:
@@ -3088,6 +3102,44 @@ modules:
         description: "coordenador nao consulta a regra unica do projeto"
         find: 'return None if decision is None else decision.single'
         replace: 'return None'
+
+  multi_aquarium_coordinator_area_bounds:
+    source: src/zebtrack/coordinators/multi_aquarium_coordinator.py
+    tests:
+      - tests/coordinators/test_multi_aquarium_coordinator.py
+    mutations:
+      - id: max-area-ratio-not-forwarded
+        description: "#726: detection_zones.max_aquarium_area_ratio deixa de chegar ao detector"
+        find: "                    max_area_ratio=max_area_ratio,\n"
+        replace: ""
+      - id: max-area-setting-not-read
+        description: "#726: o teto configurado e trocado pelo padrao 0.98"
+        find: '_ratio(getattr(zones, "max_aquarium_area_ratio", None), _DEFAULT_MAX_AQUARIUM_AREA_RATIO)'
+        replace: '_ratio(None, _DEFAULT_MAX_AQUARIUM_AREA_RATIO)'
+      - id: bool-accepted-as-ratio
+        description: "#726: um True nas settings vira razao 1.0 em vez de cair no padrao"
+        find: 'if isinstance(value, bool) or not isinstance(value, int | float):'
+        replace: 'if not isinstance(value, int | float):'
+
+  sequential_processing_error_names_video:
+    source: src/zebtrack/coordinators/sequential_processing_coordinator.py
+    tests:
+      - tests/coordinators/test_sequential_processing_coordinator.py
+    mutations:
+      - id: error-drops-the-video
+        description: "#726: o aviso de erro por aquario volta a nao dizer qual video falhou"
+        find: 'video=exp_id,'
+        replace: 'video=None,'
+
+  report_summary_project_snapshot:
+    source: src/zebtrack/coordinators/report_generation_coordinator.py
+    tests:
+      - tests/coordinators/test_report_generation_coordinator.py
+    mutations:
+      - id: summary-uses-shared-settings
+        description: "#726: o sumario volta a usar as settings compartilhadas, nao o snapshot do projeto"
+        find: 'video, experiment_id, path, settings_snapshot, expected_roi_names'
+        replace: 'video, experiment_id, path, self.settings, expected_roi_names'
 
   track_significance:
     source: src/zebtrack/analysis/track_significance.py
@@ -5907,12 +5959,12 @@ _load_registry()"
     mutations:
       - id: get-ttl-boundary-inclusive
         description: "get devolve a entrada no instante exato em que o TTL vence"
-        find: "                if (time.time() - ts) < self._ttl:\n                    self._hits += 1"
-        replace: "                if (time.time() - ts) <= self._ttl:\n                    self._hits += 1"
+        find: "                if (time.monotonic() - ts) < self._ttl:\n                    self._hits += 1"
+        replace: "                if (time.monotonic() - ts) <= self._ttl:\n                    self._hits += 1"
       - id: contains-ttl-boundary-inclusive
         description: "'in' ainda ve a entrada no instante exato em que o TTL vence"
-        find: "            if (time.time() - ts) < self._ttl:\n                return True"
-        replace: "            if (time.time() - ts) <= self._ttl:\n                return True"
+        find: "            if (time.monotonic() - ts) < self._ttl:\n                return True"
+        replace: "            if (time.monotonic() - ts) <= self._ttl:\n                return True"
       - id: purge-keeps-entry-at-ttl
         description: "set deixa de purgar a entrada que venceu exatamente agora"
         find: 'if (now - ts) >= self._ttl]'
@@ -5933,10 +5985,72 @@ _load_registry()"
         description: "clear() esvazia o cache mas preserva acertos e falhas"
         find: "            self._store.clear()\n            self._hits = 0"
         replace: "            self._store.clear()"
+      - id: get-reads-the-wall-clock
+        description: "get mede o TTL no relogio de parede: um salto de NTP/DST expira ou eterniza a entrada"
+        find: "                if (time.monotonic() - ts) < self._ttl:\n                    self._hits += 1"
+        replace: "                if (time.time() - ts) < self._ttl:\n                    self._hits += 1"
+      - id: set-stamps-the-wall-clock
+        description: "set carimba a entrada com o relogio de parede"
+        find: "        now = time.monotonic()\n        with self._lock:\n            # Re-insert"
+        replace: "        now = time.time()\n        with self._lock:\n            # Re-insert"
+      - id: len-counts-expired-entries
+        description: "len() volta a contar entradas vencidas ate o proximo purge"
+        find: "            self._purge_expired(time.monotonic())\n            return len(self._store)"
+        replace: "            return len(self._store)"
       - id: kwargs-mark-dropped
         description: "f(('a', 1)) e f(a=1) voltam a compartilhar a mesma entrada"
         find: 'key = (*args, _KWARGS_MARK, *sorted(kwargs.items())) if kwargs else args'
         replace: 'key = args + tuple(sorted(kwargs.items()))'
+  performance_policy:
+    # #725 (A7-02): enable_parallel_analysis / memory_mode had writers and no reader.
+    source: src/zebtrack/utils/performance_policy.py
+    tests:
+      - tests/utils/test_performance_policy.py
+      - tests/analysis/test_visualization_generator.py
+      - tests/plugins/test_openvino_detector.py
+    mutations:
+      - id: low-mode-does-not-imply-sequential
+        description: "memory_mode low volta a deixar a analise paralela se enable_parallel_analysis ficou True"
+        find: "    if is_low_memory_mode(settings_obj):\n        return False"
+        replace: "    if False:\n        return False"
+      - id: parallel-flag-ignored
+        description: "enable_parallel_analysis=False volta a nao ter efeito"
+        find: 'return bool(getattr(performance, "enable_parallel_analysis", True))'
+        replace: 'return True'
+      - id: sequential-keeps-requested-width
+        description: "analise sequencial volta a usar max_parallel_plots workers"
+        find: "    if not parallel_analysis_enabled(settings_obj):\n        return 1"
+        replace: "    if not parallel_analysis_enabled(settings_obj):\n        return max(1, int(requested))"
+      - id: low-mode-keeps-batch-nireq
+        description: "memory_mode low volta a respeitar batch_nireq > 1 no lote OpenVINO"
+        find: "    if is_low_memory_mode(settings_obj):\n        return 1"
+        replace: "    if False:\n        return 1"
+      - id: low-mode-misspelled
+        description: "a leitura de memory_mode deixa de reconhecer o modo low"
+        find: 'LOW_MEMORY_MODE = "low"'
+        replace: 'LOW_MEMORY_MODE = "Low"'
+  performance_policy_call_sites:
+    source: src/zebtrack/analysis/visualization_generator.py
+    tests:
+      - tests/analysis/test_visualization_generator.py
+    mutations:
+      - id: plots-ignore-sequential-rule
+        description: "figuras do relatorio voltam a ignorar enable_parallel_analysis/memory_mode"
+        find: '        max_workers = analysis_max_workers(self.settings, max_workers)'
+        replace: '        max_workers = max_workers'
+      - id: sequential-still-builds-pool
+        description: "analise sequencial volta a criar um ThreadPoolExecutor de 1 worker"
+        find: '        if max_workers == 1:'
+        replace: '        if False:'
+  performance_policy_openvino:
+    source: src/zebtrack/plugins/openvino_detector.py
+    tests:
+      - tests/plugins/test_openvino_detector.py
+    mutations:
+      - id: batch-nireq-ignores-low-mode
+        description: "lote OpenVINO volta a abrir batch_nireq requisicoes em memory_mode low"
+        find: '        nireq = effective_batch_nireq(self._settings, nireq)'
+        replace: '        nireq = nireq'
   pragma_review_evaluator_unknown_nodes:
     source: src/zebtrack/core/conditions/evaluator.py
     tests:
@@ -6044,8 +6158,8 @@ _load_registry()"
     mutations:
       - id: unreadable-name-breaks-scope-info
         description: "F2: nome de projeto ilegivel derruba a janela de calibracao"
-        find: "                project_name = self.project_manager.get_project_name()\n            except Exception:"
-        replace: "                project_name = self.project_manager.get_project_name()\n            except OSError:"
+        find: "                project_name = self.project_manager.get_project_name()\n            except Exception as exc:"
+        replace: "                project_name = self.project_manager.get_project_name()\n            except OSError as exc:"
   pragma_review_live_calibration_release:
     source: src/zebtrack/coordinators/live_calibration_coordinator.py
     tests:
@@ -6153,8 +6267,8 @@ _load_registry()"
         replace: "                ser.reset_input_buffer()\n            except KeyError:"
       - id: failed-read-keeps-polling
         description: "F2: leitura que falha prende a sondagem ate o timeout"
-        find: "                    raw_line = ser.readline()\n                except Exception:\n                    break"
-        replace: "                    raw_line = ser.readline()\n                except Exception:\n                    continue"
+        find: "                    raw_line = ser.readline()\n                except Exception as exc:\n                    log.debug(\"arduino.probe_read.failed\", error=str(exc))\n                    break"
+        replace: "                    raw_line = ser.readline()\n                except Exception as exc:\n                    log.debug(\"arduino.probe_read.failed\", error=str(exc))\n                    continue"
       - id: failed-close-propagates
         description: "F2: close que falha transforma uma porta que respondeu em erro"
         find: "                ser.close()\n            except Exception:"
@@ -6319,3 +6433,62 @@ _load_registry()"
         description: "F2: deteccao por regex que falha derruba o editor de delineamento"
         find: "                new_design = self.on_custom_regex_configured(result_patterns)\n            except Exception:"
         replace: "                new_design = self.on_custom_regex_configured(result_patterns)\n            except KeyError:"
+  # #724: the only test that kills this needs the real dialog (gui). It was
+  # mutated by hand in the F2 review while the runner deselected gui tests.
+  pragma_review_custom_regex_resizable:
+    source: src/zebtrack/ui/wizard/custom_regex_dialog.py
+    tests:
+      - tests/ui/wizard/test_custom_regex_dialog.py
+    mutations:
+      - id: refused-resizable-aborts-dialog
+        description: "F2: gerenciador de janelas que recusa resizable aborta o dialogo de regex"
+        find: "        except Exception as exc:\n            log.warning(\"custom_regex.geometry.resizable_failed\""
+        replace: "        except KeyError as exc:\n            log.warning(\"custom_regex.geometry.resizable_failed\""
+  probe_failure_logs_analysis_view:
+    source: src/zebtrack/ui/components/analysis_view_controller.py
+    tests:
+      - tests/ui/components/test_analysis_view_controller_live.py
+    mutations:
+      - id: failing-state-probe-propagates
+        description: "#727: sonda de estado ao vivo que falha derruba a visao de analise"
+        find: "processing_state = get_processing_state()\n            except Exception as exc:"
+        replace: "processing_state = get_processing_state()\n            except KeyError as exc:"
+      - id: failing-coordinator-probe-propagates
+        description: "#727: sonda do coordenador que falha derruba a visao de analise"
+        find: "return bool(is_active_fn())\n            except Exception as exc:"
+        replace: "return bool(is_active_fn())\n            except KeyError as exc:"
+  probe_failure_logs_event_dispatcher:
+    source: src/zebtrack/ui/components/event_dispatcher.py
+    tests:
+      - tests/ui/components/test_event_dispatcher_extended.py
+    mutations:
+      - id: failing-state-probe-propagates
+        description: "#727: sonda de estado ao vivo que falha derruba o despacho de metadados"
+        find: "processing_state = get_processing_state()\n            except Exception as exc:"
+        replace: "processing_state = get_processing_state()\n            except KeyError as exc:"
+      - id: failing-coordinator-probe-propagates
+        description: "#727: sonda do coordenador que falha derruba o despacho de metadados"
+        find: "return bool(is_active_fn())\n            except Exception as exc:"
+        replace: "return bool(is_active_fn())\n            except KeyError as exc:"
+  probe_failure_logs_state_synchronizer:
+    source: src/zebtrack/ui/components/state_synchronizer.py
+    tests:
+      - tests/ui/components/test_state_synchronizer_extended.py
+    mutations:
+      - id: failing-state-probe-propagates
+        description: "#727: sonda de estado ao vivo que falha derruba a sincronizacao da UI"
+        find: "processing_state = get_processing_state()\n                except Exception as exc:"
+        replace: "processing_state = get_processing_state()\n                except KeyError as exc:"
+      - id: failing-coordinator-probe-propagates
+        description: "#727: sonda do coordenador que falha derruba a sincronizacao da UI"
+        find: "return bool(is_active_fn())\n            except Exception as exc:"
+        replace: "return bool(is_active_fn())\n            except KeyError as exc:"
+  probe_failure_logs_block_detail:
+    source: src/zebtrack/ui/dialogs/block_detail_dialog.py
+    tests:
+      - tests/ui/dialogs/test_block_detail_dialog_extended.py
+    mutations:
+      - id: failing-zone-data-breaks-dialog
+        description: "#727: zonas ilegiveis derrubam a abertura do dialogo do bloco"
+        find: "self._project_has_polygon = bool(zone_data and getattr(zone_data, \"polygon\", None))\n        except Exception as exc:"
+        replace: "self._project_has_polygon = bool(zone_data and getattr(zone_data, \"polygon\", None))\n        except KeyError as exc:"

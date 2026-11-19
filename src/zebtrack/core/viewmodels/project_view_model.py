@@ -261,16 +261,7 @@ class ProjectViewModel:
                 "project_loaded": False,
             }
 
-        def get_active_weight_name() -> str | None:
-            if self.state_manager:
-                return self.state_manager.get_state(StateCategory.DETECTOR).get(
-                    "active_weight_name"
-                )
-            return None
-
-        return self.project_lifecycle_coordinator.get_calibration_scope_info(
-            get_active_weight_name=get_active_weight_name,
-        )
+        return self.project_lifecycle_coordinator.get_calibration_scope_info()
 
     @property
     def project_data(self) -> dict:

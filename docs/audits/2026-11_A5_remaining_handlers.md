@@ -110,8 +110,10 @@ the register left unread are among the 40 survivors of the first list; each now 
 | `ui/gui.py:107` | `return False` | legitimate | diagnostic | Panel destroyed. |
 | `ui/wizard/experimental_design_step.py:128` | `return self.min_val` | legitimate | diagnostic | `IntVar` dirtied before construction. |
 
-The 14 "should log" handlers are left as they are: each is a UI probe or label, and logging them
-is a diagnostic improvement, not a correction. Logging one removes its allowlist entry.
+The 14 "should log" handlers were left as they were by this pass: each is a UI probe or label, and
+logging them is a diagnostic improvement, not a correction. **Fixed in #727:** all 14 now log
+`<domain>.<action>.failed` (debug; warning for the three ux rows) and their entries left the
+allowlist.
 
 ## The guard
 

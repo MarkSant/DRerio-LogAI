@@ -701,6 +701,76 @@ def test_generate_plots_parallel_maintains_order(generator):
     assert [name for _, name in results] == [f"plot{i}" for i in range(5)]
 
 
+def _line_plot(ax):
+    ax.plot([1, 2], [1, 2])
+
+
+@pytest.mark.parametrize(
+    ("enable_parallel", "memory_mode"),
+    [(False, "normal"), (True, "low"), (False, "low")],
+    ids=["parallel-off", "low-memory-overrides-parallel-on", "both"],
+)
+def test_sequential_analysis_renders_plots_inline_without_a_pool(
+    generator, mock_settings, enable_parallel, memory_mode
+):
+    """#725: enable_parallel_analysis=False or memory_mode="low" -> no thread pool."""
+    mock_settings.performance.enable_parallel_analysis = enable_parallel
+    mock_settings.performance.memory_mode = memory_mode
+    calls: list[str] = []
+    real = VisualizationGenerator.generate_single_plot_thread_safe
+
+    def recording(plot_func, name):
+        calls.append(name)
+        return real(plot_func, name)
+
+    with (
+        patch(
+            "zebtrack.analysis.visualization_generator.ThreadPoolExecutor",
+            side_effect=AssertionError("sequential analysis must not build a pool"),
+        ) as pool,
+        patch.object(generator, "generate_single_plot_thread_safe", side_effect=recording),
+    ):
+        results = generator.generate_plots_parallel(
+            [(_line_plot, "a"), (_line_plot, "b"), (_line_plot, "c")]
+        )
+
+    pool.assert_not_called()
+    assert calls == ["a", "b", "c"]
+    assert [name for _, name in results] == ["a", "b", "c"]
+    assert all(buf.getvalue() for buf, _ in results)
+
+
+def test_sequential_analysis_keeps_a_failing_plot_as_an_empty_buffer(generator, mock_settings):
+    mock_settings.performance.enable_parallel_analysis = False
+    mock_settings.performance.memory_mode = "normal"
+
+    def broken(ax):
+        raise RuntimeError("boom")
+
+    results = generator.generate_plots_parallel([(broken, "bad"), (_line_plot, "good")])
+
+    assert [name for _, name in results] == ["bad", "good"]
+    assert results[0][0].getvalue() == b""
+    assert results[1][0].getvalue()
+
+
+def test_default_settings_keep_the_pool_at_max_parallel_plots(generator, mock_settings):
+    """Defaults (parallel on, normal memory) -> unchanged: a pool of max_parallel_plots."""
+    mock_settings.performance.enable_parallel_analysis = True
+    mock_settings.performance.memory_mode = "normal"
+    mock_settings.performance.max_parallel_plots = 3
+
+    from concurrent.futures import ThreadPoolExecutor as RealPool
+
+    with patch(
+        "zebtrack.analysis.visualization_generator.ThreadPoolExecutor", wraps=RealPool
+    ) as pool:
+        results = generator.generate_plots_parallel([(_line_plot, "a"), (_line_plot, "b")])
+
+    pool.assert_called_once_with(max_workers=3)
+    assert [name for _, name in results] == ["a", "b"]
+
+
 # ============================================================================
 # Tests for Thread Safety and GIL
 # ============================================================================

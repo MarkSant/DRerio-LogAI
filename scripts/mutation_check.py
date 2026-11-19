@@ -24,8 +24,14 @@ Usage::
     python scripts/mutation_check.py --list
     python scripts/mutation_check.py --all --json report.json
 
+Every marker is selected (``-m ""``): pytest.ini deselects ``gui`` and ``slow``
+by default, and a block whose tests carry those marks used to run ZERO tests --
+a "green" baseline under which every mutant survived. On Linux without a
+``DISPLAY`` each worker gets its own ``Xvfb`` so the Tk tests really run.
+
 Exit codes: 0 = every mutation killed, 1 = at least one survivor, 2 = the run
-could not be trusted (red baseline, runner self-tests failing, the checkout
+could not be trusted (red baseline, a baseline that ran no test or skipped its
+GUI tests for lack of a display, runner self-tests failing, the checkout
 changed under the run, a copy that could not be restored).
 """
 
@@ -35,12 +41,13 @@ import argparse
 import json
 import os
 import re
+import select
 import shutil
 import subprocess
 import sys
 import tempfile
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -96,6 +103,15 @@ _WORKSPACE_IGNORE = shutil.ignore_patterns(
 # A pytest process that imports torch/ultralytics peaks between 1 and 1.5 GB.
 _BYTES_PER_JOB = int(1.5 * 1024**3)
 
+# What ``tests/conftest.py`` stamps on every ``gui`` test when Tk cannot start
+# (no display, or ZEBTRACK_HEADLESS_TESTS=1). Seen in a baseline, it means the
+# block's GUI tests were skipped: every mutant only they could kill would
+# "survive", so the block is reported unproven instead.
+_HEADLESS_SKIP_REASON = "GUI tests disabled in headless mode"
+
+# Seconds an Xvfb gets to announce its display number before the run gives up.
+_XVFB_START_TIMEOUT_S = 15.0
+
 
 class UntrustedRunError(RuntimeError):
     """The run cannot vouch for its verdicts -- exit 2, never 0 or 1."""
@@ -117,7 +133,8 @@ class ModuleReport:
     results: list[MutationResult] = field(default_factory=list)
     skipped_reason: str = ""
     # A red baseline is not a legitimate skip: the block was selected and
-    # nothing about it was proven. It turns the run's exit code into 2.
+    # nothing about it was proven. It turns the run's exit code into 2. So does
+    # a baseline that ran no test at all, or skipped its GUI tests.
     baseline_failed: bool = False
 
     @property
@@ -141,7 +158,7 @@ class Scope:
 # --- running pytest ---------------------------------------------------------
 
 
-def _pytest_env(root: Path) -> dict[str, str]:
+def _pytest_env(root: Path, display: str | None = None) -> dict[str, str]:
     """The environment a pytest of ``root`` must run under.
 
     ``root/src`` goes FIRST on ``PYTHONPATH``. The main venv resolves
@@ -150,16 +167,57 @@ def _pytest_env(root: Path) -> dict[str, str]:
     own ``src/`` on top. Without this prepend a pytest started inside a copy
     would import one of those -- the unmutated code -- and every verdict would be
     about the wrong file.
+
+    ``display`` is the worker's virtual X display, when the runner started one.
+    ``ZEBTRACK_HEADLESS_TESTS`` is never inherited: it makes the suite skip
+    every ``gui`` test, and the runner exists to run them.
     """
     env = dict(os.environ)
     inherited = env.get("PYTHONPATH", "")
     src = str(root / "src")
     env["PYTHONPATH"] = src + (os.pathsep + inherited if inherited else "")
+    env.pop("ZEBTRACK_HEADLESS_TESTS", None)
+    if display is not None:
+        env["DISPLAY"] = display
     return env
 
 
+def _pytest_command(test_paths: list[str], basetemp: Path | None = None) -> list[str]:
+    """The pytest invocation for one baseline or mutant.
+
+    ``-m ""`` selects EVERY marker. pytest.ini deselects ``gui`` and ``slow`` by
+    default, so a block whose tests are all ``@pytest.mark.gui`` ran zero tests:
+    its baseline "passed" and every mutant survived with nothing tested (#724).
+    ``-n0`` keeps the GUI tests out of xdist workers (the ttkbootstrap Style
+    singleton), even if ``PYTEST_ADDOPTS`` asks for parallelism. ``-ra`` keeps
+    the skip reasons in the output, which is how a GUI test skipped for lack of
+    a display is told apart from one that ran.
+    """
+    command = [
+        sys.executable,
+        "-m",
+        "pytest",
+        *test_paths,
+        "-q",
+        "-m",
+        "",
+        "-n0",
+        "-ra",
+        "--no-cov",
+        "-p",
+        "no:randomly",
+    ]
+    if basetemp is not None:
+        command.append(f"--basetemp={basetemp}")
+    return command
+
+
 def _run_pytest(
-    test_paths: list[str], root: Path, *, basetemp: Path | None = None
+    test_paths: list[str],
+    root: Path,
+    *,
+    basetemp: Path | None = None,
+    display: str | None = None,
 ) -> tuple[int, int, str]:
     """Run pytest on ``test_paths`` inside ``root``; return (failures, passes, output).
 
@@ -173,13 +231,10 @@ def _run_pytest(
     the shared default (``pytest-of-<user>``) prunes old numbered directories,
     and one worker could delete another's ``tmp_path`` mid-test.
     """
-    command = [sys.executable, "-m", "pytest", *test_paths, "-q", "--no-cov", "-p", "no:randomly"]
-    if basetemp is not None:
-        command.append(f"--basetemp={basetemp}")
     completed = subprocess.run(
-        command,
+        _pytest_command(test_paths, basetemp),
         cwd=root,
-        env=_pytest_env(root),
+        env=_pytest_env(root, display),
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -194,6 +249,82 @@ def _run_pytest(
         else:
             failures += int(count)
     return failures, passes, output
+
+
+# --- a display for the GUI tests --------------------------------------------
+
+
+def _needs_virtual_display(
+    platform: str = sys.platform, environ: Mapping[str, str] = os.environ
+) -> bool:
+    """True where Tk needs an X server and none is configured.
+
+    Windows and macOS draw natively, so the maintainer's machine never needs
+    one; a Linux CI runner or a headless container does.
+    """
+    if platform.startswith(("win", "cygwin", "darwin")):
+        return False
+    return not environ.get("DISPLAY")
+
+
+@dataclass
+class _VirtualDisplay:
+    """A private Xvfb server; ``name`` is what ``DISPLAY`` must be set to."""
+
+    process: subprocess.Popen[bytes]
+    name: str
+
+    def stop(self) -> None:
+        if self.process.poll() is None:
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait()
+
+
+def _start_virtual_display(xvfb: str, timeout: float = _XVFB_START_TIMEOUT_S) -> _VirtualDisplay:
+    """Start ``xvfb`` on a free display number and wait until it accepts clients.
+
+    ``-displayfd`` makes the server pick the number itself and write it to the
+    pipe once it is ready, so concurrent workers never race for the same
+    number (the well-known flaw of ``xvfb-run -a``) and no sleep is guessed.
+    """
+    read_fd, write_fd = os.pipe()
+    try:
+        process = subprocess.Popen(
+            [xvfb, "-displayfd", str(write_fd), "-screen", "0", "1280x1024x24", "-nolisten", "tcp"],
+            pass_fds=(write_fd,),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        os.close(read_fd)
+        os.close(write_fd)
+        raise UntrustedRunError(f"could not start {xvfb}: {exc}") from exc
+    os.close(write_fd)
+
+    announced = b""
+    try:
+        while not announced.endswith(b"\n"):
+            ready, _, _ = select.select([read_fd], [], [], timeout)
+            chunk = os.read(read_fd, 64) if ready else b""
+            if not chunk:
+                break
+            announced += chunk
+    finally:
+        os.close(read_fd)
+
+    number = announced.decode("ascii", errors="replace").strip()
+    if not number.isdigit():
+        _VirtualDisplay(process, "").stop()
+        raise UntrustedRunError(
+            f"{xvfb} did not report a display within {timeout:.0f}s -- the GUI tests "
+            "could not run, so nothing about their blocks would be proven"
+        )
+    return _VirtualDisplay(process, f":{number}")
 
 
 # --- the copies the mutants live in -----------------------------------------
@@ -250,14 +381,38 @@ class _WorkspacePool:
     A copy is ~1000 files; rebuilding it per mutant would cost more than some
     of the pytest runs it hosts. Reuse is safe because a mutant is always
     restored -- and verified against the checkout's bytes -- before the next one.
+
+    With ``xvfb`` set, each worker also gets its own virtual display: two Tk
+    tests drawing on one server can steal each other's focus and grabs.
     """
 
-    def __init__(self, source_root: Path, parent: Path) -> None:
+    def __init__(self, source_root: Path, parent: Path, *, xvfb: str | None = None) -> None:
         self._source_root = source_root
         self._parent = parent
+        self._xvfb = xvfb
         self._local = threading.local()
         self._lock = threading.Lock()
         self.built: list[Path] = []
+        self.displays: list[_VirtualDisplay] = []
+
+    def display(self) -> str | None:
+        """The calling worker's ``DISPLAY``, started on first use; None without Xvfb."""
+        if self._xvfb is None:
+            return None
+        current: _VirtualDisplay | None = getattr(self._local, "display", None)
+        if current is None:
+            current = _start_virtual_display(self._xvfb)
+            with self._lock:
+                self.displays.append(current)
+            self._local.display = current
+        return current.name
+
+    def close(self) -> None:
+        """Stop every display a worker started."""
+        with self._lock:
+            displays, self.displays = self.displays, []
+        for display in displays:
+            display.stop()
 
     def get(self) -> Path:
         workspace: Path | None = getattr(self._local, "path", None)
@@ -364,16 +519,19 @@ def _execute(
 ) -> _Outcome:
     """Run one baseline or one mutant in the calling worker's copy."""
     workspace = pool.get()
+    display = pool.display()
     paths = [str(workspace / path) for path in test_paths]
     basetemp = workspace / ".bt"
     if task.index is None:
-        failures, passes, output = _run_pytest(paths, workspace, basetemp=basetemp)
+        failures, passes, output = _run_pytest(paths, workspace, basetemp=basetemp, display=display)
         return _Outcome(failures, passes, output)
 
     mutation = spec["mutations"][task.index]
     try:
         with _mutated(workspace / spec["source"], pristine, mutation["find"], mutation["replace"]):
-            failures, passes, output = _run_pytest(paths, workspace, basetemp=basetemp)
+            failures, passes, output = _run_pytest(
+                paths, workspace, basetemp=basetemp, display=display
+            )
     except ValueError as exc:
         return _Outcome(note=str(exc))
     return _Outcome(failures, passes, output)
@@ -420,6 +578,32 @@ def _tree_changes(snapshot: dict[str, bytes], source_root: Path) -> list[str]:
     return changed
 
 
+def _baseline_problem(baseline: _Outcome) -> str:
+    """Why ``baseline`` cannot vouch for its block's mutants; empty when it can.
+
+    A mutant counts as killed only when tests that passed on the original now
+    fail. With failures already on the original, with no test run at all, or
+    with the GUI tests skipped, a "survivor" would be a hole in the RUN, not in
+    the tests -- so none of those blocks gets its mutants queued.
+    """
+    if baseline.failures:
+        return (
+            f"baseline is not green ({baseline.failures} failing) -- "
+            "fix the suite before trusting mutation results"
+        )
+    if not baseline.passes:
+        return (
+            "baseline ran 0 tests -- nothing about this block was proven "
+            "(check the test ids in the catalogue)"
+        )
+    if _HEADLESS_SKIP_REASON in baseline.output:
+        return (
+            "baseline skipped its GUI tests for lack of a display -- nothing they "
+            "check was proven (install Xvfb, or run where Tk has a display)"
+        )
+    return ""
+
+
 def _print_block(
     report: ModuleReport,
     spec: dict[str, Any],
@@ -432,12 +616,10 @@ def _print_block(
     """Print one block's section and fill ``report`` -- always in catalogue order."""
     mutations = spec["mutations"]
     print(f"\n=== {report.name}  ({len(mutations)} mutations, {len(test_paths)} test files)")
-    if baseline.failures:
+    problem = _baseline_problem(baseline)
+    if problem:
         report.baseline_failed = True
-        report.skipped_reason = (
-            f"baseline is not green ({baseline.failures} failing) -- "
-            "fix the suite before trusting mutation results"
-        )
+        report.skipped_reason = problem
         if verbose:
             print(baseline.output)
         print(f"  SKIPPED: {report.skipped_reason}")
@@ -473,15 +655,31 @@ def _run_blocks(
     snapshot: dict[str, bytes],
     source_root: Path = REPO_ROOT,
     tmp_root: Path | None = None,
+    virtual_display: bool | None = None,
 ) -> list[ModuleReport]:
     """Run every selected block on ``jobs`` workers; reports come back in catalogue order.
 
     Every block's baseline is queued first. A block's mutants are queued only
-    once its baseline is green: a mutant "killed" by a suite that was already
-    failing proves nothing. Sections are printed in catalogue order as soon as
-    each one -- and every block before it -- is complete, so the log reads the
-    same with one worker or twenty.
+    once its baseline is usable (``_baseline_problem``): a mutant "killed" by a
+    suite that was already failing proves nothing, and one that "survived" a
+    suite that ran nothing proves nothing either. Sections are printed in
+    catalogue order as soon as each one -- and every block before it -- is
+    complete, so the log reads the same with one worker or twenty.
+
+    ``virtual_display`` None means: start one Xvfb per worker when this machine
+    needs one (``_needs_virtual_display``). Without an Xvfb to start, the run
+    goes on -- non-GUI blocks are unaffected -- and a block whose GUI tests the
+    suite then skips is reported unproven (exit 2) by its baseline.
     """
+    if virtual_display is None:
+        virtual_display = _needs_virtual_display()
+    xvfb = shutil.which("Xvfb") if virtual_display else None
+    if virtual_display and xvfb is None:
+        print(
+            "!! no DISPLAY and no Xvfb on PATH -- a block with GUI tests will be "
+            "reported unproven (exit 2); install xvfb to run them"
+        )
+
     order = list(selected)
     reports: dict[str, ModuleReport] = {}
     tests: dict[str, list[str]] = {}
@@ -497,7 +695,9 @@ def _run_blocks(
         baseline = baselines.get(name)
         if baseline is None:
             return False
-        return bool(baseline.failures) or len(mutants[name]) == len(selected[name]["mutations"])
+        if _baseline_problem(baseline):
+            return True
+        return len(mutants[name]) == len(selected[name]["mutations"])
 
     printed = 0
 
@@ -520,7 +720,7 @@ def _run_blocks(
     with tempfile.TemporaryDirectory(
         prefix="mc_", dir=tmp_root, ignore_cleanup_errors=True
     ) as scratch:
-        pool = _WorkspacePool(source_root, Path(scratch))
+        pool = _WorkspacePool(source_root, Path(scratch), xvfb=xvfb)
         executor = ThreadPoolExecutor(max_workers=jobs, thread_name_prefix="mutation")
         pending: dict[Future[_Outcome], _Task] = {}
 
@@ -543,7 +743,7 @@ def _run_blocks(
                     outcome = future.result()
                     if task.index is None:
                         baselines[task.block] = outcome
-                        if not outcome.failures:
+                        if not _baseline_problem(outcome):
                             for index in range(len(selected[task.block]["mutations"])):
                                 submit(_Task(task.block, index))
                     else:
@@ -553,6 +753,7 @@ def _run_blocks(
             # On an error or Ctrl-C: drop what has not started, wait for what has
             # (each restores its copy on the way out), then remove the copies.
             executor.shutdown(wait=True, cancel_futures=True)
+            pool.close()
 
     return [reports[name] for name in order]
 
@@ -899,7 +1100,7 @@ def main() -> int:
     red = [report.name for report in reports if report.baseline_failed]
     if red:
         print(
-            f"\n!! red baseline in {', '.join(red)} -- nothing about these blocks was proven",
+            f"\n!! unusable baseline in {', '.join(red)} -- nothing about these blocks was proven",
             file=sys.stderr,
         )
     return _exit_code(reports)

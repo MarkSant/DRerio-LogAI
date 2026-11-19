@@ -129,7 +129,8 @@ class BlockDetailDialog(Toplevel):
                 else None
             )
             self._project_has_polygon = bool(zone_data and getattr(zone_data, "polygon", None))
-        except Exception:
+        except Exception as exc:
+            log.debug("block_detail.project_polygon.failed", error=str(exc))
             self._project_has_polygon = False
 
         # v2.3.1: Debug log for session detection

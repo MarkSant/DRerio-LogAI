@@ -229,7 +229,7 @@ class TestAssetManagerExtended:
 
         # 1. Empty name
         with pytest.raises(ValueError, match="cannot be empty"):
-            manager.save_roi_template(project_data, "/proj", "", MagicMock(), MagicMock())
+            manager.save_roi_template(project_data, "/proj", "", MagicMock())
 
         # 2. None zone_data
         with pytest.raises(ValueError, match="Invalid zone data"):
@@ -238,7 +238,6 @@ class TestAssetManagerExtended:
                 "/proj",
                 "Name",
                 None,  # type: ignore[arg-type]
-                MagicMock(),
             )
 
         # 3. Neither arena nor ROIs
@@ -249,16 +248,13 @@ class TestAssetManagerExtended:
                 "/proj",
                 "Name",
                 mock_zones,
-                MagicMock(),
                 save_arena=False,
                 save_rois=False,
             )
 
         # 4. No project path when saving to project
         with pytest.raises(ValueError, match="no project loaded"):
-            manager.save_roi_template(
-                project_data, "", "Name", mock_zones, MagicMock(), save_location="project"
-            )
+            manager.save_roi_template(project_data, "", "Name", mock_zones, save_location="project")
 
     def test_import_roi_template_file_not_found(self, tmp_path: Path):
         manager = AssetManager()
@@ -271,7 +267,6 @@ class TestAssetManagerExtended:
                 project_path=tmp_path,
                 file_path=missing_file,
                 zone_data_from_dict_fn=MagicMock(),
-                zone_data_to_dict_fn=MagicMock(),
             )
 
     def test_load_roi_template_missing_file_in_project(self, tmp_path: Path):
@@ -363,12 +358,12 @@ class TestAssetManagerExtended5:
     def test_save_roi_template_empty_name_raises(self):
         am = AssetManager()
         with pytest.raises(ValueError, match="cannot be empty"):
-            am.save_roi_template({}, "/path", "", MagicMock(), MagicMock())
+            am.save_roi_template({}, "/path", "", MagicMock())
 
     def test_save_roi_template_none_zone_data_raises(self):
         am = AssetManager()
         with pytest.raises(ValueError, match="Invalid zone data"):
-            am.save_roi_template({}, "/path", "MyTemplate", None, MagicMock())  # type: ignore[arg-type]
+            am.save_roi_template({}, "/path", "MyTemplate", None)  # type: ignore[arg-type]
 
     def test_save_roi_template_neither_arena_nor_rois_raises(self):
         am = AssetManager()
@@ -378,7 +373,6 @@ class TestAssetManagerExtended5:
                 "/path",
                 "MyTemplate",
                 MagicMock(),
-                MagicMock(),
                 save_arena=False,
                 save_rois=False,
             )
@@ -386,9 +380,7 @@ class TestAssetManagerExtended5:
     def test_save_roi_template_no_project_loaded_raises(self):
         am = AssetManager()
         with pytest.raises(ValueError, match="no project loaded"):
-            am.save_roi_template(
-                {}, "", "MyTemplate", MagicMock(), MagicMock(), save_location="project"
-            )
+            am.save_roi_template({}, "", "MyTemplate", MagicMock(), save_location="project")
 
 
 class TestAssetManagerExtended6:
@@ -442,9 +434,7 @@ def _template_zone() -> ZoneData:
 
 
 def _save(manager, project_data, project_path, name, **kwargs):
-    return manager.save_roi_template(
-        project_data, project_path, name, _template_zone(), ZoneManager.zone_data_to_dict, **kwargs
-    )
+    return manager.save_roi_template(project_data, project_path, name, _template_zone(), **kwargs)
 
 
 class TestProjectTemplates:
@@ -525,7 +515,6 @@ class TestProjectTemplates:
             tmp_path,
             source,
             ZoneManager.zone_data_from_dict,
-            ZoneManager.zone_data_to_dict,
             persist_callback=lambda: calls.append(1),
         )
         orphan = isolated_manager.import_roi_template(
@@ -533,7 +522,6 @@ class TestProjectTemplates:
             None,
             str(source),
             ZoneManager.zone_data_from_dict,
-            ZoneManager.zone_data_to_dict,
             name="Renamed",
             persist_callback=lambda: calls.append(2),
         )
@@ -550,7 +538,7 @@ class TestProjectTemplates:
 
         with pytest.raises(ValueError, match="'data' block"):
             isolated_manager.import_roi_template(
-                {}, tmp_path, source, ZoneManager.zone_data_from_dict, ZoneManager.zone_data_to_dict
+                {}, tmp_path, source, ZoneManager.zone_data_from_dict
             )
 
 

@@ -677,7 +677,8 @@ class ArduinoBindingsPanel(ttk.Frame):
         try:
             zone_data = self.project_manager.get_zone_data()
         # except Exception justified: zone data may be unavailable early on.
-        except Exception:
+        except Exception as exc:
+            log.warning("arduino_bindings.zone_data.failed", error=str(exc))
             return []
         return self._clean_names(getattr(zone_data, "roi_names", []))
 

@@ -728,7 +728,7 @@ def test_summary_regenerated_from_trajectory_when_missing(coordinator, sample_su
     )
     coordinator.project_manager.resolve_results_directory = Mock(return_value=results_dir)
 
-    def fake_regen(entries, settings=None):
+    def fake_regen(entries):
         # Simula a regeneração real: grava o sumário e registra o caminho no entry.
         sample_summary_df.to_parquet(summary_path, index=False)
         for e in entries:

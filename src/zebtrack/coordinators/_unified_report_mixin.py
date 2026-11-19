@@ -245,7 +245,7 @@ class UnifiedReportMixin:
     # ------------------------------------------------------------------
 
     # Host-provided method (implemented by ReportGenerationCoordinator)
-    generate_parquet_summaries: Any  # (entries: list[dict], settings) -> None
+    generate_parquet_summaries: Any  # (entries: list[dict]) -> None
 
     def _video_zone_sets(self, path: Path | str) -> list[Any]:
         """Every zone set of a video: one per aquarium, or the single one.
@@ -359,7 +359,7 @@ class UnifiedReportMixin:
 
         if to_regen:
             log.info("workflow.unified_report.summary_regenerating", count=len(to_regen))
-            self.generate_parquet_summaries(to_regen, self.settings)
+            self.generate_parquet_summaries(to_regen)
 
         missing: list[str] = []
         for path, entry in zip(regen_paths, to_regen, strict=True):

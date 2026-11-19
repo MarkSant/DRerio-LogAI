@@ -68,13 +68,11 @@ class CalibrationCoordinator(BaseCoordinator):
 
     def get_calibration_scope_info(
         self,
-        get_active_weight_name: Callable[[], str | None] | None = None,
         gui_instance: Any | None = None,
     ) -> dict[str, Any]:
         """Get calibration scope information for UI display.
 
         Args:
-            get_active_weight_name: Callback to get active weight name
             gui_instance: Optional GUI instance for single-video mode check
 
         Returns:
@@ -86,7 +84,8 @@ class CalibrationCoordinator(BaseCoordinator):
         if project_loaded and hasattr(self.project_manager, "get_project_name"):
             try:
                 project_name = self.project_manager.get_project_name()
-            except Exception:
+            except Exception as exc:
+                log.debug("calibration_scope.project_name.failed", error=str(exc))
                 project_name = None
 
         overrides_active = self.model_override_service.has_project_override_settings()

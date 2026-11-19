@@ -139,7 +139,6 @@ def _copy(pio, orm, project, source, target, find_video_entry_fn):
     return pio.copy_zone_parquet_files(
         str(source),
         str(target),
-        project_data={},
         project_path=project,
         set_active_zone_video_fn=lambda p: None,
         scan_input_paths_fn=lambda paths: [],  # PNG: scan nunca retorna nada

@@ -129,14 +129,15 @@ class VideoProcessingService(
         frame_source,
         output_dir: str,
         experiment_id: str,
-        detector: Detector,
-        recorder: Recorder,
         single_video_config: dict | None = None,
         analysis_interval_frames: int = 10,
         display_interval_frames: int = 10,
-        record_video: bool = True,
     ) -> bool:
         """Process frames from a FrameSource (live camera or video file).
+
+        The tracking runs in ``ProcessingWorker``, which builds its own detector
+        and recorder and always records; there is no detector, recorder or
+        ``record_video`` to pass (#726).
 
         Returns:
             True if processing succeeded, False otherwise
@@ -155,10 +156,7 @@ class VideoProcessingService(
             video_path=frame_source,
             results_dir=str(output_path),
             experiment_id=experiment_id,
-            detector=detector,
-            recorder=recorder,
             progress_callback=None,
-            calibration_data=single_video_config,
             analysis_interval_frames=analysis_interval_frames,
             display_interval_frames=display_interval_frames,
         )
@@ -203,10 +201,12 @@ class VideoProcessingService(
         metadata_context: dict | None,
         analysis_profile: dict | None,
         detector: Detector,
-        recorder: Recorder,
         processing_report_callback: Callable[[], Any] | None = None,
     ) -> tuple[bool, str | None]:
         """Process a single video: tracking + analysis.
+
+        ``detector`` is only the in-process detector whose cache is cleared at
+        the end; the tracking itself runs in ``ProcessingWorker`` with its own.
 
         Returns:
             Tuple of (success: bool, results_dir: str | None)
@@ -274,13 +274,9 @@ class VideoProcessingService(
                 video_path,
                 results_dir,
                 experiment_id,
-                detector,
-                recorder,
                 progress_callback,
-                calibration_data=single_video_config,
                 analysis_interval_frames=analysis_interval_frames,
                 display_interval_frames=display_interval_frames,
-                video_context=video_context,
             )
 
             if self.cancel_event.is_set():

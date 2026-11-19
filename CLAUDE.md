@@ -566,6 +566,11 @@ stay in catalogue order. A red baseline now exits **2**, not 0: it proves nothin
 block. A catalogued test that reads a directory outside that list fails its baseline in the copy;
 add the directory to `_WORKSPACE_DIRS`.
 
+**Every marker runs (#724).** The runner passes `-m "" -n0`, so `gui`/`slow` tests in a block are
+not deselected; on Linux without a `DISPLAY` each worker starts its own Xvfb (Windows/macOS need
+none). A baseline that ran **0 tests**, or whose GUI tests were skipped for lack of a display, exits
+**2** like a red one — it never reports its mutants as survivors.
+
 Three shapes are rejected automatically by `tests/quality/test_no_hollow_tests.py`:
 
 - **Tautology** — building an instance with `object.__new__`, assigning attributes, and asserting
@@ -608,7 +613,7 @@ what produced 47 byte-identical duplicates and made it impossible to see what wa
   - **Never put `delay()` in the sketch's `loop()`.** It blocks the serial read for its full duration, so an enter/exit pair collapses into an invisible flash when the queue finally drains, and `serial_act_ms` in the closed-loop log measures the block rather than the pipeline. Use `millis()` timing and `INPUT_PULLUP` on button pins (a floating `INPUT` pin self-triggers).
 - **Camera**: `camera.index` in `config.local.yaml` (machine-specific).
 - **OpenVINO**: model cache in `openvino_model_cache/`.
-- **Parallelism**: `performance.max_parallel_videos` (2), `performance.max_parallel_plots` (3), `performance.parquet_compression` ("snappy"), `performance.enable_parallel_analysis` (true).
+- **Parallelism**: `performance.max_parallel_videos` (2), `performance.max_parallel_plots` (3), `performance.parquet_compression` ("snappy"), `performance.enable_parallel_analysis` (true; `false` or `memory_mode: "low"` ⇒ sequential report figures, and `"low"` also caps OpenVINO `batch_nireq` at 1 — one rule in `utils/performance_policy.py`).
 
 Tuning details: [`docs/guides/developer/performance-tuning.md`](docs/guides/developer/performance-tuning.md), [`docs/performance/HARDWARE_OPTIMIZATION_GUIDE.md`](docs/performance/HARDWARE_OPTIMIZATION_GUIDE.md).
 
