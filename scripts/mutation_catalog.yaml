@@ -6319,3 +6319,51 @@ _load_registry()"
         description: "F2: deteccao por regex que falha derruba o editor de delineamento"
         find: "                new_design = self.on_custom_regex_configured(result_patterns)\n            except Exception:"
         replace: "                new_design = self.on_custom_regex_configured(result_patterns)\n            except KeyError:"
+  probe_failure_logs_analysis_view:
+    source: src/zebtrack/ui/components/analysis_view_controller.py
+    tests:
+      - tests/ui/components/test_analysis_view_controller_live.py
+    mutations:
+      - id: failing-state-probe-propagates
+        description: "#727: sonda de estado ao vivo que falha derruba a visao de analise"
+        find: "processing_state = get_processing_state()\n            except Exception as exc:"
+        replace: "processing_state = get_processing_state()\n            except KeyError as exc:"
+      - id: failing-coordinator-probe-propagates
+        description: "#727: sonda do coordenador que falha derruba a visao de analise"
+        find: "return bool(is_active_fn())\n            except Exception as exc:"
+        replace: "return bool(is_active_fn())\n            except KeyError as exc:"
+  probe_failure_logs_event_dispatcher:
+    source: src/zebtrack/ui/components/event_dispatcher.py
+    tests:
+      - tests/ui/components/test_event_dispatcher_extended.py
+    mutations:
+      - id: failing-state-probe-propagates
+        description: "#727: sonda de estado ao vivo que falha derruba o despacho de metadados"
+        find: "processing_state = get_processing_state()\n            except Exception as exc:"
+        replace: "processing_state = get_processing_state()\n            except KeyError as exc:"
+      - id: failing-coordinator-probe-propagates
+        description: "#727: sonda do coordenador que falha derruba o despacho de metadados"
+        find: "return bool(is_active_fn())\n            except Exception as exc:"
+        replace: "return bool(is_active_fn())\n            except KeyError as exc:"
+  probe_failure_logs_state_synchronizer:
+    source: src/zebtrack/ui/components/state_synchronizer.py
+    tests:
+      - tests/ui/components/test_state_synchronizer_extended.py
+    mutations:
+      - id: failing-state-probe-propagates
+        description: "#727: sonda de estado ao vivo que falha derruba a sincronizacao da UI"
+        find: "processing_state = get_processing_state()\n                except Exception as exc:"
+        replace: "processing_state = get_processing_state()\n                except KeyError as exc:"
+      - id: failing-coordinator-probe-propagates
+        description: "#727: sonda do coordenador que falha derruba a sincronizacao da UI"
+        find: "return bool(is_active_fn())\n            except Exception as exc:"
+        replace: "return bool(is_active_fn())\n            except KeyError as exc:"
+  probe_failure_logs_block_detail:
+    source: src/zebtrack/ui/dialogs/block_detail_dialog.py
+    tests:
+      - tests/ui/dialogs/test_block_detail_dialog_extended.py
+    mutations:
+      - id: failing-zone-data-breaks-dialog
+        description: "#727: zonas ilegiveis derrubam a abertura do dialogo do bloco"
+        find: "self._project_has_polygon = bool(zone_data and getattr(zone_data, \"polygon\", None))\n        except Exception as exc:"
+        replace: "self._project_has_polygon = bool(zone_data and getattr(zone_data, \"polygon\", None))\n        except KeyError as exc:"

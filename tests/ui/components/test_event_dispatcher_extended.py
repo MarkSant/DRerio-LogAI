@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
+from structlog.testing import capture_logs
 
 from zebtrack.ui import payloads
 from zebtrack.ui.components.event_dispatcher import (
@@ -653,3 +655,45 @@ class TestUnregisterWhenTheBusRefuses:
 
         assert UIEvents.ZONES_UPDATED not in dispatcher.handlers
         bus.unsubscribe.assert_called_once()
+
+
+class TestLiveMetadataProbeFailures:
+    """A failing live probe is logged and degrades to "not live"."""
+
+    @staticmethod
+    def _dispatcher(controller: Any) -> EventDispatcher:
+        dispatcher = EventDispatcher(MagicMock())
+        dispatcher.gui = cast(Any, SimpleNamespace(controller=controller))
+        return dispatcher
+
+    def test_failing_state_probe_is_logged_and_falls_through(self):
+        controller = SimpleNamespace(
+            state_manager=SimpleNamespace(
+                get_processing_state=MagicMock(side_effect=RuntimeError("state down"))
+            ),
+            live_camera_session_coordinator=SimpleNamespace(is_live_session_active=lambda: True),
+        )
+
+        with capture_logs() as logs:
+            result = self._dispatcher(controller)._is_live_metadata_context()
+
+        assert result is True  # the coordinator probe still decides
+        failed = [e for e in logs if e["event"] == "event_dispatcher.live_state_probe.failed"]
+        assert [e["error"] for e in failed] == ["state down"]
+        assert failed[0]["log_level"] == "debug"
+
+    def test_failing_coordinator_probe_is_logged_and_means_not_live(self):
+        controller = SimpleNamespace(
+            state_manager=None,
+            live_camera_session_coordinator=SimpleNamespace(
+                is_live_session_active=MagicMock(side_effect=RuntimeError("coord down"))
+            ),
+        )
+
+        with capture_logs() as logs:
+            result = self._dispatcher(controller)._is_live_metadata_context()
+
+        assert result is False
+        failed = [e for e in logs if e["event"] == "event_dispatcher.live_coordinator_probe.failed"]
+        assert [e["error"] for e in failed] == ["coord down"]
+        assert failed[0]["log_level"] == "debug"

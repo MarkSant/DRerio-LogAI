@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
+from structlog.testing import capture_logs
 
 from zebtrack.ui.dialogs.block_detail_dialog import (
     BlockDetailDialog,
@@ -68,6 +69,32 @@ class TestBlockDetailDialogHelpers:
         assert dlg.day == "Dia_2"
         assert dlg._project_has_polygon is True
         assert (2, "TestGroup", 1) in dlg.completed_sessions
+        dlg.destroy()
+
+    @patch("zebtrack.ui.dialogs.block_detail_dialog.BlockDetailDialog.build_ui")
+    def test_failing_zone_data_is_logged_and_hides_the_reused_badge(
+        self, mock_build_ui, tkinter_root
+    ):
+        mock_pm = MagicMock()
+        mock_pm.project_data = {"subjects_per_group": 5}
+        mock_pm.get_completed_sessions.return_value = []
+        mock_pm.get_zone_data.side_effect = RuntimeError("zones broken")
+        mock_pm.project_path = "/path/project"
+
+        with capture_logs() as logs:
+            dlg = BlockDetailDialog(
+                parent=tkinter_root,
+                day=1,
+                group="Control",
+                project_manager=mock_pm,
+                session_coordinator=MagicMock(),
+                live_batch_coordinator=MagicMock(),
+            )
+
+        assert dlg._project_has_polygon is False
+        failed = [e for e in logs if e["event"] == "block_detail.project_polygon.failed"]
+        assert [e["error"] for e in failed] == ["zones broken"]
+        assert failed[0]["log_level"] == "debug"
         dlg.destroy()
 
 
