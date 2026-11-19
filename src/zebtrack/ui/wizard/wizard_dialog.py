@@ -159,7 +159,10 @@ class WizardDialog(Dialog):
                 self.steps_container, self.wizard_data
             ),
             WizardStepID.CALIBRATION: CalibrationStep(
-                self.steps_container, self.wizard_data, event_bus=self.event_bus
+                self.steps_container,
+                self.wizard_data,
+                event_bus=self.event_bus,
+                settings_obj=self.settings,
             ),
             WizardStepID.DETECTION_VALIDATION: DetectionStep(
                 self.steps_container, self.wizard_data

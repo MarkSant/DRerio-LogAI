@@ -20,6 +20,8 @@ import datetime
 import os
 import tempfile
 import time
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import cv2
@@ -56,6 +58,32 @@ if TYPE_CHECKING:
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
+
+#: Returned by a calibration step that went to a background worker: the outcome
+#: arrives later, through the step's ``on_done`` (audit A6-03).
+_STEP_ASYNC = object()
+
+
+@dataclass
+class _CalibrationResult:
+    """What the blocking half of a calibration found (built off the Tk thread)."""
+
+    status: str  # ok | camera_failed | insufficient_frames | no_model | detect_error | no_polygon
+    frames: list[Any] = field(default_factory=list)
+    polygons: list[Any] = field(default_factory=list)
+    initial_confidence: float = 0.05
+    error: BaseException | None = None
+
+
+class _AttrOverride:
+    """Read-through view of an object with a few attributes replaced."""
+
+    def __init__(self, base: Any, **overrides: Any) -> None:
+        self._base = base
+        self.__dict__.update(overrides)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._base, name)
 
 
 def _arena_class_id(detector: Any) -> int:
@@ -137,6 +165,8 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         # Internal state
         self.camera: Camera | None = None
         self._pending_zone_confirmation = False
+        # A6-03: a calibration step is running on a worker.
+        self._calibration_in_progress = False
         self._session_count = 0
         #: Perspectiva do fluxo AD-HOC ao vivo, memorizada de
         #: ``run_live_calibration(perspective=...)``. Sem projeto não há
@@ -244,7 +274,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             try:
                 stopped_event.set()
             # except Exception justified: defensive — release must not throw.
-            except Exception:  # pragma: no cover
+            except Exception:
                 log.debug("live_calibration_coordinator.camera.stop_signal_failed")
         release_fn = getattr(camera, "release", None)
         if callable(release_fn):
@@ -252,7 +282,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 release_fn()
             # except Exception justified: hardware/OS may already have torn
             # the device down — log and continue rather than propagating.
-            except Exception:  # pragma: no cover
+            except Exception:
                 log.debug("live_calibration_coordinator.camera.release_failed")
         self.camera = None
         log.info("live_calibration_coordinator.camera_released", reason=reason)
@@ -310,11 +340,139 @@ class LiveCalibrationCoordinator(BaseCoordinator):
     # ZONE VALIDATION
     # =============================================================================
 
-    def ensure_zones_before_recording(  # noqa: C901
+    # =============================================================================
+    # OFF-TK STEPS (audit A6-03)
+    # =============================================================================
+
+    @property
+    def calibration_in_progress(self) -> bool:
+        """A camera/detection step is running on a worker; its result is pending."""
+        return self._calibration_in_progress
+
+    def _settings_for_camera(self, camera_index: int) -> Any:
+        """Settings view whose ``camera.index`` is ``camera_index``.
+
+        The camera used to be opened by setting the SHARED ``settings.camera.index``
+        and restoring it after ``Camera(...)``. On a worker that window lasts as
+        long as the device open (seconds) while the Tk thread may read it.
+        """
+        camera_cfg = _AttrOverride(self.settings.camera, index=camera_index)
+        return _AttrOverride(self.settings, camera=camera_cfg)
+
+    def _calibration_step(
+        self,
+        busy_message: str,
+        work: Callable[[], Any],
+        then: Callable[[Any], Any],
+        *,
+        on_done: Callable[[bool], None] | None = None,
+        reset_pending: bool = False,
+    ) -> Any:
+        """Run ``work`` and hand its result to ``then``; off the Tk thread when possible.
+
+        Without a Tk root: inline, and ``then``'s return value is returned
+        (``on_done`` is not called). With a root: ``work`` runs on a daemon
+        worker under a modal ``busy_message`` window, ``then`` runs on the Tk
+        thread, and ``_STEP_ASYNC`` is returned; ``on_done`` later receives the
+        final outcome. ``then`` may itself start another step and return
+        ``_STEP_ASYNC``: the chain only finishes when a step returns a bool.
+        """
+        if self.root is None:
+            try:
+                result = work()
+            # except Exception justified: hardware + model inference boundary;
+            # ``then`` reports the failure.
+            except Exception:
+                log.error("live_calibration_coordinator.step.work_failed", exc_info=True)
+                result = None
+            return then(result)
+
+        from zebtrack.ui.background_task import run_in_background
+
+        self._calibration_in_progress = True
+        busy = self._open_busy_dialog(busy_message)
+
+        def _deliver(result: Any) -> None:
+            self._close_busy_dialog(busy)
+            if reset_pending:
+                # The gate was marked pending only so callers would not report
+                # an error while the worker ran; the tail decides for real.
+                self._pending_zone_confirmation = False
+            try:
+                outcome = then(result)
+            # except Exception justified: the chain must always finish, or the
+            # caller would wait for a callback that never comes.
+            except Exception:
+                log.error("live_calibration_coordinator.step.then_failed", exc_info=True)
+                outcome = False
+            if outcome is _STEP_ASYNC:
+                return
+            self._calibration_in_progress = False
+            if on_done is not None:
+                on_done(bool(outcome))
+
+        def _failed(exc: BaseException) -> None:
+            log.error("live_calibration_coordinator.step.work_failed", error=str(exc))
+            _deliver(None)
+
+        run_in_background(self.root, work, _deliver, _failed, name="live-calibration")
+        return _STEP_ASYNC
+
+    def _open_busy_dialog(self, message: str) -> Any:
+        import tkinter as tk
+
+        if not isinstance(self.root, tk.Misc):
+            return None
+        from zebtrack.ui.dialogs.busy_dialog import BusyDialog
+
+        try:
+            return BusyDialog(self.root, message)
+        except tk.TclError as exc:
+            log.warning("live_calibration_coordinator.busy_dialog.failed", error=str(exc))
+            return None
+
+    @staticmethod
+    def _close_busy_dialog(dialog: Any) -> None:
+        if dialog is not None:
+            dialog.close()
+
+    def _gate_result(self, outcome: Any) -> bool:
+        """Map a zone-gate step outcome to ``ensure_zones_before_recording``'s bool.
+
+        A step still running counts as "waiting for zones": callers already
+        treat ``False`` + ``pending_zone_confirmation`` as deferred, never as an
+        error, and the real outcome arrives through ``on_pending`` /
+        ``on_abandoned``.
+        """
+        if outcome is _STEP_ASYNC:
+            self._pending_zone_confirmation = True
+            return False
+        return bool(outcome)
+
+    @staticmethod
+    def _gate_finisher(
+        coordinator: LiveCalibrationCoordinator,
+        on_pending: Callable[[], None] | None,
+        on_abandoned: Callable[[], None] | None,
+    ) -> Callable[[bool], None]:
+        """``on_done`` for an asynchronous zone gate: route to the caller's callbacks."""
+
+        def _finish(ready: bool) -> None:
+            if ready or coordinator.pending_zone_confirmation:
+                if on_pending is not None:
+                    on_pending()
+            elif on_abandoned is not None:
+                on_abandoned()
+
+        return _finish
+
+    def ensure_zones_before_recording(
         self,
         camera_index: int | None = None,
         perspective: str | None = None,
         preserve_real_shape: bool | None = None,
+        on_pending: Callable[[], None] | None = None,
+        on_abandoned: Callable[[], None] | None = None,
     ) -> bool:
         """Ensure project zones are defined before starting recording.
 
@@ -333,9 +491,22 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 real vs retângulo de 4 cantos), mesmo canal e mesma
                 precedência.
 
+            on_pending: called on the Tk thread when an asynchronous gate ends
+                waiting for the user to confirm the zones (the same state a
+                synchronous ``False`` + ``pending_zone_confirmation`` reports).
+            on_abandoned: called on the Tk thread when an asynchronous gate ends
+                without zones (cancelled, camera failure).
+
+        Threading (audit A6-03): with a Tk root, opening the camera and the
+        auto-detection run on a worker. Then this returns False with
+        ``pending_zone_confirmation`` and ``calibration_in_progress`` set, and
+        the outcome arrives through ``on_pending`` / ``on_abandoned``. Without a
+        root it runs inline, as before, and the callbacks are not used.
+
         Returns:
             True if recording can proceed, False if cancelled or waiting for zones
         """
+        gate_finish = self._gate_finisher(self, on_pending, on_abandoned)
         project_type = self.project_manager.get_project_type()
         has_project = bool(self.project_manager.project_path)
 
@@ -404,142 +575,13 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 # clicar em "Iniciar Gravação" (replay com zones_validated=True).
                 # Espelha o fluxo de auto-detecção (sucesso) abaixo, mas sem
                 # re-detectar — apenas captura um frame de referência fresco.
-                if not self._capture_reference_frame_for_zones(camera_index=camera_index):
-                    log.warning("live_calibration_coordinator.zones.reuse_reference_frame_failed")
-
-                # Fixa a chave de zonas ativa no reference-frame ANTES da
-                # edição. Sem isto, "Salvar Edição"/"Finalizar Desenho" gravam
-                # com ``video_path=None`` na chave ativa corrente (que pode não
-                # ser o reference-frame, pois o ``UI_DISPLAY_VIDEO_FRAME`` só o
-                # define de forma assíncrona). A consequência é a edição ir só
-                # para o ``detection_zones`` global, enquanto a sessão ao vivo lê
-                # a chave do reference-frame com o polígono auto-detectado —
-                # ignorando o ajuste do usuário na gravação e nos relatórios.
-                # Definir o active de forma síncrona aqui garante que edição e
-                # sessão usem a MESMA chave. (set_active é seguro: para o PNG do
-                # reference-frame o sync de parquet é no-op.)
-                try:
-                    if self.project_manager.project_path:
-                        ref_frame_path = os.path.join(
-                            str(self.project_manager.project_path),
-                            "live_camera_reference_frame.png",
-                        )
-                        self.project_manager.set_active_zone_video(ref_frame_path)
-                # except Exception justified: definir o active não pode quebrar
-                # o fluxo de reutilização.
-                except Exception:
-                    log.debug(
-                        "live_calibration_coordinator.reuse.set_active_failed",
-                        exc_info=True,
+                return self._gate_result(
+                    self._reference_frame_step(
+                        camera_index,
+                        lambda captured: self._reuse_tail(zone_data, captured),
+                        on_done=gate_finish,
                     )
-
-                guidance_title = _("Adjust the Polygon")
-                guidance_msg = _(
-                    "Polygon reused. When you close this notice, the Zone "
-                    "Configuration tab opens with ALL vertices already SELECTED "
-                    "(in red).\n\n"
-                    "To move the WHOLE polygon at once, click and DRAG over the "
-                    "area or over any of its lines (or over one of the red "
-                    "vertices). The whole polygon moves together.\n\n"
-                    "If the selection disappears, drag the mouse to form a "
-                    "rectangle over the whole polygon area to select every vertex "
-                    "again.\n\n"
-                    "Then click 'Save Edit' and 'Start Recording' when you are "
-                    "ready."
                 )
-
-                # Aviso BLOQUEANTE primeiro: ao clicar OK, a aba é então
-                # revelada já com o polígono e os vértices pré-selecionados
-                # (vermelho). Usa o dialog_manager (modal, síncrono) quando
-                # disponível; caso contrário cai no evento assíncrono.
-                shown_blocking = False
-                dialog_manager = getattr(getattr(self, "view", None), "dialog_manager", None)
-                if dialog_manager is not None and hasattr(dialog_manager, "show_info"):
-                    try:
-                        dialog_manager.show_info(guidance_title, guidance_msg)
-                        shown_blocking = True
-                    # except Exception justified: o aviso não pode quebrar o fluxo.
-                    except Exception:
-                        log.debug(
-                            "live_calibration_coordinator.reuse_guidance.blocking_failed",
-                            exc_info=True,
-                        )
-
-                if self.event_bus:
-                    if not shown_blocking:
-                        self.event_bus.publish(
-                            Event(
-                                type=UIEvents.UI_SHOW_INFO,
-                                data=payloads.MessagePayload(
-                                    title=guidance_title, message=guidance_msg
-                                ),
-                            )
-                        )
-
-                    self.event_bus.publish(
-                        Event(
-                            type=UIEvents.UI_SELECT_TAB,
-                            data=payloads.UISelectTabPayload(tab_name="zone_tab"),
-                        )
-                    )
-                    self.event_bus.publish(
-                        Event(
-                            type=UIEvents.UI_UPDATE_ZONE_LIST,
-                            data=payloads.EmptyPayload(),
-                        )
-                    )
-                    self.event_bus.publish(
-                        Event(
-                            type=UIEvents.UI_REDRAW_ZONES,
-                            data=payloads.ZonesUpdatedPayload(zone_data=None),
-                        )
-                    )
-
-                    # Deferir a entrada em modo de edição por ~150 ms (mesmo
-                    # motivo das linhas do fluxo auto: deixar o frame de
-                    # referência terminar de renderizar antes de
-                    # ``setup_interactive_polygon``). ``preselect_all=True``
-                    # faz todos os vértices surgirem já selecionados (vermelho).
-                    try:
-                        polygon = (zone_data.polygon if zone_data else None) or []
-                        bus = self.event_bus
-                        if polygon and bus is not None:
-                            import numpy as np
-
-                            _event = Event(
-                                type=UIEvents.POLYGON_EDIT_REQUESTED,
-                                data=payloads.PolygonEditRequestedPayload(
-                                    polygon=np.array(polygon),
-                                    preselect_all=True,
-                                ),
-                                source="LiveCalibrationCoordinator.reuse_zones",
-                            )
-
-                            def _publish_reuse_edit(event=_event, _bus=bus):
-                                _bus.publish(event)
-                                log.info(
-                                    "live_calibration_coordinator.reuse_edit_mode.triggered",
-                                )
-
-                            root = getattr(self, "root", None) or getattr(
-                                getattr(self, "view", None), "root", None
-                            )
-                            if root is not None and hasattr(root, "after"):
-                                root.after(150, _publish_reuse_edit)
-                            else:
-                                bus.publish(_event)
-                    # except Exception justified: edit-mode setup must never
-                    # break the reuse flow; user can still adjust manually.
-                    except Exception:
-                        log.debug(
-                            "live_calibration_coordinator.reuse_edit_mode.failed",
-                            exc_info=True,
-                        )
-
-                # Defere o início da sessão até o usuário confirmar na aba de
-                # zonas. Seta pending_zone_confirmation=True → block_detail trata
-                # success=False como deferred (sem messagebox de erro).
-                return self._wait_for_zone_confirmation()
 
             # Audit Erro 7 round 4 (2026-05-25): when user picks "Redefinir"
             # in ZoneReuseDialog we must actively wipe the existing zones
@@ -609,204 +651,392 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     camera_index=camera_index,
                     perspective=perspective,
                     preserve_real_shape=preserve_real_shape,
+                    on_done=self._gate_continuation(
+                        lambda ok: self._auto_detect_tail(ok, camera_index, gate_finish),
+                        gate_finish,
+                    ),
+                )
+                if self.calibration_in_progress:
+                    return self._gate_result(_STEP_ASYNC)
+                return self._gate_result(self._auto_detect_tail(success, camera_index, gate_finish))
+
+            # 3b. MANUAL DRAWING → tag as manual
+            if method == "manual":
+                return self._gate_result(
+                    self._start_manual_zone_definition(camera_index, gate_finish)
                 )
 
-                if success:
-                    # Polygon source ("auto" vs "manual") is recorded inside
-                    # ``run_live_calibration`` based on whether the user dragged
-                    # a vertex in the PreviewPolygonDialog. No override here.
-                    # Navigate to zone tab to allow adjustments/ROIs.
-                    if self.event_bus:
-                        self.event_bus.publish(
-                            Event(
-                                type=UIEvents.UI_SELECT_TAB,
-                                data=payloads.UISelectTabPayload(tab_name="zone_tab"),
-                            )
-                        )
-                        # Refresh the zone tab so the auto-detected polygon and
-                        # toolbar (ROIs / Concluir) materialise. Mirrors the
-                        # manual flow below — without this event the canvas
-                        # renders the reference frame but never replays the
-                        # zone collection ``save_zone_data`` just persisted,
-                        # leaving the user looking at a blank polygon.
-                        self.event_bus.publish(
-                            Event(
-                                type=UIEvents.UI_UPDATE_ZONE_LIST,
-                                data=payloads.EmptyPayload(),
-                            )
-                        )
-                        # Audit Erro 7 round 4 (2026-05-25): UI_UPDATE_ZONE_LIST
-                        # only refreshes the SIDEBAR listbox; the polygon
-                        # overlay over the reference frame needs an explicit
-                        # UI_REDRAW_ZONES so ``renderer.redraw_zones`` runs.
-                        # Without this the user sees the new frame WITHOUT the
-                        # auto-detected polygon and assumes detection failed.
-                        self.event_bus.publish(
-                            Event(
-                                type=UIEvents.UI_REDRAW_ZONES,
-                                data=payloads.ZonesUpdatedPayload(zone_data=None),
-                            )
-                        )
-
-                        # Audit Erro 9 round 4 (2026-05-25): immediately enter
-                        # polygon vertex-edit mode on the auto-detected arena
-                        # so the user can refine drag/snap vertices without
-                        # having to right-click → "Editar polígono". Mirrors
-                        # the manual edit flow in zone_editor.py:447-466.
-                        #
-                        # Audit Erro 9 round 6 (2026-05-25): defer the
-                        # POLYGON_EDIT_REQUESTED publish by ~150 ms via
-                        # ``root.after`` so the UI_REDRAW_ZONES event above
-                        # finishes its render cycle FIRST. Without this gap,
-                        # ``setup_interactive_polygon`` could land on a canvas
-                        # that hasn't received its background frame yet,
-                        # leaving the user with draggable vertices floating on
-                        # a blank canvas (item B9). The deferral is short
-                        # enough that the user perceives no lag but long
-                        # enough for Tk to flush a redraw.
-                        try:
-                            zone_data = self.project_manager.get_zone_data()
-                            polygon = (zone_data.polygon if zone_data else None) or []
-                            # Bind event_bus to a local so the deferred
-                            # closure has a non-None reference (mypy cannot
-                            # narrow ``self.event_bus`` inside a nested
-                            # function — CI lint fix, PR #388).
-                            bus = self.event_bus
-                            if polygon and bus is not None:
-                                import numpy as np
-
-                                _event = Event(
-                                    type=UIEvents.POLYGON_EDIT_REQUESTED,
-                                    data=payloads.PolygonEditRequestedPayload(
-                                        polygon=np.array(polygon)
-                                    ),
-                                    source="LiveCalibrationCoordinator.auto_detect.success",
-                                )
-
-                                def _publish_polygon_edit(event=_event, _bus=bus):
-                                    _bus.publish(event)
-                                    log.info(
-                                        "live_calibration_coordinator.auto_edit_mode.triggered_deferred",
-                                    )
-
-                                root = getattr(self, "root", None) or getattr(
-                                    getattr(self, "view", None), "root", None
-                                )
-                                if root is not None and hasattr(root, "after"):
-                                    root.after(150, _publish_polygon_edit)
-                                    log.info(
-                                        "live_calibration_coordinator.auto_edit_mode.scheduled",
-                                        delay_ms=150,
-                                        polygon_vertices=len(polygon),
-                                    )
-                                else:
-                                    # Fallback: publish synchronously when no
-                                    # Tk root is wired (tests / headless).
-                                    bus.publish(_event)
-                                    log.info(
-                                        "live_calibration_coordinator.auto_edit_mode.triggered",
-                                        polygon_vertices=len(polygon),
-                                    )
-                        except Exception:
-                            log.debug(
-                                "live_calibration_coordinator.auto_edit_mode.failed",
-                                exc_info=True,
-                            )
-                        self.event_bus.publish(
-                            Event(
-                                type=UIEvents.UI_SHOW_INFO,
-                                data=payloads.MessagePayload(
-                                    title=_("Aquarium Detected"),
-                                    message=_(
-                                        "Aquarium detected successfully!\n\n"
-                                        "You can adjust the vertices or add ROIs.\n"
-                                        "Click 'Finish' when you are ready."
-                                    ),
-                                ),
-                            )
-                        )
-
-                    # Wait for user confirmation
-                    return self._wait_for_zone_confirmation()
-                elif self._last_calibration_cancelled:
-                    # User explicitly closed/rejected the preview dialog — do
-                    # NOT fall through to manual mode and do NOT navigate to
-                    # the zone tab. Abort cleanly so the wizard step stays
-                    # where it was. The camera was already released by
-                    # ``run_live_calibration``.
-                    log.info("live_calibration_coordinator.zones.user_cancelled_auto_detect")
-                    return False
-                else:
-                    # Detection failed for non-cancellation reasons (camera
-                    # init failure, no polygon detected, model exception…).
-                    # Inform the user and fall through to manual drawing.
-                    if self.event_bus:
-                        self.event_bus.publish(
-                            Event(
-                                type=UIEvents.UI_SHOW_ERROR,
-                                data=payloads.ErrorOccurredPayload(
-                                    title=_("Detection Failed"),
-                                    message=_(
-                                        "Could not detect the aquarium automatically.\n\n"
-                                        "You will be taken to the zones tab to draw it "
-                                        "manually."
-                                    ),
-                                ),
-                            )
-                        )
-
-                    # Fallback to manual
-                    method = "manual"
-
-            # 3b. MANUAL DRAWING (or fallback from auto) → tag as manual
-            if method == "manual":
-                log.info("live_calibration_coordinator.zones.manual_mode")
-                self._set_last_polygon_source("manual")
-
-                # Capture reference frame
-                if not self._capture_reference_frame_for_zones(camera_index=camera_index):
-                    log.error("live_calibration_coordinator.zones.reference_frame_failed")
-                    return False
-
-                # Navigate to zone tab
-                if self.event_bus:
-                    self.event_bus.publish(
-                        Event(
-                            type=UIEvents.UI_SELECT_TAB,
-                            data=payloads.UISelectTabPayload(tab_name="zone_tab"),
-                        )
-                    )
-
-                    # ⚠️ FIX BUG #7: Don't publish UI_REDRAW_ZONES immediately after
-                    # UI_DISPLAY_VIDEO_FRAME because redraw_zones() might be called
-                    # before display_roi_video_frame() completes setting the active video.
-                    # The image display event handler will redraw zones after loading.
-
-                    # Only update zone list (not redraw - that happens after image loads)
-                    self.event_bus.publish(
-                        Event(
-                            type=UIEvents.UI_UPDATE_ZONE_LIST,
-                            data=payloads.EmptyPayload(),
-                        )
-                    )
-
-                    self.event_bus.publish(
-                        Event(
-                            type=UIEvents.UI_SHOW_INFO,
-                            data=payloads.MessagePayload(
-                                title=_("Draw the Aquarium"),
-                                message=_(
-                                    "Draw the aquarium polygon and ROIs (if needed).\n\n"
-                                    "Click 'Finish' when you are ready."
-                                ),
-                            ),
-                        )
-                    )
-
-                # Wait for confirmation
-                return self._wait_for_zone_confirmation()
-
         return False
+
+    def _reuse_tail(self, zone_data: Any, captured: bool) -> bool:
+        """Reuse branch after the reference frame: set the key, guide, edit mode."""
+        if not captured:
+            log.warning("live_calibration_coordinator.zones.reuse_reference_frame_failed")
+
+        # Fixa a chave de zonas ativa no reference-frame ANTES da
+        # edição. Sem isto, "Salvar Edição"/"Finalizar Desenho" gravam
+        # com ``video_path=None`` na chave ativa corrente (que pode não
+        # ser o reference-frame, pois o ``UI_DISPLAY_VIDEO_FRAME`` só o
+        # define de forma assíncrona). A consequência é a edição ir só
+        # para o ``detection_zones`` global, enquanto a sessão ao vivo lê
+        # a chave do reference-frame com o polígono auto-detectado —
+        # ignorando o ajuste do usuário na gravação e nos relatórios.
+        # Definir o active de forma síncrona aqui garante que edição e
+        # sessão usem a MESMA chave. (set_active é seguro: para o PNG do
+        # reference-frame o sync de parquet é no-op.)
+        try:
+            if self.project_manager.project_path:
+                ref_frame_path = os.path.join(
+                    str(self.project_manager.project_path),
+                    "live_camera_reference_frame.png",
+                )
+                self.project_manager.set_active_zone_video(ref_frame_path)
+        # except Exception justified: definir o active não pode quebrar
+        # o fluxo de reutilização.
+        except Exception:
+            log.debug(
+                "live_calibration_coordinator.reuse.set_active_failed",
+                exc_info=True,
+            )
+
+        guidance_title = _("Adjust the Polygon")
+        guidance_msg = _(
+            "Polygon reused. When you close this notice, the Zone "
+            "Configuration tab opens with ALL vertices already SELECTED "
+            "(in red).\n\n"
+            "To move the WHOLE polygon at once, click and DRAG over the "
+            "area or over any of its lines (or over one of the red "
+            "vertices). The whole polygon moves together.\n\n"
+            "If the selection disappears, drag the mouse to form a "
+            "rectangle over the whole polygon area to select every vertex "
+            "again.\n\n"
+            "Then click 'Save Edit' and 'Start Recording' when you are "
+            "ready."
+        )
+
+        # Aviso BLOQUEANTE primeiro: ao clicar OK, a aba é então
+        # revelada já com o polígono e os vértices pré-selecionados
+        # (vermelho). Usa o dialog_manager (modal, síncrono) quando
+        # disponível; caso contrário cai no evento assíncrono.
+        shown_blocking = False
+        dialog_manager = getattr(getattr(self, "view", None), "dialog_manager", None)
+        if dialog_manager is not None and hasattr(dialog_manager, "show_info"):
+            try:
+                dialog_manager.show_info(guidance_title, guidance_msg)
+                shown_blocking = True
+            # except Exception justified: o aviso não pode quebrar o fluxo.
+            except Exception:
+                log.debug(
+                    "live_calibration_coordinator.reuse_guidance.blocking_failed",
+                    exc_info=True,
+                )
+
+        if self.event_bus:
+            if not shown_blocking:
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_INFO,
+                        data=payloads.MessagePayload(title=guidance_title, message=guidance_msg),
+                    )
+                )
+
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SELECT_TAB,
+                    data=payloads.UISelectTabPayload(tab_name="zone_tab"),
+                )
+            )
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_ZONE_LIST,
+                    data=payloads.EmptyPayload(),
+                )
+            )
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_REDRAW_ZONES,
+                    data=payloads.ZonesUpdatedPayload(zone_data=None),
+                )
+            )
+
+            # Deferir a entrada em modo de edição por ~150 ms (mesmo
+            # motivo das linhas do fluxo auto: deixar o frame de
+            # referência terminar de renderizar antes de
+            # ``setup_interactive_polygon``). ``preselect_all=True``
+            # faz todos os vértices surgirem já selecionados (vermelho).
+            try:
+                polygon = (zone_data.polygon if zone_data else None) or []
+                bus = self.event_bus
+                if polygon and bus is not None:
+                    import numpy as np
+
+                    _event = Event(
+                        type=UIEvents.POLYGON_EDIT_REQUESTED,
+                        data=payloads.PolygonEditRequestedPayload(
+                            polygon=np.array(polygon),
+                            preselect_all=True,
+                        ),
+                        source="LiveCalibrationCoordinator.reuse_zones",
+                    )
+
+                    def _publish_reuse_edit(event=_event, _bus=bus):
+                        _bus.publish(event)
+                        log.info(
+                            "live_calibration_coordinator.reuse_edit_mode.triggered",
+                        )
+
+                    root = getattr(self, "root", None) or getattr(
+                        getattr(self, "view", None), "root", None
+                    )
+                    if root is not None and hasattr(root, "after"):
+                        root.after(150, _publish_reuse_edit)
+                    else:
+                        bus.publish(_event)
+            # except Exception justified: edit-mode setup must never
+            # break the reuse flow; user can still adjust manually.
+            except Exception:
+                log.debug(
+                    "live_calibration_coordinator.reuse_edit_mode.failed",
+                    exc_info=True,
+                )
+
+        # Defere o início da sessão até o usuário confirmar na aba de
+        # zonas. Seta pending_zone_confirmation=True → block_detail trata
+        # success=False como deferred (sem messagebox de erro).
+        return self._wait_for_zone_confirmation()
+
+    def _auto_detect_tail(
+        self, success: bool, camera_index: int | None, gate_finish: Callable[[bool], None]
+    ) -> Any:
+        """Auto branch after the calibration: zone tab, edit mode, or fallbacks."""
+        if success:
+            # Polygon source ("auto" vs "manual") is recorded inside
+            # ``run_live_calibration`` based on whether the user dragged
+            # a vertex in the PreviewPolygonDialog. No override here.
+            # Navigate to zone tab to allow adjustments/ROIs.
+            if self.event_bus:
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SELECT_TAB,
+                        data=payloads.UISelectTabPayload(tab_name="zone_tab"),
+                    )
+                )
+                # Refresh the zone tab so the auto-detected polygon and
+                # toolbar (ROIs / Concluir) materialise. Mirrors the
+                # manual flow below — without this event the canvas
+                # renders the reference frame but never replays the
+                # zone collection ``save_zone_data`` just persisted,
+                # leaving the user looking at a blank polygon.
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_UPDATE_ZONE_LIST,
+                        data=payloads.EmptyPayload(),
+                    )
+                )
+                # Audit Erro 7 round 4 (2026-05-25): UI_UPDATE_ZONE_LIST
+                # only refreshes the SIDEBAR listbox; the polygon
+                # overlay over the reference frame needs an explicit
+                # UI_REDRAW_ZONES so ``renderer.redraw_zones`` runs.
+                # Without this the user sees the new frame WITHOUT the
+                # auto-detected polygon and assumes detection failed.
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_REDRAW_ZONES,
+                        data=payloads.ZonesUpdatedPayload(zone_data=None),
+                    )
+                )
+
+                # Audit Erro 9 round 4 (2026-05-25): immediately enter
+                # polygon vertex-edit mode on the auto-detected arena
+                # so the user can refine drag/snap vertices without
+                # having to right-click → "Editar polígono". Mirrors
+                # the manual edit flow in zone_editor.py:447-466.
+                #
+                # Audit Erro 9 round 6 (2026-05-25): defer the
+                # POLYGON_EDIT_REQUESTED publish by ~150 ms via
+                # ``root.after`` so the UI_REDRAW_ZONES event above
+                # finishes its render cycle FIRST. Without this gap,
+                # ``setup_interactive_polygon`` could land on a canvas
+                # that hasn't received its background frame yet,
+                # leaving the user with draggable vertices floating on
+                # a blank canvas (item B9). The deferral is short
+                # enough that the user perceives no lag but long
+                # enough for Tk to flush a redraw.
+                try:
+                    zone_data = self.project_manager.get_zone_data()
+                    polygon = (zone_data.polygon if zone_data else None) or []
+                    # Bind event_bus to a local so the deferred
+                    # closure has a non-None reference (mypy cannot
+                    # narrow ``self.event_bus`` inside a nested
+                    # function — CI lint fix, PR #388).
+                    bus = self.event_bus
+                    if polygon and bus is not None:
+                        import numpy as np
+
+                        _event = Event(
+                            type=UIEvents.POLYGON_EDIT_REQUESTED,
+                            data=payloads.PolygonEditRequestedPayload(polygon=np.array(polygon)),
+                            source="LiveCalibrationCoordinator.auto_detect.success",
+                        )
+
+                        def _publish_polygon_edit(event=_event, _bus=bus):
+                            _bus.publish(event)
+                            log.info(
+                                "live_calibration_coordinator.auto_edit_mode.triggered_deferred",
+                            )
+
+                        root = getattr(self, "root", None) or getattr(
+                            getattr(self, "view", None), "root", None
+                        )
+                        if root is not None and hasattr(root, "after"):
+                            root.after(150, _publish_polygon_edit)
+                            log.info(
+                                "live_calibration_coordinator.auto_edit_mode.scheduled",
+                                delay_ms=150,
+                                polygon_vertices=len(polygon),
+                            )
+                        else:
+                            # Fallback: publish synchronously when no
+                            # Tk root is wired (tests / headless).
+                            bus.publish(_event)
+                            log.info(
+                                "live_calibration_coordinator.auto_edit_mode.triggered",
+                                polygon_vertices=len(polygon),
+                            )
+                except Exception:
+                    log.debug(
+                        "live_calibration_coordinator.auto_edit_mode.failed",
+                        exc_info=True,
+                    )
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_INFO,
+                        data=payloads.MessagePayload(
+                            title=_("Aquarium Detected"),
+                            message=_(
+                                "Aquarium detected successfully!\n\n"
+                                "You can adjust the vertices or add ROIs.\n"
+                                "Click 'Finish' when you are ready."
+                            ),
+                        ),
+                    )
+                )
+
+            # Wait for user confirmation
+            return self._wait_for_zone_confirmation()
+        elif self._last_calibration_cancelled:
+            # User explicitly closed/rejected the preview dialog — do
+            # NOT fall through to manual mode and do NOT navigate to
+            # the zone tab. Abort cleanly so the wizard step stays
+            # where it was. The camera was already released by
+            # ``run_live_calibration``.
+            log.info("live_calibration_coordinator.zones.user_cancelled_auto_detect")
+            return False
+        else:
+            # Detection failed for non-cancellation reasons (camera
+            # init failure, no polygon detected, model exception…).
+            # Inform the user and fall through to manual drawing.
+            if self.event_bus:
+                self.event_bus.publish(
+                    Event(
+                        type=UIEvents.UI_SHOW_ERROR,
+                        data=payloads.ErrorOccurredPayload(
+                            title=_("Detection Failed"),
+                            message=_(
+                                "Could not detect the aquarium automatically.\n\n"
+                                "You will be taken to the zones tab to draw it "
+                                "manually."
+                            ),
+                        ),
+                    )
+                )
+
+            # Fallback to manual
+            return self._start_manual_zone_definition(camera_index, gate_finish)
+
+    def _start_manual_zone_definition(
+        self, camera_index: int | None, gate_finish: Callable[[bool], None]
+    ) -> Any:
+        """Manual drawing (or fallback from auto): reference frame, then the zone tab."""
+        log.info("live_calibration_coordinator.zones.manual_mode")
+        self._set_last_polygon_source("manual")
+        return self._reference_frame_step(camera_index, self._manual_tail, on_done=gate_finish)
+
+    def _manual_tail(self, captured: bool) -> bool:
+        """Manual branch after the reference frame: open the zone tab and wait."""
+        if not captured:
+            log.error("live_calibration_coordinator.zones.reference_frame_failed")
+            return False
+
+        # Navigate to zone tab
+        if self.event_bus:
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SELECT_TAB,
+                    data=payloads.UISelectTabPayload(tab_name="zone_tab"),
+                )
+            )
+
+            # ⚠️ FIX BUG #7: Don't publish UI_REDRAW_ZONES immediately after
+            # UI_DISPLAY_VIDEO_FRAME because redraw_zones() might be called
+            # before display_roi_video_frame() completes setting the active video.
+            # The image display event handler will redraw zones after loading.
+
+            # Only update zone list (not redraw - that happens after image loads)
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_UPDATE_ZONE_LIST,
+                    data=payloads.EmptyPayload(),
+                )
+            )
+
+            self.event_bus.publish(
+                Event(
+                    type=UIEvents.UI_SHOW_INFO,
+                    data=payloads.MessagePayload(
+                        title=_("Draw the Aquarium"),
+                        message=_(
+                            "Draw the aquarium polygon and ROIs (if needed).\n\n"
+                            "Click 'Finish' when you are ready."
+                        ),
+                    ),
+                )
+            )
+
+        # Wait for confirmation
+        return self._wait_for_zone_confirmation()
+
+    def _reference_frame_step(
+        self,
+        camera_index: int | None,
+        then: Callable[[bool], Any],
+        *,
+        on_done: Callable[[bool], None] | None,
+    ) -> Any:
+        """Capture the zone-tab reference frame, off Tk when there is a root."""
+        if self.root is None:
+            return then(self._capture_reference_frame_for_zones(camera_index=camera_index))
+        return self._calibration_step(
+            _("Opening the camera..."),
+            lambda: self._capture_reference_frame_work(camera_index),
+            lambda frame: then(self._publish_reference_frame(frame)),
+            on_done=on_done,
+            reset_pending=True,
+        )
+
+    def _gate_continuation(
+        self, tail: Callable[[bool], Any], gate_finish: Callable[[bool], None]
+    ) -> Callable[[bool], None]:
+        """``on_done`` for a calibration inside the gate: run the tail, then finish."""
+
+        def _continue(ok: bool) -> None:
+            self._pending_zone_confirmation = False
+            outcome = tail(ok)
+            if outcome is _STEP_ASYNC:
+                return
+            gate_finish(bool(outcome))
+
+        return _continue
 
     def _ensure_zones_non_live(self) -> bool:
         """Handle zone validation for non-live projects.
@@ -876,13 +1106,14 @@ class LiveCalibrationCoordinator(BaseCoordinator):
     # LIVE CALIBRATION
     # =============================================================================
 
-    def run_live_calibration(  # noqa: C901
+    def run_live_calibration(
         self,
         stabilization_frames: int = 10,
         show_preview: bool = True,
         camera_index: int | None = None,
         perspective: str | None = None,
         preserve_real_shape: bool | None = None,
+        on_done: Callable[[bool], None] | None = None,
     ) -> bool:
         """Execute live aquarium calibration with auto-detection.
 
@@ -900,11 +1131,40 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 real (``True``) ou retângulo de 4 cantos (``False``). Mesmo
                 canal e mesma precedência. ``None`` = o diálogo não opinou.
 
+            on_done: called with the outcome once the calibration is over.
+
+        Threading (audit A6-03): with a Tk root, the camera warm-up, burst
+        and detection run on a daemon worker under a modal "Detecting the
+        aquarium..." window; the preview dialog and the zone save run back on
+        Tk, and ``on_done`` reports the outcome. This call then returns False
+        at once and ``calibration_in_progress`` is True until it is over.
+        Without a root everything runs inline and ``on_done`` is NOT called:
+        the return value is the outcome.
+
         Returns:
             True if calibration successful, False otherwise
         """
-        import time  # For delays between camera operations
+        self._calibration_prelude(perspective, preserve_real_shape)
 
+        def _work() -> _CalibrationResult:
+            return self._calibration_work(stabilization_frames, camera_index)
+
+        def _then(result: _CalibrationResult | None) -> bool:
+            return self._calibration_finish(
+                result,
+                show_preview=show_preview,
+                stabilization_frames=stabilization_frames,
+            )
+
+        outcome = self._calibration_step(
+            _("Detecting the aquarium..."), _work, _then, on_done=on_done
+        )
+        return outcome is True
+
+    def _calibration_prelude(
+        self, perspective: str | None, preserve_real_shape: bool | None
+    ) -> None:
+        """Tk-side setup of a calibration run (dialog choices, stale polygon)."""
         # Memorizado para o botão "auto-detectar" da aba de Zonas: ele reexecuta
         # esta calibração direto (``single_video_workflow._route_live_auto_detect``)
         # e não tem o config do diálogo em mãos.
@@ -949,6 +1209,16 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 exc_info=True,
             )
 
+    def _calibration_work(
+        self, stabilization_frames: int, camera_index: int | None
+    ) -> _CalibrationResult:
+        """Blocking half of the calibration: camera, burst, model, detection.
+
+        Runs on a worker when there is a Tk root (audit A6-03), so it never
+        touches Tk: no dialog, no event that a widget handles directly. Every
+        outcome comes back as a :class:`_CalibrationResult` for
+        ``_calibration_finish`` to show on the Tk thread.
+        """
         # Initialize camera if necessary
         if not self.camera or not hasattr(self.camera, "is_open") or not self.camera.is_open:
             try:
@@ -963,11 +1233,10 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     index_source = "config"
 
                 if resolved_index is not None:
-                    # Temporarily override settings to use the resolved camera
-                    original_index = self.settings.camera.index
-                    self.settings.camera.index = resolved_index
-                    self.camera = Camera(settings_obj=self.settings)
-                    self.settings.camera.index = original_index  # Restore
+                    # A view of the settings with this camera index: the shared
+                    # ``Settings`` is never mutated, since this runs on a worker
+                    # while the Tk thread may read it (A6-03).
+                    self.camera = Camera(settings_obj=self._settings_for_camera(resolved_index))
                     log.info(
                         "live_calibration_coordinator.live_calibration.camera_initialized",
                         camera_index=resolved_index,
@@ -986,7 +1255,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     "live_calibration_coordinator.live_calibration.camera_init_failed",
                     error=str(e),
                 )
-                return False
+                return _CalibrationResult(status="camera_failed")
 
             # Warmup camera
             time.sleep(1.5)
@@ -1011,7 +1280,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 captured=len(frames),
             )
             self._release_calibration_camera(reason="insufficient_frames")
-            return False
+            return _CalibrationResult(status="insufficient_frames")
 
         # Auto-detect aquarium using configured model
 
@@ -1129,7 +1398,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 "live_calibration_coordinator.live_calibration.no_aquarium_model", method=method
             )
             self._release_calibration_camera(reason="no_aquarium_model")
-            return False
+            return _CalibrationResult(status="no_model")
 
         detector = AquariumDetector(
             model_path=model_path,
@@ -1189,50 +1458,81 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 )
 
                 self._release_calibration_camera(reason="detection_exception")
-
-                # Fallback: Save and display the last captured frame for manual drawing
-                if frames:
-                    try:
-                        reference_path = os.path.join(
-                            str(self.project_manager.project_path or ""),
-                            "live_camera_reference_frame.png",
-                        )
-                        cv2.imwrite(reference_path, frames[-1])
-
-                        if self.event_bus:
-                            self.event_bus.publish(
-                                Event(
-                                    type=UIEvents.UI_DISPLAY_VIDEO_FRAME,
-                                    data=VideoPathPayload(video_path=reference_path),
-                                )
-                            )
-                            self.event_bus.publish(
-                                Event(
-                                    type=UIEvents.UI_SHOW_WARNING,
-                                    data=payloads.MessagePayload(
-                                        title=_("Detection Error"),
-                                        message=_(
-                                            "Error during the automatic detection: "
-                                            "{error}\n\n"
-                                            "The captured image was loaded for manual "
-                                            "drawing."
-                                        ).format(error=e),
-                                    ),
-                                )
-                            )
-                    except OSError as fallback_err:
-                        log.error(
-                            "live_calibration_coordinator.live_calibration.fallback_failed",
-                            error=str(fallback_err),
-                        )
-
-                return False
+                return _CalibrationResult(status="detect_error", frames=frames, error=e)
 
         if not detected_polygons or len(detected_polygons) == 0:
             log.warning("live_calibration_coordinator.live_calibration.no_polygon_detected")
-
             self._release_calibration_camera(reason="no_polygon_detected")
+            return _CalibrationResult(status="no_polygon", frames=frames)
 
+        return _CalibrationResult(
+            status="ok",
+            frames=frames,
+            polygons=detected_polygons,
+            initial_confidence=initial_confidence,
+        )
+
+    def _calibration_finish(  # noqa: C901
+        self,
+        calibration: _CalibrationResult | None,
+        *,
+        show_preview: bool,
+        stabilization_frames: int,
+    ) -> bool:
+        """Tk half of the calibration: fallbacks, preview dialog, zone save.
+
+        Returns:
+            True if the polygon was approved and saved, False otherwise.
+        """
+        if calibration is None:
+            # The worker crashed outside its own handling.
+            self._release_calibration_camera(reason="worker_crashed")
+            return False
+        if calibration.status in ("camera_failed", "insufficient_frames", "no_model"):
+            return False
+
+        frames = calibration.frames
+        if calibration.status == "detect_error":
+            e = calibration.error
+            # Fallback: Save and display the last captured frame for manual drawing
+            if frames:
+                try:
+                    reference_path = os.path.join(
+                        str(self.project_manager.project_path or ""),
+                        "live_camera_reference_frame.png",
+                    )
+                    cv2.imwrite(reference_path, frames[-1])
+
+                    if self.event_bus:
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_DISPLAY_VIDEO_FRAME,
+                                data=VideoPathPayload(video_path=reference_path),
+                            )
+                        )
+                        self.event_bus.publish(
+                            Event(
+                                type=UIEvents.UI_SHOW_WARNING,
+                                data=payloads.MessagePayload(
+                                    title=_("Detection Error"),
+                                    message=_(
+                                        "Error during the automatic detection: "
+                                        "{error}\n\n"
+                                        "The captured image was loaded for manual "
+                                        "drawing."
+                                    ).format(error=e),
+                                ),
+                            )
+                        )
+                except OSError as fallback_err:
+                    log.error(
+                        "live_calibration_coordinator.live_calibration.fallback_failed",
+                        error=str(fallback_err),
+                    )
+
+            return False
+
+        if calibration.status == "no_polygon":
             # Fallback: Save and display the last captured frame for manual drawing
             if frames:
                 try:
@@ -1268,6 +1568,9 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     )
 
             return False
+
+        detected_polygons = calibration.polygons
+        initial_confidence = calibration.initial_confidence
 
         polygon = detected_polygons[0]
         log.info(
@@ -1414,8 +1717,12 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             self._release_calibration_camera(reason="approved")
 
             # CRITICAL: Allow hardware to fully release camera before LiveCameraService reopens it
-            # Without this delay, warmup fails (frames_successful=0) and exposure is incorrect
-            time.sleep(0.5)
+            # Without this delay, warmup fails (frames_successful=0) and exposure is incorrect.
+            # Only on the synchronous (headless) path: with a Tk root the session
+            # starts later, from the zone tab's "Start Recording" click, and a
+            # sleep here would freeze the window (A6-03).
+            if self.root is None:
+                time.sleep(0.5)
 
             return True
 
@@ -1438,6 +1745,14 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 vídeo único ao vivo). Em projetos, o índice de ``project_data``
                 tem precedência e este argumento é ignorado.
         """
+        return self._publish_reference_frame(self._capture_reference_frame_work(camera_index))
+
+    def _capture_reference_frame_work(self, camera_index: int | None = None) -> Any:
+        """Open/warm the camera and grab one reference frame (no Tk, A6-03).
+
+        Returns the frame, or None when the camera cannot be opened or gives
+        no frame. The camera is released before returning.
+        """
         log.info("live_calibration_coordinator.capture_reference_frame.start")
 
         resolved_index: int | None = None
@@ -1453,11 +1768,9 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     index_source = "config"
 
                 if resolved_index is not None:
-                    # Temporarily override settings to use the resolved camera
-                    original_index = self.settings.camera.index
-                    self.settings.camera.index = resolved_index
-                    self.camera = Camera(settings_obj=self.settings)
-                    self.settings.camera.index = original_index  # Restore
+                    # A view with this index; the shared settings stay untouched
+                    # (this runs on a worker with a Tk root, A6-03).
+                    self.camera = Camera(settings_obj=self._settings_for_camera(resolved_index))
                     log.info(
                         "live_calibration_coordinator.capture_reference_frame.camera_initialized",
                         camera_index=resolved_index,
@@ -1476,7 +1789,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     "live_calibration_coordinator.capture_reference_frame.camera_init_failed",
                     error=str(e),
                 )
-                return False
+                return None
 
             # CRITICAL: Wait for Camera's background thread to start filling buffer
             # Camera uses background thread to continuously capture frames into buffer.
@@ -1526,6 +1839,20 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 break
             time.sleep(0.1)
 
+        # Release camera so LiveCameraService can use it
+        # IMPORTANT: Must signal shutdown BEFORE release to prevent reconnection attempts
+        if self.camera:
+            if hasattr(self.camera, "_stopped"):
+                self.camera._stopped.set()  # Stop the background thread first
+            if hasattr(self.camera, "release"):
+                self.camera.release()
+            self.camera = None
+            log.info("live_calibration_coordinator.capture_reference_frame.camera_released")
+
+        return frame
+
+    def _publish_reference_frame(self, frame: Any) -> bool:
+        """Save the reference frame and show it on the zone tab (Tk thread)."""
         if frame is None:
             log.error("live_calibration_coordinator.capture_reference_frame.capture_failed")
             return False
@@ -1544,16 +1871,6 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         log.info(
             "live_calibration_coordinator.capture_reference_frame.success", path=reference_path
         )
-
-        # Release camera so LiveCameraService can use it
-        # IMPORTANT: Must signal shutdown BEFORE release to prevent reconnection attempts
-        if self.camera:
-            if hasattr(self.camera, "_stopped"):
-                self.camera._stopped.set()  # Stop the background thread first
-            if hasattr(self.camera, "release"):
-                self.camera.release()
-            self.camera = None
-            log.info("live_calibration_coordinator.capture_reference_frame.camera_released")
 
         return True
 

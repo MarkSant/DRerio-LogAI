@@ -70,7 +70,6 @@ class TestMenuManagerInitialization:
         """Test that MenuManager initializes correctly."""
         assert menu_manager.gui is mock_gui
         assert menu_manager._overview_context_menu is None
-        assert menu_manager._overview_menu_font is None
         assert menu_manager._about_logo_image is None
 
     def test_initialization_with_real_gui(self, tkinter_root):
@@ -305,7 +304,6 @@ class TestProjectOverviewContextMenu:
         event_types = [
             call.args[0].type for call in menu_manager.gui.event_bus_v2.publish.call_args_list
         ]
-        assert UIEvents.VIDEO_METADATA_UPDATED in event_types
         assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
         assert UIEvents.VIDEO_TREE_REFRESH_REQUESTED in event_types
 
@@ -340,154 +338,6 @@ class TestProjectOverviewContextMenu:
         menu_manager.edit_selected_project_overview_video_metadata()
 
         menu_manager.gui.dialog_manager.show_info.assert_called_once()
-
-
-@pytest.mark.gui
-class TestOverviewBadgeFont:
-    """Tests for overview badge font."""
-
-    def test_get_overview_badge_font_creates_font(self, menu_manager, tkinter_root):
-        """Test that font is created on first call."""
-        import tkinter.font as tkfont
-
-        tree = SimpleNamespace(cget=lambda _name: "TkDefaultFont")
-        menu_manager.gui.project_overview_tree = tree
-
-        font = menu_manager.get_overview_badge_font()
-
-        assert font is not None
-        assert isinstance(font, tkfont.Font)
-        assert menu_manager._overview_menu_font is font
-
-    def test_get_overview_badge_font_caches_font(self, menu_manager, tkinter_root):
-        """Test that font is cached and reused."""
-        tree = SimpleNamespace(cget=lambda _name: "TkDefaultFont")
-        menu_manager.gui.project_overview_tree = tree
-
-        font1 = menu_manager.get_overview_badge_font()
-        font2 = menu_manager.get_overview_badge_font()
-
-        assert font1 is font2
-
-    def test_get_overview_badge_font_no_tree(self, menu_manager):
-        """Test font creation when tree is None."""
-        menu_manager.gui.project_overview_tree = None
-
-        font = menu_manager.get_overview_badge_font()
-
-        assert font is not None
-
-
-@pytest.mark.gui
-class TestResolveOverviewAssetFromClick:
-    """Tests for resolving asset from click."""
-
-    def test_resolve_overview_asset_from_click_no_tree(self, menu_manager):
-        """Test handling when tree is None."""
-        menu_manager.gui.project_overview_tree = None
-
-        result = menu_manager.resolve_overview_asset_from_click("item1", 100)
-
-        assert result is None
-
-    def test_resolve_overview_asset_from_click_no_bbox(self, menu_manager, tkinter_root):
-        """Test handling when bbox returns None."""
-        from tkinter import ttk
-
-        tree = ttk.Treeview(tkinter_root, columns=("status", "data"))
-        menu_manager.gui.project_overview_tree = tree
-
-        item_id = tree.insert("", "end", text="Video")
-
-        # bbox returns None for items not visible/rendered
-        result = menu_manager.resolve_overview_asset_from_click(item_id, 100)
-
-        assert result is None
-
-    def test_resolve_overview_asset_from_click_arena(self, menu_manager, tkinter_root):
-        """Test resolving arena asset from click."""
-        from tkinter import ttk
-
-        tree = ttk.Treeview(tkinter_root, columns=("status", "data"))
-        tree.pack()
-        tkinter_root.update()
-        menu_manager.gui.project_overview_tree = tree
-
-        # Create item with data in second column
-        item_id = tree.insert("", "end", text="Video", values=("✓", "Arena  ROI  Traj  Sum"))
-        tree.set(item_id, "data", "Arena  ROI  Traj  Sum")
-
-        # Expand to make item visible
-        tree.update()
-
-        # Get bbox and test click in arena area
-        bbox = tree.bbox(item_id, "#2")
-        if bbox:  # Only test if item is visible
-            # Click near start of data column should hit "Arena"
-            result = menu_manager.resolve_overview_asset_from_click(item_id, bbox[0] + 5)
-            # May be None if font measurement doesn't work in test env
-            assert result is None or result == "arena"
-
-
-@pytest.mark.gui
-class TestShowOverviewContextMenu:
-    """Tests for showing overview context menu."""
-
-    def test_show_overview_context_menu_no_tree(self, menu_manager):
-        """Test handling when tree is None."""
-        menu_manager.gui.project_overview_tree = None
-
-        event = Mock()
-        event.x_root = 100
-        event.y_root = 100
-
-        # Should return without error
-        menu_manager.show_overview_context_menu(event, "/path/to/video.mp4", "arena")
-
-    def test_show_overview_context_menu_creates_menu(self, menu_manager, tkinter_root):
-        """Test that context menu is created."""
-        from tkinter import ttk
-
-        tree = ttk.Treeview(tkinter_root)
-        menu_manager.gui.project_overview_tree = tree
-
-        event = Mock()
-        event.x_root = 100
-        event.y_root = 100
-
-        with patch.object(Menu, "tk_popup"):
-            menu_manager.show_overview_context_menu(event, "/path/to/video.mp4", "arena")
-
-        assert menu_manager._overview_context_menu is not None
-
-    @pytest.mark.parametrize(
-        "asset,expected_label",
-        [
-            ("arena", "Delete arena"),
-            ("rois", "Delete ROIs"),
-            ("trajectory", "Delete trajectory"),
-            ("summary", "Delete reports/summaries"),
-            ("video", "Remove video from project"),
-        ],
-    )
-    def test_show_overview_context_menu_labels(
-        self, menu_manager, tkinter_root, asset, expected_label
-    ):
-        """Test that correct labels are used for different assets."""
-        from tkinter import ttk
-
-        tree = ttk.Treeview(tkinter_root)
-        menu_manager.gui.project_overview_tree = tree
-
-        event = Mock()
-        event.x_root = 100
-        event.y_root = 100
-
-        with patch.object(Menu, "tk_popup"):
-            menu_manager.show_overview_context_menu(event, "/path/to/video.mp4", asset)
-
-        # Verify menu was created (label verification is complex in Tk)
-        assert menu_manager._overview_context_menu is not None
 
 
 @pytest.mark.gui

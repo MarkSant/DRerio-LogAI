@@ -79,17 +79,37 @@ if ($Verbose) {
     $pytestArgs += "-q"
 }
 
-if (-not $All -and $testFiles.Count -gt 0) {
-    $pytestArgs += $testFiles
+
+# Batches: a branch that touches many test files (179 in TASK-087) builds a
+# command longer than Windows accepts ("command line too long"), which used to
+# fail the hook without running a single test. pytest exit code 5 (no GUI test
+# in a batch) is not a failure.
+$batchSize = 40
+$batches = @()
+if ($All -or $testFiles.Count -eq 0) {
+    $batches += , @()
+} else {
+    for ($i = 0; $i -lt $testFiles.Count; $i += $batchSize) {
+        $end = [Math]::Min($i + $batchSize, $testFiles.Count) - 1
+        $batches += , @($testFiles[$i..$end])
+    }
 }
 
-$cmdDisplay = "poetry run pytest " + ($pytestArgs -join " ")
-Write-Host "  Command: $cmdDisplay" -ForegroundColor Magenta
-Write-Host ""
-
-# Execute
-poetry run pytest @pytestArgs
-$exitCode = $LASTEXITCODE
+$exitCode = 5
+$batchNumber = 0
+foreach ($batch in $batches) {
+    $batchNumber++
+    $batchArgs = $pytestArgs + $batch
+    Write-Host "  Batch $batchNumber/$($batches.Count): poetry run pytest -m gui ($($batch.Count) files)" -ForegroundColor Magenta
+    poetry run pytest @batchArgs
+    $batchExit = $LASTEXITCODE
+    if ($batchExit -eq 0) {
+        $exitCode = 0
+    } elseif ($batchExit -ne 5) {
+        $exitCode = $batchExit
+        break
+    }
+}
 
 Write-Host ""
 if ($exitCode -eq 0) {

@@ -194,3 +194,41 @@ class TestSpeedCeilingInTheAdvancedTab:
         )
 
         assert project_manager.project_data["behavioral_config"]["geotaxis_enabled"] is True
+
+
+class TestSavingRefreshesTheZoneTabRule:
+    """A2-13: the Zones tab panel kept showing the old ROI rule after a save.
+
+    It is seeded only when the tab is built, and nothing called its
+    ``set_roi_rule_config``. After "Save Settings" it now shows the rule the
+    resolver reads (project > settings > default), for both save paths.
+    """
+
+    @staticmethod
+    def _builder(project_path: str | None):
+        from zebtrack.settings import load_settings
+
+        settings = load_settings()
+        gui = MagicMock()
+        gui._extract_setting.side_effect = lambda _obj, _path, default: default
+        project_manager = gui.controller.project_manager
+        project_manager.project_path = project_path
+        project_manager.project_data = {}
+        builder = AnalysisWidgetsBuilder(gui, MagicMock(), settings_obj=settings)
+        return builder, gui, settings
+
+    def test_a_project_save_shows_the_saved_rule(self, monkeypatch):
+        builder, gui, settings = self._builder("C:/proj")
+        # Only the form-shape check is skipped; the merge, the Settings
+        # validation, the project write and the resolver are real.
+        monkeypatch.setattr(builder, "_validate_config_values", lambda values: None)
+        assert settings.roi_inclusion_rule != "centroid_in"
+
+        builder.on_save_global_config_from_widget({"roi_inclusion_rule": "centroid_in"})
+
+        shown = gui.zone_controls.set_roi_rule_config.call_args.args[0]
+        assert shown.rule == "centroid_in"
+        assert (
+            gui.controller.project_manager.project_data["roi_settings"]["roi_inclusion_rule"]
+            == "centroid_in"
+        )

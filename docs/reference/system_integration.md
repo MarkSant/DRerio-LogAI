@@ -273,15 +273,20 @@ failure.
 | `ANALYSIS_STARTED`             | -                              | (lifecycle)        | (consumers)     |
 | `ANALYSIS_COMPLETED`           | -                              | (lifecycle)        | (consumers)     |
 
-### 3.6. Detector & Tracking Events (Dec 2025)
+### 3.6. Detector & Tracking Parameters (no event)
 
-| Event (Domain)                | Payload Keys                                                                                                  | Publishers            | Subscribers                 |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------- | --------------------------- |
-| `TRACKING_PARAMETERS_UPDATED` | `track_threshold`, `match_threshold`, `track_buffer`, `use_bytetrack`, `max_center_distance`, `iou_threshold` | `DetectorCoordinator` | UI components, StateManager |
+`DetectorSetupCoordinator.update_tracking_parameters()` publishes **no** event. It
+writes the parameters it received to `StateManager` (`StateCategory.DETECTOR`), and
+that is the only signal. Until 2026-11 it also published the string
+`"TRACKING_PARAMETERS_UPDATED"`, which is not a `UIEvents` member, so nothing could
+receive it; the same held for `"ZONES_CONFIGURED"`, `"SINGLE_SUBJECT_MODE_CHANGED"`
+and `"DETECTOR_SETTINGS_RESTORED"`. All four were removed, and `_publish_event`
+now takes `UIEvents` only (audit A1-01, `docs/audits/2026-11_A1_events.md`).
 
-**Notes:**
+Parameters (`track_threshold`, `match_threshold`, `track_buffer`, `use_bytetrack`,
+`max_center_distance`, `iou_threshold`):
 
-- All payload values are optional (None if not updated)
+- All values are optional (None if not updated)
 - `use_bytetrack: bool` - Toggles between ByteTrack and SingleSubjectTracker
 - `track_buffer: int` - Frames to keep lost tracks (default: 300), expressed at
   the 30 fps reference: `BYTETracker` converts it with `frame_rate / 30`, and
@@ -1414,6 +1419,32 @@ keeps `discard=True` as its default (the Cancel button), and
 `finish_session_early()` routes the keep path through the SAME
 `_on_session_complete` the timer uses. The Arduino "stop" code (`0`) now calls
 `discard=False` — a firmware stop is end-of-protocol, not a cancellation.
+
+**3. Stopping is asynchronous with a Tk root (A6-07).** `stop_session` returns
+once the stop has STARTED: the timer is cancelled on Tk, the teardown (drain,
+joins, ledger, recorder flush, discard `rmtree`, camera release) runs on a
+daemon worker under a modal "Finalizing recording..." window, and the Tk half
+(preview, state, buttons, `on_session_stopped`, then `on_stopped(ok)`) runs back
+on Tk. Anything that reads the session files or needs the final UI goes in
+`on_stopped`, never after the call: the post-analysis and the coordinator's
+Cancel finalization do. A stop requested during a stop only queues its
+callback, and `join_threads` waits for an in-flight teardown before exit.
+Without a root (headless, the end-to-end tests) the stop runs inline. The
+countdown likewise no longer pumps `root.update()` (A6-08): `start_session`
+returns `True` once the countdown is armed and the rest of the start runs from
+its completion callback.
+
+**4. The zone gate is asynchronous with a Tk root (A6-03).**
+`LiveCalibrationCoordinator.ensure_zones_before_recording` runs the camera open,
+warm-up and auto-detection (or the reference-frame capture) on a daemon worker
+under a modal window, and the preview dialog on Tk. While it runs the call has
+already returned False with `pending_zone_confirmation` and
+`calibration_in_progress` set; the outcome arrives through `on_pending` (zones
+await the user's confirmation: publish the pending session now) or
+`on_abandoned` (cancelled, no camera). Never publish `LIVE_RECORDING_PENDING`
+on that early False: the banner would appear before a polygon exists. The
+camera is opened on a read-through settings view; the shared
+`settings.camera.index` is never mutated.
 
 **3. The Analysis tab owns the live controls.** `UIEvents.LIVE_SESSION_FINISH_REQUESTED`
 (payload `EmptyPayload`) is published by `AnalysisDisplayWidget`'s "⏹ Finish and

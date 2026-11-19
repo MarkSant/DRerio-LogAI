@@ -12,33 +12,53 @@ log = structlog.get_logger()
 
 Point = tuple[float, float]
 
+#: Below this fraction of ``vertices × extent × (extent + magnitude)`` a signed
+#: area is float rounding, not area. That product bounds the rounding error of
+#: the shifted shoelace sum by orders of magnitude, so a real polygon is only
+#: refused when it is thinner than about 1e-8 px per pixel of coordinate.
+_DEGENERATE_AREA_RTOL = 1e-12
+
 
 def polygon_centroid(points: Sequence[Point]) -> Point | None:
     """Return the centroid of a polygon using the shoelace formula.
 
-    Returns ``None`` when fewer than 3 points are supplied or the polygon area
-    is zero. Coordinates are returned as floats.
+    Returns ``None`` when fewer than 3 points are supplied or the polygon has no
+    area — including collinear vertices whose float coordinates leave the signed
+    area a rounding error away from zero. Coordinates are returned as floats.
     """
 
     if len(points) < 3:
         return None
 
+    # The shoelace multiplies coordinates together, so far from the origin the
+    # terms are huge and cancel: summing them relative to the first vertex keeps
+    # the products at the polygon's own size.
+    ox, oy = points[0]
+    shifted = [(x - ox, y - oy) for x, y in points]
+
     area_twice = 0.0
     cx = 0.0
     cy = 0.0
-    for idx, (x0, y0) in enumerate(points):
-        x1, y1 = points[(idx + 1) % len(points)]
+    for idx, (x0, y0) in enumerate(shifted):
+        x1, y1 = shifted[(idx + 1) % len(shifted)]
         cross = x0 * y1 - x1 * y0
         area_twice += cross
         cx += (x0 + x1) * cross
         cy += (y0 + y1) * cross
 
-    if math.isclose(area_twice, 0.0):
+    # ``math.isclose(area_twice, 0.0)`` used to stand here; with its default
+    # ``abs_tol=0`` it is only true for an exact zero, so three collinear float
+    # vertices divided by ~1e-16 and returned a centroid off their own line.
+    xs = [x for x, _ in points]
+    ys = [y for _, y in points]
+    extent = max(max(xs) - min(xs), max(ys) - min(ys))
+    magnitude = max(max(abs(v) for v in xs), max(abs(v) for v in ys))
+    if abs(area_twice) <= _DEGENERATE_AREA_RTOL * len(points) * extent * (extent + magnitude):
         return None
 
     area = area_twice / 2.0
     factor = 1 / (6.0 * area)
-    return cx * factor, cy * factor
+    return ox + cx * factor, oy + cy * factor
 
 
 def snap_point_to_axes(
@@ -81,11 +101,13 @@ def snap_point_to_axes(
         _consider((ax, py))  # Vertical alignment
         _consider((px, ay))  # Horizontal alignment
 
+    # The center itself is tried first: on a tie (``<``) it wins over the axis
+    # projections. This is the order the app has always used.
     for center in centers or []:
         cx, cy = center
+        _consider((cx, cy))  # Snap directly to center intersection
         _consider((cx, py))  # Snap to vertical axis through center
         _consider((px, cy))  # Snap to horizontal axis through center
-        _consider((cx, cy))  # Snap directly to center intersection
 
     return best_point
 

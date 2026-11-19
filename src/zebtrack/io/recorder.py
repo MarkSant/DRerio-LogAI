@@ -480,26 +480,6 @@ class Recorder:
         self._pause_start_time = None
         return True
 
-    def is_paused(self) -> bool:
-        """Check if recorder is currently paused.
-
-        Returns:
-            True if paused
-        """
-        return self._is_paused
-
-    def get_pause_metadata(self) -> dict:
-        """Get pause/resume metadata for session report.
-
-        Returns:
-            Dict with pause statistics
-        """
-        return {
-            "is_paused": self._is_paused,
-            "total_paused_duration_s": self._total_paused_duration,
-            "pause_start_time": self._pause_start_time,
-        }
-
     # ---------------------------------------------------------------
     # Phase 4 / M4: async Parquet flush thread
     # ---------------------------------------------------------------
@@ -550,7 +530,7 @@ class Recorder:
                 self._flush_mask_data()
                 self._flush_object_data()
             # except Exception justified: long-running worker, never crash recorder
-            except Exception as exc:  # pragma: no cover - defensive
+            except Exception as exc:
                 log.error("recorder.flush_loop.error", error=str(exc), exc_info=True)
 
         if self._flush_drain_on_stop:
@@ -559,7 +539,7 @@ class Recorder:
                 self._flush_mask_data(force=True)
                 self._flush_object_data(force=True)
             # except Exception justified: final drain best-effort
-            except Exception as exc:  # pragma: no cover - defensive
+            except Exception as exc:
                 log.error(
                     "recorder.flush_loop.final_drain_error",
                     error=str(exc),
@@ -908,40 +888,32 @@ class Recorder:
                 timestamp, frame_number, t_event_s, parts.get(aq_id, []), aquarium_id=aq_id
             )
 
-    def write_video_frame_multi_aquarium(
-        self,
-        aquarium_id: int,
-        frame: np.ndarray,
-    ) -> None:
-        """
-        Write a video frame for a specific aquarium.
-
-        Args:
-            aquarium_id: The aquarium ID to write the frame for.
-            frame: The video frame to write.
-        """
-        if not self._multi_aquarium_mode:
-            log.warning("recorder.multi_aquarium.write_frame.not_active")
-            return
-
-        if aquarium_id in self._aquarium_recorders:
-            self._aquarium_recorders[aquarium_id].write_video_frame(frame)
-
     def stop_recording_multi_aquarium(
         self, force_stop: bool = False, reason: str | None = None
     ) -> None:
         """
         Stop recording for all aquariums.
 
+        Every aquarium is stopped even when an earlier one fails, so one bad
+        write never costs the others their data. The failures are then raised
+        together: until 8.0 they were only logged, the worker reported the
+        video as finished and an aquarium was left without a trajectory, while
+        the single-aquarium path re-raised the very same failure.
+
         Args:
-            force_stop: If True, forces cleanup without saving data.
+            force_stop: If True, forces cleanup without saving data. A forced
+                stop is the error-state path and never raises.
             reason: Forwarded to every sub-recorder's ``stop_recording``.
+
+        Raises:
+            RecorderError: One or more aquariums could not be finalised.
         """
         if not self._multi_aquarium_mode:
             log.warning("recorder.multi_aquarium.stop.not_active")
             return
 
         self._release_session_video()
+        failures: list[tuple[int, str]] = []
         for aq_id, recorder in list(self._aquarium_recorders.items()):
             try:
                 recorder.stop_recording(force_stop=force_stop, reason=reason)
@@ -949,7 +921,8 @@ class Recorder:
                     "recorder.multi_aquarium.recorder_stopped",
                     aquarium_id=aq_id,
                 )
-            # except Exception justified: stop_recording per aquarium
+            # except Exception justified: keep stopping the other aquariums;
+            # the failure is collected and raised after the loop
             except Exception as e:
                 log.error(
                     "recorder.multi_aquarium.stop_failed",
@@ -957,14 +930,17 @@ class Recorder:
                     error=str(e),
                     exc_info=True,
                 )
+                failures.append((aq_id, str(e)))
 
         self._aquarium_recorders.clear()
         self._multi_aquarium_mode = False
-        log.info("recorder.multi_aquarium.stopped")
+        log.info("recorder.multi_aquarium.stopped", failed_aquariums=len(failures))
 
-    def is_multi_aquarium_mode(self) -> bool:
-        """Check if recorder is in multi-aquarium mode."""
-        return self._multi_aquarium_mode
+        if failures and not force_stop:
+            from zebtrack.core.exceptions import RecorderError
+
+            details = "; ".join(f"aquarium {aq_id + 1}: {error}" for aq_id, error in failures)
+            raise RecorderError(f"Recording could not be finalised for {details}")
 
     def get_aquarium_recorders(self) -> dict[int, "Recorder"]:
         """Get all aquarium recorders (for testing/debugging)."""
@@ -1139,11 +1115,6 @@ class Recorder:
         """Se este recorder grava o sidecar de máscaras."""
         return self._persist_masks
 
-    @property
-    def mask_parquet_filename(self) -> str:
-        """Caminho do sidecar; string vazia quando a gravação está desligada."""
-        return self._mask_parquet_filename
-
     def write_mask_data(self, frame_number: int, masks_by_track: dict[int, Any]) -> None:
         """Enfileira os contornos de um frame para o sidecar.
 
@@ -1290,7 +1261,7 @@ class Recorder:
                 log.info("recorder.masks.writer_created", path=self._mask_parquet_filename)
             self._mask_parquet_writer.write_table(table)
             log.debug("recorder.masks.flush.success", rows=table.num_rows)
-        except Exception as exc:  # pragma: no cover - best effort, nunca derruba a sessão
+        except Exception as exc:
             # O sidecar é OPCIONAL: perdê-lo degrada a regra ``seg_overlap``
             # para ``bbox_intersects`` com aviso no relatório. Derrubar a
             # gravação por causa dele perderia também a trajetória, que é o
@@ -1310,7 +1281,7 @@ class Recorder:
         try:
             self._mask_parquet_writer.close()
             log.info("recorder.masks.writer_closed", path=path)
-        except Exception as exc:  # pragma: no cover - best effort close
+        except Exception as exc:
             log.error("recorder.masks.writer_close_error", path=path, error=str(exc))
         finally:
             self._mask_parquet_writer = None
@@ -1323,11 +1294,6 @@ class Recorder:
     def persist_object_sidecar(self) -> bool:
         """Whether this recorder writes the ``3c_Objetos_`` sidecar."""
         return self._persist_objects
-
-    @property
-    def object_parquet_filename(self) -> str:
-        """Path of the object sidecar; empty string when it is switched off."""
-        return self._object_parquet_filename
 
     def write_object_data(
         self,
@@ -1513,7 +1479,7 @@ class Recorder:
         try:
             self._object_parquet_writer.close()
             log.info("recorder.object_sidecar.writer_closed", path=path)
-        except Exception as exc:  # pragma: no cover - best effort close
+        except Exception as exc:
             log.error("recorder.object_sidecar.writer_close_error", path=path, error=str(exc))
         finally:
             self._object_parquet_writer = None
@@ -1609,57 +1575,6 @@ class Recorder:
                 ]
             )
         return columns
-
-    def _validate_unique_detections(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Remove duplicate detections (same frame + track_id).
-
-        BUG FIX #2: Prevents inflated metrics caused by duplicate detections
-        of the same object in the same frame, which can occur due to ByteTracker
-        errors or model issues.
-
-        Args:
-            df: DataFrame with detection data
-
-        Returns:
-            DataFrame with duplicates removed (keeps first occurrence)
-        """
-        if df.empty:
-            return df
-
-        # Check if required columns exist
-        if "frame" not in df.columns or "track_id" not in df.columns:
-            log.warning(
-                "recorder.duplicate_check_skipped",
-                reason="missing_columns",
-                available_columns=list(df.columns),
-            )
-            return df
-
-        # Identify duplicates
-        duplicates = df.duplicated(subset=["frame", "track_id"], keep="first")
-        num_duplicates = duplicates.sum()
-
-        if num_duplicates > 0:
-            # Get some examples for logging
-            duplicate_examples = df[duplicates][["frame", "track_id"]].head(5).to_dict("records")
-
-            log.warning(
-                "recorder.duplicate_detections_removed",
-                count=int(num_duplicates),
-                total_rows=len(df),
-                percentage=f"{(num_duplicates / len(df)) * 100:.2f}%",
-                examples=duplicate_examples,
-                message=(
-                    "Duplicate detections detected and removed. "
-                    "This may indicate ByteTracker issues or model problems."
-                ),
-            )
-
-            # Remove duplicates
-            df = df[~duplicates].copy()
-
-        return df
 
     def _should_flush(self) -> bool:
         if not self.detection_data:
@@ -1771,7 +1686,7 @@ class Recorder:
             log.error("recorder.flush.critical_error", exc_info=e)
             self.stop_recording(force_stop=True)
             raise  # Re-raise the exception to notify the caller
-        except Exception as e:  # pragma: no cover - unexpected failures logged
+        except Exception as e:
             # Best-effort recovery: re-inject snapshot for retry on next flush,
             # but respect the safety cap to prevent unbounded growth.
             with self._data_lock:
@@ -1923,7 +1838,7 @@ class Recorder:
             # Phase 5.3: Verify integrity after closing streaming writer
             if parquet_path:
                 self._verify_parquet_integrity(parquet_path)
-        except Exception as e:  # pragma: no cover - best effort close
+        except Exception as e:
             log.error(
                 "recorder.parquet_writer.close_error",
                 path=parquet_path,

@@ -423,14 +423,6 @@ class StateSynchronizer:
     # Reset Methods - Configuration
     # ========================================================================
 
-    def reset_global_config_form_widget(self) -> None:
-        """Reset ConfigEditorWidget form fields to reflect current settings object."""
-        self.gui._reload_config_editor_values_widget()
-        self.dialog_manager.show_info(
-            _("Form reloaded"),
-            _("Values restored to reflect the current settings."),
-        )
-
     # ========================================================================
     # Helper Methods - Analysis Metadata
     # ========================================================================
@@ -439,14 +431,6 @@ class StateSynchronizer:
     def _analysis_metadata_defaults() -> tuple[str, str, str]:
         """Return default values for analysis metadata."""
         return (no_group_label(), no_day_label(), not_reported_label())
-
-    @classmethod
-    def _default_analysis_metadata_text(cls) -> str:
-        """Return default analysis metadata text."""
-        group, day, subject = cls._analysis_metadata_defaults()
-        return _("Group: {group} | Day: {day} | Individual: {subject}").format(
-            group=group, day=day, subject=subject
-        )
 
     def _set_analysis_metadata_defaults(self) -> None:
         """Set analysis metadata to default values."""

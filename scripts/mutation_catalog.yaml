@@ -391,7 +391,7 @@ modules:
     source: src/zebtrack/settings.py
     tests:
       - tests/test_settings.py
-      - tests/test_plugins_ultralytics.py
+      - tests/plugins/test_ultralytics_detector.py
     mutations:
       - id: animal-threshold-ignored
         description: "limiar do animal deixa de ser lido e o da arena volta a governar"
@@ -1000,7 +1000,7 @@ modules:
   openvino_nms:
     source: src/zebtrack/plugins/openvino_detector.py
     tests:
-      - tests/plugins/test_openvino_detector_extended.py
+      - tests/plugins/test_openvino_detector.py
     mutations:
       - id: nms-always-agnostic
         description: "NMS do OpenVINO volta a ser agnostico e o rato dentro da caixa some"
@@ -1435,7 +1435,7 @@ modules:
   session_output_labels:
     source: src/zebtrack/utils/report_files.py
     tests:
-      - tests/utils/test_session_output_listing.py
+      - tests/utils/test_report_files.py
     mutations:
       - id: object-sidecar-unlabelled
         description: "3c_Objetos_ volta a aparecer sem rotulo na lista de saidas"
@@ -2280,7 +2280,7 @@ modules:
   ultralytics_plugin_track_buffer:
     source: src/zebtrack/plugins/ultralytics_detector.py
     tests:
-      - tests/plugins/test_ultralytics_detector_extended.py
+      - tests/plugins/test_ultralytics_detector.py
     mutations:
       - id: plugin-pins-track-buffer
         description: "plugin volta a fixar track_buffer = 60 (#666)"
@@ -2370,7 +2370,7 @@ modules:
   plugin_bytetrack_threshold_hints:
     source: src/zebtrack/plugins/base.py
     tests:
-      - tests/plugins/test_detector_plugin_base_extended.py
+      - tests/plugins/test_base.py
     mutations:
       - id: openvino-match-fallback-returns
         description: "fallback do match sem settings volta a 0.80 (OpenVINO, #698)"
@@ -3728,3 +3728,2594 @@ _load_registry()"
         description: "video unico ignora o behavioral_analysis do dialogo (#695)"
         find: 'if isinstance(dialog_block, dict)'
         replace: 'if False'
+
+  # ---------------------------------------------------------------------------
+  # plugins/ and utils/ coverage campaign (TASK-087)
+  # ---------------------------------------------------------------------------
+
+  openvino_geometry_and_devices:
+    source: src/zebtrack/plugins/openvino_detector.py
+    tests:
+      - tests/plugins/test_openvino_detector.py
+    mutations:
+      - id: letterbox-shape-swapped
+        description: "altura e largura trocadas a caminho do letterbox: modelo retangular recebe tensor transposto"
+        find: 'letterboxed_frame, _, _ = _letterbox(frame, new_shape=(h, w), auto=False)'
+        replace: 'letterboxed_frame, _, _ = _letterbox(frame, new_shape=(w, h), auto=False)'
+      - id: mask-padding-not-cropped
+        description: "mascara volta a ser esticada com as faixas do letterbox e o contorno sai fora do bbox"
+        find: '        masks = masks[top:bottom, left:right]'
+        replace: '        pass'
+      - id: masks-always-decoded
+        description: "decode de mascara roda em todo frame mesmo com a captura desligada"
+        find: 'results, frame.shape, input_shape, decode_masks=self._capture_masks'
+        replace: 'results, frame.shape, input_shape, decode_masks=True'
+      - id: missing-device-not-replaced
+        description: "dispositivo que a maquina nao tem deixa de cair para AUTO"
+        find: 'if device_name != "AUTO" and device_name not in available_devices:'
+        replace: 'if False:'
+      - id: npu-failure-retries-on-auto
+        description: "falha de compilacao no NPU volta a tentar AUTO em vez de CPU"
+        find: 'fallback_device = "CPU" if device_name == "NPU" else "AUTO"'
+        replace: 'fallback_device = "AUTO"'
+      - id: request-pool-not-capped
+        description: "fila assincrona pede mais requests do que ha frames"
+        find: 'nireq = max(1, min(nireq, len(frames)))'
+        replace: 'nireq = max(1, nireq)'
+
+  plugin_registry_degradation:
+    source: src/zebtrack/plugins/__init__.py
+    tests:
+      - tests/plugins/test_plugins_init.py
+    mutations:
+      - id: missing-openvino-reported-available
+        description: "backend OpenVINO ausente passa a ser anunciado como disponivel"
+        find: 'namespace.setdefault("OPENVINO_PLUGIN_AVAILABLE", openvino_cls is not None)'
+        replace: 'namespace.setdefault("OPENVINO_PLUGIN_AVAILABLE", True)'
+      - id: pinned-flag-overwritten
+        description: "construcao do registro sobrescreve uma flag ja definida"
+        find: 'namespace.setdefault("OPENVINO_PLUGIN_AVAILABLE", openvino_cls is not None)'
+        replace: 'namespace["OPENVINO_PLUGIN_AVAILABLE"] = openvino_cls is not None'
+
+  hardware_benchmark_decisions:
+    source: src/zebtrack/utils/hardware_benchmark.py
+    tests:
+      - tests/utils/test_hardware_benchmark.py
+    mutations:
+      - id: nvidia-without-cuda-sent-to-pytorch
+        description: "placa NVIDIA vista so pelo OpenVINO e mandada para PyTorch/cuda sem CUDA"
+        find: 'if profile.gpu_type == GPUType.NVIDIA and profile.cuda_available:'
+        replace: 'if profile.gpu_type == GPUType.NVIDIA:'
+      - id: fp16-recommended-on-a-tie
+        description: "FP16 recomendado sem ser mais rapido"
+        find: 'if compute_results["GPU_LATENCY_FP16"].fps > compute_results["GPU_LATENCY"].fps:'
+        replace: 'if compute_results["GPU_LATENCY_FP16"].fps >= compute_results["GPU_LATENCY"].fps:'
+      - id: eight-gb-treated-as-low-memory
+        description: "maquina de 8 GB cai no modo de pouca memoria"
+        find: 'if profile.total_memory_gb < 8:'
+        replace: 'if profile.total_memory_gb <= 8:'
+      - id: unmeasured-run-reported-conclusive
+        description: "benchmark que nao mediu nada deixa de se declarar inconclusivo e e congelado no cache"
+        find: 'result.inconclusive = not compute_results and not pipeline_live_results'
+        replace: 'result.inconclusive = False'
+      - id: cache-of-other-hardware-accepted
+        description: "cache de outra maquina passa a valer depois de trocar o hardware"
+        find: 'if result.hardware.fingerprint != current_profile.fingerprint:'
+        replace: 'if False:'
+      - id: compiled-cache-follows-cwd
+        description: "cache compilado do benchmark volta a depender do diretorio corrente"
+        find: 'return str(repo_root() / OPENVINO_CACHE_DIRNAME / "compiled_cache")'
+        replace: 'return "openvino_model_cache/compiled_cache"'
+      - id: npu-missing-from-fingerprint
+        description: "instalar um NPU deixa de invalidar o cache do benchmark"
+        find: 'f"{profile.cpu_name}|{profile.gpu_name}|{profile.gpu_memory_gb}|npu={has_npu}"'
+        replace: 'f"{profile.cpu_name}|{profile.gpu_name}|{profile.gpu_memory_gb}|npu=False"'
+
+  hardware_capability_tiers:
+    source: src/zebtrack/utils/hardware_capability.py
+    tests:
+      - tests/utils/test_hardware_capability.py
+    mutations:
+      - id: four-gb-machine-refused
+        description: "maquina de exatamente 4 GB vira insuficiente"
+        find: 'if cpu_cores < 2 or total_memory_gb < 4:'
+        replace: 'if cpu_cores < 2 or total_memory_gb <= 4:'
+      - id: excellent-without-gpu
+        description: "maquina sem GPU e classificada como excelente"
+        find: 'if has_gpu and cpu_cores >= 8 and total_memory_gb >= 16:'
+        replace: 'if cpu_cores >= 8 and total_memory_gb >= 16:'
+      - id: aquarium-cap-removed
+        description: "teto de 6 aquarios deixa de valer"
+        find: 'return min(max_from_cpu, max_from_memory, 6)'
+        replace: 'return min(max_from_cpu, max_from_memory)'
+      - id: insufficient-machine-allowed-realtime
+        description: "maquina insuficiente e liberada para tempo real"
+        find: 'can_process_realtime = capability not in (MultiAquariumCapability.INSUFFICIENT,)'
+        replace: 'can_process_realtime = True'
+
+  polygon_simplification:
+    source: src/zebtrack/utils/geometry.py
+    tests:
+      - tests/utils/test_geometry.py
+    mutations:
+      - id: epsilon-floor-removed
+        description: "epsilon deixa de ter piso de 1 px e o ruido de borda sobrevive"
+        find: 'epsilon = max(1.0, epsilon_factor * perimeter)'
+        replace: 'epsilon = epsilon_factor * perimeter'
+      - id: collapsed-outline-returned
+        description: "aproximacao que colapsa abaixo de um triangulo e devolvida como arena"
+        find: 'if approx is None or len(approx) < 3:'
+        replace: 'if approx is None:'
+
+  coverage_summary_floors:
+    source: scripts/coverage_summary.py
+    tests:
+      - tests/quality/test_coverage_summary.py
+    mutations:
+      - id: floor-exactly-met-fails
+        description: "pacote exatamente no piso passa a reprovar"
+        find: 'if counts.line_rate < floor:'
+        replace: 'if counts.line_rate <= floor:'
+      - id: prefix-swallows-sibling-package
+        description: "piso de 'core' passa a somar um pacote 'coreutils'"
+        find: 'own.startswith(package + ".")'
+        replace: 'own.startswith(package)'
+      - id: unknown-package-passes
+        description: "piso num pacote que nao existe no relatorio passa em silencio"
+        find: 'if unknown:'
+        replace: 'if False:'
+
+# core/viewmodels coverage (TASK-087)
+  viewmodels_runtime:
+    source: src/zebtrack/core/viewmodels/main_view_model_runtime.py
+    tests:
+      - tests/core/viewmodels/test_main_view_model_runtime.py
+    mutations:
+      - id: wizard-flat-fields-override-nested
+        description: "campos planos do PROJECT_CREATE passam a vencer o wizard_data aninhado"
+        find: 'merged_wizard_data.setdefault(key, value)'
+        replace: 'merged_wizard_data[key] = value'
+      - id: legacy-weight-name-wins
+        description: "weight_name legado passa a vencer o campo name atual"
+        find: 'selected_weight = payload_dict.get("name") or payload_dict.get("weight_name")'
+        replace: 'selected_weight = payload_dict.get("weight_name") or payload_dict.get("name")'
+      - id: empty-delete-payload-deletes
+        description: "payload vazio de exclusao deixa de ser descartado"
+        find: 'if not payload_dict and event_name in {'
+        replace: 'if False and event_name in {'
+      - id: delete-day-deletes-group
+        description: "excluir dia passa a excluir o grupo"
+        find: 'UIEvents.PROJECT_DELETE_DAY: "day",'
+        replace: 'UIEvents.PROJECT_DELETE_DAY: "group",'
+      - id: cancel-feedback-on-reset
+        description: "feedback de cancelamento aparece tambem quando cancel_requested volta a False"
+        find: 'elif key == "cancel_requested" and new:'
+        replace: 'elif key == "cancel_requested":'
+
+  viewmodels_hardware:
+    source: src/zebtrack/core/viewmodels/hardware_status_view_model.py
+    tests:
+      - tests/core/test_hardware_status_view_model.py
+    mutations:
+      - id: slot-fallback-merged-with-exact
+        description: "pesos de outro alvo passam a se misturar com os do alvo exato"
+        find: 'return exact_matches or fallback_matches'
+        replace: 'return exact_matches + fallback_matches'
+      - id: project-summary-needs-only-one-method
+        description: "resumo de projeto filtra os slots com apenas um metodo conhecido"
+        find: 'if aquarium_method and animal_method:'
+        replace: 'if aquarium_method or animal_method:'
+      - id: global-restore-inverted
+        description: "restaurar padroes globais passa a cair no ramo errado"
+        find: 'if scope == "global":'
+        replace: 'if scope != "global":'
+      - id: command-success-logged-as-failure
+        description: "comando enviado com sucesso e registrado como falha"
+        find: '_("Command {command} sent ({source})")'
+        replace: '_("Command {command} failed ({source})")'
+
+  viewmodels_analysis_control:
+    source: src/zebtrack/core/viewmodels/analysis_control_view_model.py
+    tests:
+      - tests/core/test_analysis_control_view_model.py
+    mutations:
+      - id: det-one-animal-rejected
+        description: "det com exatamente 1 animal passa a ser recusado"
+        find: 'if animal_method == "det" and animals_per_aquarium > 1:'
+        replace: 'if animal_method == "det" and animals_per_aquarium >= 1:'
+      - id: pixels-per-cm-inverted
+        description: "calibracao em pixels por cm multiplica em vez de dividir"
+        find: 'pixelcm_x = width_px / real_width_cm'
+        replace: 'pixelcm_x = width_px * real_width_cm'
+      - id: roi-color-not-converted
+        description: "cor do ROI deixa de ser convertida de BGR para RGB"
+        find: 'color_rgb = (color_bgr[2], color_bgr[1], color_bgr[0])'
+        replace: 'color_rgb = (color_bgr[0], color_bgr[1], color_bgr[2])'
+      - id: height-estimate-margin
+        description: "estimativa de altura do video usa margem de 20% em vez de 10%"
+        find: 'video_height_px = int(max(p[1] for p in arena_poly) * 1.1)'
+        replace: 'video_height_px = int(max(p[1] for p in arena_poly) * 1.2)'
+      - id: legacy-thread-always-running
+        description: "thread legado inativa passa a contar como processamento em curso"
+        find: 'legacy_thread_running = bool(self.processing_thread and self.processing_thread.is_alive())'
+        replace: 'legacy_thread_running = bool(self.processing_thread)'
+
+  viewmodels_project:
+    source: src/zebtrack/core/viewmodels/project_view_model.py
+    tests:
+      - tests/core/test_project_view_model.py
+    mutations:
+      - id: removal-allowed-without-coordinator
+        description: "remocao de asset e liberada quando nao ha coordenador"
+        find: 'return (False, "ProjectLifecycleCoordinator not available")'
+        replace: 'return (True, "ProjectLifecycleCoordinator not available")'
+      - id: delete-source-always-false
+        description: "pedido de apagar a fonte do asset e ignorado"
+        find: 'delete_source=delete_source'
+        replace: 'delete_source=False'
+      - id: hierarchy-delete-counts-fake
+        description: "sem coordenador a exclusao de hierarquia finge ter apagado algo"
+        find: 'return 0, 0'
+        replace: 'return 1, 1'
+
+  # core/video coverage (TASK-087)
+  processing_worker_monitor_loop:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+    mutations:
+      - id: exit-grace-window-collapsed
+        description: "filho morto sem sinal e declarado fatal sem esperar o flush da fila"
+        find: 'if time.monotonic() - worker_exit_detected_at < 1.0:'
+        replace: 'if time.monotonic() - worker_exit_detected_at < 0.0:'
+      - id: exit-grace-not-reset-by-messages
+        description: "uma mensagem que chega tarde nao rearma a janela de tolerancia"
+        find: 'worker_exit_detected_at = None'
+        replace: 'pass'
+      - id: cancel-flooded
+        description: "o comando cancel e reenviado a cada volta do monitor"
+        find: 'if self.context.cancel_event.is_set() and not cancel_sent:'
+        replace: 'if self.context.cancel_event.is_set():'
+      - id: join-without-wait
+        description: "o monitor nao espera o filho sair antes de decidir terminar"
+        find: 'self.process.join(timeout=2.0)'
+        replace: 'self.process.join(timeout=0.0)'
+      - id: progress-total-default
+        description: "progresso sem total reporta 0 videos em vez de 1"
+        find: 'msg.get("total", 1)'
+        replace: 'msg.get("total", 0)'
+
+  processing_worker_frame_loop:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+    mutations:
+      - id: skipped-frames-not-grabbed
+        description: "quadros fora do intervalo nao sao consumidos e o fim do video nao e visto"
+        find: 'ret = cap.grab()'
+        replace: 'ret = True'
+      - id: pts-in-wrong-unit
+        description: "timestamp da trajetoria deixa de ser o PTS em segundos"
+        find: 'timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0'
+        replace: 'timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 100.0'
+      - id: preview-not-scaled
+        description: "preview largo vai ao UI sem reduzir as caixas"
+        find: 'scale = 1280 / width'
+        replace: 'scale = 1.0'
+      - id: results-folder-name
+        description: "pasta de resultados ao lado do video muda de nome"
+        find: 'results_dir = os.path.join(video_dir, f"{experiment_id}_results")'
+        replace: 'results_dir = os.path.join(video_dir, f"{experiment_id}_out")'
+      - id: single-video-mode-inverted
+        description: "video unico grava na pasta do lote e vice-versa"
+        find: 'if self.config.single_video_mode:'
+        replace: 'if not self.config.single_video_mode:'
+
+  processing_worker_run_ids:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+    mutations:
+      - id: aquarium-suffix-off-by-one
+        description: "sufixo _aqN comeca em 0 e colide com o aquario 1"
+        find: "video_info['aquarium_id'] + 1"
+        replace: "video_info['aquarium_id'] + 0"
+      - id: anonymous-video-id
+        description: "tarefa sem caminho nem id perde a numeracao 1-based"
+        find: 'else f"video_{index + 1}"'
+        replace: 'else f"video_{index}"'
+      - id: completed-ignores-cancel
+        description: "sinal final diz que nao houve cancelamento"
+        find: '{"type": "completed", "cancelled": self._cancel_requested}'
+        replace: '{"type": "completed", "cancelled": False}'
+
+  progress_notifier_metadata:
+    source: src/zebtrack/core/video/progress_notifier.py
+    tests:
+      - tests/core/test_video_processing_service_helpers.py
+    mutations:
+      - id: entry-top-level-overrides-metadata
+        description: "chave de topo da entrada vence o metadata do projeto"
+        find: 'if value not in (None, "") and key not in combined:'
+        replace: 'if value not in (None, ""):'
+      - id: single-config-overrides
+        description: "config de video unico sobrescreve o que o projeto ja sabia"
+        find: 'combined.setdefault(target_key, value)'
+        replace: 'combined[target_key] = value'
+      - id: experiment-id-overrides
+        description: "experiment_id do contexto e substituido pelo do argumento"
+        find: 'combined.setdefault("experiment_id", experiment_id)'
+        replace: 'combined["experiment_id"] = experiment_id'
+      - id: metadata-update-delayed
+        description: "atualizacao da vista de analise espera 1 s na thread principal"
+        find: 'self.ui_coordinator.schedule_after(0, _publish)'
+        replace: 'self.ui_coordinator.schedule_after(1000, _publish)'
+      - id: profile-tracks-not-copied
+        description: "trilhas do perfil entram como o objeto original, nao como lista"
+        find: 'combined["analysis_profile_tracks"] = list(track_ids)'
+        replace: 'combined["analysis_profile_tracks"] = track_ids'
+
+  video_processing_service_orchestration:
+    source: src/zebtrack/core/video/video_processing_service.py
+    tests:
+      - tests/core/test_video_processing_service.py
+    mutations:
+      - id: active-zone-video-not-set
+        description: "zonas do video anterior continuam ativas durante o processamento"
+        find: 'self.project_manager.set_active_zone_video(video_path)'
+        replace: 'pass'
+      - id: first-frame-not-shown
+        description: "o primeiro quadro ja lido nao e reaproveitado na UI"
+        find: 'self.display_initial_frame(video_path, frame=video_context.first_frame)'
+        replace: 'self.display_initial_frame(video_path, frame=None)'
+      - id: detector-cache-kept
+        description: "cache do detector sobrevive ao proximo video"
+        find: 'if detector and hasattr(detector, "clear_cache"):'
+        replace: 'if False:'
+      - id: capture-leaked
+        description: "a captura do video nunca e liberada"
+        find: 'video_context.release()'
+        replace: 'pass'
+      - id: failed-analysis-reported-ok
+        description: "analise que falhou volta como sucesso"
+        find: 'return analysis_success, results_dir'
+        replace: 'return True, results_dir'
+
+  tracking_session_runner_worker:
+    source: src/zebtrack/core/video/tracking_session_runner.py
+    tests:
+      - tests/core/test_video_processing_service_tracking.py
+    mutations:
+      - id: existing-trajectory-ignored
+        description: "trajetoria ja gravada e refeita em vez de reaproveitada"
+        find: 'if os.path.exists(trajectory_path):'
+        replace: 'if False:'
+      - id: completion-always-success
+        description: "video que falhou no worker volta como concluido"
+        find: 'result_status["success"] = success'
+        replace: 'result_status["success"] = True'
+      - id: stats-dropped
+        description: "estatisticas do worker nao chegam ao callback de progresso"
+        find: 'progress_callback(fraction, message, stats=stats)'
+        replace: 'progress_callback(fraction, message, stats=None)'
+      - id: six-field-progress-rejected
+        description: "formato de seis campos do worker e descartado como invalido"
+        find: 'elif len(args) == 6:'
+        replace: 'elif len(args) == 5:'
+
+  analysis_pipeline_runner_orchestration:
+    source: src/zebtrack/core/video/analysis_pipeline_runner.py
+    tests:
+      - tests/core/video/test_analysis_pipeline_runner.py
+    mutations:
+      - id: cancelled-reports-registered
+        description: "relatorios cancelados ainda sao registrados como saida"
+        find: 'if generated_outputs is None:'
+        replace: 'if False:'
+      - id: summary-profile-name
+        description: "perfil sem nome deixa de ser publicado como default"
+        find: 'profile_name = profile_dict.get("name", "default")'
+        replace: 'profile_name = profile_dict.get("name", "unnamed")'
+      - id: calibration-x-ignored
+        description: "razao px/cm em x ausente nao interrompe a analise"
+        find: 'or pixelcm_x is None'
+        replace: 'or False'
+      - id: excel-summary-skipped
+        description: "resumo em Excel deixa de ser gerado"
+        find: 'ExcelReporter(ctx).export_summary(summary_excel_path)'
+        replace: 'pass'
+
+  video_context_factory_calibration:
+    source: src/zebtrack/core/video/video_context_factory.py
+    tests:
+      - tests/core/test_video_context_factory.py
+    mutations:
+      - id: fast-seek-boundary
+        description: "seek de exatamente 10 ms conta como rapido"
+        find: 'if seek_time_ms < 10:'
+        replace: 'if seek_time_ms <= 10:'
+      - id: medium-seek-boundary
+        description: "seek de exatamente 50 ms conta como medio"
+        find: 'elif seek_time_ms < 50:'
+        replace: 'elif seek_time_ms <= 50:'
+      - id: fps-fallback-lost
+        description: "cabecalho sem fps nao cai no fps das settings"
+        find: 'or getattr(self.settings.video_processing, "fps", 30.0)'
+        replace: 'or 0.0'
+      - id: full-frame-arena-transposed
+        description: "arena de quadro inteiro sai com largura e altura trocadas"
+        find: 'return [[0, 0], [width, 0], [width, height], [0, height]]'
+        replace: 'return [[0, 0], [height, 0], [height, width], [0, width]]'
+
+  shared_frame_buffer_header:
+    source: src/zebtrack/core/video/shared_frame_buffer.py
+    tests:
+      - tests/core/test_shared_frame_buffer.py
+    mutations:
+      - id: zero-sized-frame-accepted
+        description: "quadro de largura ou altura zero e lido como valido"
+        find: 'if h == 0 or w == 0:'
+        replace: 'if h == 0 and w == 0:'
+      - id: oversized-header-accepted
+        description: "cabecalho que promete mais pixels que o bloco e lido"
+        find: 'if HEADER_SIZE + nbytes > self._shm.size:'
+        replace: 'if False:'
+      - id: stale-sequence-accepted
+        description: "quadro sobrescrito (sequencia velha) e entregue como atual"
+        find: 'if seq != expected_seq:'
+        replace: 'if False:'
+
+  # ---------------------------------------------------------------------------
+  # A5 silent failures (TASK-087)
+  # ---------------------------------------------------------------------------
+
+  recorder_multi_aquarium_stop_failure:
+    source: src/zebtrack/io/recorder.py
+    tests:
+      - tests/io/test_recorder_multi_aquarium.py
+    mutations:
+      - id: aquarium-stop-failure-swallowed
+        description: "falha ao finalizar um aquario volta a ser so logada e o video sai como concluido (A5-S-001)"
+        find: 'if failures and not force_stop:'
+        replace: 'if False:'
+      - id: forced-stop-raises
+        description: "parada forcada (caminho de erro) passa a levantar uma segunda falha"
+        find: 'if failures and not force_stop:'
+        replace: 'if failures:'
+      - id: failed-aquarium-not-recorded
+        description: "a falha de um aquario deixa de ser coletada"
+        find: '                failures.append((aq_id, str(e)))'
+        replace: '                pass'
+
+  live_recorder_stop_failure:
+    source: src/zebtrack/core/recording/live_session_manager.py
+    tests:
+      - tests/core/recording/test_live_session_manager_extended.py
+    mutations:
+      - id: failed-save-not-shown
+        description: "falha ao salvar a sessao ao vivo deixa de chegar ao operador (A5-S-002)"
+        find: '            self._report_recorder_stop_failure(str(e))'
+        replace: '            pass'
+      - id: cancelled-session-reported-as-lost
+        description: "sessao cancelada de proposito passa a ser reportada como gravacao perdida"
+        find: |-
+          if forced:
+                          log.warning("live_camera_service.recorder_stop_error", error=str(e))
+                          return
+        replace: |-
+          if False:
+                          log.warning("live_camera_service.recorder_stop_error", error=str(e))
+                          return
+      - id: stale-stop-error-kept
+        description: "erro de uma sessao anterior vaza para a seguinte"
+        find: '        self._recorder_stop_error: str | None = None'
+        replace: '        self._recorder_stop_error = getattr(self, "_recorder_stop_error", None)'
+
+  analysis_failed_metric_warnings:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_service.py
+    mutations:
+      - id: failed-thigmotaxis-not-reported
+        description: "tigmotaxia que falha volta a sumir do relatorio sem aviso (A5-S-005)"
+        find: '_("Thigmotaxis was requested but could not be computed: {error}").format('
+        replace: 'str('
+      - id: failed-geotaxis-not-reported
+        description: "geotaxia que falha volta a sumir do relatorio sem aviso (A5-S-005)"
+        find: '_("Geotaxis was requested but could not be computed: {error}").format('
+        replace: 'str('
+
+  unified_report_session_count:
+    source: src/zebtrack/coordinators/live_batch_coordinator.py
+    tests:
+      - tests/coordinators/test_live_batch_coordinator.py
+    mutations:
+      - id: batch-size-registered-as-aggregated
+        description: "relatorio unificado volta a declarar o tamanho do lote, nao o que agregou (A5-S-004)"
+        find: '                session_count=aggregated_count,'
+        replace: '                session_count=batch.session_count,'
+      - id: left-out-sessions-not-reported
+        description: "sessoes fora do relatorio unificado deixam de ser avisadas"
+        find: '            if left_out:'
+        replace: '            if False:'
+      - id: unreadable-summaries-ignored
+        description: "sumarios ilegiveis voltam a contar como agregados"
+        find: '            if isinstance(unreadable, list):'
+        replace: '            if False:'
+
+  aggregate_summaries_unreadable:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_aggregation.py
+    mutations:
+      - id: unreadable-summary-not-returned
+        description: "sumario ilegivel deixa de ser devolvido a quem agrega (A5-S-004)"
+        find: '                unreadable.append(summary_path)'
+        replace: '                pass'
+
+  live_recording_problem_reports:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: refused-start-not-shown
+        description: "gravador que nao inicia apos a arena volta a so logar (A5-S-007)"
+        find: '                    self._report_recorder_start_failure(_("the recorder refused to start"))'
+        replace: '                    pass'
+      - id: start-exception-not-shown
+        description: "excecao ao iniciar o gravador apos a arena deixa de chegar ao operador (A5-S-007)"
+        find: '                self._report_recorder_start_failure(str(e))'
+        replace: '                pass'
+      - id: multi-failure-not-shown
+        description: "deteccao multi-aquario falhando deixa de ser avisada (A5-S-006)"
+        find: '            self._report_multi_aquarium_detection_failure(str(e))'
+        replace: '            pass'
+      - id: multi-failure-shown-every-frame
+        description: "o aviso de deteccao multi-aquario passa a abrir uma janela por frame"
+        find: '        if getattr(self, "_multi_aq_failure_reported_for", None) == session:'
+        replace: '        if False:'
+
+  unified_report_rois_every_aquarium:
+    source: src/zebtrack/coordinators/_unified_report_mixin.py
+    tests:
+      - tests/coordinators/test_unified_report.py
+    mutations:
+      - id: rois-from-aquarium-zero-only
+        description: "relatorio unificado volta a ler ROIs so do aquario 0 (A4-01)"
+        find: '        if isinstance(multi, MultiAquariumZoneData) and multi.aquariums:'
+        replace: '        if False:'
+      - id: later-aquarium-overwrites-colour
+        description: "cor de uma ROI repetida passa a vir do ultimo aquario, nao do primeiro"
+        find: '                    roi_colors_map.setdefault(roi_name, color)'
+        replace: '                    roi_colors_map[roi_name] = color'
+
+  unified_report_roi_names:
+    source: src/zebtrack/coordinators/report_generation_coordinator.py
+    tests:
+      - tests/coordinators/test_unified_report.py
+    mutations:
+      - id: duplicate-roi-name-kept
+        description: "ROI presente em dois aquarios aparece duas vezes na lista esperada"
+        find: '                        if name not in names:'
+        replace: '                        if True:'
+
+  # ---------------------------------------------------------------------------
+  # ui dialogs coverage (TASK-087)
+  # ---------------------------------------------------------------------------
+
+  camera_disconnect_dialog_callbacks:
+    source: src/zebtrack/ui/dialogs/camera_disconnect_recovery_dialog.py
+    tests:
+      - tests/ui/dialogs/test_camera_disconnect_recovery_dialog.py
+    mutations:
+      - id: failed-resume-still-closes
+        description: "Resume cujo callback falha fecha o dialogo e o operador perde a gravacao pausada (A5-S-009)"
+        find: 'if self._invoke_callback("resume"):'
+        replace: 'if self._invoke_callback("resume") or True:'
+      - id: failed-wait-never-repaired
+        description: "falha do callback de Wait nao agenda o reparo na thread de UI e o dialogo fica travado"
+        find: 'self.after(0, self._restore_after_callback_failure)'
+        replace: 'pass'
+      - id: repair-skipped-while-window-alive
+        description: "o reparo passa a rodar so quando a janela ja foi destruida"
+        find: 'if not self.winfo_exists():'
+        replace: 'if self.winfo_exists():'
+      - id: countdown-expires-one-second-late
+        description: "o fim da contagem so dispara Wait um tick depois de zerar"
+        find: 'if self.countdown_remaining <= 0:'
+        replace: 'if self.countdown_remaining < 0:'
+
+  aquarium_detection_thumbnail:
+    source: src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py
+    tests:
+      - tests/ui/dialogs/test_aquarium_detection_progress_dialog.py
+    mutations:
+      - id: thumbnail-overflows-binding-side
+        description: "o miniatura usa o maior fator de escala e estoura a area de 400x300"
+        find: 'scale = min(THUMBNAIL_MAX_WIDTH / frame_width, THUMBNAIL_MAX_HEIGHT / frame_height)'
+        replace: 'scale = max(THUMBNAIL_MAX_WIDTH / frame_width, THUMBNAIL_MAX_HEIGHT / frame_height)'
+      - id: bbox-x2-not-scaled
+        description: "a borda direita do bbox deixa de acompanhar a escala do miniatura"
+        find: 'return new_w, new_h, (int(x1 * scale), int(y1 * scale), int(x2 * scale), int(y2 * scale))'
+        replace: 'return new_w, new_h, (int(x1 * scale), int(y1 * scale), int(x2), int(y2 * scale))'
+      - id: bbox-presence-inverted
+        description: "sem bbox o miniatura tenta escalar None"
+        find: 'if bbox is None:'
+        replace: 'if bbox is not None:'
+
+  custom_regex_extraction:
+    source: src/zebtrack/ui/wizard/custom_regex_dialog.py
+    tests:
+      - tests/ui/wizard/test_custom_regex_dialog.py
+    mutations:
+      - id: path-truncated-at-65
+        description: "caminho de exatamente 65 caracteres passa a ser truncado"
+        find: 'if len(path) > 65:'
+        replace: 'if len(path) >= 65:'
+
+  report_generator_unified_delete:
+    source: src/zebtrack/ui/components/project_views/report_generator_actions.py
+    tests:
+      - tests/ui/components/test_report_generator_actions.py
+    mutations:
+      - id: locked-folder-reported-as-deleted
+        description: "pasta que continua no disco volta a ser anunciada como apagada"
+        find: '        last_error = OSError(_("the folder still exists after the deletion attempt"))'
+        replace: '        return True, None'
+      - id: partial-scope-checks-total-folder
+        description: "relatorio parcial passa a checar a pasta do total para perguntar sobre substituicao"
+        find: 'scope_dir = "selecionados" if scope == "selected" else "total"'
+        replace: 'scope_dir = "total" if scope == "selected" else "selecionados"'
+      - id: answer-no-replaces
+        description: "responder Nao (manter os anteriores) passa a substituir"
+        find: 'return bool(response)'
+        replace: 'return True'
+      - id: single-delete-attempt
+        description: "a exclusao deixa de ser repetida contra travas transitorias do OneDrive"
+        find: 'for attempt in range(UNIFIED_DELETE_ATTEMPTS):'
+        replace: 'for attempt in range(1):'
+
+  report_asset_actions_decisions:
+    source: src/zebtrack/ui/components/project_views/report_asset_actions.py
+    tests:
+      - tests/ui/components/test_report_asset_actions.py
+    mutations:
+      - id: duplicate-videos-reset-twice
+        description: "o mesmo video selecionado duas vezes e resetado e contado duas vezes"
+        find: 'unique_paths = list(dict.fromkeys(str(path) for path in video_paths if path))'
+        replace: 'unique_paths = list(str(path) for path in video_paths if path)'
+      - id: project-and-data-swapped
+        description: "escolher so os dados passa a remover o video do projeto"
+        find: 'if delete_mode == "project":'
+        replace: 'if delete_mode != "project":'
+      - id: declined-reset-runs-anyway
+        description: "recusar a confirmacao nao impede mais o reset dos dados de analise"
+        find: 'if not confirmed:'
+        replace: 'if False:'
+      - id: results-by-name-ignored
+        description: "resultados achados pelo nome esperado deixam de contar e o operador ve um aviso falso"
+        find: 'if not has_results and results_dir:'
+        replace: 'if False and results_dir:'
+
+  # ---------------------------------------------------------------------------
+  # core/project coverage (TASK-087)
+  # ---------------------------------------------------------------------------
+
+  zone_manager_mirror_and_identity:
+    source: src/zebtrack/core/project/zone_manager.py
+    tests:
+      - tests/core/test_zone_manager_multi_aquarium.py
+    mutations:
+      - id: every-save-mirrors
+        description: "projeto pre-gravado volta a espelhar a arena de um video no global"
+        find: 'return project_type.strip().lower() == "live"'
+        replace: 'return True'
+      - id: live-flags-not-at-root
+        description: "projeto live sem entrada de video deixa de gravar has_arena/has_rois na raiz"
+        find: '        if project_type == "live":'
+        replace: '        if False:'
+      - id: raw-key-not-found
+        description: "zona gravada sob outra grafia do caminho deixa de ser encontrada"
+        find: '                    return key, value'
+        replace: '                    pass'
+      - id: roi-colors-not-cycled
+        description: "ROIs carregadas do parquet perdem a paleta ciclica"
+        find: 'default_colors[i % len(default_colors)] for i in range(len(roi_names))'
+        replace: 'default_colors[0] for i in range(len(roi_names))'
+
+  video_manager_scan_and_status:
+    source: src/zebtrack/core/project/video_manager.py
+    tests:
+      - tests/core/project/test_video_manager.py
+    mutations:
+      - id: complete-with-any-asset
+        description: "video com so uma das tres pecas passa a contar como dado completo"
+        find: 'has_complete_data = has_arena and has_rois and has_trajectory'
+        replace: 'has_complete_data = has_arena or has_rois or has_trajectory'
+      - id: cancelled-marker-ignored
+        description: "sessao ao vivo descartada (.cancelled) volta a aparecer na fila"
+        find: 'return (Path(video_path).parent / ".cancelled").exists()'
+        replace: 'return False'
+      - id: data-not-processed
+        description: "video importado com trajetoria entra como pendente"
+        find: '"status": "processed" if has_data else "pending",'
+        replace: '"status": "pending",'
+      - id: reset-always-changes
+        description: "reset de status passa a acusar mudanca e salvar sem ter mudado nada"
+        find: 'if video.get("status") != to_status:'
+        replace: 'if True:'
+
+  output_registration_folders:
+    source: src/zebtrack/core/project/output_registration_manager.py
+    tests:
+      - tests/core/project/test_output_registration_manager.py
+    mutations:
+      - id: dia-prefix-not-parsed
+        description: "dia gravado como 'Dia 3' deixa de virar Dia_03"
+        find: 'if candidate_str.lower().startswith(("dia", "day")):'
+        replace: 'if False:'
+      - id: fractional-day-truncated
+        description: "dia fracionario passa a ser truncado para um dia inteiro"
+        find: 'if day_float.is_integer():'
+        replace: 'if True:'
+      - id: ghost-group-folder
+        description: "aquario sem grupo volta a criar Grupo_Sem_Grupo vazio"
+        find: 'group_missing = group is None or str(group).strip() == ""'
+        replace: 'group_missing = False'
+      - id: aquarium-id-ignored
+        description: "sem projeto, o id <stem>_aqN deixa de ganhar pasta propria"
+        find: 'if explicit_id and explicit_id != video_stem:'
+        replace: 'if False:'
+      - id: trajectory-not-processed
+        description: "video com trajetoria registrada continua com status antigo"
+        find: 'if video_entry.get("has_trajectory") and video_entry.get("status") != "processed":'
+        replace: 'if False:'
+
+  asset_manager_templates_and_removal:
+    source: src/zebtrack/core/project/asset_manager.py
+    tests:
+      - tests/core/project/test_asset_manager.py
+    mutations:
+      - id: slug-counter-skips
+        description: "slug colidente pula um numero"
+        find: 'slug = f"{base_slug}-{counter}"'
+        replace: 'slug = f"{base_slug}-{counter + 1}"'
+      - id: project-lookup-falls-to-global
+        description: "busca so no projeto passa a cair para o template global homonimo"
+        find: '            if location == "project":'
+        replace: '            if False:'
+      - id: multi-mode-kept
+        description: "remover o ultimo aquario deixa o video em modo multi-aquario"
+        find: '            video_entry.pop("multi_aquarium_mode", None)'
+        replace: '            pass'
+      - id: other-subjects-cleared
+        description: "limpar o sujeito de um aquario apaga o sujeito dos outros"
+        find: 'if int(raw_aq) == int(aquarium_id) and entry.get("subject"):'
+        replace: 'if entry.get("subject"):'
+      - id: summary-removal-allowed-empty
+        description: "remocao de relatorios inexistentes passa a ser permitida"
+        find: 'if asset == "summary" and not has_summary_outputs:'
+        replace: 'if False:'
+
+  project_manager_metadata_and_hierarchy:
+    source: src/zebtrack/core/project/project_manager.py
+    tests:
+      - tests/test_project_manager.py
+    mutations:
+      - id: single-entry-is-multi
+        description: "uma unica entrada de sujeito marca o video como multi-sujeito"
+        find: 'is_multi_subject = len(entries) > 1'
+        replace: 'is_multi_subject = len(entries) >= 1'
+      - id: multi-entries-pick-a-subject
+        description: "video multi-sujeito ganha o sujeito da primeira entrada"
+        find: 'if len(subject_entries) == 1'
+        replace: 'if len(subject_entries) >= 1'
+      - id: non-positive-day-kept
+        description: "dia 0 ou negativo passa a ser gravado"
+        find: 'return day if day > 0 else None'
+        replace: 'return day'
+      - id: multi-subject-video-deleted
+        description: "remover um sujeito de video multi-aquario apaga o video inteiro"
+        find: 'if ma_outputs and len(ma_outputs) > 1:'
+        replace: 'if False:'
+      - id: batch-edit-saves-without-project
+        description: "edicao em lote sem projeto aberto tenta salvar em disco"
+        find: 'if not changed_count or not self.project_path:'
+        replace: 'if not changed_count:'
+
+  metadata_manager_sessions_and_groups:
+    source: src/zebtrack/core/project/metadata_manager.py
+    tests:
+      - tests/core/project/test_metadata_manager.py
+    mutations:
+      - id: cancelled-session-completed
+        description: "sessao hierarquica cancelada passa a contar como concluida"
+        find: 'if (session_path / ".cancelled").exists():'
+        replace: 'if False:'
+      - id: arena-only-session-completed
+        description: "pasta so com a arena (gravacao abortada) conta como sessao concluida"
+        find: 'if any(session_path.glob("3_CoordMovimento_*.parquet")):'
+        replace: 'if any(session_path.glob("*.parquet")):'
+      - id: csv-nan-group
+        description: "linha sem grupo no metadata.csv vira um grupo 'nan'"
+        find: 'for g in metadata_df["group"].dropna().unique():'
+        replace: 'for g in metadata_df["group"].unique():'
+      - id: entry-overrides-csv
+        description: "o projeto sobrescreve o valor que o metadata.csv ja deu"
+        find: 'if val is not None and key not in meta:'
+        replace: 'if val is not None:'
+
+  parquet_io_wizard_import:
+    source: src/zebtrack/core/project/parquet_io_manager.py
+    tests:
+      - tests/core/project/test_parquet_io_manager.py
+    mutations:
+      - id: merge-keeps-colliding-name
+        description: "merge de ROIs duplica o nome em vez de renomear"
+        find: 'final_name = f"{roi_name}_imported{counter}"'
+        replace: 'final_name = roi_name'
+      - id: merge-reuses-taken-name
+        description: "merge reaproveita um nome _importedN ja usado"
+        find: 'while f"{roi_name}_imported{counter}" in existing_names:'
+        replace: 'while False:'
+      - id: merge-becomes-replace
+        description: "estrategia merge descarta as ROIs que o video ja tinha"
+        find: 'if roi_merge_strategy == "replace":'
+        replace: 'if roi_merge_strategy in ("replace", "merge"):'
+      - id: phantom-hierarchy
+        description: "copia de zonas recria Grupo_Sem_Grupo para alvo sem grupo"
+        find: 'LEGACY_NO_GROUP_DIRNAME not in hierarchical_path.parts'
+        replace: 'True'
+
+  zone_orchestration_sync:
+    source: src/zebtrack/core/project/zone_orchestration_manager.py
+    tests:
+      - tests/core/project/test_zone_orchestration_manager.py
+    mutations:
+      - id: two-point-arena
+        description: "aquario com arena de menos de 3 pontos marca has_arena"
+        find: 'if aq.polygon and len(aq.polygon) >= 3:'
+        replace: 'if aq.polygon:'
+      - id: disk-overwrites-complete-memory
+        description: "zonas completas em memoria sao sobrescritas pelo disco"
+        find: 'needs_sync = should_update or ('
+        replace: 'needs_sync = True or ('
+      - id: unregistered-video-not-added
+        description: "video multi-aquario fora dos lotes deixa de ser registrado"
+        find: '            if not video_entry:'
+        replace: '            if False:'
+
+  project_service_integrity:
+    source: src/zebtrack/core/project/project_service.py
+    tests:
+      - tests/core/test_project_service.py
+    mutations:
+      - id: hash-over-memory
+        description: "F2-P-005: hash volta a ser calculado sobre o dict em memoria"
+        find: 'json.loads(json.dumps(project_data, ensure_ascii=False))'
+        replace: 'project_data'
+
+  project_lifecycle_bounds:
+    source: src/zebtrack/core/project/project_lifecycle_manager.py
+    tests:
+      - tests/core/project/test_project_lifecycle_manager_extended.py
+    mutations:
+      - id: hundred-aquariums-refused
+        description: "o limite de 100 aquarios passa a recusar o proprio 100"
+        find: 'if num_aquariums > MAX_AQUARIUMS:'
+        replace: 'if num_aquariums >= MAX_AQUARIUMS:'
+      - id: camera-eleven-accepted
+        description: "indice de camera 11 passa a ser aceito"
+        find: 'if camera_index > 10:'
+        replace: 'if camera_index > 11:'
+      - id: snapshot-not-json
+        description: "snapshot de settings ilegivel passa a ser reportado como salvo"
+        find: 'except (OSError, TypeError, ValueError) as e:'
+        replace: 'except (OSError, TypeError) as e:'
+
+  project_workflow_enrichment:
+    source: src/zebtrack/core/project/project_workflow_service.py
+    tests:
+      - tests/core/test_project_workflow_service.py
+    mutations:
+      - id: numeric-day-not-normalized
+        description: "dia capturado como numero deixa de casar com DayNN do desenho"
+        find: 'matched_day = f"Day{int(matched_day):02d}"'
+        replace: 'matched_day = matched_day'
+      - id: single-mapping-is-multi
+        description: "video com um so sujeito mapeado vira multi-sujeito"
+        find: 'if len(file_subjects) > 1:'
+        replace: 'if len(file_subjects) >= 1:'
+      - id: out-of-band-threshold-kept
+        description: "limiar fora de 0-1 do assistente vira override do projeto"
+        find: 'if 0.0 <= value <= 1.0:'
+        replace: 'if True:'
+      - id: subject-not-zero-padded
+        description: "sujeito '3' deixa de virar S03"
+        find: 'return f"S{int(match.group(1)):02d}"'
+        replace: 'return f"S{match.group(1)}"'
+
+  roi_template_custom_destination:
+    source: src/zebtrack/core/project/roi_template_manager.py
+    tests:
+      - tests/core/project/test_roi_template_manager.py
+    mutations:
+      - id: file-path-used-as-folder
+        description: "caminho de arquivo escolhido vira uma pasta com esse nome"
+        find: 'if custom_path.is_dir():'
+        replace: 'if True:'
+  asset_manager_video_removal_scope:
+    source: src/zebtrack/core/project/asset_manager.py
+    tests:
+      - tests/core/project/test_asset_manager.py
+    mutations:
+      - id: folder-rmtree-again
+        description: "F2-P-001: remover um video volta a apagar a pasta inteira com os irmaos"
+        find: '                    if video_dir.is_dir() and not any(video_dir.iterdir()):'
+        replace: '                    if video_dir.is_dir() and not shutil.rmtree(video_dir):'
+      - id: zone-prefix-glob-everyone
+        description: "parquets de zona de todos os videos da pasta sao apagados"
+        find: 'video_dir / f"{prefix}{stem}.parquet"'
+        replace: 'next(iter(sorted(video_dir.glob(f"{prefix}*.parquet"), reverse=True)), None)'
+      - id: empty-folder-kept
+        description: "pasta que ficou vazia nao e removida"
+        find: '                        video_dir.rmdir()'
+        replace: '                        pass'
+  metadata_manager_empty_detector_config:
+    source: src/zebtrack/core/project/metadata_manager.py
+    tests:
+      - tests/core/project/test_metadata_manager.py
+    mutations:
+      - id: emptiness-read-after-stamp
+        description: "F2-P-002: config vazio lido depois do carimbo, overrides nunca limpos"
+        find: '        clears_overrides = not detector_config'
+        replace: '        clears_overrides = False'
+      - id: any-config-clears
+        description: "config sem limiares passa a apagar os overrides do projeto"
+        find: '        elif clears_overrides:'
+        replace: '        else:'
+  output_registration_wizard_regex:
+    source: src/zebtrack/core/project/output_registration_manager.py
+    tests:
+      - tests/core/project/test_output_registration_manager.py
+    mutations:
+      - id: enabled-model-rejected
+        description: "F2-P-003: modelo habilitado sem aquarios reprova e o regex nunca preenche"
+        find: '                            enabled=False, regex_pattern=combined, aquarium_configs=[]'
+        replace: '                            enabled=True, regex_pattern=combined, aquarium_configs=[]'
+  multi_aquarium_assignment_wizard_regex:
+    source: src/zebtrack/coordinators/multi_aquarium_coordinator.py
+    tests:
+      - tests/coordinators/test_multi_aquarium_coordinator.py
+    mutations:
+      - id: enabled-model-rejected
+        description: "F2-P-003: dialogo de atribuicao perde o regex do wizard"
+        find: '                                        enabled=False,'
+        replace: '                                        enabled=True,'
+  zone_orchestration_disk_merge:
+    source: src/zebtrack/core/project/zone_orchestration_manager.py
+    tests:
+      - tests/core/project/test_zone_orchestration_manager.py
+    mutations:
+      - id: disk-saved-whole
+        description: "F2-P-004: zonas do disco sobrescrevem a arena em memoria"
+        find: '                save_zone_data_fn(merged_zones, video_path=video_path_str, persist=False)'
+        replace: '                save_zone_data_fn(loaded_zones, video_path=video_path_str, persist=False)'
+      - id: memory-rois-dropped
+        description: "ROIs em memoria trocadas pelas do disco"
+        find: '        if current.roi_polygons:'
+        replace: '        if False:'
+      - id: memory-metadata-loses
+        description: "metadados do disco vencem os da memoria"
+        find: '            merged = replace(merged, metadata={**loaded.metadata, **current.metadata})'
+        replace: '            merged = replace(merged, metadata={**current.metadata, **loaded.metadata})'
+  event_dispatcher_observer_marshalling:
+    source: src/zebtrack/ui/components/event_dispatcher.py
+    tests:
+      - tests/ui/components/test_event_dispatcher_extended.py
+    mutations:
+      - id: zone-list-on-pool-thread
+        description: "A6-09: lista de zonas preenchida da thread do pool do StateManager"
+        find: '            lambda d: self._run_on_ui_thread(gui.canvas_manager.update_zone_listbox),'
+        replace: '            lambda d: gui.canvas_manager.update_zone_listbox(),'
+      - id: navigation-on-pool-thread
+        description: "A6-09: troca para a vista de analise feita fora da thread do Tk"
+        find: '            self._run_on_ui_thread(gui.analysis_view_controller.start_analysis_view_mode)'
+        replace: '            gui.analysis_view_controller.start_analysis_view_mode()'
+  live_config_hardware_probe_once:
+    source: src/zebtrack/ui/wizard/live_config_step.py
+    tests:
+      - tests/ui/wizard/test_live_config_step.py
+    mutations:
+      - id: probe-every-visit
+        description: "A6-01: a sondagem de hardware volta a travar o Tk a cada visita ao passo"
+        find: '        if self.hardware_report is not None:'
+        replace: '        if False:'
+
+  ui_coordinator_camera_disconnect_dialog:
+    source: src/zebtrack/ui/ui_coordinator.py
+    tests:
+      - tests/ui/test_ui_coordinator_helpers.py
+    mutations:
+      - id: dialog-reference-not-kept
+        description: "F2-UI-007: o coordenador nao guarda o dialogo que abriu, entao nada o fecha"
+        find: 'self._camera_disconnect_dialog = CameraDisconnectRecoveryDialog('
+        replace: '_discarded = CameraDisconnectRecoveryDialog('
+      - id: reconnect-does-not-close
+        description: "a reconexao da camera nao fecha o dialogo que esta esperando"
+        find: 'self._safe_ui_call(self._close_camera_disconnect_dialog)'
+        replace: 'pass'
+      - id: close-on-the-event-thread
+        description: "o dialogo e fechado direto na thread do barramento, nao na thread do Tk"
+        find: 'self._safe_ui_call(self._close_camera_disconnect_dialog)'
+        replace: 'self._close_camera_disconnect_dialog()'
+      - id: reference-survives-the-close
+        description: "depois de fechar, o coordenador continua com o dialogo morto"
+        find: 'dialog, self._camera_disconnect_dialog = self._camera_disconnect_dialog, None'
+        replace: 'dialog = self._camera_disconnect_dialog'
+      - id: closes-nothing-when-none
+        description: "reconexao sem dialogo aberto tenta fechar None"
+        find: "self._camera_disconnect_dialog, None\n        if dialog is not None:"
+        replace: "self._camera_disconnect_dialog, None\n        if dialog is None:"
+      - id: destroy-instead-of-close-dialog
+        description: "o coordenador destroi o Toplevel em vez de pedir o fechamento ao dialogo"
+        find: "            dialog.close_dialog()\n\n    def _on_camera_reconnected"
+        replace: "            dialog.destroy()\n\n    def _on_camera_reconnected"
+      - id: second-disconnect-stacks-dialogs
+        description: "uma segunda desconexao abre outro dialogo modal sem fechar o primeiro"
+        find: '                self._close_camera_disconnect_dialog()'
+        replace: '                pass'
+
+  ui_coordinator_aquarium_detection_dialog:
+    source: src/zebtrack/ui/ui_coordinator.py
+    tests:
+      - tests/ui/test_ui_coordinator_helpers.py
+    mutations:
+      - id: dialog-sized-by-a-constant
+        description: "F2-UI-008: o dialogo volta a nascer com 100 quadros em vez do max_frames do payload"
+        find: '                            max_frames=total,'
+        replace: '                            max_frames=100,'
+      - id: last-frame-off-by-one
+        description: "o ultimo quadro da fase (contador 0-based) nao fecha o dialogo"
+        find: 'phase_done = frame_number + 1 >= total'
+        replace: 'phase_done = frame_number >= total'
+      - id: zero-max-accepted
+        description: "um max_frames zero e aceito e a fase ja nasce encerrada"
+        find: 'or total <= 0:'
+        replace: 'or total < 0:'
+      - id: bool-max-accepted
+        description: "um max_frames booleano e tratado como numero de quadros"
+        find: 'if not isinstance(total, int) or isinstance(total, bool) or total <= 0:'
+        replace: 'if not isinstance(total, int) or total <= 0:'
+      - id: default-length-changed
+        description: "o comprimento padrao do dialogo sem max_frames muda"
+        find: 'AQUARIUM_DETECTION_DEFAULT_FRAMES = 100'
+        replace: 'AQUARIUM_DETECTION_DEFAULT_FRAMES = 50'
+      - id: watchdog-too-short
+        description: "o cao de guarda fecha o dialogo em meio segundo"
+        find: 'AQUARIUM_DETECTION_STALE_MS = 5000'
+        replace: 'AQUARIUM_DETECTION_STALE_MS = 500'
+      - id: final-frame-reopens
+        description: "um evento do ultimo quadro reabre um dialogo recem fechado"
+        find: 'if self.root and self._aquarium_detection_dialog is None and not phase_done:'
+        replace: 'if self.root and self._aquarium_detection_dialog is None:'
+      - id: creation-not-rechecked-on-tk-thread
+        description: "dois eventos que chegam antes da thread do Tk abrem dois dialogos"
+        find: '                    if self._aquarium_detection_dialog is None:'
+        replace: '                    if True:'
+      - id: update-without-dialog
+        description: "evento sem dialogo aberto tenta atualizar None"
+        find: "                    if dialog is None:\n                        return"
+        replace: "                    if dialog is None:\n                        pass"
+      - id: last-frame-never-closes
+        description: "o dialogo so fecha pelo cao de guarda, nunca no ultimo quadro"
+        find: '                    if phase_done:'
+        replace: '                    if False:'
+      - id: watchdog-never-armed
+        description: "nenhum evento arma o cao de guarda"
+        find: '                        self._arm_aquarium_detection_watchdog()'
+        replace: '                        pass'
+      - id: watchdog-restart-stacks
+        description: "cada evento empilha um novo cao de guarda sem cancelar o anterior"
+        find: "        self._cancel_aquarium_detection_watchdog()\n        if self.root:\n            self._aquarium_detection_watchdog_id"
+        replace: "        if self.root:\n            self._aquarium_detection_watchdog_id"
+      - id: watchdog-closes-nothing
+        description: "quando o cao de guarda dispara nao fecha o dialogo"
+        find: 'AQUARIUM_DETECTION_STALE_MS, self._close_aquarium_detection_dialog'
+        replace: 'AQUARIUM_DETECTION_STALE_MS, lambda: None'
+      - id: close-leaves-watchdog
+        description: "fechar o dialogo deixa o cao de guarda armado"
+        find: "        self._cancel_aquarium_detection_watchdog()\n        dialog, self._aquarium_detection_dialog"
+        replace: "        dialog, self._aquarium_detection_dialog"
+      - id: status-bar-counts-to-a-constant
+        description: "a barra de status volta a contar contra 100"
+        find: 'frame=frame_number, total=total'
+        replace: 'frame=frame_number, total=100'
+      - id: missing-frame-number-raises
+        description: "payload sem numero de quadro derruba o manipulador"
+        find: 'frame_number = _payload_get(event_data, "frame_number", 0) or 0'
+        replace: 'frame_number = _payload_get(event_data, "frame_number", 0)'
+
+  pattern_match_rule:
+    source: src/zebtrack/core/services/pattern_match.py
+    tests:
+      - tests/core/services/test_pattern_match.py
+    mutations:
+      - id: pattern-flags-dropped
+        description: "F2-UI-009: o padrao do usuario volta a ser sensivel a maiusculas"
+        find: 'USER_PATTERN_FLAGS = re.IGNORECASE'
+        replace: 'USER_PATTERN_FLAGS = 0'
+      - id: precompiled-pattern-opts-out
+        description: "um padrao compilado sem a flag escapa da regra"
+        find: '        if pattern.flags & USER_PATTERN_FLAGS:'
+        replace: '        if True:'
+      - id: recompile-loses-other-flags
+        description: "recompilar com a flag perde as outras flags do padrao"
+        find: 're.compile(pattern.pattern, pattern.flags | USER_PATTERN_FLAGS)'
+        replace: 're.compile(pattern.pattern, USER_PATTERN_FLAGS)'
+      - id: first-group-even-if-absent
+        description: "F2-UI-003: o valor e o grupo 1 mesmo quando ele nao participou"
+        find: '        if group is not None:'
+        replace: '        if True:'
+      - id: empty-group-skipped
+        description: "um grupo que casou a string vazia e tratado como ausente"
+        find: '        if group is not None:'
+        replace: '        if group:'
+      - id: whole-match-fallback-empty
+        description: "sem grupo participante o valor deixa de ser o casamento inteiro"
+        find: '    return match.group(0)'
+        replace: '    return ""'
+      - id: no-match-is-empty-string
+        description: "sem casamento devolve string vazia em vez de None"
+        find: 'return None if match is None else match_value(match)'
+        replace: 'return "" if match is None else match_value(match)'
+      - id: search-anchored-at-start
+        description: "a busca passa a exigir o casamento no inicio do texto"
+        find: 'match = compile_user_pattern(pattern).search(text)'
+        replace: 'match = compile_user_pattern(pattern).match(text)'
+      - id: finditer-first-only
+        description: "so o primeiro casamento de um nome multi-sujeito e devolvido"
+        find: 'for m in compile_user_pattern(pattern).finditer(text)]'
+        replace: 'for m in list(compile_user_pattern(pattern).finditer(text))[:1]]'
+
+  pattern_match_detection_step_caller:
+    source: src/zebtrack/ui/wizard/detection_step.py
+    tests:
+      - tests/ui/wizard/test_detection_step_extended.py
+    mutations:
+      - id: group-search-case-sensitive-again
+        description: "F2-UI-009: o passo de deteccao busca o grupo sem ignorar maiusculas"
+        find: 'group = search_value(group_pattern, str(path_str))'
+        replace: 'group = (lambda m: m.group(0) if m else None)(re.search(group_pattern, str(path_str)))'
+      - id: day-takes-group-one-again
+        description: "F2-UI-003: o dia volta a ser o grupo 1 mesmo quando nao participou"
+        find: 'day = search_value(day_pattern, str(path_str))'
+        replace: 'day = (lambda m: m.group(1) if m else None)(re.search(day_pattern, str(path_str)))'
+      - id: subjects-case-sensitive-again
+        description: "os sujeitos do nome multi-sujeito voltam a ser buscados sem ignorar maiusculas"
+        find: 'for val in finditer_values(subject_pattern, str(path_str)):'
+        replace: 'for val in re.findall(subject_pattern, str(path_str)):'
+      - id: missing-day-crashes
+        description: "nome sem dia derruba a deteccao com None.isdigit()"
+        find: 'if day is not None and day.isdigit():'
+        replace: 'if day.isdigit():'
+      - id: unmatched-group-recognised
+        description: "nome sem o grupo e reconhecido como design"
+        find: '        if group is None:'
+        replace: '        if group is not None:'
+
+  pattern_match_dialog_caller:
+    source: src/zebtrack/ui/wizard/custom_regex_dialog.py
+    tests:
+      - tests/ui/wizard/test_custom_regex_dialog.py
+    mutations:
+      - id: dialog-compiles-case-sensitive
+        description: "F2-UI-009: a previa do dialogo compila os padroes sem ignorar maiusculas"
+        find: 'compiled[key] = compile_user_pattern(pattern)'
+        replace: 'compiled[key] = re.compile(pattern)'
+      - id: dialog-on-the-fly-invalid-pattern-ignored
+        description: "um padrao invalido compilado na hora deixa de ser reportado"
+        find: 'pattern = compile_user_pattern(pattern_str)'
+        replace: 'pattern = re.compile("x")'
+      - id: dialog-rows-whole-match
+        description: "as linhas da previa mostram o casamento inteiro em vez do valor"
+        find: 'values = finditer_values(pattern, path)'
+        replace: 'values = [m.group(0) for m in pattern.finditer(path)]'
+      - id: dialog-value-is-group-one
+        description: "F2-UI-003: o valor mostrado e o grupo 1 mesmo quando ele nao participou"
+        find: 'value = search_value(pattern, path)'
+        replace: 'value = (lambda m: m.group(1) if m and m.groups() else None)(pattern.search(path))'
+  pattern_match_import_caller:
+    source: src/zebtrack/core/project/project_workflow_service.py
+    tests:
+      - tests/core/test_project_workflow_service.py
+    mutations:
+      - id: group-first-group-regardless
+        description: "F2-UI-009: a importacao volta a pegar o grupo 1 mesmo fora da alternancia"
+        find: '            matched_group = search_value(group_pattern, path_text)'
+        replace: '            matched_group = (lambda m: m and (m.group(1) if m.groups() else m.group(0)))(__import__("re").search(group_pattern, path_text, 2))'
+      - id: day-case-sensitive
+        description: "importacao do dia volta a diferenciar maiusculas e a ignorar o grupo"
+        find: '            matched_day = search_value(day_pattern, path_text)'
+        replace: '            matched_day = (lambda m: m and m.group(0))(__import__("re").search(day_pattern, path_text))'
+
+  camera_connection_handler:
+    source: src/zebtrack/core/recording/camera_connection_handler.py
+    tests:
+      - tests/core/recording/test_camera_connection_handler_extended.py
+    mutations:
+      - id: gap-at-threshold-is-disconnect
+        description: "um intervalo exatamente igual ao limiar passa a contar como desconexao"
+        find: 'if gap_duration > self._camera_disconnect_threshold_s and not self._camera_disconnected:'
+        replace: 'if gap_duration >= self._camera_disconnect_threshold_s and not self._camera_disconnected:'
+      - id: wrong-device-accepted
+        description: "camera que abriu em outro indice passa a ser aceita"
+        find: 'if actual_camera_index != camera_index:'
+        replace: 'if False:'
+      - id: resolution-not-forced
+        description: "a sessao deixa de forcar 1280 px de largura"
+        find: 'temp_settings.camera.desired_width = 1280'
+        replace: 'temp_settings.camera.desired_width = 1920'
+      - id: closed-gap-reopened
+        description: "reconexao reescreve o fim de um intervalo ja fechado"
+        find: 'if self._disconnect_gaps and self._disconnect_gaps[-1][1] is None:'
+        replace: 'if self._disconnect_gaps:'
+      - id: wait-stops-session
+        description: "escolher aguardar no dialogo encerra a sessao"
+        find: 'elif action == "stop":'
+        replace: 'elif action in ("stop", "wait"):'
+      - id: warmup-never-times-out
+        description: "aquecimento ignora o teto de 5 s e le os 50 quadros sempre"
+        find: 'if time.time() - warmup_start > warmup_timeout:'
+        replace: 'if False:'
+      - id: pause-not-recorded
+        description: "pausa do gravador nao fica registrada e a retomada nunca acontece"
+        find: 'self._recording_paused = True'
+        replace: 'self._recording_paused = False'
+      - id: dict-payload-ignored
+        description: "payload em dict deixa de ser lido"
+        find: 'if isinstance(payload, dict):'
+        replace: 'if False:'
+
+  live_session_manager_lifecycle:
+    source: src/zebtrack/core/recording/live_session_manager.py
+    tests:
+      - tests/core/recording/test_live_session_manager_extended.py
+    mutations:
+      - id: half-duration-threshold-moved
+        description: "parada automatica aos 29 s de 60 s deixa de ser lida como desistencia"
+        find: 'threshold_s = max(5.0, self._session_duration_s * 0.5)'
+        replace: 'threshold_s = max(5.0, self._session_duration_s * 0.4)'
+      - id: five-second-floor-lowered
+        description: "sessao curta perde o piso de 5 s da heuristica de desistencia"
+        find: 'threshold_s = max(5.0, self._session_duration_s * 0.5)'
+        replace: 'threshold_s = max(3.0, self._session_duration_s * 0.5)'
+      - id: exactly-half-is-cancelled
+        description: "parar exatamente na metade passa a descartar a sessao"
+        find: '                if elapsed_s >= threshold_s:'
+        replace: '                if elapsed_s > threshold_s:'
+      - id: many-animals-single-subject
+        description: "aquario com varios animais liga o modo sujeito unico"
+        find: 'use_single_subject = self._animals_per_aquarium == 1'
+        replace: 'use_single_subject = True'
+      - id: old-detector-kept-on-config-change
+        description: "trocar OpenVINO/peso reaproveita o detector antigo"
+        find: '                self.detector_service.detector = None'
+        replace: '                pass'
+      - id: timer-in-wrong-unit
+        description: "temporizador da sessao agendado em decimos de segundo"
+        find: 'self.timer_id = self.root.after(int(duration_s * 1000), on_timer_expired)'
+        replace: 'self.timer_id = self.root.after(int(duration_s * 100), on_timer_expired)'
+      - id: lag-band-two-seconds
+        description: "atraso de exatamente 2 s ainda e reportado como 'Recording OK'"
+        find: 'if lag_seconds < 2.0:'
+        replace: 'if lag_seconds <= 2.0:'
+      - id: lag-band-five-seconds
+        description: "atraso de exatamente 5 s deixa de ser 'far behind'"
+        find: 'elif lag_seconds < 5.0:'
+        replace: 'elif lag_seconds <= 5.0:'
+      - id: drop-message-always-singular
+        description: "doze quadros perdidos aparecem como '1 frame dropped'"
+        find: 'if self._dropped_frames_video == 1'
+        replace: 'if self._dropped_frames_video >= 1'
+      - id: detector-context-not-restored
+        description: "o detector fica em 'tracking' depois da sessao"
+        find: 'self.detector_service.detector.set_context(self._saved_detector_context)'
+        replace: 'pass'
+      - id: progress-fraction-halved
+        description: "barra de progresso da gravacao anda na metade da velocidade"
+        find: 'fraction = min(1.0, elapsed / duration_s) if duration_s > 0 else 0.0'
+        replace: 'fraction = min(1.0, elapsed / duration_s / 2) if duration_s > 0 else 0.0'
+      - id: recorder-refusal-ignored
+        description: "gravador que recusa abrir deixa a sessao seguir sem gravar"
+        find: '                    if not recorder_started:'
+        replace: '                    if False:'
+      - id: countdown-sleep-skipped
+        description: "contagem regressiva sem Tk deixa de esperar"
+        find: '            time.sleep(countdown_seconds)'
+        replace: '                pass'
+
+  live_camera_service_facade:
+    source: src/zebtrack/core/recording/live_camera_service.py
+    tests:
+      - tests/core/test_live_camera_service_utils.py
+    mutations:
+      - id: detections-getter-aliases
+        description: "quem le as ultimas deteccoes recebe a lista interna e pode altera-la"
+        find: 'return list(self._last_detections)'
+        replace: 'return self._last_detections'
+      - id: detections-setter-aliases
+        description: "a lista do chamador vira o estado interno"
+        find: 'self._last_detections = list(detections)'
+        replace: 'self._last_detections = detections'
+      - id: preferred-mode-by-value
+        description: "modo preferido do assistente passa a ser lido pelo valor, nao pelo nome"
+        find: 'self._preferred_mode = LiveCameraMode[mode]'
+        replace: 'self._preferred_mode = LiveCameraMode(mode)'
+      - id: exit-does-not-stop-workers
+        description: "sair do with deixa as threads sem o sinal de parada"
+        find: '            self.exit_event.set()'
+        replace: '            pass'
+      - id: exit-swallows-exceptions
+        description: "__exit__ engole a excecao de quem usou o servico"
+        find: '        return False'
+        replace: '        return True'
+      - id: baseline-always-live-settings
+        description: "a copia pristina das settings e ignorada"
+        find: 'settings_baseline if settings_baseline is not None else settings_obj'
+        replace: 'settings_obj'
+
+  recording_service_session:
+    source: src/zebtrack/core/recording/recording_service.py
+    tests:
+      - tests/core/test_recording_service.py
+    mutations:
+      - id: subject-key-renamed
+        description: "o sujeito da sessao vai para uma chave que o projeto nao le"
+        find: 'metadata_to_save["subject"] = context['
+        replace: 'metadata_to_save["cobaia"] = context['
+      - id: timed-stop-in-wrong-unit
+        description: "parada temporizada agendada em decimos de segundo"
+        find: 'duration_ms = int(duration_s * 1000)'
+        replace: 'duration_ms = int(duration_s * 100)'
+      - id: countdown-not-centred
+        description: "janela da contagem deslocada para fora do centro"
+        find: 'pos_x = (self.root.winfo_screenwidth() // 2) - (win_w // 2)'
+        replace: 'pos_x = (self.root.winfo_screenwidth() // 2) - win_w'
+      - id: countdown-one-second-short
+        description: "a contagem termina no 1 em vez do 0"
+        find: 'if seconds_left <= 0:'
+        replace: 'if seconds_left <= 1:'
+      - id: countdown-skips-numbers
+        description: "a contagem pula de dois em dois"
+        find: 'self.root.after(1000, lambda: update_timer(seconds_left - 1))'
+        replace: 'self.root.after(1000, lambda: update_timer(seconds_left - 2))'
+      - id: zero-countdown-shown
+        description: "contagem de 0 s ainda abre a janela"
+        find: 'use_countdown = bool(project_data.get("use_countdown")) and countdown_s > 0'
+        replace: 'use_countdown = bool(project_data.get("use_countdown"))'
+      - id: box-off-by-one
+        description: "cobaia 3 aciona a caixa 4 do Arduino"
+        find: 'return int(cobaia)'
+        replace: 'return int(cobaia) + 1'
+      - id: countdown-window-left-open
+        description: "a janela da contagem fica aberta depois que a gravacao comeca"
+        find: '            if countdown_window.winfo_exists():'
+        replace: '            if False:'
+
+  live_camera_mode_selector:
+    source: src/zebtrack/core/recording/live_camera_mode.py
+    tests:
+      - tests/core/recording/test_live_camera_mode_extended.py
+    mutations:
+      - id: capacity-boundary-excluded
+        description: "pedir exatamente a capacidade deixa de ser tempo real"
+        find: 'if can_realtime and requested_aquariums <= max_supported:'
+        replace: 'if can_realtime and requested_aquariums < max_supported:'
+      - id: zero-capacity-is-partial
+        description: "capacidade zero cai no ramo de suporte parcial"
+        find: 'if can_realtime and requested_aquariums > max_supported > 0:'
+        replace: 'if can_realtime and requested_aquariums > max_supported >= 0:'
+      - id: singular-for-two
+        description: "capacidade 2 aparece como '1 aquarium'"
+        find: 'if max_supported == 1'
+        replace: 'if max_supported <= 2'
+      - id: one-aquarium-is-multi
+        description: "um aquario so e recomendado como multi-aquario"
+        find: 'if requested_aquariums > 1'
+        replace: 'if requested_aquariums >= 1'
+
+  live_completion_subject_count:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: multi-raw-nunique
+        description: "A4-02: o total multi-aquario volta a contar ids crus"
+        find: '            total_tracks += self._count_live_subjects(df)'
+        replace: '            total_tracks += int(df["track_id"].nunique())'
+      - id: single-raw-nunique
+        description: "A4-02: o dialogo de conclusao volta a contar ids crus"
+        find: '                unique_tracks = self._count_live_subjects(df)'
+        replace: '                unique_tracks = df["track_id"].nunique()'
+      - id: screening-ignored
+        description: "a triagem de trilhas curtas deixa de valer para a contagem"
+        find: '        return count_subjects(df if screening is None else screening.trajectory)'
+        replace: '        return count_subjects(df)'
+      - id: short-track-threshold-zero
+        description: "limiar de trilha curta zerado: um glitch de uma linha vira animal"
+        find: '            df, min_track_duration_s=min_track_duration_from(self.settings)'
+        replace: '            df, min_track_duration_s=0.0'
+
+  live_post_processor_flow:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: aquarium-folder-not-offset
+        description: "aquarium_1 passa a ser o aquario de id 1"
+        find: 'aq_id = int(aq_suffix) - 1'
+        replace: 'aq_id = int(aq_suffix)'
+      - id: unnumbered-folder-accepted
+        description: "pasta aquarium_x derruba a coleta das trajetorias"
+        find: 'if not aq_suffix.isdigit():'
+        replace: 'if False:'
+      - id: arena-mean-not-median
+        description: "uma deteccao espuria do aquario desloca a arena (media em vez de mediana)"
+        find: 'x1 = int(np.median(bboxes_array[:, 0]))'
+        replace: 'x1 = int(np.mean(bboxes_array[:, 0]))'
+      - id: fallback-arena-half-frame
+        description: "arena padrao sem deteccao vira metade do quadro em vez de um terco"
+        find: 'area_ratio = 3.0'
+        replace: 'area_ratio = 2.0'
+      - id: adhoc-arena-persisted
+        description: "sessao sem projeto tenta persistir a arena em disco"
+        find: 'should_persist = bool(self.project_manager.project_path)'
+        replace: 'should_persist = True'
+      - id: freezing-override-ignored
+        description: "limiar de freezing da sessao nao chega a analise"
+        find: 'if "freezing_velocity_threshold" in self._analysis_params:'
+        replace: 'if False:'
+      - id: summary-not-attached
+        description: "o .xlsx de cada aquario nao e registrado no projeto"
+        find: '            if summary_path:'
+        replace: '            if False:'
+      - id: no-detections-message-lost
+        description: "sessao sem deteccoes aparece como falha da analise"
+        find: 'elif reason == "no_detections":'
+        replace: 'elif reason == "error":'
+      - id: aquarium-metadata-dropped
+        description: "grupo/sujeito/dia do aquario deixam de ir para o registro"
+        find: '            if multi_zone_data is not None:'
+        replace: '            if False:'
+
+  live_aquarium_detection_phase:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_frame_processing_pipeline_extended.py
+    mutations:
+      - id: warmup-longer
+        description: "o aquecimento passa a engolir o quadro 30"
+        find: 'if frame_number < 30:'
+        replace: 'if frame_number < 35:'
+      - id: cadence-changed
+        description: "a busca do aquario deixa de olhar um quadro a cada 5"
+        find: 'if frame_number % 5 != 0:'
+        replace: 'if frame_number % 3 != 0:'
+      - id: min-area-raised
+        description: "um aquario que ocupa 64% do quadro passa a ser recusado"
+        find: 'min_ratio = 0.10'
+        replace: 'min_ratio = 0.70'
+      - id: fallback-after-eleven
+        description: "a arena padrao demora um quadro a mais para chegar"
+        find: 'AQUARIUM_DETECTION_FRAMES = 10'
+        replace: 'AQUARIUM_DETECTION_FRAMES = 11'
+      - id: needs-five-tanks
+        description: "quatro deteccoes do aquario nao bastam mais para definir a arena"
+        find: 'or len(self._detected_aquarium_bboxes) >= 4'
+        replace: 'or len(self._detected_aquarium_bboxes) >= 5'
+      - id: tank-threshold-raised
+        description: "a busca do aquario usa o limiar de confianca do animal"
+        find: 'detections, _annotated = detector.detect(frame, "live", conf_threshold=0.05)'
+        replace: 'detections, _annotated = detector.detect(frame, "live", conf_threshold=0.25)'
+      - id: any-class-is-the-tank
+        description: "um animal grande vira a arena"
+        find: 'if class_id == target_class_id:'
+        replace: 'if True:'
+  live_aquarium_detection_total:
+    source: src/zebtrack/core/recording/live_camera_service.py
+    tests:
+      - tests/core/test_live_camera_service_utils.py
+    mutations:
+      - id: announced-total-diverges
+        description: "F2-UI-008: o servico volta a anunciar 300 quadros enquanto o laco para em 10"
+        find: '        self._aquarium_detection_max_frames: int = AQUARIUM_DETECTION_FRAMES'
+        replace: '        self._aquarium_detection_max_frames: int = 300'
+  zone_source_video_default:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+      - tests/integration/test_flow_e2e_single_video.py
+    mutations:
+      - id: camera-reference-is-the-base-again
+        description: "A8-001: zona sem tamanho de origem volta a ser escalada de camera.desired"
+        find: '        source_width, source_height = self._default_single_zone_source_to_video('
+        replace: '        _ignored_size = self._default_single_zone_source_to_video('
+      - id: video-default-overrides-stated-size
+        description: "A8-001: o tamanho do video atropela um source_video_width declarado"
+        find: |-
+          if source_width is not None and source_height is not None:
+                      return source_width, source_height
+                  if not isinstance(zone_data, ZoneData):
+        replace: |-
+          if False:
+                      return source_width, source_height
+                  if not isinstance(zone_data, ZoneData):
+      - id: multi-aquarium-defaulted-to-video
+        description: "A8-001: o default de video vaza para o multi-aquario"
+        find: |-
+          if not isinstance(zone_data, ZoneData):
+                      return source_width, source_height
+                  if actual_width <= 0
+        replace: |-
+          if False:
+                      return source_width, source_height
+                  if actual_width <= 0
+      - id: unreadable-video-size-accepted
+        description: "A8-001: video com largura 0 vira base 0x480 do escalonador"
+        find: '        if actual_width <= 0 or actual_height <= 0:'
+        replace: '        if actual_width <= 0 and actual_height <= 0:'
+  zone_metadata_reaches_project_worker:
+    source: src/zebtrack/coordinators/_video_selection_mixin.py
+    tests:
+      - tests/coordinators/test_video_selection_and_completion_mixins.py
+      - tests/integration/test_flow_e2e_prerecorded_project.py
+    mutations:
+      - id: metadata-stripped
+        description: "A8-002: o lote do projeto volta a descartar source_video_width/height"
+        find: '                        "metadata": dict(getattr(zone_data, "metadata", {}) or {}),'
+        replace: '                        "metadata": {},'
+
+  # ---- A6-04/A6-05: hardware detection leaves the Tk thread -------------------
+  ui_background_task:
+    source: src/zebtrack/ui/background_task.py
+    tests:
+      - tests/ui/test_background_task.py
+    mutations:
+      - id: worker-not-daemon
+        description: "A6: a thread de trabalho deixa de ser daemon e segura o fechamento do app"
+        find: 'thread = threading.Thread(target=_run, name=f"{THREAD_PREFIX}{name}", daemon=True)'
+        replace: 'thread = threading.Thread(target=_run, name=f"{THREAD_PREFIX}{name}", daemon=False)'
+      - id: delivers-while-running
+        description: "A6: o poll entrega antes de a thread terminar"
+        find: |-
+          if thread.is_alive():
+                      _schedule_poll()
+                      return
+        replace: |-
+          if False:
+                      _schedule_poll()
+                      return
+      - id: dead-widget-gets-callback
+        description: "A6: dialogo fechado durante a deteccao ainda recebe o resultado"
+        find: 'if not _widget_alive(widget):'
+        replace: 'if False:'
+      - id: error-goes-to-on-done
+        description: "A6: a excecao do trabalho chega como resultado"
+        find: 'on_error(outcome["error"])'
+        replace: 'on_done(outcome["error"])'
+      - id: task-not-registered
+        description: "A6: tarefa em voo nao aparece em pending_tasks"
+        find: '_in_flight[thread] = widget'
+        replace: 'pass'
+      - id: running-task-pruned
+        description: "A6: tarefa ainda rodando some do registro quando o widget morre"
+        find: 'if not thread.is_alive() and not _widget_alive(widget):'
+        replace: 'if not _widget_alive(widget):'
+      - id: poll-never-armed
+        description: "A6: ninguem agenda o primeiro poll e o resultado nunca chega"
+        find: |-
+          thread.start()
+              _schedule_poll()
+        replace: |-
+          thread.start()
+  live_config_detection_off_tk:
+    source: src/zebtrack/ui/wizard/live_config_step.py
+    tests:
+      - tests/ui/wizard/test_live_config_step.py
+    mutations:
+      - id: camera-detect-on-tk
+        description: "A6-04: o botao Detectar volta a enumerar cameras no thread do Tk"
+        find: |-
+          run_in_background(
+                      self,
+                      WizardService.detect_available_cameras,
+                      _done,
+                      _failed,
+                      name="wizard-cameras",
+                  )
+        replace: |-
+          _done(WizardService.detect_available_cameras())
+      - id: camera-double-scan
+        description: "A6-04: segundo clique durante a deteccao abre outra varredura"
+        find: |-
+          self._camera_detection_pending = True
+                  self.camera_status_label.config(text=_("Detecting..."), fg="blue")
+
+                  def _done(cameras: list[dict[str, Any]]) -> None:
+        replace: |-
+          self.camera_status_label.config(text=_("Detecting..."), fg="blue")
+
+                  def _done(cameras: list[dict[str, Any]]) -> None:
+      - id: arduino-scan-on-tk
+        description: "A6-05: a varredura de portas volta ao thread do Tk"
+        find: |-
+          run_in_background(
+                      self,
+                      WizardService.detect_arduino_ports,
+                      _done,
+                      _failed,
+                      name="wizard-arduino-ports",
+                  )
+        replace: |-
+          _done(WizardService.detect_arduino_ports())
+      - id: arduino-double-scan
+        description: "A6-05: segundo clique durante a varredura abre outra"
+        find: 'self._arduino_detection_pending = True'
+        replace: 'self._arduino_detection_pending = False'
+      - id: pyserial-missing-shows-no-port
+        description: "A6-05: sem pyserial a tela diz 'nenhuma porta' em vez do motivo"
+        find: |-
+          if isinstance(exc, ImportError):
+                          self._show_pyserial_missing()
+                          return
+                      log.error("live_config.arduino_detection.failed", error=str(exc))
+        replace: |-
+          log.error("live_config.arduino_detection.failed", error=str(exc))
+  live_dialog_camera_detection_off_tk:
+    source: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+    tests:
+      - tests/test_live_analysis_ui.py
+    mutations:
+      - id: detect-on-tk
+        description: "A6-04: abrir o dialogo ao vivo volta a congelar enumerando cameras"
+        find: |-
+          run_in_background(
+                      self,
+                      WizardService.detect_available_cameras,
+                      _done,
+                      _failed,
+                      name="live-dialog-cameras",
+                  )
+        replace: |-
+          _done(WizardService.detect_available_cameras())
+      - id: pending-never-cleared-on-error
+        description: "A6-04: depois de uma falha o botao Detectar fica morto"
+        find: |-
+          self._camera_detection_pending = False
+                      self._on_camera_detection_error(exc)
+        replace: |-
+          self._on_camera_detection_error(exc)
+  start_recording_camera_chooser_off_tk:
+    source: src/zebtrack/ui/dialogs/start_recording_dialog.py
+    tests:
+      - tests/ui/dialogs/test_start_recording_dialog.py
+    mutations:
+      - id: provider-on-tk
+        description: "A6-04: 'Trocar...' volta a enumerar cameras no thread do Tk"
+        find: 'run_in_background(self, self.camera_provider, _done, _failed, name="camera-chooser")'
+        replace: '_done(self.camera_provider())'
+      - id: double-scan
+        description: "A6-04: segundo clique em 'Trocar...' abre outra varredura"
+        find: |-
+          self._camera_detection_pending = True
+                  if self._camera_label is not None:
+        replace: |-
+          if self._camera_label is not None:
+  block_detail_camera_chooser_off_tk:
+    source: src/zebtrack/ui/dialogs/block_detail_dialog.py
+    tests:
+      - tests/ui/dialogs/test_block_detail_dialog.py
+    mutations:
+      - id: detect-on-tk
+        description: "A6-04: 'Trocar camera' do bloco volta a enumerar no thread do Tk"
+        find: |-
+          run_in_background(
+                      self,
+                      lambda: WizardService.detect_available_cameras(use_cache=False),
+                      _done,
+                      _failed,
+                      name="camera-chooser",
+                  )
+        replace: |-
+          _done(WizardService.detect_available_cameras(use_cache=False))
+      - id: cached-list
+        description: "A6-04: a troca de camera passa a usar a lista em cache (ordem velha)"
+        find: 'lambda: WizardService.detect_available_cameras(use_cache=False),'
+        replace: 'lambda: WizardService.detect_available_cameras(use_cache=True),'
+
+  # ---- A6-02: deleting the unified reports leaves the Tk thread ---------------
+  unified_reports_delete_off_tk:
+    source: src/zebtrack/ui/components/project_views/report_generator_actions.py
+    tests:
+      - tests/ui/components/test_report_generator_actions.py
+    mutations:
+      - id: delete-on-tk
+        description: "A6-02: 'Excluir relatorios unificados' volta a apagar no thread do Tk"
+        find: |-
+          run_in_background(
+                      owner,
+                      lambda: delete_unified_reports_dir(unified_dir),
+                      _done,
+                      _failed,
+                      name="delete-unified-reports",
+                  )
+        replace: |-
+          _done(delete_unified_reports_dir(unified_dir))
+      - id: pause-after-last-attempt
+        description: "A6-02: volta a dormir depois da ultima tentativa e atrasa o erro"
+        find: 'if attempt:'
+        replace: 'if True:'
+      - id: double-delete
+        description: "A6-02: segundo clique durante a exclusao dispara outra"
+        find: '        self._unified_delete_pending = True'
+        replace: '        self._unified_delete_pending = False'
+      - id: stuck-after-worker-error
+        description: "A6-02: depois de um erro inesperado o botao nunca mais apaga"
+        find: |-
+          self._unified_delete_pending = False
+                      error = exc if isinstance(exc, Exception) else RuntimeError(str(exc))
+        replace: |-
+          error = exc if isinstance(exc, Exception) else RuntimeError(str(exc))
+      - id: no-root-fallback
+        description: "A6-02: sem o widget da aba, a exclusao volta ao thread do Tk"
+        find: 'return root if root is not None and hasattr(root, "after") else None'
+        replace: 'return None'
+
+  # ---- A6-10: deleting OpenVINO caches leaves the Tk thread -------------------
+  openvino_cache_clear_off_tk:
+    source: src/zebtrack/ui/components/global_model_configuration_panel.py
+    tests:
+      - tests/ui/components/test_global_model_configuration_panel_extended.py
+    mutations:
+      - id: clear-on-tk
+        description: "A6-10: 'Excluir cache OpenVINO' volta a apagar no thread do Tk"
+        find: |-
+          run_in_background(
+                      self,
+                      lambda: hardware_vm.clear_openvino_cache(name),
+                      _done,
+                      _failed,
+                      name="clear-openvino-cache",
+                  )
+        replace: |-
+          _done(hardware_vm.clear_openvino_cache(name))
+      - id: double-clear
+        description: "A6-10: segundo clique durante a exclusao dispara outra"
+        find: '        self._cache_clear_pending = True'
+        replace: '        self._cache_clear_pending = False'
+      - id: stuck-after-failure
+        description: "A6-10: depois de uma falha o botao nunca mais apaga"
+        find: |-
+          self._cache_clear_pending = False
+                      log.error("model_panel.clear_cache.failed", name=name, error=str(exc))
+        replace: |-
+          log.error("model_panel.clear_cache.failed", name=name, error=str(exc))
+      - id: scope-lost
+        description: "A6-10: o relatorio passa a dizer 'todos os pesos' ao limpar um so"
+        find: 'self._show_cache_clear_report(report, scope=name)'
+        replace: 'self._show_cache_clear_report(report, scope=None)'
+
+  # ---- A6-06: Arduino connect leaves the Tk thread ------------------------------
+  arduino_connect_lock_split:
+    source: src/zebtrack/io/arduino_manager.py
+    tests:
+      - tests/test_io_arduino_manager.py
+    mutations:
+      - id: connects-not-serialised
+        description: "A6-06: dois connect() simultaneos abrem a mesma porta duas vezes"
+        find: 'with self._connect_lock:'
+        replace: 'with threading.Lock():'
+  project_open_arduino_off_tk:
+    source: src/zebtrack/ui/components/project_initializer.py
+    tests:
+      - tests/ui/components/test_project_initializer_live_camera.py
+    mutations:
+      - id: connect-on-tk
+        description: "A6-06: abrir projeto ao vivo volta a esperar o handshake no thread do Tk"
+        find: |-
+          run_in_background(
+                          gui.root,
+                          _connect,
+                          _on_connected,
+                          _on_connect_error,
+                          name="arduino-connect",
+                      )
+        replace: |-
+          _on_connected(_connect())
+      - id: exception-swallowed
+        description: "A6-06: falha inesperada na conexao some sem aviso ao usuario"
+        find: |-
+          log.error("project_initializer.arduino_connect.failed", port=port, error=str(exc))
+                          self._warn_arduino_offline(port)
+        replace: |-
+          log.error("project_initializer.arduino_connect.failed", port=port, error=str(exc))
+      - id: warns-on-success
+        description: "A6-06: a conexao bem-sucedida passa a mostrar o aviso de modo offline"
+        find: '                if not ok:'
+        replace: '                if ok:'
+
+  # ---- A6-S2: the processing worker process dies with the app ----------------
+  processing_worker_daemon:
+    source: src/zebtrack/core/video/processing_worker.py
+    tests:
+      - tests/core/test_processing_worker_unit.py
+    mutations:
+      - id: worker-not-daemon
+        description: "A6-S2: fechar o app volta a esperar o lote inteiro do worker"
+        find: 'super().__init__(name="ZebTrack-ProcessingWorker", daemon=True)'
+        replace: 'super().__init__(name="ZebTrack-ProcessingWorker")'
+
+  # ---- A6-11: Cancel no longer waits for the worker on the Tk thread -------------
+  processing_cancel_off_tk:
+    source: src/zebtrack/coordinators/progress_tracking_coordinator.py
+    tests:
+      - tests/coordinators/test_progress_tracking_coordinator.py
+    mutations:
+      - id: cancel-wait-not-daemon
+        description: "A6-11: a espera pelo worker segura o fechamento do app"
+        find: |-
+          name="processing-cancel-wait",
+                              daemon=True,
+        replace: |-
+          name="processing-cancel-wait",
+                              daemon=False,
+      - id: cancel-waits-on-tk
+        description: "A6-11: Cancelar volta a congelar a janela esperando o worker"
+        find: '                self._cancel_thread.start()'
+        replace: '                self._cancel_thread.run()'
+      - id: cancel-unbounded
+        description: "A6-11: a espera pelo worker deixa de ter limite"
+        find: 'kwargs={"timeout": self.WORKER_CANCEL_TIMEOUT_S},'
+        replace: 'kwargs={"timeout": None},'
+
+  # ---- A6-07/A6-08: asynchronous live stop, countdown without a nested loop ------
+  live_stop_async_and_countdown:
+    source: src/zebtrack/core/recording/live_session_manager.py
+    tests:
+      - tests/core/recording/test_live_session_manager_extended.py
+    mutations:
+      - id: stop-always-inline
+        description: "A6-07: parar a sessao volta a fazer flush/joins no thread do Tk"
+        find: '        if self.root is None:'
+        replace: '        if True:'
+      - id: double-teardown
+        description: "A6-07: timer + botao Parar disparam dois teardowns"
+        find: '        if self._stop_in_progress:'
+        replace: '        if False:'
+      - id: stop-flag-stuck
+        description: "A6-07: depois de uma parada, nenhuma outra parada roda de novo"
+        find: |-
+          self._stop_in_progress = False
+                  self._stop_waiters = []
+        replace: |-
+          self._stop_waiters = []
+      - id: countdown-ignores-abort
+        description: "A6-08: parar durante a contagem ainda inicia a gravacao"
+        find: |-
+          log.warning("live_camera_service.countdown.aborted")
+                                  return
+        replace: |-
+          log.warning("live_camera_service.countdown.aborted")
+      - id: deferred-failure-silent
+        description: "A6-08: falha depois da contagem some sem erro para o operador"
+        find: '                        self._report_deferred_start_failure()'
+        replace: '                        pass'
+      - id: countdown-starts-immediately
+        description: "A6-08: a gravacao comeca antes de a contagem terminar"
+        find: |-
+          log.info("live_camera_service.countdown.armed", seconds=countdown_seconds)
+                          return True
+        replace: |-
+          log.info("live_camera_service.countdown.armed", seconds=countdown_seconds)
+  live_post_analysis_after_stop:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: post-analysis-never-starts
+        description: "A6-07: a pos-analise deixa de rodar depois da parada assincrona"
+        find: '        self.stop_session(keep_data=keep_data, on_stopped=_start_post_analysis)'
+        replace: '        self.stop_session(keep_data=keep_data)'
+  live_cancel_finalizes_once:
+    source: src/zebtrack/coordinators/live_camera_session_coordinator.py
+    tests:
+      - tests/coordinators/test_live_camera_session_coordinator.py
+    mutations:
+      - id: suppression-never-cleared
+        description: "A6-07: depois de cancelar, paradas automaticas nunca mais finalizam a aba"
+        find: |-
+          def _after_stop(stopped: bool) -> None:
+                          self._suppress_service_stop_callback = False
+        replace: |-
+          def _after_stop(stopped: bool) -> None:
+  app_exit_waits_for_live_stop:
+    source: src/zebtrack/core/viewmodels/main_view_model_runtime.py
+    tests:
+      - tests/core/viewmodels/test_main_view_model_runtime.py
+    mutations:
+      - id: exit-does-not-wait
+        description: "A6-07: fechar o app mata o flush da sessao ao vivo no meio"
+        find: 'if callable(wait_for_stop) and not wait_for_stop(self.LIVE_STOP_EXIT_WAIT_S):'
+        replace: 'if callable(wait_for_stop) and not wait_for_stop(0.0):'
+
+  # ---- A6-03: live calibration leaves the Tk thread ---------------------------
+  live_calibration_off_tk:
+    source: src/zebtrack/coordinators/live_calibration_coordinator.py
+    tests:
+      - tests/coordinators/test_live_calibration_coordinator.py
+    mutations:
+      - id: calibration-inline-on-tk
+        description: "A6-03: camera, aquecimento e deteccao voltam ao thread do Tk"
+        find: |-
+          ``_STEP_ASYNC``: the chain only finishes when a step returns a bool.
+                  """
+                  if self.root is None:
+        replace: |-
+          ``_STEP_ASYNC``: the chain only finishes when a step returns a bool.
+                  """
+                  if True:
+      - id: in-progress-never-cleared
+        description: "A6-03: depois da calibracao a sessao fica presa em 'calibrando'"
+        find: |-
+          return
+                      self._calibration_in_progress = False
+                      if on_done is not None:
+        replace: |-
+          return
+                      if on_done is not None:
+      - id: stale-pending-misread
+        description: "A6-03: cancelar a previa vira 'pendente' e mostra o banner sem poligono"
+        find: |-
+          def _continue(ok: bool) -> None:
+                      self._pending_zone_confirmation = False
+        replace: |-
+          def _continue(ok: bool) -> None:
+      - id: pending-not-reset-after-capture
+        description: "A6-03: captura sem frame ainda conta como zonas pendentes"
+        find: |-
+          if reset_pending:
+                          # The gate was marked pending only so callers would not report
+                          # an error while the worker ran; the tail decides for real.
+                          self._pending_zone_confirmation = False
+        replace: |-
+          if reset_pending:
+                          pass
+      - id: shared-settings-index
+        description: "A6-03: a camera volta a ser aberta mexendo no settings compartilhado"
+        find: '        camera_cfg = _AttrOverride(self.settings.camera, index=camera_index)'
+        replace: '        camera_cfg = self.settings.camera'
+      - id: abandoned-reported-as-pending
+        description: "A6-03: gate cancelado publica a sessao pendente"
+        find: '            if ready or coordinator.pending_zone_confirmation:'
+        replace: '            if True:'
+      - id: sleep-on-tk-after-approval
+        description: "A6-03: a pausa de 0,5 s depois da aprovacao volta ao thread do Tk"
+        find: |-
+          if self.root is None:
+                          time.sleep(0.5)
+        replace: |-
+          if True:
+                          time.sleep(0.5)
+      - id: then-crash-hangs-the-gate
+        description: "A6-03: erro no Tk depois da calibracao deixa o gate sem desfecho"
+        find: |-
+          log.error("live_calibration_coordinator.step.then_failed", exc_info=True)
+                          outcome = False
+        replace: |-
+          log.error("live_calibration_coordinator.step.then_failed", exc_info=True)
+                          return
+  live_session_defers_after_calibration:
+    source: src/zebtrack/coordinators/live_camera_session_coordinator.py
+    tests:
+      - tests/coordinators/test_live_camera_session_coordinator.py
+    mutations:
+      - id: config-banner-before-polygon
+        description: "A6-03: o banner 'Iniciar Gravacao' do ad-hoc aparece antes do poligono"
+        find: |-
+          on_pending=_defer_config_session,
+        replace: |-
+          on_pending=None,
+      - id: project-banner-never-shown
+        description: "A6-03: projeto ao vivo nunca publica a sessao pendente apos calibrar"
+        find: |-
+          ensure_zones_before_recording(
+                          on_pending=_defer_project_session
+                      )
+        replace: |-
+          ensure_zones_before_recording()
+  recording_gate_abandoned_clears_context:
+    source: src/zebtrack/coordinators/recording_session_coordinator.py
+    tests:
+      - tests/coordinators/test_recording_session_coordinator.py
+    mutations:
+      - id: stale-recording-context
+        description: "A6-03: calibracao cancelada deixa o contexto de gravacao pendurado"
+        find: '            on_abandoned=self._clear_pending_recording_context'
+        replace: '            on_abandoned=None'
+  single_video_autodetect_on_done:
+    source: src/zebtrack/ui/components/single_video_workflow.py
+    tests:
+      - tests/ui/components/test_single_video_workflow_ui.py
+    mutations:
+      - id: on-done-not-wired
+        description: "A6-03: o poligono aprovado em segundo plano nunca aparece na aba"
+        find: '                on_done=_after_calibration,'
+        replace: '                on_done=None,'
+  preview_retry_off_tk:
+    source: src/zebtrack/ui/dialogs/preview_polygon_dialog.py
+    tests:
+      - tests/ui/dialogs/test_preview_polygon_dialog.py
+    mutations:
+      - id: retry-on-tk
+        description: "A6-03: 'Tentar novamente' volta a ler a camera e inferir no thread do Tk"
+        find: |-
+          run_in_background(
+                      self.dialog,
+                      lambda: retry(confidence),
+                      lambda raw: self._apply_retry_result(confidence, raw, None),
+                      lambda exc: self._apply_retry_result(confidence, None, exc),
+                      name="preview-polygon-retry",
+                  )
+        replace: |-
+          self._apply_retry_result(confidence, retry(confidence), None)
+  recording_service_callbacks_wired:
+    source: src/zebtrack/coordinators/recording_session_coordinator.py
+    tests:
+      - tests/coordinators/test_recording_session_coordinator.py
+    mutations:
+      - id: timed-stop-not-wired
+        description: "A2-13: gravacao temporizada volta a nao parar sozinha"
+        find: '                    "stop_recording_callback": self.stop_recording,'
+        replace: '                    "stop_recording_callback": None,'
+      - id: service-errors-dropped
+        description: "erros do servico de gravacao voltam a nao chegar a ninguem"
+        find: '                    "show_error": self._show_service_error,'
+        replace: '                    "show_error": lambda title, message: None,'
+  batch_context_closed_on_stop:
+    source: src/zebtrack/coordinators/progress_tracking_coordinator.py
+    tests:
+      - tests/coordinators/test_progress_tracking_coordinator.py
+    mutations:
+      - id: cancelled-batch-left-open
+        description: "lote cancelado continua aberto e engole a proxima execucao"
+        find: "        # waiting for the stale total.\n        self._finalize_batch_context()"
+        replace: "        # waiting for the stale total."
+      - id: fatal-error-batch-left-open
+        description: "erro fatal deixa o lote aberto"
+        find: "        # The run stops here: a batch it belonged to will not finish either.\n        self._finalize_batch_context()"
+        replace: "        # The run stops here: a batch it belonged to will not finish either."
+  zone_tab_roi_rule_refresh:
+    source: src/zebtrack/ui/builders/analysis_widgets.py
+    tests:
+      - tests/ui/builders/test_analysis_widgets.py
+    mutations:
+      - id: panel-not-refreshed
+        description: "A2-13: painel de zonas continua com a regra de ROI antiga depois de salvar"
+        find: '        self._refresh_zone_tab_roi_rule()'
+        replace: '        pass'
+  multi_detection_failure_warns:
+    source: src/zebtrack/coordinators/multi_aquarium_coordinator.py
+    tests:
+      - tests/coordinators/test_multi_aquarium_coordinator.py
+    mutations:
+      - id: empty-result-silent
+        description: "A1-02: deteccao de dois aquarios sem resultado volta a ficar muda"
+        find: '                    self._warn_multi_detection_failed()'
+        replace: '                    pass'
+      - id: exception-silent
+        description: "deteccao de dois aquarios que levanta volta a ficar muda"
+        find: "            if multi_aquarium:\n                self._warn_multi_detection_failed()"
+        replace: "            if multi_aquarium:\n                pass"
+  benchmark_recommendation_cuda_and_batch:
+    source: src/zebtrack/utils/hardware_benchmark.py
+    tests:
+      - tests/utils/test_hardware_benchmark.py
+    mutations:
+      - id: cuda-returns-early
+        description: "A4-11: maquina NVIDIA volta a pular o modo de pouca memoria"
+        find: "    elif profile.openvino_available:"
+        replace: "    if profile.gpu_type == GPUType.NVIDIA and profile.cuda_available:\n        return recommendation\n    if profile.openvino_available:"
+      - id: batch-of-zero
+        description: "A2-11: GPU sem memoria informada volta a lote 0"
+        find: "recommended_batch_size = max(1, min(4, int(profile.gpu_memory_gb)))"
+        replace: "recommended_batch_size = min(4, int(profile.gpu_memory_gb))"
+  capability_tier_nominal_memory:
+    source: src/zebtrack/utils/hardware_capability.py
+    tests:
+      - tests/utils/test_hardware_capability.py
+    mutations:
+      - id: raw-memory-compared
+        description: "A4-12: maquina de 16 GB volta a cair um nivel abaixo"
+        find: "        total_memory_gb = total_memory_gb + RESERVED_MEMORY_ALLOWANCE_GB"
+        replace: "        total_memory_gb = total_memory_gb"
+  runtime_worker_results_reported:
+    source: src/zebtrack/core/viewmodels/main_view_model_runtime.py
+    tests:
+      - tests/core/viewmodels/test_main_view_model_runtime.py
+    mutations:
+      - id: benchmark-failure-silent
+        description: "A5-S-008: benchmark que falha volta a nao dizer nada"
+        find: "        result = self._vm.hardware_vm.force_benchmark()\n        if result is None:"
+        replace: "        result = self._vm.hardware_vm.force_benchmark()\n        if False:"
+      - id: conversion-success-silent
+        description: "conversao OpenVINO que deu certo volta a nao dizer nada"
+        find: "        if converted is None:"
+        replace: "        if True:"
+  video_metadata_capture_released:
+    source: src/zebtrack/core/video/video_metadata_service.py
+    tests:
+      - tests/core/video/test_video_metadata_service_extended.py
+    mutations:
+      - id: release-not-in-finally
+        description: "A5-S-011: captura fica aberta quando a leitura falha"
+        find: "            finally:\n                cap.release()"
+        replace: "            finally:\n                pass\n            cap.release()"
+
+# utils property tests (TASK-087 item 1.8): defects only an invariant notices
+  geometry_properties:
+    source: src/zebtrack/utils/geometry.py
+    tests:
+      - tests/utils/test_geometry.py
+    mutations:
+      - id: centroid-exact-zero-only
+        description: "poligono colinear em float volta a ganhar um centroide fora da propria reta"
+        find: '    if abs(area_twice) <= _DEGENERATE_AREA_RTOL * len(points) * extent * (extent + magnitude):'
+        replace: '    if area_twice == 0.0:'
+      - id: centroid-shift-not-undone
+        description: "centroide sai relativo ao primeiro vertice e deixa de acompanhar a translacao"
+        find: 'return ox + cx * factor, oy + cy * factor'
+        replace: 'return cx * factor, cy * factor'
+      - id: centroid-orientation-dropped
+        description: "poligono no sentido horario passa a ter outro centroide"
+        find: '        cx += (x0 + x1) * cross'
+        replace: '        cx += (x0 + x1) * abs(cross)'
+      - id: snap-tie-goes-to-last
+        description: "no empate o ultimo candidato vence e um candidato no limiar passa a encaixar"
+        find: '        if distance < best_distance:'
+        replace: '        if distance <= best_distance:'
+      - id: snap-anchor-axes-swapped
+        description: "ancora tenta o eixo horizontal antes do vertical e o desempate muda"
+        find: "        _consider((ax, py))  # Vertical alignment\n        _consider((px, ay))  # Horizontal alignment"
+        replace: "        _consider((px, ay))  # Horizontal alignment\n        _consider((ax, py))  # Vertical alignment"
+      - id: snap-threshold-loosened
+        description: "encaixe aceita candidatos alem do limiar"
+        find: 'best_distance = threshold'
+        replace: 'best_distance = threshold * 1.5'
+      - id: simplify-epsilon-tripled
+        description: "simplificacao afasta o contorno alem da tolerancia do Douglas-Peucker"
+        find: 'epsilon = max(1.0, epsilon_factor * perimeter)'
+        replace: 'epsilon = max(1.0, 3.0 * epsilon_factor * perimeter)'
+      - id: simplify-vertices-shifted
+        description: "contorno simplificado deixa de ser um subconjunto dos vertices da mascara"
+        find: 'contour = np.asarray(raw_polygon, dtype=np.float32).reshape(-1, 1, 2)'
+        replace: 'contour = np.asarray(raw_polygon, dtype=np.float32).reshape(-1, 1, 2) + 1.0'
+  ttl_cache_model:
+    source: src/zebtrack/utils/cache.py
+    tests:
+      - tests/utils/test_cache.py
+    mutations:
+      - id: get-ttl-boundary-inclusive
+        description: "get devolve a entrada no instante exato em que o TTL vence"
+        find: "                if (time.time() - ts) < self._ttl:\n                    self._hits += 1"
+        replace: "                if (time.time() - ts) <= self._ttl:\n                    self._hits += 1"
+      - id: contains-ttl-boundary-inclusive
+        description: "'in' ainda ve a entrada no instante exato em que o TTL vence"
+        find: "            if (time.time() - ts) < self._ttl:\n                return True"
+        replace: "            if (time.time() - ts) <= self._ttl:\n                return True"
+      - id: purge-keeps-entry-at-ttl
+        description: "set deixa de purgar a entrada que venceu exatamente agora"
+        find: 'if (now - ts) >= self._ttl]'
+        replace: 'if (now - ts) > self._ttl]'
+      - id: evict-newest
+        description: "limite de tamanho despeja a entrada mais nova em vez da mais antiga"
+        find: 'oldest = min(self._store, key=lambda k: self._store[k][1])'
+        replace: 'oldest = max(self._store, key=lambda k: self._store[k][1])'
+      - id: rewrite-keeps-first-slot
+        description: "chave reescrita no mesmo tique e despejada como se fosse a mais antiga"
+        find: "            self._store.pop(key, None)\n            self._store[key] = (value, now)"
+        replace: "            self._store[key] = (value, now)"
+      - id: hits-not-counted
+        description: "acerto deixa de ser contado em info()"
+        find: '                    self._hits += 1'
+        replace: '                    pass'
+      - id: clear-keeps-counters
+        description: "clear() esvazia o cache mas preserva acertos e falhas"
+        find: "            self._store.clear()\n            self._hits = 0"
+        replace: "            self._store.clear()"
+      - id: kwargs-mark-dropped
+        description: "f(('a', 1)) e f(a=1) voltam a compartilhar a mesma entrada"
+        find: 'key = (*args, _KWARGS_MARK, *sorted(kwargs.items())) if kwargs else args'
+        replace: 'key = args + tuple(sorted(kwargs.items()))'
+  pragma_review_evaluator_unknown_nodes:
+    source: src/zebtrack/core/conditions/evaluator.py
+    tests:
+      - tests/core/conditions/test_evaluator.py
+    mutations:
+      - id: unknown-level-compiles-to-false
+        description: "F2: no de nivel desconhecido vira um nivel sempre falso em silencio"
+        find: '    raise TypeError(f"Unknown level node: {type(node).__name__}")'
+        replace: '    return lambda obs: False'
+      - id: unknown-trigger-compiles-to-end-of-stream
+        description: "F2: gatilho desconhecido vira fim de fluxo em silencio"
+        find: '    raise TypeError(f"Unknown trigger node: {type(node).__name__}")'
+        replace: '    return _EndOfStream()'
+  pragma_review_zone_autoimport_unusable_path:
+    source: src/zebtrack/core/services/zone_autoimport_policy.py
+    tests:
+      - tests/core/services/test_zone_autoimport_policy.py
+    mutations:
+      - id: unusable-path-raises
+        description: "F2: caminho ilegivel no projeto derruba a decisao em vez de nunca casar"
+        find: "    except Exception:\n        return \"\""
+        replace: "    except TypeError:\n        return \"\""
+  pragma_review_asset_manager:
+    source: src/zebtrack/core/project/asset_manager.py
+    tests:
+      - tests/core/project/test_asset_manager.py
+    mutations:
+      - id: global-template-failure-propagates
+        description: "F2: biblioteca global quebrada esconde os templates do projeto"
+        find: "                global_entries = self.roi_template_manager.list_global_templates()\n            except Exception as exc:"
+        replace: "                global_entries = self.roi_template_manager.list_global_templates()\n            except KeyError as exc:"
+      - id: empty-criterion-rejects-profile
+        description: "F2: criterio sem valores passa a recusar o perfil"
+        find: "            if expected_values in (None, [], ()):\n                continue"
+        replace: "            if expected_values in (None, [], ()):\n                return False"
+      - id: delete-failure-propagates
+        description: "F2: falha do SO ao apagar derruba a remocao do asset"
+        find: "        except Exception as exc:\n            log.warning(\n                \"asset_manager.file_delete_failed\","
+        replace: "        except ValueError as exc:\n            log.warning(\n                \"asset_manager.file_delete_failed\","
+  pragma_review_parquet_io_copy_failure:
+    source: src/zebtrack/core/project/parquet_io_manager.py
+    tests:
+      - tests/core/project/test_parquet_io_manager.py
+    mutations:
+      - id: copy-failure-propagates
+        description: "F2: pasta hierarquica travada derruba a copia das zonas"
+        find: "                except (OSError, PermissionError) as exc:"
+        replace: "                except (KeyError,) as exc:"
+  pragma_review_project_manager_unknown_asset:
+    source: src/zebtrack/core/project/project_manager.py
+    tests:
+      - tests/test_project_manager.py
+    mutations:
+      - id: unknown-asset-silently-unchanged
+        description: "F2: tipo de asset desconhecido deixa de falhar e vira nao-remocao muda"
+        find: "            raise ValueError(f\"Asset type '{asset}' desconhecido.\")"
+        replace: "            changed = False"
+  pragma_review_state_manager_inline_observers:
+    source: src/zebtrack/core/state_manager.py
+    tests:
+      - tests/test_state_manager_observer_pattern.py
+    mutations:
+      - id: inline-observer-failure-propagates
+        description: "F2: observador que falha apos o shutdown derruba a atualizacao de estado"
+        find: "                observer(category, key, old_value, new_value)\n            except Exception as exc:"
+        replace: "                observer(category, key, old_value, new_value)\n            except KeyError as exc:"
+  pragma_review_project_lifecycle_failures:
+    source: src/zebtrack/coordinators/project_lifecycle_coordinator.py
+    tests:
+      - tests/coordinators/test_project_lifecycle_coordinator.py
+    mutations:
+      - id: can-remove-failure-propagates
+        description: "F2: falha ao validar a remocao escapa para a UI"
+        find: "        except Exception as exc:\n            self.logger.error(\n                \"project.asset.can_remove_failed\","
+        replace: "        except OSError as exc:\n            self.logger.error(\n                \"project.asset.can_remove_failed\","
+      - id: asset-removal-failure-propagates
+        description: "F2: falha ao remover o asset escapa para a UI"
+        find: "        except Exception as exc:\n            self.logger.error(\n                \"project.asset.remove_failed\","
+        replace: "        except KeyError as exc:\n            self.logger.error(\n                \"project.asset.remove_failed\","
+      - id: aquarium-delete-failure-propagates
+        description: "F2: falha ao apagar o escopo do aquario escapa para a UI"
+        find: "        except Exception as exc:\n            self.logger.error(\n                \"project.aquarium_delete.failed\","
+        replace: "        except KeyError as exc:\n            self.logger.error(\n                \"project.aquarium_delete.failed\","
+      - id: aquarium-clear-failure-propagates
+        description: "F2: falha ao limpar o sujeito do aquario escapa para a UI"
+        find: "        except Exception as exc:\n            self.logger.error(\n                \"project.aquarium_subject_clear.failed\","
+        replace: "        except KeyError as exc:\n            self.logger.error(\n                \"project.aquarium_subject_clear.failed\","
+      - id: analysis-reset-failure-propagates
+        description: "F2: falha ao resetar a analise escapa para a UI"
+        find: "        except Exception as exc:\n            self.logger.error(\n                \"project.analysis_reset.failed\","
+        replace: "        except KeyError as exc:\n            self.logger.error(\n                \"project.analysis_reset.failed\","
+  pragma_review_project_lifecycle_live_stop:
+    source: src/zebtrack/coordinators/project_lifecycle_coordinator.py
+    tests:
+      - tests/coordinators/test_project_lifecycle_coordinator_unit.py
+    mutations:
+      - id: live-stop-failure-blocks-close
+        description: "F2: sessao ao vivo que nao para impede fechar o projeto"
+        find: "        except Exception as exc:\n            self.logger.warning(\n                \"project.close.live_session_stop_failed\""
+        replace: "        except KeyError as exc:\n            self.logger.warning(\n                \"project.close.live_session_stop_failed\""
+  pragma_review_calibration_scope_name:
+    source: src/zebtrack/coordinators/calibration_coordinator.py
+    tests:
+      - tests/coordinators/test_calibration_coordinator.py
+    mutations:
+      - id: unreadable-name-breaks-scope-info
+        description: "F2: nome de projeto ilegivel derruba a janela de calibracao"
+        find: "                project_name = self.project_manager.get_project_name()\n            except Exception:"
+        replace: "                project_name = self.project_manager.get_project_name()\n            except OSError:"
+  pragma_review_live_calibration_release:
+    source: src/zebtrack/coordinators/live_calibration_coordinator.py
+    tests:
+      - tests/coordinators/test_live_calibration_coordinator.py
+    mutations:
+      - id: stop-signal-failure-skips-release
+        description: "F2: evento de parada que falha impede liberar a camera"
+        find: "            except Exception:\n                log.debug(\"live_calibration_coordinator.camera.stop_signal_failed\")"
+        replace: "            except KeyError:\n                log.debug(\"live_calibration_coordinator.camera.stop_signal_failed\")"
+      - id: release-failure-propagates
+        description: "F2: camera ja liberada pelo SO derruba o encerramento da calibracao"
+        find: "            except Exception:\n                log.debug(\"live_calibration_coordinator.camera.release_failed\")"
+        replace: "            except KeyError:\n                log.debug(\"live_calibration_coordinator.camera.release_failed\")"
+  pragma_review_model_diagnostics_openvino:
+    source: src/zebtrack/coordinators/model_diagnostics_coordinator.py
+    tests:
+      - tests/coordinators/test_model_diagnostics_coordinator.py
+    mutations:
+      - id: openvino-failure-not-reported
+        description: "F2: falha do OpenVINO no diagnostico deixa de avisar o quadro"
+        find: "                    except Exception as exc:\n                        log.error(\n                            \"diagnostic.thread.openvino_predict_error\","
+        replace: "                    except KeyError as exc:\n                        log.error(\n                            \"diagnostic.thread.openvino_predict_error\","
+  pragma_review_single_detector_degrades:
+    source: src/zebtrack/core/detection/single_detector.py
+    tests:
+      - tests/core/detection/test_single_detector_extended.py
+    mutations:
+      - id: plugin-mode-failure-propagates
+        description: "F2: plugin que recusa o modo sujeito unico derruba a troca de modo"
+        find: "                self.plugin.set_use_single_subject_mode(enabled)\n            except Exception:"
+        replace: "                self.plugin.set_use_single_subject_mode(enabled)\n            except KeyError:"
+      - id: plugin-reset-failure-skips-id-reset
+        description: "F2: reset do plugin que falha impede reiniciar os ids entre videos"
+        find: "                self.plugin.reset_tracking_state()\n            except Exception:"
+        replace: "                self.plugin.reset_tracking_state()\n            except KeyError:"
+      - id: tracker-build-failure-propagates
+        description: "F2: falha ao montar o ByteTrack derruba o quadro em vez de rastrear sem ele"
+        find: "        except Exception:\n            log.warning(\"single_detector.bytetrack.init_failed\", exc_info=True)"
+        replace: "        except KeyError:\n            log.warning(\"single_detector.bytetrack.init_failed\", exc_info=True)"
+  pragma_review_frame_pipeline_teardown:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_frame_processing_pipeline_extended.py
+    mutations:
+      - id: after-failure-drops-status
+        description: "F2: root.after que falha no encerramento perde o status do preview"
+        find: "            except Exception:\n                log.debug(\"live_camera_service.post_preview_status.after_failed\")"
+        replace: "            except Exception:\n                return"
+      - id: ledger-finalize-failure-propagates
+        description: "F2: ledger anterior que nao finaliza impede iniciar a nova sessao"
+        find: "            except Exception:\n                log.warning(\"frame_ledger.previous_finalize_failed\")"
+        replace: "            except KeyError:\n                log.warning(\"frame_ledger.previous_finalize_failed\")"
+  pragma_review_video_context_results_dir:
+    source: src/zebtrack/core/video/video_context_factory.py
+    tests:
+      - tests/core/test_video_context_factory.py
+    mutations:
+      - id: snapshot-failure-propagates
+        description: "F2: pasta de resultados ocupada por um arquivo derruba a analise"
+        find: "            return {item.name for item in results_path.iterdir()}\n        except Exception:"
+        replace: "            return {item.name for item in results_path.iterdir()}\n        except KeyError:"
+      - id: cleanup-failure-propagates
+        description: "F2: limpeza apos cancelamento que falha derruba o cancelamento"
+        find: "        except Exception:\n            log.warning(\n                \"controller.results.cleanup_unexpected_error\","
+        replace: "        except KeyError:\n            log.warning(\n                \"controller.results.cleanup_unexpected_error\","
+  pragma_review_runtime_manager_replaced_isolation:
+    source: src/zebtrack/core/viewmodels/main_view_model_runtime.py
+    tests:
+      - tests/core/viewmodels/test_main_view_model_runtime.py
+    mutations:
+      - id: failing-hook-stops-the-rest
+        description: "F2: um servico que falha ao trocar de projeto deixa os seguintes no projeto fechado"
+        find: "                    service._on_project_manager_replaced(data)\n                except Exception as exc:"
+        replace: "                    service._on_project_manager_replaced(data)\n                except KeyError as exc:"
+  pragma_review_progress_notifier_metadata:
+    source: src/zebtrack/core/video/progress_notifier.py
+    tests:
+      - tests/core/test_video_processing_service_helpers.py
+    mutations:
+      - id: derive-failure-propagates
+        description: "F2: metadado que nao deriva derruba o processamento do video"
+        find: "            metadata_context.update(derived_metadata)\n        except Exception:"
+        replace: "            metadata_context.update(derived_metadata)\n        except KeyError:"
+  pragma_review_set_seed_torch:
+    source: src/zebtrack/utils/__init__.py
+    tests:
+      - tests/utils/test_utils_init.py
+    mutations:
+      - id: torch-never-seeded
+        description: "F2: torch disponivel deixa de receber a semente"
+        find: "    if torch_available and torch_module is not None:"
+        replace: "    if False:"
+      - id: cuda-never-seeded
+        description: "F2: GPU visivel deixa de receber a semente"
+        find: "        if torch_module.cuda.is_available():"
+        replace: "        if False:"
+  pragma_review_arduino_probe_quirks:
+    source: src/zebtrack/io/arduino.py
+    tests:
+      - tests/test_arduino.py
+    mutations:
+      - id: unsupported-flush-aborts-probe
+        description: "F2: driver sem flush faz a sondagem da porta explodir"
+        find: "                ser.reset_input_buffer()\n            except Exception:"
+        replace: "                ser.reset_input_buffer()\n            except KeyError:"
+      - id: failed-read-keeps-polling
+        description: "F2: leitura que falha prende a sondagem ate o timeout"
+        find: "                    raw_line = ser.readline()\n                except Exception:\n                    break"
+        replace: "                    raw_line = ser.readline()\n                except Exception:\n                    continue"
+      - id: failed-close-propagates
+        description: "F2: close que falha transforma uma porta que respondeu em erro"
+        find: "                ser.close()\n            except Exception:"
+        replace: "                ser.close()\n            except KeyError:"
+      - id: missing-list-ports-propagates
+        description: "F2: pyserial sem list_ports derruba a busca de portas"
+        find: "            from serial.tools import list_ports\n        except Exception:"
+        replace: "            from serial.tools import list_ports\n        except KeyError:"
+      - id: enumeration-failure-propagates
+        description: "F2: driver que nao enumera portas derruba a busca"
+        find: "            ports = list(list_ports.comports())\n        except Exception as exc:"
+        replace: "            ports = list(list_ports.comports())\n        except KeyError as exc:"
+  pragma_review_arduino_manager_failures:
+    source: src/zebtrack/io/arduino_manager.py
+    tests:
+      - tests/test_io_arduino_manager.py
+    mutations:
+      - id: factory-failure-propagates
+        description: "F2: porta que nao instancia derruba o connect em vez de responder False"
+        find: "                candidate.handshake = handshake\n            except Exception:"
+        replace: "                candidate.handshake = handshake\n            except KeyError:"
+      - id: close-failure-propagates
+        description: "F2: close que falha impede desconectar"
+        find: "                self.arduino.close()\n            except Exception:"
+        replace: "                self.arduino.close()\n            except KeyError:"
+      - id: handler-failure-kills-reader
+        description: "F2: handler do controller que falha mata a thread leitora"
+        find: "                self.controller.on_arduino_event(event_code)\n        except Exception:"
+        replace: "                self.controller.on_arduino_event(event_code)\n        except KeyError:"
+      - id: status-callback-failure-propagates
+        description: "F2: callback de status da UI que falha derruba o connect"
+        find: "                self.controller.on_arduino_status_change(connected, port)\n        except Exception:"
+        replace: "                self.controller.on_arduino_status_change(connected, port)\n        except KeyError:"
+      - id: log-callback-failure-propagates
+        description: "F2: callback de log da UI que falha derruba o connect"
+        find: "                self.controller.log_arduino_event(message)\n        except Exception:"
+        replace: "                self.controller.log_arduino_event(message)\n        except KeyError:"
+      - id: command-callback-failure-propagates
+        description: "F2: callback de comando da UI que falha derruba o envio"
+        find: "                self.controller.on_arduino_command_sent(command, success, source)\n        except Exception:"
+        replace: "                self.controller.on_arduino_command_sent(command, success, source)\n        except KeyError:"
+  pragma_review_camera_reconnect_abort:
+    source: src/zebtrack/io/camera.py
+    tests:
+      - tests/io/test_camera.py
+    mutations:
+      - id: abort-release-failure-propagates
+        description: "F2: release que falha ao desistir da reconexao deixa a thread viva"
+        find: "                self.cap.release()\n        except Exception as exc:"
+        replace: "                self.cap.release()\n        except KeyError as exc:"
+  pragma_review_recorder_failures:
+    source: src/zebtrack/io/recorder.py
+    tests:
+      - tests/io/test_recorder_async_flush.py
+      - tests/io/test_recorder_masks.py
+      - tests/io/test_recorder_extended.py
+      - tests/io/test_recorder_buffer_cap.py
+    mutations:
+      - id: flush-loop-error-kills-thread
+        description: "F2: um flush que falha mata a thread de gravacao em disco"
+        find: "            except Exception as exc:\n                log.error(\"recorder.flush_loop.error\""
+        replace: "            except KeyError as exc:\n                log.error(\"recorder.flush_loop.error\""
+      - id: final-drain-error-escapes
+        description: "F2: dreno final que falha deixa a thread de flush viva"
+        find: "            except Exception as exc:\n                log.error(\n                    \"recorder.flush_loop.final_drain_error\","
+        replace: "            except KeyError as exc:\n                log.error(\n                    \"recorder.flush_loop.final_drain_error\","
+      - id: mask-sidecar-failure-costs-trajectory
+        description: "F2: falha do sidecar de mascaras derruba a gravacao da trajetoria"
+        find: "        except Exception as exc:\n            # O sidecar"
+        replace: "        except KeyError as exc:\n            # O sidecar"
+      - id: mask-close-failure-propagates
+        description: "F2: close do sidecar de mascaras que falha escapa"
+        find: "        except Exception as exc:\n            log.error(\"recorder.masks.writer_close_error\""
+        replace: "        except KeyError as exc:\n            log.error(\"recorder.masks.writer_close_error\""
+      - id: object-close-failure-propagates
+        description: "F2: close do sidecar de objetos que falha escapa"
+        find: "        except Exception as exc:\n            log.error(\"recorder.object_sidecar.writer_close_error\""
+        replace: "        except KeyError as exc:\n            log.error(\"recorder.object_sidecar.writer_close_error\""
+      - id: failed-write-drops-rows
+        description: "F2: escrita que falha perde as linhas em vez de tentar de novo"
+        find: "                self.detection_data = combined\n            log.error(\n                \"recorder.flush.error\","
+        replace: "                self.detection_data = []\n            log.error(\n                \"recorder.flush.error\","
+      - id: reinjection-ignores-the-cap
+        description: "F2: reinjecao apos falha ignora o teto do buffer"
+        find: "                if len(combined) > self._max_buffer_rows:"
+        replace: "                if False:"
+      - id: parquet-close-failure-propagates
+        description: "F2: close do parquet principal que falha escapa"
+        find: "        except Exception as e:\n            log.error(\n                \"recorder.parquet_writer.close_error\","
+        replace: "        except KeyError as e:\n            log.error(\n                \"recorder.parquet_writer.close_error\","
+  pragma_review_event_dispatcher_unsubscribe:
+    source: src/zebtrack/ui/components/event_dispatcher.py
+    tests:
+      - tests/ui/components/test_event_dispatcher_extended.py
+    mutations:
+      - id: unsubscribe-failure-propagates
+        description: "F2: barramento que recusa o unsubscribe derruba a remocao do handler"
+        find: "                unsubscribe(event_name, dispatcher)\n            except Exception as exc:"
+        replace: "                unsubscribe(event_name, dispatcher)\n            except KeyError as exc:"
+  pragma_review_model_selection_openvino_devices:
+    source: src/zebtrack/ui/wizard/model_selection_step.py
+    tests:
+      - tests/ui/wizard/test_model_selection_step_extended.py
+    mutations:
+      - id: discovery-failure-propagates
+        description: "F2: descoberta de dispositivos OpenVINO que falha quebra o passo do wizard"
+        find: "            devices = tuple(get_openvino_devices())\n        except Exception:"
+        replace: "            devices = tuple(get_openvino_devices())\n        except KeyError:"
+  pragma_review_dialog_manager_template_import:
+    source: src/zebtrack/ui/components/dialog_manager.py
+    tests:
+      - tests/ui/components/test_dialog_manager_extended.py
+    mutations:
+      - id: library-import-failure-propagates
+        description: "F2: template invalido escapa em vez de virar mensagem de erro"
+        find: "            metadata = pm.import_roi_template(file_path)\n        except Exception as exc:\n            log.error(\"gui.roi_templates.import_failed\""
+        replace: "            metadata = pm.import_roi_template(file_path)\n        except KeyError as exc:\n            log.error(\"gui.roi_templates.import_failed\""
+      - id: pending-activation-failure-propagates
+        description: "F2: video avulso que nao ativa impede aplicar o template"
+        find: "                    pm.set_active_zone_video(pending_video)\n                except Exception as exc:"
+        replace: "                    pm.set_active_zone_video(pending_video)\n                except OSError as exc:"
+      - id: apply-failure-propagates
+        description: "F2: template ilegivel escapa em vez de virar mensagem de erro"
+        find: "        except Exception as exc:\n            log.error(\n                \"gui.roi_templates.import_and_apply_failed\","
+        replace: "        except KeyError as exc:\n            log.error(\n                \"gui.roi_templates.import_and_apply_failed\","
+      - id: library-copy-failure-loses-applied-zones
+        description: "F2: falha ao copiar para a biblioteca desfaz a confirmacao de zonas aplicadas"
+        find: "        except Exception as exc:\n            log.warning(\n                \"gui.roi_templates.import_and_apply.library_import_failed\","
+        replace: "        except KeyError as exc:\n            log.warning(\n                \"gui.roi_templates.import_and_apply.library_import_failed\","
+  pragma_review_arduino_panel_schedule_ui:
+    source: src/zebtrack/ui/components/arduino_bindings_panel.py
+    tests:
+      - tests/ui/components/test_arduino_bindings_panel.py
+    mutations:
+      - id: dead-widget-raises
+        description: "F2: widget destruido faz o worker de teste do Arduino explodir"
+        find: "        except Exception:\n            log.debug(\"arduino_bindings_panel.schedule_ui.after_failed\")"
+        replace: "        except KeyError:\n            log.debug(\"arduino_bindings_panel.schedule_ui.after_failed\")"
+      - id: dead-widget-runs-inline
+        description: "F2: widget destruido roda a atualizacao fora da thread do Tk"
+        find: "            log.debug(\"arduino_bindings_panel.schedule_ui.after_failed\")"
+        replace: "            func(*args)"
+  pragma_review_live_preview_freeze:
+    source: src/zebtrack/ui/dialogs/live_preview_window.py
+    tests:
+      - tests/test_live_analysis_ui.py
+    mutations:
+      - id: bar-teardown-skips-eta-reset
+        description: "F2: barra de progresso destruida impede zerar o ETA ao parar"
+        find: "            except Exception:\n                log.debug(\"live_preview.progress_stop_failed\")"
+        replace: "            except KeyError:\n                log.debug(\"live_preview.progress_stop_failed\")"
+  pragma_review_design_editor_failures:
+    source: src/zebtrack/ui/wizard/design_editor_dialog.py
+    tests:
+      - tests/ui/wizard/test_design_editor_dialog.py
+    mutations:
+      - id: scroll-reset-failure-loses-design
+        description: "F2: canvas que recusa rolar derruba o carregamento do delineamento"
+        find: "                self.groups_canvas.yview_moveto(0)\n            except Exception:"
+        replace: "                self.groups_canvas.yview_moveto(0)\n            except KeyError:"
+      - id: regex-callback-failure-propagates
+        description: "F2: deteccao por regex que falha derruba o editor de delineamento"
+        find: "                new_design = self.on_custom_regex_configured(result_patterns)\n            except Exception:"
+        replace: "                new_design = self.on_custom_regex_configured(result_patterns)\n            except KeyError:"

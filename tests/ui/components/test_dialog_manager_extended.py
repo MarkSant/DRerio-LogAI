@@ -23,31 +23,11 @@ class TestDialogManagerExtended:
         dm = DialogManager(mock_gui)
         assert dm.zone_context_service is mock_gui._zone_context_service
 
-    def test_dialog_suppression_toggle(self):
-        dm = DialogManager(MagicMock())
-        assert dm._suppress_batch_dialogs is False
-
-        dm.set_dialog_suppression(True)
-        assert dm._suppress_batch_dialogs is True
-
-        dm.set_dialog_suppression(False)
-        assert dm._suppress_batch_dialogs is False
-
     @patch("tkinter.messagebox.showerror")
     def test_show_error_unsuppressed(self, mock_showerror):
         dm = DialogManager(MagicMock())
         dm.show_error("Error Title", "Something failed")
         mock_showerror.assert_called_once_with("Error Title", "Something failed")
-
-    @patch("tkinter.messagebox.showerror")
-    def test_show_error_suppressed(self, mock_showerror):
-        mock_gui = MagicMock()
-        dm = DialogManager(mock_gui)
-        dm.set_dialog_suppression(True)
-
-        dm.show_error("Error Title", "Something failed")
-        mock_showerror.assert_not_called()
-        mock_gui.status_var.set.assert_called_once()
 
     @patch("tkinter.messagebox.showwarning")
     def test_show_warning_unsuppressed(self, mock_showwarning):
@@ -55,31 +35,11 @@ class TestDialogManagerExtended:
         dm.show_warning("Warning Title", "Careful")
         mock_showwarning.assert_called_once_with("Warning Title", "Careful")
 
-    @patch("tkinter.messagebox.showwarning")
-    def test_show_warning_suppressed(self, mock_showwarning):
-        mock_gui = MagicMock()
-        dm = DialogManager(mock_gui)
-        dm.set_dialog_suppression(True)
-
-        dm.show_warning("Warning Title", "Careful")
-        mock_showwarning.assert_not_called()
-        mock_gui.status_var.set.assert_called_once()
-
     @patch("tkinter.messagebox.showinfo")
     def test_show_info_unsuppressed(self, mock_showinfo):
         dm = DialogManager(MagicMock())
         dm.show_info("Info Title", "Process completed")
         mock_showinfo.assert_called_once_with("Info Title", "Process completed")
-
-    @patch("tkinter.messagebox.showinfo")
-    def test_show_info_suppressed(self, mock_showinfo):
-        mock_gui = MagicMock()
-        dm = DialogManager(mock_gui)
-        dm.set_dialog_suppression(True)
-
-        dm.show_info("Info Title", "Process completed")
-        mock_showinfo.assert_not_called()
-        mock_gui.status_var.set.assert_called_once()
 
     @patch("tkinter.messagebox.askyesno", return_value=True)
     def test_ask_yes_no_returns_bool(self, mock_askyesno):
@@ -129,59 +89,6 @@ class TestDialogManagerExtended:
 
 
 class TestDialogManagerExtended2:
-    def test_set_dialog_suppression(self):
-        gui = MagicMock()
-        manager = DialogManager(gui)
-        assert manager._suppress_batch_dialogs is False
-
-        manager.set_dialog_suppression(True)
-        assert manager._suppress_batch_dialogs is True
-
-        manager.set_dialog_suppression(False)
-        assert manager._suppress_batch_dialogs is False
-
-    def test_show_error_suppressed(self):
-        gui = MagicMock()
-        manager = DialogManager(gui)
-        manager.set_dialog_suppression(True)
-
-        manager.show_error("Validation Fail", "Missing polygon coordinates")
-        gui.status_var.set.assert_called_once()
-        args = gui.status_var.set.call_args[0][0]
-        assert "Validation Fail" in args
-        assert "Missing polygon coordinates" in args
-
-    def test_show_warning_suppressed(self):
-        gui = MagicMock()
-        manager = DialogManager(gui)
-        manager.set_dialog_suppression(True)
-
-        manager.show_warning("Low FPS", "Camera dropped below 15 fps")
-        gui.status_var.set.assert_called_once()
-        args = gui.status_var.set.call_args[0][0]
-        assert "Low FPS" in args
-        assert "Camera dropped below 15 fps" in args
-
-    def test_show_info_suppressed(self):
-        gui = MagicMock()
-        manager = DialogManager(gui)
-        manager.set_dialog_suppression(True)
-
-        manager.show_info("Batch Done", "All 10 videos processed")
-        gui.status_var.set.assert_called_once()
-        args = gui.status_var.set.call_args[0][0]
-        assert "Batch Done" in args
-        assert "All 10 videos processed" in args
-
-    def test_update_status_bar_truncation(self):
-        gui = MagicMock()
-        manager = DialogManager(gui)
-
-        long_text = "A" * 300
-        manager._update_status_bar(long_text)
-        gui.status_var.set.assert_called_once()
-        assert len(gui.status_var.set.call_args[0][0]) == 200
-
     def test_choose_processing_reports_delete_mode_options(self):
         gui = MagicMock()
         manager = DialogManager(gui)
@@ -208,48 +115,6 @@ class TestDialogManagerExtended2:
         )
         assert confirmed is False
         assert delete_disk is False
-
-
-class TestDialogManagerExtended4:
-    def test_show_error_suppressed(self, monkeypatch: pytest.MonkeyPatch):
-        gui = MagicMock()
-        dm = DialogManager(gui)
-        dm._suppress_batch_dialogs = True
-        mock_status = MagicMock()
-        monkeypatch.setattr(dm, "_update_status_bar", mock_status)
-
-        dm.show_error("Disk Error", "Failed to save file")
-        mock_status.assert_called_once()
-        assert "Disk Error" in mock_status.call_args[0][0]
-
-    def test_show_warning_suppressed(self, monkeypatch: pytest.MonkeyPatch):
-        gui = MagicMock()
-        dm = DialogManager(gui)
-        dm._suppress_batch_dialogs = True
-        mock_status = MagicMock()
-        monkeypatch.setattr(dm, "_update_status_bar", mock_status)
-
-        dm.show_warning("Low Memory", "RAM usage is high")
-        mock_status.assert_called_once()
-        assert "Low Memory" in mock_status.call_args[0][0]
-
-    def test_show_info_suppressed(self, monkeypatch: pytest.MonkeyPatch):
-        gui = MagicMock()
-        dm = DialogManager(gui)
-        dm._suppress_batch_dialogs = True
-        mock_status = MagicMock()
-        monkeypatch.setattr(dm, "_update_status_bar", mock_status)
-
-        dm.show_info("Done", "Process complete")
-        mock_status.assert_called_once_with("Done: Process complete")
-
-    def test_update_status_bar_truncation(self):
-        gui = MagicMock()
-        dm = DialogManager(gui)
-        long_message = "A" * 300
-
-        dm._update_status_bar(long_message)
-        gui.status_var.set.assert_called_once_with("A" * 200)
 
 
 class TestDialogManagerExtended5:
@@ -338,3 +203,63 @@ class TestDialogManagerExtended7:
         gui = MagicMock()
         dm = DialogManager(gui)
         assert dm.gui is gui
+
+
+class TestROITemplateImportFailures:
+    """F2 pragma review: every failure in the template import reaches the operator."""
+
+    @staticmethod
+    def _manager(tmp_path, content: str = '{"polygon": [[0, 0], [10, 0], [10, 10]]}'):
+        path = tmp_path / "gaiolas.json"
+        path.write_text(content, encoding="utf-8")
+        gui = MagicMock()
+        gui.pending_single_video_path = None
+        bus = MagicMock()
+        dm = DialogManager(gui, bus)
+        dm.ask_open_filename = MagicMock(return_value=str(path))  # type: ignore[method-assign]
+        dm.show_error = MagicMock()  # type: ignore[method-assign]
+        dm.show_info = MagicMock()  # type: ignore[method-assign]
+        dm.show_warning = MagicMock()  # type: ignore[method-assign]
+        return dm, gui.controller.project_manager, bus
+
+    def test_library_import_failure_is_shown_and_nothing_refreshes(self, tmp_path):
+        dm, pm, _bus = self._manager(tmp_path)
+        pm.import_roi_template.side_effect = ValueError("not a template")
+
+        dm.import_roi_template()
+
+        dm.show_error.assert_called_once_with("Import error", "not a template")
+        dm.gui.roi_template_manager.refresh_templates.assert_not_called()
+
+    def test_pending_video_that_cannot_be_activated_still_receives_the_zones(self, tmp_path):
+        dm, pm, _bus = self._manager(tmp_path)
+        pm.get_active_zone_video.return_value = None
+        pm.set_active_zone_video.side_effect = [KeyError("not in project"), None]
+        pm.import_roi_template.return_value = {"name": "Gaiolas"}
+        dm.gui.pending_single_video_path = "/videos/single.mp4"
+
+        dm.import_and_apply_roi_template()
+
+        assert pm.save_zone_data.call_args.kwargs["video_path"] == "/videos/single.mp4"
+        dm.show_warning.assert_not_called()
+
+    def test_unreadable_template_is_reported_and_nothing_is_saved(self, tmp_path):
+        dm, pm, bus = self._manager(tmp_path, "{not json")
+        pm.get_active_zone_video.return_value = "/videos/a.mp4"
+
+        dm.import_and_apply_roi_template()
+
+        assert dm.show_error.call_args[0][0] == "Import-and-apply error"
+        pm.save_zone_data.assert_not_called()
+        bus.publish.assert_not_called()
+
+    def test_zones_stay_applied_when_the_library_copy_fails(self, tmp_path):
+        dm, pm, _bus = self._manager(tmp_path)
+        pm.get_active_zone_video.return_value = "/videos/a.mp4"
+        pm.import_roi_template.side_effect = OSError("library folder is read-only")
+
+        dm.import_and_apply_roi_template()
+
+        pm.save_zone_data.assert_called_once()
+        dm.gui.roi_template_manager.refresh_templates.assert_called_once()
+        assert dm.show_info.call_args[0][1] == "The zones were updated with template 'gaiolas'."

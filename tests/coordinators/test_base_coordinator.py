@@ -23,6 +23,7 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorValidationError,
 )
 from zebtrack.core.state_manager import StateCategory, StateManager
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 class ConcreteCoordinator(BaseCoordinator):
@@ -169,11 +170,11 @@ class TestBaseCoordinatorEventBus:
             event_bus=event_bus,
         )
 
-        coordinator._publish_event("TEST_EVENT", {"key": "value"})
+        coordinator._publish_event(UIEvents.SET_STATUS, {"key": "value"})
 
         event_bus.publish.assert_called_once()
         event_obj = event_bus.publish.call_args[0][0]
-        assert event_obj.type == "TEST_EVENT"
+        assert event_obj.type is UIEvents.SET_STATUS
         assert event_obj.data == {"key": "value"}
 
     def test_publish_event_without_event_bus(self):
@@ -183,7 +184,7 @@ class TestBaseCoordinatorEventBus:
         coordinator = ConcreteCoordinator(state_manager=state_manager)
 
         # event.no_bus is now logged via self.logger (per-instance)
-        coordinator._publish_event("TEST_EVENT", {"key": "value"})
+        coordinator._publish_event(UIEvents.SET_STATUS, {"key": "value"})
 
     def test_publish_event_with_none_data(self):
         """Should handle None data by converting to empty dict."""
@@ -195,11 +196,11 @@ class TestBaseCoordinatorEventBus:
             event_bus=event_bus,
         )
 
-        coordinator._publish_event("TEST_EVENT", None)
+        coordinator._publish_event(UIEvents.SET_STATUS, None)
 
         event_bus.publish.assert_called_once()
         event_obj = event_bus.publish.call_args[0][0]
-        assert event_obj.type == "TEST_EVENT"
+        assert event_obj.type is UIEvents.SET_STATUS
         assert event_obj.data is None
 
 

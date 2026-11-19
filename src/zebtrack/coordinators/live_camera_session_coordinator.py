@@ -1288,18 +1288,29 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             # service callback, so suppress it for this path and finalize here.
             # ``cancelled=True``: este é o caminho do botão "Cancelar" — a sessão
             # é sempre descartada (pasta apagada, lote não registrado).
+            # The suppression lasts until the stop has FINISHED: with a Tk root
+            # the service tears down on a worker and fires ``on_session_stopped``
+            # later, from the Tk thread (A6-07). Clearing the flag in a
+            # ``finally`` right after the call would let that late callback run
+            # the finalization a second time.
             self._suppress_service_stop_callback = True
-            try:
-                service_result = self.live_camera_service.stop_session(cancelled=True)
-            finally:
-                self._suppress_service_stop_callback = False
 
-            success = bool(service_result)
-            return self._finalize_live_session_ui(
-                cancelled=True,
-                publish_refresh=success,
-                service_success=success,
-            )
+            def _after_stop(stopped: bool) -> None:
+                self._suppress_service_stop_callback = False
+                self._finalize_live_session_ui(
+                    cancelled=True,
+                    publish_refresh=stopped,
+                    service_success=stopped,
+                )
+
+            try:
+                service_result = self.live_camera_service.stop_session(
+                    cancelled=True, on_stopped=_after_stop
+                )
+            except Exception:
+                self._suppress_service_stop_callback = False
+                raise
+            return bool(service_result)
 
         except Exception as e:  # except Exception justified: graceful stop must not crash
             log.error(
@@ -1390,26 +1401,6 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
             True if session active, False otherwise
         """
         return self._active_live_session_id is not None
-
-    def get_live_session_info(self) -> dict[str, Any] | None:
-        """Get information about current live session.
-
-        Returns:
-            dict with session info, or None if no active session
-        """
-        if not self.is_live_session_active():
-            return None
-
-        # Get state from StateManager
-        processing_state = self.state_manager.get_processing_state()
-
-        return {
-            "session_id": self._active_live_session_id,
-            "is_active": True,
-            "camera_index": getattr(processing_state, "camera_index", None),
-            "experiment_id": getattr(processing_state, "experiment_id", None),
-            "duration_s": getattr(processing_state, "duration_s", None),
-        }
 
     # =============================================================================
     # BATCH SESSION REGISTRATION
@@ -1737,7 +1728,9 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         names = getattr(zone_data, "roi_names", None) or []
         return [str(name).strip() for name in names if str(name).strip()]
 
-    def start_session_from_config(self, config: dict, *, zones_validated: bool = False) -> bool:
+    def start_session_from_config(  # noqa: C901
+        self, config: dict, *, zones_validated: bool = False
+    ) -> bool:
         """Start live camera analysis with full configuration from SingleVideoConfigDialog.
 
         This method extracts all parameters from the config dictionary and delegates
@@ -1897,7 +1890,27 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # zone tab's "▶️ Iniciar Gravação" button replays this call with
         # ``zones_validated=True``.
         if not zones_validated:
+
+            def _defer_config_session() -> None:
+                pending_ctx = {
+                    "experiment_id": experiment_id,
+                    "config": config,
+                    "group": config.get("experimental_group"),
+                    "day": config.get("experiment_day"),
+                    "subject": config.get("subject_id"),
+                }
+                self._pending_live_context = pending_ctx
+                self._pending_live_kind = "config"
+                self._publish_pending(pending_ctx)
+                log.info(
+                    "live_camera_session_coordinator.start_from_config.deferred",
+                    experiment_id=experiment_id,
+                )
+
             zones_ready = self.live_calibration_coordinator.ensure_zones_before_recording(
+                # With a Tk root the camera/detection run on a worker and the
+                # gate finishes later (A6-03): the deferral then runs from here.
+                on_pending=_defer_config_session,
                 camera_index=camera_index,
                 # A perspectiva escolhida no diálogo decide QUAL peso a
                 # auto-detecção carrega. Ela já viajava para o ``analysis_config``
@@ -1911,21 +1924,13 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
                 preserve_real_shape=config.get("preserve_real_aquarium_shape"),
             )
             if not zones_ready:
-                if self.live_calibration_coordinator.pending_zone_confirmation:
-                    pending_ctx = {
-                        "experiment_id": experiment_id,
-                        "config": config,
-                        "group": config.get("experimental_group"),
-                        "day": config.get("experiment_day"),
-                        "subject": config.get("subject_id"),
-                    }
-                    self._pending_live_context = pending_ctx
-                    self._pending_live_kind = "config"
-                    self._publish_pending(pending_ctx)
+                if self.live_calibration_coordinator.calibration_in_progress is True:
                     log.info(
-                        "live_camera_session_coordinator.start_from_config.deferred",
+                        "live_camera_session_coordinator.start_from_config.calibrating",
                         experiment_id=experiment_id,
                     )
+                elif self.live_calibration_coordinator.pending_zone_confirmation:
+                    _defer_config_session()
                 else:
                     log.info("live_camera_session_coordinator.start_from_config.zones_not_ready")
                 return False
@@ -2449,26 +2454,39 @@ class LiveCameraSessionCoordinator(BaseCoordinator):
         # LIVE_RECORDING_RESUME_REQUESTED which lands in _on_resume_requested
         # and replays this method with zones_validated=True.
         if not zones_validated:
-            zones_ready = self.live_calibration_coordinator.ensure_zones_before_recording()
+
+            def _defer_project_session() -> None:
+                pending_ctx = {
+                    "experiment_id": experiment_id,
+                    "day": f"Dia_{day}",
+                    "day_int": day,
+                    "group": group,
+                    "subject": subject,
+                    "duration_s": duration_s,
+                    "camera_index_override": camera_index_override,
+                    "camera_friendly_name_override": camera_friendly_name_override,
+                }
+                self._pending_live_context = pending_ctx
+                self._pending_live_kind = "project"
+                self._publish_pending(pending_ctx)
+                log.info(
+                    "live_camera_session_coordinator.live_project_session.deferred",
+                    experiment_id=experiment_id,
+                )
+
+            # With a Tk root the camera/detection run on a worker and the gate
+            # finishes later (A6-03): the deferral then runs from ``on_pending``.
+            zones_ready = self.live_calibration_coordinator.ensure_zones_before_recording(
+                on_pending=_defer_project_session
+            )
             if not zones_ready:
-                if self.live_calibration_coordinator.pending_zone_confirmation:
-                    pending_ctx = {
-                        "experiment_id": experiment_id,
-                        "day": f"Dia_{day}",
-                        "day_int": day,
-                        "group": group,
-                        "subject": subject,
-                        "duration_s": duration_s,
-                        "camera_index_override": camera_index_override,
-                        "camera_friendly_name_override": camera_friendly_name_override,
-                    }
-                    self._pending_live_context = pending_ctx
-                    self._pending_live_kind = "project"
-                    self._publish_pending(pending_ctx)
+                if self.live_calibration_coordinator.calibration_in_progress is True:
                     log.info(
-                        "live_camera_session_coordinator.live_project_session.deferred",
+                        "live_camera_session_coordinator.live_project_session.calibrating",
                         experiment_id=experiment_id,
                     )
+                elif self.live_calibration_coordinator.pending_zone_confirmation:
+                    _defer_project_session()
                 else:
                     log.info("live_camera_session_coordinator.live_project_session.zones_not_ready")
                 return False

@@ -30,7 +30,7 @@ The test tree mirrors `src/zebtrack/`, with two exceptions:
 | `src/zebtrack/core/video/`            | 14    | `tests/core/test_video_*.py`, `tests/core/video/test_*.py` | (mixed) |
 | `src/zebtrack/core/viewmodels/`       | 4     | `tests/core/test_*view_model*.py`               | (mixed) |
 | `src/zebtrack/io/`                    | 10    | `tests/io/test_*.py` + root `tests/test_io_*.py`| 8 + 3 |
-| `src/zebtrack/plugins/`               | 3     | `tests/test_plugins_*.py`                       | (root) |
+| `src/zebtrack/plugins/`               | 4     | `tests/plugins/test_*.py` (one per module)      | 5 (+ root `tests/test_openvino_*.py`) |
 | `src/zebtrack/tracker/`               | 4     | `tests/test_*tracker*.py`, `test_hybrid_matching` | (root) |
 | `src/zebtrack/ui/builders/`           | 7     | `tests/ui/builders/test_*.py`                   | 3     |
 | `src/zebtrack/ui/components/`         | 28    | `tests/ui/components/test_*.py`                 | 27    |
@@ -39,7 +39,7 @@ The test tree mirrors `src/zebtrack/`, with two exceptions:
 | `src/zebtrack/ui/dialogs/`            | 25    | `tests/ui/dialogs/test_*.py` + `test_dialogs_batch*.py` | 10 |
 | `src/zebtrack/ui/wizard/`             | 18    | `tests/ui/wizard/test_*.py`                     | 13    |
 | `src/zebtrack/ui/` (root)             | 11    | `tests/ui/test_*.py`                            | 16    |
-| `src/zebtrack/utils/`                 | 10    | `tests/utils/test_*.py`                         | 10    |
+| `src/zebtrack/utils/`                 | 11    | `tests/utils/test_*.py` (one per module)        | 12    |
 
 **Cross-cutting (no source mirror):**
 
@@ -100,10 +100,11 @@ broader suite:
 | `io/camera.py`, `io/live_stream_source.py` | `tests/io/test_camera*.py`, `tests/io/test_live_stream_source.py` |
 | `analysis/reporters/*` | `tests/analysis/test_reporter*.py`, `test_*_reporter.py` |
 | `analysis/behavior*.py`, `analysis/roi.py` | `tests/test_behavior_geotaxis.py`, `tests/analysis/test_roi*.py` |
-| `core/services/roi_rule_resolver.py` (regra de ROI) | `tests/core/services/test_roi_rule_resolver.py`, `tests/coordinators/test_roi_rule_propagation.py`, `tests/core/test_arduino_roi_evaluator.py`, `tests/ui/components/test_roi_settings_persistence.py`, `tests/ui/components/test_zone_controls_widget.py` |
+| `core/services/roi_rule_resolver.py` (regra de ROI) | `tests/core/services/test_roi_rule_resolver.py`, `tests/coordinators/test_roi_rule_propagation.py`, `tests/core/test_arduino_roi_evaluator.py`, `tests/ui/components/test_zone_controls_widget.py` |
 | `core/services/arena_detection_policy.py` (método seg/det + forma da máscara da arena) | `tests/core/test_arena_detection_policy.py`, `tests/coordinators/test_multi_aquarium_coordinator.py`, `tests/coordinators/test_live_calibration_coordinator.py` |
 | `core/services/zone_autoimport_policy.py` (adotar ou não os parquets de zona achados em disco) | `tests/core/services/test_zone_autoimport_policy.py`, `tests/ui/components/test_dialog_manager.py` (marcador `gui`, `-k zone_reuse`) |
-| `core/project/zone_manager.py` → `should_mirror_to_global` (espelho `detection_zones`) | `tests/core/test_project_manager_core.py` (um teste por fluxo: pré-gravado, live, sem tipo declarado) |
+| `core/services/pattern_match.py` (regra única dos padrões regex de grupo/dia/sujeito: sem distinção de caixa, valor = primeiro grupo que participou) | `tests/core/services/test_pattern_match.py`, `tests/ui/wizard/test_custom_regex_dialog.py`, `tests/ui/wizard/test_detection_step_extended.py` |
+| `core/project/zone_manager.py` → `should_mirror_to_global` (espelho `detection_zones`) | `tests/test_project_manager.py` (um teste por fluxo: pré-gravado, live, sem tipo declarado) |
 | `core/project/zone_manager.py` → `roi_names_in_project` (ROIs do projeto inteiro, #650) | `tests/core/test_zone_manager_multi_aquarium.py` (`TestRoiNamesInProject`) + `--module zone_manager_roi_names` |
 | Troca de projeto (`PROJECT_MANAGER_REPLACED`, `PROJECT_OPENED`) | `tests/core/test_project_manager_replaced_event.py`, `tests/core/test_zone_context_service.py`, `tests/coordinators/test_project_lifecycle_coordinator_unit.py`, `tests/ui/components/test_project_model_configuration_panel.py` (marcador `gui`) |
 | `analysis/data_transformer.py` (colunas do resumo, tabela `por_animal`) | `tests/analysis/test_data_transformer.py`, `tests/analysis/test_data_transformer_roi_metrics.py` (regressão das colunas antigas!) |
@@ -136,7 +137,13 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `core/detection/multi_aquarium_detector.py` (roles) | `tests/core/detection/test_multi_aquarium_detector_extended.py` + `--module multi_aquarium_detector_class_roles` |
 | `core/detection/detection_post_processor.py` (context helpers) | `tests/core/detection/test_detection_post_processor_extended.py` + `--module detection_post_processor_class_roles` |
 | `core/services/detector_service.py` (role gate) | `tests/core/test_detector_service.py`, `tests/test_class_names_validation.py` + `--module detector_service_class_roles` |
-| `plugins/openvino_detector.py` (NMS per class) | `tests/plugins/test_openvino_detector_extended.py` + `--module openvino_nms` |
+| `plugins/openvino_detector.py` (NMS per class, letterbox, masks, devices, batch) | `tests/plugins/test_openvino_detector.py` (fake runtime: `tests/helpers/fake_backends.py`) + `--module openvino_nms`, `openvino_geometry_and_devices` |
+| `plugins/__init__.py` (lazy registry) | `tests/plugins/test_plugins_init.py`, `tests/test_lazy_heavy_imports.py` + `--module plugin_registry_degradation`, `lazy_heavy_imports_plugins` |
+| `utils/hardware_benchmark.py` | `tests/utils/test_hardware_benchmark.py` + `--module hardware_benchmark_decisions` |
+| `utils/hardware_capability.py` | `tests/utils/test_hardware_capability.py` + `--module hardware_capability_tiers` |
+| `utils/geometry.py` (polygon simplification) | `tests/utils/test_geometry.py` + `--module polygon_simplification` |
+| `utils/__init__.py` (`calculate_sha256`, `set_seed`, its own `polygon_centroid`) | `tests/utils/test_utils_init.py` + `--module lazy_heavy_imports_utils` |
+| `scripts/coverage_summary.py` (per-package floors) | `tests/quality/test_coverage_summary.py` + `--module coverage_summary_floors` |
 | `core/project/project_lifecycle_manager.py` (v8 migrations) | `tests/core/project/test_project_lifecycle_manager_extended.py`, `tests/integration/test_legacy_project_7_2_0.py` + `--module project_v8_migrations` |
 | `core/project/project_workflow_service.py` (`model_selection`, wizard class roles) | `tests/core/test_project_workflow_service.py` (`TestWizardClassRoles`) + `--module project_workflow_model_selection` |
 | 7.2.0 compatibility (ADR-013 invariant 4) | `tests/integration/test_legacy_project_7_2_0.py` |
@@ -146,7 +153,7 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `core/video/processing_worker.py` (model spec, object sidecar writes) | `tests/core/test_processing_worker_unit.py` + `--module processing_worker_model_spec`, `--module processing_worker_object_sidecar` |
 | `core/video/tracking_session_runner.py` (hands tracking to the worker) | `tests/core/test_video_processing_service_tracking.py` |
 | `core/project/parquet_io_manager.py` (sidecar set on import) | `tests/test_parquet_import.py` + `--module parquet_import_sidecars` |
-| `utils/report_files.py` (`3c_`/`7_` labels) | `tests/utils/test_session_output_listing.py` + `--module session_output_labels` |
+| `utils/report_files.py` (`3c_`/`7_` labels) | `tests/utils/test_report_files.py` + `--module session_output_labels` |
 | `core/conditions/*.py` | `tests/core/conditions/` (unit + Barnes VFR + hypothesis properties: batch ≡ online, back-dating, STOP ≥ START, duplicates) + `--module conditions_model`, `conditions_evaluator`, `conditions_artifact` |
 | `core/conditions/presets.py` | `tests/core/conditions/test_presets.py` (Barnes preset ≡ acceptance fixture by hash with `burrow_roi=None`; burrow STOP #650; legacy-trigger preset), `tests/core/recording/test_condition_runtime.py` (`TestBarnesBurrowParity`: live ≡ analysis STOP), `tests/integration/test_barnes_window_e2e.py` + `--module conditions_presets` |
 | `analysis/window_observations.py` | `tests/analysis/test_window_observations.py` (3c heartbeat → observations, report ROI rule, external events, trajectory-only fallback, `missing_inputs`, report subject screening #671) + `--module window_observations` |
@@ -184,6 +191,8 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `ui/components/canvas/overlay_roles.py` | `tests/ui/components/canvas/test_overlay_roles.py`; renderer/frame wiring in `test_canvas_renderer.py`, `test_canvas_manager.py` + `--module overlay_roles` |
 | `coordinators/model_diagnostics_coordinator.py` (class roles) | `tests/coordinators/test_model_diagnostics_coordinator.py::TestReportClassRoles` |
 | `ui/wizard/model_selection_step.py` (class roles) | `tests/ui/wizard/test_model_selection_step.py::TestModelSelectionClassRoles` |
+| `ui/wizard/design_editor_dialog.py` | `tests/ui/wizard/test_design_editor_dialog.py` (fast suite: `object.__new__` + real methods); close validation in `tests/ui/dialogs/test_project_video_import_dialog_extended.py` |
+| Defensive branches freed by the F2 pragma review | [`docs/audits/2026-11_F2_pragmas.md`](../audits/2026-11_F2_pragmas.md) names the test and the `pragma_review_*` mutation block of each site |
 | Barnes acceptance (ADR-011) | `tests/integration/test_barnes_window_e2e.py` |
 | `src/zebtrack/locales/_pairs/*.json` (removing a `_()` string) | `tests/i18n/test_pairs_not_orphaned.py` (every pair names a msgid still in the `.po`; an orphan stops `update_translations.py` before the `.mo` is compiled) |
 | `src/zebtrack/locales/*` (any new `_()`) | `tests/i18n/test_pot_in_sync.py` (every source msgid is in the `.pot`), `tests/i18n/test_catalog_integrity.py` |
@@ -198,10 +207,10 @@ block in `scripts/mutation_catalog.yaml`; run it with
 Run cheatsheet:
 
 ```bash
-poetry run pytest                            # fast (default, ~2778)
-poetry run pytest -m gui -n0                 # GUI only (~949)
-poetry run pytest -m slow                    # slow only (~35)
-poetry run pytest -m "" -n0                  # everything (~3660+, 6-7 min)
+poetry run pytest                            # fast (default, ~8635)
+poetry run pytest -m gui -n0                 # GUI only (~1374)
+poetry run pytest -m slow                    # slow only (~24)
+poetry run pytest -m "" -n0                  # everything (~10033)
 poetry run pytest tests/coordinators/ -q     # by folder
 poetry run pytest -k "multi_aquarium" -q     # by keyword
 ```

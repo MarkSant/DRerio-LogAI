@@ -262,17 +262,6 @@ class AnalysisControlViewModel:
             return self.processing_coordinator.add_roi_polygon(points_list, name, color)
         return False
 
-    def auto_detect_zones(self, **kwargs: Any) -> None:
-        """
-        Trigger auto-detection of aquarium zones via event.
-        """
-        if self.ui_event_bus:
-            payload = payloads.ZoneAutoDetectPayload(
-                video_path=kwargs.get("video_path") or "",
-                stabilization_frames=kwargs.get("stabilization_frames", 10),
-            )
-            self.ui_event_bus.publish(Event(type=UIEvents.ZONE_AUTO_DETECT, data=payload))
-
     def generate_parquet_summaries(self, video_paths: list[str]) -> None:
         """Generate summaries (Word/Excel) for the given video paths."""
         log.info("analysis_control.generate_summaries.start", count=len(video_paths))
@@ -296,6 +285,9 @@ class AnalysisControlViewModel:
             return
 
         total = len(video_paths)
+        # (video name, reason) for every video that ended without a report. Until
+        # 8.0 these were only logged and the run still announced it had finished.
+        not_processed: list[tuple[str, str]] = []
         for i, video_path in enumerate(video_paths):
             try:
                 self.ui_event_bus.publish(
@@ -313,6 +305,9 @@ class AnalysisControlViewModel:
                 entry = self.project_manager.find_video_entry(path=video_path)
                 if not entry:
                     log.warning("generate_summaries.entry_not_found", path=video_path)
+                    not_processed.append(
+                        (Path(video_path).name, _("not registered in the project"))
+                    )
                     continue
 
                 # Prepare Metadata
@@ -343,6 +338,7 @@ class AnalysisControlViewModel:
                         parquet_path = fallback_path
                     else:
                         log.warning("generate_summaries.parquet_missing", path=parquet_path)
+                        not_processed.append((Path(video_path).name, _("no trajectory file found")))
                         continue
 
                 # Load Data
@@ -552,13 +548,17 @@ class AnalysisControlViewModel:
                 log.error(
                     "generate_summaries.failed", video=video_path, error=str(e), exc_info=True
                 )
+                not_processed.append((Path(video_path).name, str(e)))
 
-        self.ui_event_bus.publish(
-            Event(
-                type=UIEvents.SET_STATUS,
-                data=StatusPayload(message=_("Report generation finished.")),
+        if not_processed:
+            self._report_summaries_not_generated(not_processed, total)
+        else:
+            self.ui_event_bus.publish(
+                Event(
+                    type=UIEvents.SET_STATUS,
+                    data=StatusPayload(message=_("Report generation finished.")),
+                )
             )
-        )
 
         # Refresh tree to show new artifacts
         self.ui_event_bus.publish(
@@ -568,6 +568,35 @@ class AnalysisControlViewModel:
                     reason="reports_generated",
                     append_summary=True,
                     immediate=False,
+                ),
+            )
+        )
+
+    def _report_summaries_not_generated(
+        self, not_processed: list[tuple[str, str]], total: int
+    ) -> None:
+        """Say which videos ended without a report, and why."""
+        if not self.ui_event_bus:
+            return
+        details = "\n".join(f"- {name}: {reason}" for name, reason in not_processed)
+        self.ui_event_bus.publish(
+            Event(
+                type=UIEvents.SET_STATUS,
+                data=StatusPayload(
+                    message=_(
+                        "Report generation finished: {failed} of {total} video(s) without a report."
+                    ).format(failed=len(not_processed), total=total)
+                ),
+            )
+        )
+        self.ui_event_bus.publish(
+            Event(
+                type=UIEvents.SHOW_ERROR,
+                data=payloads.MessagePayload(
+                    title=_("Reports not generated"),
+                    message=_(
+                        "No report was generated for {failed} of {total} video(s):\n\n{details}"
+                    ).format(failed=len(not_processed), total=total, details=details),
                 ),
             )
         )

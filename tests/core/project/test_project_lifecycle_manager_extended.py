@@ -4,11 +4,13 @@ Extended unit tests for ProjectLifecycleManager in core/project/project_lifecycl
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+import structlog
 
 from zebtrack.core.exceptions import ProjectInvalidError
 from zebtrack.core.project.project_lifecycle_manager import ProjectLifecycleManager
@@ -260,3 +262,227 @@ class TestV8Migrations:
         assert data["analysis_window"] is None
         assert data["model_overrides"]["class_roles"] is None
         assert data["model_overrides"]["class_roles_weight_sha256"] is None
+
+
+# ---------------------------------------------------------------------------
+# TASK-087: typed errors on real files, upper bounds, snapshot, legacy fixture.
+# ---------------------------------------------------------------------------
+
+BASE_PARAMS: dict[str, Any] = {
+    "num_aquariums": 1,
+    "animals_per_aquarium": 1,
+    "aquarium_width_cm": 0.0,
+    "aquarium_height_cm": 0.0,
+    "analysis_interval_frames": 10,
+    "display_interval_frames": 10,
+    "camera_index": 0,
+    "project_type": "live",
+    "video_files": None,
+}
+
+LEGACY_7_2 = Path(__file__).resolve().parents[2] / "fixtures" / "legacy" / "project_7_2_0"
+
+
+class TestTypedErrors:
+    def test_corrupt_config_raises_project_invalid_with_the_cause(self, tmp_path):
+        (tmp_path / "project_config.json").write_text("{broken", encoding="utf-8")
+
+        def read(path):
+            return json.loads((Path(path) / "project_config.json").read_text(encoding="utf-8"))
+
+        with pytest.raises(ProjectInvalidError) as excinfo:
+            ProjectLifecycleManager.load_project_data(tmp_path, read, lambda d, ctx: (d, False, []))
+
+        assert isinstance(excinfo.value.__cause__, json.JSONDecodeError)
+
+    @pytest.mark.parametrize(
+        "error", [PermissionError("ro"), OSError("io"), TypeError("set"), RuntimeError("x")]
+    )
+    def test_every_save_failure_becomes_project_invalid(self, tmp_path, error):
+        def write(path, data):
+            raise error
+
+        with pytest.raises(ProjectInvalidError) as excinfo:
+            ProjectLifecycleManager.save_project_data(tmp_path, {}, write)
+
+        assert excinfo.value.__cause__ is error
+
+    def test_unserialisable_data_on_a_real_save(self, tmp_path):
+        from zebtrack.core.project.project_service import ProjectService
+
+        with pytest.raises(ProjectInvalidError):
+            ProjectLifecycleManager.save_project_data(
+                tmp_path, {"bad": {1, 2}}, ProjectService().save_project_config
+            )
+
+    def test_directory_that_cannot_be_created(self, tmp_path):
+        blocker = tmp_path / "file"
+        blocker.write_text("")
+
+        with pytest.raises(ProjectInvalidError):
+            ProjectLifecycleManager.create_new_project(
+                blocker / "proj", "Live", None, dict, lambda *a, **k: None, lambda: None
+            )
+
+
+class TestUpperBounds:
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("num_aquariums", 101),
+            ("animals_per_aquarium", 0),
+            ("animals_per_aquarium", 101),
+            ("aquarium_width_cm", 500.5),
+            ("aquarium_height_cm", -0.1),
+            ("aquarium_height_cm", 501.0),
+            ("analysis_interval_frames", 31),
+            ("display_interval_frames", 0),
+            ("display_interval_frames", 31),
+            ("camera_index", -1),
+            ("camera_index", 11),
+            ("project_type", "batch"),
+        ],
+    )
+    def test_out_of_range_values_are_refused(self, field, value):
+        with pytest.raises(ValueError):
+            ProjectLifecycleManager.validate_project_parameters(**{**BASE_PARAMS, field: value})
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("num_aquariums", 100),
+            ("animals_per_aquarium", 100),
+            ("aquarium_width_cm", 500.0),
+            ("aquarium_height_cm", 0.0),
+            ("analysis_interval_frames", 30),
+            ("display_interval_frames", 1),
+            ("camera_index", 10),
+            ("project_type", "PRE-RECORDED"),
+        ],
+    )
+    def test_boundary_values_are_accepted(self, field, value):
+        ProjectLifecycleManager.validate_project_parameters(**{**BASE_PARAMS, field: value})
+
+
+class TestSettingsSnapshot:
+    def test_real_settings_are_written_as_yaml(self, tmp_path):
+        import yaml
+
+        class _Settings:
+            def model_dump_json(self):
+                return json.dumps({"camera": {"index": 2}, "z": [1, 2]})
+
+        assert ProjectLifecycleManager.save_settings_snapshot(tmp_path, _Settings()) is True
+
+        written = yaml.safe_load((tmp_path / "config_snapshot.yaml").read_text(encoding="utf-8"))
+        assert written == {"camera": {"index": 2}, "z": [1, 2]}
+
+    def test_absent_or_fake_settings_are_skipped_without_a_file(self, tmp_path):
+        class _NoDump:
+            model_dump_json = None
+
+        class _NotString:
+            def model_dump_json(self):
+                return 42
+
+        assert ProjectLifecycleManager.save_settings_snapshot(None, object()) is False
+        for settings in (None, _NoDump(), _NotString()):
+            assert ProjectLifecycleManager.save_settings_snapshot(tmp_path, settings) is True
+        assert not (tmp_path / "config_snapshot.yaml").exists()
+
+    def test_unparsable_dump_reports_false(self, tmp_path):
+        class _Broken:
+            def model_dump_json(self):
+                return "{not json"
+
+        assert ProjectLifecycleManager.save_settings_snapshot(tmp_path, _Broken()) is False
+
+
+class TestBatchesAndWizardRegex:
+    def test_string_entries_and_empty_batches(self, tmp_path):
+        project: dict = {}
+
+        ProjectLifecycleManager.add_video_batch(project, [])
+        assert project == {}
+
+        ProjectLifecycleManager.add_video_batch(project, ["C:\\v\\a.mp4"])  # type: ignore[list-item]
+
+        (entry,) = project["batches"][0]["videos"]
+        assert entry["path"] == Path("C:\\v\\a.mp4").as_posix()
+        assert (entry["status"], entry["has_complete_data"]) == ("pending", False)
+        assert "metadata" not in entry
+
+    def test_wizard_regex_is_stored_as_a_disabled_multi_aquarium_config(self, tmp_path):
+        data = ProjectLifecycleManager.create_new_project(
+            tmp_path / "p",
+            "Pre-recorded",
+            None,
+            dict,
+            lambda *a, **k: None,
+            lambda: None,
+            _wizard_metadata={
+                "custom_regex_patterns": {
+                    "group_pattern": "G(\\d+)",
+                    "day_pattern": "D(\\d+)",
+                    "subject_pattern": "S(\\d+)",
+                }
+            },
+        )
+
+        assert data["calibration"]["multi_aquarium"] == {
+            "enabled": False,
+            "regex_pattern": "G(?P<group>\\d+)_D(?P<day>\\d+)_S(?P<subject>\\d+)",
+            "regex_group_field": "group",
+            "regex_subject_field": "subject",
+            "regex_day_field": "day",
+            "aquarium_configs": [],
+        }
+
+    @pytest.mark.parametrize("patterns", [None, "text", {}, {"group_pattern": ""}])
+    def test_wizard_without_usable_patterns_stores_nothing(self, tmp_path, patterns):
+        data = ProjectLifecycleManager.create_new_project(
+            tmp_path / "p",
+            "Live",
+            None,
+            dict,
+            lambda *a, **k: None,
+            lambda: None,
+            _wizard_metadata={"custom_regex_patterns": patterns, "x": 1},
+        )
+
+        assert "multi_aquarium" not in data["calibration"]
+        assert data["_wizard_metadata"]["x"] == 1
+
+    def test_tracker_flag_falls_back_to_the_settings_without_a_count(self):
+        settings = type("S", (), {"tracking": type("T", (), {"use_single_subject_tracker": True})})
+
+        data, applied, fields = ProjectLifecycleManager.apply_project_migrations(
+            {"tracking": "corrupt"}, structlog.get_logger(), settings_obj=settings
+        )
+
+        assert applied is True
+        assert data["tracking"] == {"use_single_subject_tracker": True}
+        assert "tracking" in fields
+        assert data["analysis_profiles"] == [
+            {"name": "default", "description": "Default analysis profile", "settings": {}}
+        ]
+
+
+class TestLegacyFixture:
+    def test_7_2_project_migrates_without_touching_the_fixture(self, tmp_path):
+        import shutil
+
+        copy = tmp_path / "legacy"
+        shutil.copytree(LEGACY_7_2, copy)
+        original = (LEGACY_7_2 / "project_config.json").read_bytes()
+        from zebtrack.core.project.project_manager import ProjectManager
+
+        pm = ProjectManager(settings_obj=None)
+        pm.load_project(copy)
+
+        assert (LEGACY_7_2 / "project_config.json").read_bytes() == original
+        reloaded = json.loads((copy / "project_config.json").read_text(encoding="utf-8"))
+        for key in ("analysis_window", "file_hash", "session_duration_overrides"):
+            assert key in reloaded
+        assert reloaded["model_overrides"]["class_roles"] is None
+        assert pm.project_data["analysis_window"] is None

@@ -18,8 +18,6 @@ from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
 from zebtrack.coordinators.live_calibration_coordinator import LiveCalibrationCoordinator
 from zebtrack.coordinators.live_camera_session_coordinator import LiveCameraSessionCoordinator
 from zebtrack.coordinators.model_diagnostics_coordinator import ModelDiagnosticsCoordinator
-from zebtrack.coordinators.multi_aquarium_coordinator import MultiAquariumCoordinator
-from zebtrack.coordinators.progress_tracking_coordinator import ProgressTrackingCoordinator
 from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
 from zebtrack.coordinators.recording_session_coordinator import RecordingSessionCoordinator
 from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
@@ -33,18 +31,12 @@ from zebtrack.core.di_registrations import (
     _resolve,
     build_container,
 )
-from zebtrack.core.project.project_service import ProjectService
 from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
 from zebtrack.core.services.model_override_service import ModelOverrideService
 from zebtrack.core.services.model_service import ModelService
-from zebtrack.core.services.trajectory_data_service import TrajectoryDataService
 from zebtrack.core.services.weight_manager import WeightManager
 from zebtrack.core.state_manager import StateManager
 from zebtrack.core.ui_scheduler import UIScheduler
-from zebtrack.core.video.video_classification_service import VideoClassificationService
-from zebtrack.core.video.video_metadata_service import VideoMetadataService
-from zebtrack.core.video.video_selection_service import VideoSelectionService
-from zebtrack.core.video.video_validation_service import VideoValidationService
 from zebtrack.io.recorder_factory import RecorderFactory
 from zebtrack.settings import load_settings
 from zebtrack.ui.event_bus_v2 import EventBusV2
@@ -94,13 +86,7 @@ class TestDiRegistrationsExtended:
             assert _resolve(container, WeightManager) is not None
             assert _resolve(container, ModelService) is not None
             assert _resolve(container, ModelOverrideService) is not None
-            assert _resolve(container, TrajectoryDataService) is not None
-            assert _resolve(container, VideoMetadataService) is not None
-            assert _resolve(container, VideoSelectionService) is not None
-            assert _resolve(container, VideoValidationService) is not None
-            assert _resolve(container, VideoClassificationService) is not None
             assert _resolve(container, ProjectWorkflowService) is not None
-            assert _resolve(container, ProjectService) is not None
             assert _resolve(container, AnalysisService) is not None
 
     def test_build_container_resolves_coordinators(self, container_context: ContainerContext):
@@ -111,7 +97,6 @@ class TestDiRegistrationsExtended:
             # Coordinators
             assert _resolve(container, DialogCoordinator) is not None
             assert _resolve(container, UIStateController) is not None
-            assert _resolve(container, ProgressTrackingCoordinator) is not None
             assert _resolve(container, ModelDiagnosticsCoordinator) is not None
             assert _resolve(container, RecordingSessionCoordinator) is not None
             assert _resolve(container, LiveCameraSessionCoordinator) is not None
@@ -119,10 +104,11 @@ class TestDiRegistrationsExtended:
             assert _resolve(container, LiveCalibrationCoordinator) is not None
             assert _resolve(container, LiveBatchCoordinator) is not None
             assert _resolve(container, DetectorSetupCoordinator) is not None
-            assert _resolve(container, VideoProcessingCoordinator) is not None
-            assert _resolve(container, SequentialProcessingCoordinator) is not None
-            assert _resolve(container, MultiAquariumCoordinator) is not None
-            assert _resolve(container, ReportGenerationCoordinator) is not None
+            processing = _resolve(container, VideoProcessingCoordinator)
+            # The sub-coordinators are reached through the processing coordinator,
+            # not through the container (A3-02).
+            assert isinstance(processing._sequential_coordinator, SequentialProcessingCoordinator)
+            assert isinstance(processing._report_coordinator, ReportGenerationCoordinator)
             assert _resolve(container, ProjectLifecycleCoordinator) is not None
 
     def test_build_container_resolves_bootstrapper_and_dependencies(

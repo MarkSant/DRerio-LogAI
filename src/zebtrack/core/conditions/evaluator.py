@@ -227,7 +227,7 @@ def _compile_level(node: LevelNode, roles: Mapping[str, frozenset[str]]) -> _Lev
         return lambda obs: all(c(obs) for c in children)
     if isinstance(node, AnyOfLevel):
         return lambda obs: any(c(obs) for c in children)
-    raise TypeError(f"Unknown level node: {type(node).__name__}")  # pragma: no cover
+    raise TypeError(f"Unknown level node: {type(node).__name__}")
 
 
 def _class_presence(node: ClassPresence, roles: Mapping[str, frozenset[str]]) -> _Level:
@@ -472,7 +472,7 @@ def _compile_trigger(node: TriggerNode, roles: Mapping[str, frozenset[str]]) -> 
         return _AllOf(node, roles)
     if isinstance(node, Sequence):
         return _Sequence(node, roles)
-    raise TypeError(f"Unknown trigger node: {type(node).__name__}")  # pragma: no cover
+    raise TypeError(f"Unknown trigger node: {type(node).__name__}")
 
 
 # ---------------------------------------------------------------------------
@@ -515,11 +515,6 @@ class ConditionEvaluator:
     def spec(self) -> WindowSpec:
         """The window being evaluated."""
         return self._spec
-
-    @property
-    def skipped_observations(self) -> int:
-        """Observations dropped because their clock went backwards."""
-        return self._skipped
 
     @property
     def finished(self) -> bool:

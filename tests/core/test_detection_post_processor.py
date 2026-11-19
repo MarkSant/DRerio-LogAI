@@ -119,22 +119,6 @@ class TestApplyClassMismatchFallback:
         assert P.apply_class_mismatch_fallback(dets, self._arena(), 0, None) is dets
 
 
-class TestValidateTrackContinuity:
-    def test_empty_does_not_raise(self):
-        P.validate_track_continuity([])
-
-    def test_all_none_track_ids_does_not_raise(self):
-        P.validate_track_continuity([(0, 0, 1, 1, 0.9, None, 0)])
-
-    def test_gap_does_not_raise(self):
-        dets = [(0, 0, 1, 1, 0.9, 1, 0), (0, 0, 1, 1, 0.9, 3, 0)]  # missing id 2
-        P.validate_track_continuity(dets)
-
-    def test_duplicate_does_not_raise(self):
-        dets = [(0, 0, 1, 1, 0.9, 1, 0), (0, 0, 1, 1, 0.9, 1, 0)]
-        P.validate_track_continuity(dets)
-
-
 class TestResolveClassIds:
     def test_two_class_model(self):
         plugin = SimpleNamespace(class_names={0: "aquarium", 1: "zebrafish"})

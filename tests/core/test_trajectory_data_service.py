@@ -53,28 +53,3 @@ class TestLoadTrajectory:
         svc = TrajectoryDataService()
         with pytest.raises((pa.lib.ArrowInvalid, pd.errors.ParserError, Exception)):
             svc.load_trajectory(str(bad_path))
-
-
-class TestLoadTrajectorySafe:
-    """Tests for TrajectoryDataService.load_trajectory_safe."""
-
-    def test_safe_load_success(self, sample_parquet: str) -> None:
-        """Returns DataFrame on success."""
-        svc = TrajectoryDataService()
-        df = svc.load_trajectory_safe(sample_parquet)
-        assert df is not None
-        assert len(df) == 3
-
-    def test_safe_load_missing_returns_none(self, tmp_path) -> None:
-        """Returns None (not raises) for missing file."""
-        svc = TrajectoryDataService()
-        result = svc.load_trajectory_safe(str(tmp_path / "missing.parquet"))
-        assert result is None
-
-    def test_safe_load_corrupted_returns_none(self, tmp_path) -> None:
-        """Returns None (not raises) for corrupted file."""
-        bad_path = tmp_path / "bad.parquet"
-        bad_path.write_bytes(b"\x00\x01\x02\x03")
-        svc = TrajectoryDataService()
-        result = svc.load_trajectory_safe(str(bad_path))
-        assert result is None

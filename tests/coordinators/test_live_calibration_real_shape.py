@@ -34,6 +34,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
+from tests.utils.deferring_tk import bind_deferring_tk
 from zebtrack.coordinators.live_calibration_coordinator import LiveCalibrationCoordinator
 from zebtrack.core.services.arena_detection_policy import resolve_arena_detection
 
@@ -115,11 +116,14 @@ def _run(coordinator, *, preserve_real_shape: bool | None) -> bool:
         ),
     ):
         detector_cls.return_value = MagicMock()
+        tk_loop = bind_deferring_tk(coordinator.root)
         coordinator.run_live_calibration(
             stabilization_frames=4,
             show_preview=True,
             preserve_real_shape=preserve_real_shape,
         )
+        # A6-03: the detection runs on a worker; let it deliver.
+        tk_loop.run_until_idle()
 
     assert burst.call_args is not None, "a calibração nunca chegou a detectar"
     return burst.call_args.kwargs["preserve_real_shape"]

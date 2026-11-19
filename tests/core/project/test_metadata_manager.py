@@ -7,6 +7,9 @@ normalização de thresholds e varredura de sessões concluídas.
 
 from __future__ import annotations
 
+from pathlib import Path
+from unittest.mock import MagicMock
+
 import pandas as pd
 import pytest
 
@@ -247,3 +250,250 @@ class TestGetCompletedSessions:
         result = MetadataManager.get_completed_sessions(tmp_path)
 
         assert (1, "Controle", "1") not in result
+
+
+class TestMetadataManagerExtended:
+    """Test MetadataManager static methods."""
+
+    def test_load_metadata_none_path_returns_none(self):
+        result = MetadataManager.load_metadata(None)
+        assert result is None
+
+    def test_load_metadata_nonexistent_path_returns_none(self, tmp_path: Path):
+        result = MetadataManager.load_metadata(tmp_path / "no_such_project")
+        assert result is None
+
+    def test_load_metadata_valid_csv(self, tmp_path: Path):
+        csv_path = tmp_path / "metadata.csv"
+        csv_path.write_text("experiment_id,group\nD1_G1_S1,Control\n")
+        result = MetadataManager.load_metadata(tmp_path)
+        assert result is not None
+        assert "experiment_id" in result.columns
+        assert result.iloc[0]["group"] == "Control"
+
+    def test_get_metadata_empty_experiment_id_returns_empty(self):
+        result = MetadataManager.get_metadata_for_experiment(
+            None,
+            metadata_df=None,
+            project_data={},
+            find_video_entry_fn=MagicMock(return_value=None),
+        )
+        assert result == {}
+
+    def test_get_metadata_regex_fallback_parses_id(self):
+        result = MetadataManager.get_metadata_for_experiment(
+            "D3_G2_S5",
+            metadata_df=None,
+            project_data={},
+            find_video_entry_fn=MagicMock(return_value=None),
+        )
+        assert result["day"] == 3
+        assert result["group"] == "2"
+        assert result["subject"] == 5
+
+    def test_get_metadata_no_match_returns_empty(self):
+        result = MetadataManager.get_metadata_for_experiment(
+            "random_filename",
+            metadata_df=None,
+            project_data={},
+            find_video_entry_fn=MagicMock(return_value=None),
+        )
+        assert result == {}
+
+    def test_get_metadata_from_project_data(self):
+        video_entry = {"metadata": {"group": "CBD", "group_id": "g1", "day": 2, "subject": 1}}
+        result = MetadataManager.get_metadata_for_experiment(
+            "exp1",
+            metadata_df=None,
+            project_data={"videos": [video_entry]},
+            find_video_entry_fn=MagicMock(return_value=video_entry),
+        )
+        assert result["group"] == "CBD"
+
+    def test_save_detector_state_updates_and_saves(self):
+        project_data: dict = {"project_name": "TestProj"}  # Must be non-empty
+        save_fn = MagicMock()
+        ok = MetadataManager.save_detector_state(
+            {"animal_method": "seg", "conf": 0.5},
+            project_data=project_data,
+            project_path=Path("/tmp/proj"),
+            save_project_fn=save_fn,
+        )
+        assert ok is True
+        assert project_data.get("detector_config") is not None
+        save_fn.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# TASK-087: metadata.csv failures, session folders on disk, group listing.
+# ---------------------------------------------------------------------------
+
+
+class TestLoadMetadataFailures:
+    def test_unreadable_metadata_csv_returns_none(self, tmp_path):
+        (tmp_path / "metadata.csv").mkdir()
+
+        assert MetadataManager.load_metadata(tmp_path) is None
+
+    def test_undecodable_metadata_csv_returns_none(self, tmp_path):
+        (tmp_path / "metadata.csv").write_bytes(b"experiment_id,group\n\xff\xfe\xfa,\xc3\x28\n")
+
+        assert MetadataManager.load_metadata(str(tmp_path)) is None
+
+    def test_unexpected_reader_failure_returns_none(self, tmp_path, monkeypatch):
+        (tmp_path / "metadata.csv").write_text("experiment_id\nE1\n", encoding="utf-8")
+
+        def explode(path):
+            raise RuntimeError("reader crashed")
+
+        monkeypatch.setattr(pd, "read_csv", explode)
+
+        assert MetadataManager.load_metadata(tmp_path) is None
+
+
+class TestMetadataPriority:
+    def test_csv_row_without_group_is_completed_from_the_project_entry(self):
+        csv = pd.DataFrame({"experiment_id": ["E1"], "day": [4]})
+        lookups: list[dict] = []
+
+        def find(**kwargs):
+            lookups.append(kwargs)
+            return {"metadata": {"group": "Ctrl", "day": 9}, "subject_id": "S3"}
+
+        meta = MetadataManager.get_metadata_for_experiment(
+            "E1", "C:/v/E1.mp4", metadata_df=csv, project_data={"x": 1}, find_video_entry_fn=find
+        )
+
+        assert meta == {"experiment_id": "E1", "day": 4, "group": "Ctrl", "subject_id": "S3"}
+        assert lookups == [{"path": "C:/v/E1.mp4", "experiment_id": "E1"}]
+
+    def test_regex_fills_only_what_is_missing(self):
+        meta = MetadataManager.get_metadata_for_experiment(
+            "D2_GTreated_S5",
+            metadata_df=pd.DataFrame({"other": [1]}),
+            project_data={"x": 1},
+            find_video_entry_fn=lambda **kwargs: {"day": 7},
+        )
+
+        assert meta == {"day": 7, "group": "Treated", "subject": 5}
+
+
+class TestDetectorStateClearing:
+    def test_thresholds_are_merged_into_existing_overrides(self):
+        project = {"model_overrides": {"detector_parameters": {"nms_threshold": 0.4}}}
+
+        MetadataManager.save_detector_state(
+            {"conf_threshold": 0.3, "last_updated": "t"},
+            project_data=project,
+            project_path=None,
+            save_project_fn=lambda: pytest.fail("no path, no save"),
+        )
+
+        assert project["model_overrides"]["detector_parameters"] == {
+            "nms_threshold": 0.4,
+            "confidence_threshold": 0.3,
+        }
+        assert project["detector_config"]["last_updated"] == "t"
+
+    def test_saving_an_empty_detector_config_clears_the_threshold_overrides(self):
+        project = {"model_overrides": {"detector_parameters": {"nms_threshold": 0.4}}}
+
+        MetadataManager.save_detector_state(
+            {}, project_data=project, project_path=None, save_project_fn=lambda: None
+        )
+
+        assert "detector_parameters" not in project["model_overrides"]
+
+    def test_saving_a_config_without_thresholds_keeps_the_overrides(self):
+        # F2-P-002 counterpart: only an EMPTY config clears; a config that merely has
+        # no threshold keys must leave the project's overrides alone.
+        project = {"model_overrides": {"detector_parameters": {"nms_threshold": 0.4}}}
+
+        MetadataManager.save_detector_state(
+            {"plugin_name": "yolo"},
+            project_data=project,
+            project_path=None,
+            save_project_fn=lambda: None,
+        )
+
+        assert project["model_overrides"]["detector_parameters"] == {"nms_threshold": 0.4}
+
+
+class TestCompletedSessionsOnDisk:
+    @staticmethod
+    def _session(root: Path, *parts: str, trajectory: bool = True, cancelled: bool = False):
+        folder = root.joinpath(*parts)
+        folder.mkdir(parents=True)
+        if trajectory:
+            (folder / "3_CoordMovimento_x.parquet").write_bytes(b"t")
+        else:
+            (folder / "1_ProcessingArea_x.parquet").write_bytes(b"a")
+        if cancelled:
+            (folder / ".cancelled").write_text("")
+        return folder
+
+    def test_every_layout_is_recognised_and_noise_is_ignored(self, tmp_path):
+        root = tmp_path / "proj"
+        root.mkdir()
+        (root / "day1_Ctrl_2_20260101_101010").mkdir()
+        (root / "D3_GTreated_S4").mkdir()
+        cancelled_root = root / "day9_Ctrl_9"
+        cancelled_root.mkdir()
+        (cancelled_root / ".cancelled").write_text("")
+        live = root / "live_analysis_sessions"
+        (live / "day2_Ctrl_7").mkdir(parents=True)
+        (live / "day5_Ctrl_8").mkdir()
+        (live / "day5_Ctrl_8" / ".cancelled").write_text("")
+        (live / "stray.txt").write_text("")
+        self._session(root, "Grupo_Ctrl", "Dia_03", "Sujeito_05", "live_1")
+        self._session(root, "Grupo_Ctrl", "Dia_04", "Sujeito_06", "live_1", trajectory=False)
+        self._session(root, "Grupo_Ctrl", "Dia_04", "Sujeito_07", "live_1", cancelled=True)
+        (root / "Grupo_Ctrl" / "Dia_03" / "Sujeito_05" / "notes.txt").write_text("")
+        (root / "Grupo_Ctrl" / "Dia_03" / "Sujeito_X").mkdir()
+        (root / "Grupo_Ctrl" / "Dia_03" / "readme.txt").write_text("")
+        (root / "Grupo_Ctrl" / "Semana_1").mkdir()
+        (root / "Grupo_Ctrl" / "file.txt").write_text("")
+        (root / "Grupo_.txt").write_text("")
+        (root / "other_folder").mkdir()
+
+        assert MetadataManager.get_completed_sessions(root) == {
+            (1, "Ctrl", "2"),
+            (3, "Treated", "4"),
+            (2, "Ctrl", "7"),
+            (3, "Ctrl", "5"),
+        }
+
+    def test_without_a_project_there_are_no_sessions(self):
+        assert MetadataManager.get_completed_sessions(None) == set()
+
+
+class TestSessionDetailsAndGroups:
+    def test_last_session_needs_a_project_path(self):
+        project: dict = {}
+
+        MetadataManager.save_last_session_details(
+            2, "A", project_data=project, project_path=None, save_project_fn=pytest.fail
+        )
+
+        assert project == {}
+        assert MetadataManager.get_last_session_details({}) == (None, None)
+        assert MetadataManager.get_last_session_details({"last_selected_day": 3}) == (3, None)
+
+    def test_groups_come_from_project_videos_aquariums_and_csv(self):
+        videos = [
+            {"metadata": {"group": "Video"}},
+            {
+                "metadata": {},
+                "multi_aquarium_outputs": {"0": {"group": "Tank"}, "1": {"group": ""}},
+            },
+        ]
+        csv = pd.DataFrame({"group": ["Csv", None, "Video"]})
+
+        groups = MetadataManager.get_available_groups(
+            {"groups": ["Wizard", "", None]},
+            csv,
+            lambda: videos,  # type: ignore[arg-type, return-value]
+        )
+
+        assert groups == ["Csv", "Tank", "Video", "Wizard"]
+        assert MetadataManager.get_available_groups({}, None, lambda: None) == []  # type: ignore[arg-type, return-value]

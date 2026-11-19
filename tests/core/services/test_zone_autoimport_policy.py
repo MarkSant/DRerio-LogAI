@@ -175,6 +175,37 @@ class TestDecideZoneAutoimport:
         )
 
 
+class _UnprintablePath:
+    """A path value whose ``str()`` fails: a corrupt entry in a user's project."""
+
+    def __str__(self) -> str:
+        raise RuntimeError("corrupt path entry")
+
+
+class TestUnusablePaths:
+    """An unusable path never matches anything (F2 pragma review)."""
+
+    def test_unusable_candidate_is_not_treated_as_project_owned(self):
+        """Inside the project would mean AUTO; a path that cannot be read must ASK."""
+        candidates = {"arena": _UnprintablePath(), "rois": OWNED_CANDIDATES["rois"]}
+
+        decision = decide_zone_autoimport(
+            video_path=os.path.join(SESSION_DIR, "CECT_4.mp4"),
+            candidates=candidates,  # type: ignore[arg-type]
+            project_path=PROJECT,
+            project_data={},
+        )
+
+        assert decision is ZoneAutoImport.ASK
+
+    def test_unusable_wizard_entry_does_not_match_the_video(self):
+        """A recorded refusal for an unreadable path is no refusal for this video."""
+        project_data = _wizard(FOREIGN_VIDEO, arena=False, rois=False)
+        project_data["_wizard_metadata"]["import_config"][0]["video"] = _UnprintablePath()
+
+        assert wizard_import_declined(project_data, FOREIGN_VIDEO) is None
+
+
 class TestDescribeCandidateOrigin:
     def test_names_the_folder_the_files_came_from(self):
         assert describe_candidate_origin(FOREIGN_CANDIDATES) == FOREIGN_DIR

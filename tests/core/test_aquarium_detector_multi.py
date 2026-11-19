@@ -26,26 +26,6 @@ class TestContourBasedMultiAquariumDetector:
         return ContourBasedMultiAquariumDetector()
 
     @pytest.fixture
-    def sample_dual_aquarium_frame(self):
-        """Create a synthetic frame with 2 aquariums.
-
-        Creates a 1280x720 frame with two dark rectangles (aquariums)
-        on a light background.
-        """
-        # Create white background
-        frame = np.ones((720, 1280, 3), dtype=np.uint8) * 255
-
-        # Draw left aquarium (dark rectangle)
-        # Position: x=50-350, y=100-500 (300x400 pixels)
-        frame[100:500, 50:350] = [30, 30, 30]  # Dark gray
-
-        # Draw right aquarium (dark rectangle)
-        # Position: x=700-1000, y=100-500 (300x400 pixels)
-        frame[100:500, 700:1000] = [30, 30, 30]  # Dark gray
-
-        return frame
-
-    @pytest.fixture
     def sample_single_aquarium_frame(self):
         """Create a synthetic frame with only 1 aquarium."""
         frame = np.ones((720, 1280, 3), dtype=np.uint8) * 255
@@ -66,44 +46,6 @@ class TestContourBasedMultiAquariumDetector:
         """Testa inicialização do detector."""
         assert detector is not None
         assert isinstance(detector, ContourBasedMultiAquariumDetector)
-
-    def test_detect_from_frame_two_aquariums(self, detector, sample_dual_aquarium_frame):
-        """Testa detecção de 2 aquários em frame sintético."""
-        result = detector.detect_multiple_aquariums_from_frame(
-            sample_dual_aquarium_frame, expected_count=2
-        )
-
-        assert isinstance(result, list)
-        # Note: May or may not detect depending on contour algorithm sensitivity
-        # This test validates the interface works correctly
-        if len(result) == 2:
-            # If detected, validate structure
-            assert all(isinstance(p, np.ndarray) for p in result)
-            assert all(len(p.shape) == 2 for p in result)
-            assert all(p.shape[1] == 2 for p in result)
-
-            # Should be sorted by X position (left first)
-            center_x_0 = result[0][:, 0].mean()
-            center_x_1 = result[1][:, 0].mean()
-            assert center_x_0 < center_x_1
-
-    def test_detect_from_frame_wrong_expected_count(self, detector, sample_dual_aquarium_frame):
-        """Testa erro quando expected_count != 2."""
-        with pytest.raises(ValueError) as exc_info:
-            detector.detect_multiple_aquariums_from_frame(
-                sample_dual_aquarium_frame, expected_count=3
-            )
-
-        assert "2" in str(exc_info.value)
-
-    def test_detect_from_frame_expected_count_one(self, detector, sample_dual_aquarium_frame):
-        """Testa erro quando expected_count = 1."""
-        with pytest.raises(ValueError) as exc_info:
-            detector.detect_multiple_aquariums_from_frame(
-                sample_dual_aquarium_frame, expected_count=1
-            )
-
-        assert "2" in str(exc_info.value)
 
     def test_check_overlap_no_overlap(self, detector):
         """Testa verificação de overlap quando não há sobreposição."""
@@ -135,50 +77,6 @@ class TestContourBasedMultiAquariumDetector:
         bbox2 = (95, 0, 100, 100)  # Only 5% overlap
 
         result = detector._check_overlap(bbox1, bbox2, threshold=0.1)
-        assert result is False
-
-    def test_validate_aquarium_pair_valid(self, detector):
-        """Testa validação de par de aquários válido."""
-        frame_width = 1280
-
-        # Two aquariums on opposite sides
-        poly1 = np.array([[50, 100], [350, 100], [350, 500], [50, 500]])
-        poly2 = np.array([[700, 100], [1000, 100], [1000, 500], [700, 500]])
-
-        result = detector._validate_aquarium_pair([poly1, poly2], frame_width)
-        assert result is True
-
-    def test_validate_aquarium_pair_same_side(self, detector):
-        """Testa validação de aquários no mesmo lado."""
-        frame_width = 1280
-
-        # Both aquariums on left side
-        poly1 = np.array([[50, 100], [200, 100], [200, 500], [50, 500]])
-        poly2 = np.array([[250, 100], [400, 100], [400, 500], [250, 500]])
-
-        result = detector._validate_aquarium_pair([poly1, poly2], frame_width)
-        assert result is False
-
-    def test_validate_aquarium_pair_size_mismatch(self, detector):
-        """Testa validação com tamanhos muito diferentes."""
-        frame_width = 1280
-
-        # One aquarium much larger than the other
-        poly1 = np.array([[50, 100], [350, 100], [350, 500], [50, 500]])  # 300x400
-        poly2 = np.array([[700, 100], [750, 100], [750, 150], [700, 150]])  # 50x50
-
-        result = detector._validate_aquarium_pair([poly1, poly2], frame_width)
-        assert result is False
-
-    def test_validate_aquarium_pair_wrong_count(self, detector):
-        """Testa validação com número errado de polígonos."""
-        frame_width = 1280
-        poly1 = np.array([[50, 100], [350, 100], [350, 500], [50, 500]])
-
-        result = detector._validate_aquarium_pair([poly1], frame_width)
-        assert result is False
-
-        result = detector._validate_aquarium_pair([], frame_width)
         assert result is False
 
 

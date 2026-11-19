@@ -9,10 +9,8 @@ Estimated size: ~750 lines (target <800).
 
 from __future__ import annotations
 
-import contextlib
 import os
 import shutil
-from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -341,15 +339,20 @@ class MultiAquariumCoordinator(BaseCoordinator):
                                     subject_pattern=custom_patterns.get("subject_pattern"),
                                 )
                                 if combined_pattern:
+                                    # enabled=False: the dialog reads only the regex;
+                                    # enabled with no aquarium configs fails validation
+                                    # and dropped the prefill (F2-P-003).
                                     multi_aquarium_config = MultiAquariumData(
-                                        enabled=True,
+                                        enabled=False,
                                         regex_pattern=combined_pattern,
                                         regex_group_field="group",
                                         regex_subject_field="subject",
                                         regex_day_field="day",
                                         aquarium_configs=[],
                                     )
-                    except Exception:
+                    except ValueError as exc:  # pydantic.ValidationError is a ValueError
+                        # The dialog still opens, without the regex prefill; say why.
+                        log.warning("multi_aquarium.assignment.config_invalid", error=str(exc))
                         multi_aquarium_config = None
 
                     # Trigger assignment dialog
@@ -371,13 +374,9 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     }
                 else:
                     log.warning("processing_coordinator.aquarium_detection.multi_failed")
-                    self._publish_event(
-                        UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED,
-                        payloads.ZoneMultiAutoDetectFailedPayload(
-                            video_path=str(video_path),
-                            reason=_("Detection failed"),
-                        ),
-                    )
+                    # Only an unsubscribed event used to go out here, so the
+                    # Auto-detect button looked dead whenever it failed (A1-02).
+                    self._warn_multi_detection_failed()
                 return None
             else:
                 # Single aquarium detection.
@@ -455,13 +454,23 @@ class MultiAquariumCoordinator(BaseCoordinator):
                 exc_info=True,
             )
             if multi_aquarium:
-                self._publish_event(
-                    UIEvents.ZONE_MULTI_AUTO_DETECT_FAILED,
-                    {"video_path": video_path, "reason": str(exc)},
-                )
+                self._warn_multi_detection_failed()
             return None
         finally:
             self._is_detecting_aquarium = False
+
+    def _warn_multi_detection_failed(self) -> None:
+        self._publish_event(
+            UIEvents.UI_SHOW_WARNING,
+            payloads.MessagePayload(
+                title=_("Aquariums not detected"),
+                message=_(
+                    "The model did not find the aquariums in the first frames of this "
+                    "video. Draw each arena by hand, or try again with a lower "
+                    "confidence threshold."
+                ),
+            ),
+        )
 
     def _warn_about_arena_provenance(self, provenance: str, policy: Any) -> None:
         """Tell the user when the arena is not what they asked for.
@@ -511,33 +520,6 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     ),
                 ),
             )
-
-    def _handle_multi_auto_detect(self, payload: payloads.EventPayload) -> None:
-        """Handle ZONE_MULTI_AUTO_DETECT event.
-
-        Extracts video_path and expected_count from event payload
-        and delegates to run_aquarium_detection.
-        """
-        video_path = _payload_get(payload, "video_path", "")
-        expected_count = _payload_get(payload, "expected_count", 2)
-        method = _payload_get(payload, "method", "auto")
-
-        if not video_path:
-            log.warning("processing_coordinator.multi_auto_detect.no_video_path")
-            return
-
-        log.info(
-            "processing_coordinator.multi_auto_detect.event_received",
-            video=os.path.basename(video_path),
-            expected_count=expected_count,
-        )
-
-        self.run_aquarium_detection(
-            video_path,
-            count=expected_count,
-            method=method,
-            multi_aquarium=True,
-        )
 
     # ========================================================================
     # Aquarium Assignment
@@ -1042,83 +1024,3 @@ class MultiAquariumCoordinator(BaseCoordinator):
             settings_obj=self.settings,
         )
         return intervals.analysis, intervals.display
-
-    @contextlib.contextmanager
-    def _temporary_single_animal_mode(
-        self, single_video_config: dict | None = None
-    ) -> Generator[bool, None, None]:
-        """Context manager to temporarily set single-animal mode during processing.
-
-        Restores original settings on exit.
-        """
-        log.info(
-            "controller.temporary_mode.entry",
-            has_config=single_video_config is not None,
-            config_keys=list(single_video_config.keys()) if single_video_config else [],
-        )
-
-        previous_mode = self.settings.video_processing.single_animal_per_aquarium
-        resolved_mode = self._resolve_single_animal_mode(single_video_config)
-
-        previous_tracker_pref = self.settings.tracking.use_single_subject_tracker
-        resolved_tracker_pref = self._resolve_single_subject_tracker_preference(single_video_config)
-        if resolved_tracker_pref is None and resolved_mode is not None:
-            resolved_tracker_pref = bool(resolved_mode)
-            log.info(
-                "controller.processing.single_subject_tracker.inferred_from_single_animal",
-                enabled=resolved_tracker_pref,
-                scope="single_video" if single_video_config else "project",
-            )
-
-        if resolved_tracker_pref is None:
-            resolved_tracker_pref = previous_tracker_pref
-
-        if resolved_mode is not None and resolved_mode != previous_mode:
-            self.settings.video_processing.single_animal_per_aquarium = resolved_mode
-            log.info(
-                "controller.processing.single_animal_mode",
-                enabled=resolved_mode,
-                previous=previous_mode,
-                scope="single_video" if single_video_config else "project",
-            )
-
-        tracker_changed = resolved_tracker_pref != previous_tracker_pref
-        if tracker_changed:
-            self.settings.tracking.use_single_subject_tracker = resolved_tracker_pref
-            log.info(
-                "controller.processing.single_subject_tracker",
-                enabled=resolved_tracker_pref,
-                previous=previous_tracker_pref,
-                scope="single_video" if single_video_config else "project",
-            )
-
-        self._configure_single_subject_tracker(self.settings.tracking.use_single_subject_tracker)
-        self._publish_processing_mode(
-            source="processing.temporary_mode.enter",
-            force=True,
-        )
-
-        try:
-            yield self.settings.video_processing.single_animal_per_aquarium
-        finally:
-            if self.settings.video_processing.single_animal_per_aquarium != previous_mode:
-                self.settings.video_processing.single_animal_per_aquarium = previous_mode
-                log.info(
-                    "controller.processing.single_animal_mode_restored",
-                    restored=previous_mode,
-                )
-
-            if tracker_changed:
-                self.settings.tracking.use_single_subject_tracker = previous_tracker_pref
-                log.info(
-                    "controller.processing.single_subject_tracker_restored",
-                    restored=previous_tracker_pref,
-                )
-
-            self._configure_single_subject_tracker(
-                self.settings.tracking.use_single_subject_tracker
-            )
-            self._publish_processing_mode(
-                source="processing.temporary_mode.exit",
-                force=True,
-            )

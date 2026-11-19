@@ -195,13 +195,41 @@ def test_run_aquarium_detection_multi_success(mock_detector_class, coordinator):
     assert UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG in called_types
 
 
-def test_handle_multi_auto_detect(coordinator):
-    payload = {"video_path": "test.mp4", "expected_count": 4, "method": "contour"}
+@patch("zebtrack.core.detection.aquarium_detector.AquariumDetector")
+def test_wizard_regex_reaches_the_assignment_dialog(mock_detector_class, coordinator):
+    # F2-P-003: the fallback config was built enabled=True with no aquarium configs,
+    # failed validation, and the dialog got None (no group/day/subject prefill).
+    import numpy as np
 
-    with patch.object(coordinator, "run_aquarium_detection") as mock_run:
-        coordinator._handle_multi_auto_detect(payload)
+    detector = mock_detector_class.return_value
+    square = np.array([[0, 0], [10, 0], [10, 10], [0, 10]])
+    detector.detect_multiple_aquariums.return_value = [square, square]
+    detector.get_last_source_dimensions.return_value = (800, 600)
+    coordinator.weight_manager.get_weight_path_by_method.return_value = "model.pt"
+    coordinator.project_manager.find_video_entry.return_value = None
+    coordinator.project_manager.project_data = {
+        "_wizard_metadata": {
+            "custom_regex_patterns": {
+                "group_pattern": r"G(\d+)",
+                "day_pattern": r"D(\d+)",
+                "subject_pattern": r"S(\d+)",
+            }
+        }
+    }
 
-        mock_run.assert_called_once_with("test.mp4", count=4, method="contour", multi_aquarium=True)
+    coordinator.run_aquarium_detection("G2_D3_S4--G5_D3_S6.mp4", multi_aquarium=True, count=2)
+
+    dialog_payloads = [
+        call[0][0].data
+        for call in coordinator.event_bus.publish.call_args_list
+        if call[0][0].type == UIEvents.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG
+    ]
+    assert len(dialog_payloads) == 1
+    config = dialog_payloads[0].multi_aquarium_config
+    assert config.extract_metadata("G2_D3_S4--G5_D3_S6.mp4") == [
+        {"group": "2", "subject": "4", "day": "3"},
+        {"group": "5", "subject": "6", "day": "3"},
+    ]
 
 
 def test_on_aquarium_assignment_completed(coordinator):
@@ -293,20 +321,6 @@ def test_determine_processing_mode(coordinator):
 
     assert mode == ProcessingMode.SINGLE_SUBJECT
     assert coordinator._active_processing_mode == ProcessingMode.SINGLE_SUBJECT
-
-
-def test_temporary_single_animal_mode(coordinator):
-    coordinator._resolve_single_animal_mode = MagicMock(return_value=True)
-    coordinator._resolve_single_subject_tracker_preference = MagicMock(return_value=True)
-
-    with patch.object(coordinator, "_publish_processing_mode") as mock_publish:
-        with coordinator._temporary_single_animal_mode():
-            assert coordinator.settings.video_processing.single_animal_per_aquarium is True
-            assert coordinator.settings.tracking.use_single_subject_tracker is True
-
-        assert coordinator.settings.video_processing.single_animal_per_aquarium is False
-        assert coordinator.settings.tracking.use_single_subject_tracker is False
-        assert mock_publish.call_count == 2
 
 
 class TestRelocateResultsFolders:
@@ -609,3 +623,27 @@ def test_empty_detection_warns_instead_of_failing_in_silence(coordinator):
     )
 
     assert _warning_titles(publish)
+
+
+@pytest.mark.parametrize("outcome", ["nothing_found", "raises"])
+@patch("zebtrack.core.detection.aquarium_detector.AquariumDetector")
+def test_a_failed_multi_detection_tells_the_user(mock_detector_class, coordinator, outcome):
+    # A1-02: only an unsubscribed event went out, so Auto-detect looked dead
+    # whenever the two-aquarium detection failed.
+    detector = mock_detector_class.return_value
+    if outcome == "raises":
+        detector.detect_multiple_aquariums.side_effect = RuntimeError("model crashed")
+    else:
+        detector.detect_multiple_aquariums.return_value = []
+    coordinator.weight_manager.get_weight_path_by_method.return_value = "model.pt"
+
+    result = coordinator.run_aquarium_detection("test.mp4", multi_aquarium=True, count=2)
+
+    assert result is None
+    warnings = [
+        call[0][0].data
+        for call in coordinator.event_bus.publish.call_args_list
+        if call[0][0].type == UIEvents.UI_SHOW_WARNING
+    ]
+    assert len(warnings) == 1
+    assert "Draw each arena by hand" in warnings[0].message

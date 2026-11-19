@@ -22,7 +22,6 @@ import pytest
 from zebtrack.coordinators.detector_setup_coordinator import DetectorSetupCoordinatorError
 from zebtrack.core.exceptions import ValidationError
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
-from zebtrack.ui.event_bus_v2 import UIEvents
 
 pytestmark = pytest.mark.gui
 
@@ -136,36 +135,6 @@ def _dispatcher_with_gui(side_effect) -> tuple[Any, Any]:
     dispatcher: Any = EventDispatcher(gui.event_bus)
     dispatcher.gui = gui
     return dispatcher, gui
-
-
-def test_dispatcher_publishes_the_rejection() -> None:
-    """This runs inside an EventBusV2 subscriber — an escape reaches stderr only."""
-    dispatcher, gui = _dispatcher_with_gui(REJECTED)
-
-    dispatcher._on_apply_roi_settings({"confidence_threshold": 1.5})  # must not raise
-
-    published = gui.controller.ui_event_bus.publish.call_args.args[0]
-    assert published.type is UIEvents.UI_SHOW_ERROR
-    assert "conf_threshold" in published.data.message
-
-
-def test_dispatcher_publishes_a_generic_message_for_internal_failures() -> None:
-    dispatcher, gui = _dispatcher_with_gui(BROKEN)
-
-    dispatcher._on_apply_roi_settings({"confidence_threshold": 0.3})  # must not raise
-
-    published = gui.controller.ui_event_bus.publish.call_args.args[0]
-    assert published.type is UIEvents.UI_SHOW_ERROR
-    assert "plugin exploded" not in published.data.message
-
-
-def test_dispatcher_stays_quiet_when_the_update_succeeds() -> None:
-    dispatcher, gui = _dispatcher_with_gui(None)
-    gui.controller.hardware_vm.update_detector_parameters.return_value = True
-
-    dispatcher._on_apply_roi_settings({"confidence_threshold": 0.3})
-
-    gui.controller.ui_event_bus.publish.assert_not_called()
 
 
 # =============================================================================

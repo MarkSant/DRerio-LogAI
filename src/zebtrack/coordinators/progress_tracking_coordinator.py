@@ -11,6 +11,7 @@ Estimated size: ~480 lines (target <800).
 from __future__ import annotations
 
 import os
+import threading
 import time
 from collections.abc import Mapping
 from pathlib import Path
@@ -138,13 +139,6 @@ class ProgressTrackingCoordinator(BaseCoordinator):
                 elapsed=f"{ctx['elapsed']:.1f}s",
             )
         return ctx
-
-    def _set_dialog_suppression(self, suppress: bool) -> None:
-        """Enable/disable dialog suppression for batch processing."""
-        if suppress and not self._batch_context:
-            self._init_batch_context(total_videos=0)
-        elif not suppress and self._batch_context:
-            self._finalize_batch_context()
 
     # ========================================================================
     # Active processing count (card "Processando" ao vivo)
@@ -513,6 +507,8 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             error=error_msg,
             video=os.path.basename(video) if video else "unknown",
         )
+        # The run stops here: a batch it belonged to will not finish either.
+        self._finalize_batch_context()
 
         # Reset processing state (zera o card "Processando" ao vivo) num único
         # update para não expor snapshot incoerente (is_processing=False + count>0).
@@ -672,18 +668,32 @@ class ProgressTrackingCoordinator(BaseCoordinator):
         if self.cancel_event:
             self.cancel_event.set()
 
+        # A cancelled batch never reaches its last video, so nothing else would
+        # close its context: the next run (a single video, say) was then read as
+        # part of the old batch, with no completion message and a summary
+        # waiting for the stale total.
+        self._finalize_batch_context()
+
         # ``cancel``, not ``stop``: ProcessingWorker has never had a ``stop``,
         # so the ``hasattr`` guard silently skipped this every single time and
         # the intended join/terminate never happened. The run still stopped —
         # the monitor loop forwards ``cancel_event`` to the worker process — but
         # nobody waited for it, so the cancel returned while the process was
-        # still writing. The bounded timeout keeps the UI thread responsive if
-        # the worker is mid-inference.
+        # still writing. The wait is bounded, and it runs on a daemon thread:
+        # this method is the Cancel button's handler, so waiting here froze the
+        # window for up to the timeout before even showing "Cancelling..."
+        # (audit A6-11).
         vpc = self._video_processing_coordinator
         if vpc:
             worker = getattr(vpc, "processing_worker", None)
             if worker is not None and hasattr(worker, "cancel"):
-                worker.cancel(timeout=self.WORKER_CANCEL_TIMEOUT_S)
+                self._cancel_thread = threading.Thread(
+                    target=worker.cancel,
+                    kwargs={"timeout": self.WORKER_CANCEL_TIMEOUT_S},
+                    name="processing-cancel-wait",
+                    daemon=True,
+                )
+                self._cancel_thread.start()
 
         self.state_manager.update_processing_state(
             source="processing_coordinator.cancel_processing",

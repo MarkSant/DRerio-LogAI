@@ -25,7 +25,10 @@ from typing import TYPE_CHECKING, Any, Literal
 import structlog
 
 from zebtrack.core.recording.camera_connection_handler import CameraConnectionMixin
-from zebtrack.core.recording.frame_processing_pipeline import FrameProcessingMixin
+from zebtrack.core.recording.frame_processing_pipeline import (
+    AQUARIUM_DETECTION_FRAMES,
+    FrameProcessingMixin,
+)
 from zebtrack.core.recording.live_analysis_post_processor import LiveAnalysisPostProcessorMixin
 from zebtrack.core.recording.live_session_manager import LiveSessionManagerMixin
 
@@ -45,58 +48,6 @@ if TYPE_CHECKING:
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
 log = structlog.get_logger()
-
-
-class DetectorContextManager:
-    """Context manager to ensure detector context is always restored, even on exceptions.
-
-    Usage:
-        with DetectorContextManager(detector, "tracking") as manager:
-            # Do processing with new context
-            pass
-        # Context is automatically restored here
-    """
-
-    def __init__(self, detector_service: DetectorService | None, new_context: str):
-        """Initialize context manager.
-
-        Args:
-            detector_service: DetectorService instance (can be None)
-            new_context: New context to set temporarily
-        """
-        self.detector_service = detector_service
-        self.new_context = new_context
-        self.saved_context: str | None = None
-
-    def __enter__(self) -> DetectorContextManager:
-        """Save current context and set new context."""
-        if self.detector_service and self.detector_service.detector:
-            self.saved_context = getattr(self.detector_service.detector, "_context", "unknown")
-            log.debug(
-                "detector_context.saved",
-                saved=self.saved_context,
-                new=self.new_context,
-            )
-            self.detector_service.detector.set_context(self.new_context)
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        """Restore original context, even if exception occurred."""
-        if self.detector_service and self.detector_service.detector and self.saved_context:
-            try:
-                self.detector_service.detector.set_context(self.saved_context)
-                log.debug("detector_context.restored", context=self.saved_context)
-            except (AttributeError, ValueError) as e:
-                log.warning(
-                    "detector_context.restore_failed",
-                    saved_context=self.saved_context,
-                    error=str(e),
-                )
 
 
 class LiveCameraService(
@@ -260,7 +211,7 @@ class LiveCameraService(
         # Aquarium detection phase state
         self._aquarium_detection_phase: bool = False
         self._aquarium_detection_frames: int = 0
-        self._aquarium_detection_max_frames: int = 300  # Standard: 300 frames (10s)
+        self._aquarium_detection_max_frames: int = AQUARIUM_DETECTION_FRAMES
         self._detected_aquarium_bboxes: list[
             tuple[int, int, int, int]
         ] = []  # Collect multiple detections

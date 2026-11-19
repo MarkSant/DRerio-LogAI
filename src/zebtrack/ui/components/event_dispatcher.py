@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
-from zebtrack.core.exceptions import ValidationError, ZebTrackError
 from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
@@ -263,7 +262,7 @@ class EventDispatcher:
         if callable(unsubscribe):
             try:
                 unsubscribe(event_name, dispatcher)
-            except Exception as exc:  # pragma: no cover - defensive
+            except Exception as exc:
                 self.log.warning(
                     "event_dispatcher.unsubscribe_failed",
                     event_name=event_name,
@@ -291,13 +290,6 @@ class EventDispatcher:
             self._on_class_roles_changed,
         )
 
-        # Handlers that need access to GUI instance
-        # Example: self.gui.update_status(...)
-        event_bus.subscribe(
-            UIEvents.UI_SETUP_INTERACTIVE_POLYGON,
-            lambda data: self._handle_setup_interactive_polygon(_payload_get(data, "polygon")),
-        )
-
     def subscribe_to_ui_events(self) -> None:  # noqa: C901
         """Subscribe to UI-related events.
 
@@ -318,7 +310,6 @@ class EventDispatcher:
         def _navigate_welcome(d: payloads.EventPayload) -> None:
             gui.widget_factory.create_welcome_frame()
 
-        event_bus.subscribe(UIEvents.NAVIGATE_TO_WELCOME, _navigate_welcome)
         event_bus.subscribe(UIEvents.UI_NAVIGATE_TO_WELCOME, _navigate_welcome)
 
         def _navigate_project_view(d: payloads.EventPayload) -> None:
@@ -672,10 +663,14 @@ class EventDispatcher:
                 )
             ),
         )
+        # Published from StateManager observers, which run on its thread pool:
+        # every subscriber below that touches a widget is marshalled (A6-09).
         event_bus.subscribe(
             UIEvents.UI_UPDATE_OPENVINO_STATUS,
-            lambda d: gui.weight_hardware_manager.update_openvino_status_display(
-                str(_payload_get(d, "status")) if _payload_get(d, "status") else "Unknown"
+            lambda d: self._run_on_ui_thread(
+                lambda: gui.weight_hardware_manager.update_openvino_status_display(
+                    str(_payload_get(d, "status")) if _payload_get(d, "status") else "Unknown"
+                )
             ),
         )
         event_bus.subscribe(
@@ -717,7 +712,8 @@ class EventDispatcher:
         # View Navigation & Modes
         def _handle_navigate_to_analysis(d):
             log.info("event_dispatcher.navigate_to_analysis_view.received")
-            gui.analysis_view_controller.start_analysis_view_mode()
+            # Published by the StateManager observer pool (A6-09).
+            self._run_on_ui_thread(gui.analysis_view_controller.start_analysis_view_mode)
 
         log.info(
             "event_dispatcher.subscribing_navigation",
@@ -725,10 +721,6 @@ class EventDispatcher:
             event_bus_id=id(event_bus),
         )
         event_bus.subscribe(UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW, _handle_navigate_to_analysis)
-        event_bus.subscribe(
-            UIEvents.UI_NAVIGATE_FROM_ANALYSIS_VIEW,
-            lambda d: gui.analysis_view_controller.stop_analysis_view_mode(),
-        )
         event_bus.subscribe(
             UIEvents.UI_UPDATE_PROCESSING_MODE,
             self._handle_update_processing_mode,
@@ -756,14 +748,19 @@ class EventDispatcher:
         )
 
         # Zone Updates
+        # Both are published by the StateManager observer pool on every project
+        # open/close, so they are marshalled onto the Tk thread (A6-09).
         event_bus.subscribe(
             UIEvents.UI_REDRAW_ZONES,
-            lambda d: gui.canvas_manager.redraw_zones_from_project_data(
-                _payload_get(d, "zone_data")
+            lambda d: self._run_on_ui_thread(
+                lambda: gui.canvas_manager.redraw_zones_from_project_data(
+                    _payload_get(d, "zone_data")
+                )
             ),
         )
         event_bus.subscribe(
-            UIEvents.UI_UPDATE_ZONE_LIST, lambda d: gui.canvas_manager.update_zone_listbox()
+            UIEvents.UI_UPDATE_ZONE_LIST,
+            lambda d: self._run_on_ui_thread(gui.canvas_manager.update_zone_listbox),
         )
 
         # Weight Management Interactive Requests
@@ -927,19 +924,6 @@ class EventDispatcher:
                     exc_info=True,
                 )
 
-    def _handle_setup_interactive_polygon(self, polygon_data) -> None:
-        """Handle legacy interactive polygon requests from the event bus."""
-        if not self.gui:
-            return
-
-        gui = self._require_gui()
-        polygon = polygon_data if polygon_data is not None else []
-
-        import numpy as np
-
-        polygon_array = np.array(polygon, dtype=float)
-        gui.canvas_manager.setup_interactive_polygon(polygon_array)
-
     def _handle_setup_zone_definition_for_single_video(self, data: payloads.EventPayload) -> None:
         """Handler for single video zone setup event."""
         payload = _payload_to_dict(data)
@@ -992,10 +976,6 @@ class EventDispatcher:
         event_bus.subscribe(
             UIEvents.ZONE_DRAW_ROI, lambda d: gui.canvas_manager.start_roi_drawing()
         )
-        event_bus.subscribe(
-            UIEvents.ZONE_TOGGLE_VIEW,
-            lambda d: gui.analysis_view_controller.toggle_canvas_view(),
-        )
 
         # ROI Templates
         event_bus.subscribe(
@@ -1023,10 +1003,6 @@ class EventDispatcher:
         event_bus.subscribe(
             UIEvents.ZONE_VIDEO_SEARCH_CHANGED,
             lambda d: gui._filter_video_tree(),
-        )
-        event_bus.subscribe(
-            UIEvents.ZONE_VIDEO_REFRESH,
-            lambda d: gui.video_selector_manager._populate_video_selector_tree(filter_text=None),
         )
         event_bus.subscribe(
             UIEvents.ZONE_VIDEO_DOUBLE_CLICK,
@@ -1145,16 +1121,6 @@ class EventDispatcher:
             self._on_show_aquarium_assignment_dialog,
         )
 
-        # ROI Settings
-        event_bus.subscribe(
-            UIEvents.DETECTOR_UPDATE_PARAMETERS,
-            self._on_apply_roi_settings,
-        )
-        event_bus.subscribe(
-            UIEvents.ZONE_APPLY_ROI_SETTINGS,
-            self._on_persist_roi_settings,
-        )
-
         # Analysis window (ADR-011) saved by the zone tab's panel.
         event_bus.subscribe(
             UIEvents.ANALYSIS_WINDOW_SPEC_CHANGED,
@@ -1243,37 +1209,6 @@ class EventDispatcher:
             )
         )
 
-    def _on_apply_roi_settings(self, data: payloads.EventPayload) -> None:
-        """Handle DETECTOR_UPDATE_PARAMETERS event.
-
-        Applies ROI inclusion settings via the hardware ViewModel.
-
-        The call raises on a bad parameter value. This runs inside an EventBusV2
-        subscriber, so an escaping exception would surface as a Tk callback
-        traceback on stderr and nothing else — the researcher would see the
-        click do nothing. Both failures are routed to UI_SHOW_ERROR instead.
-        """
-        gui = self._require_gui()
-        if not gui:
-            return
-
-        params = _payload_to_dict(data)
-        if not params or not gui.controller:
-            return
-
-        try:
-            gui.controller.hardware_vm.update_detector_parameters(params)
-        except ValidationError as exc:
-            log.info("event_dispatcher.apply_roi_settings.rejected", error=str(exc))
-            self._publish_error(gui, _("Validation Error"), str(exc))
-        except ZebTrackError:
-            log.exception("event_dispatcher.apply_roi_settings.failed")
-            self._publish_error(
-                gui,
-                _("Error"),
-                _("Could not apply the detector parameters. See the log for details."),
-            )
-
     @staticmethod
     def _publish_error(gui: "ApplicationGUI", title: str, message: str) -> None:
         """Publish UI_SHOW_ERROR, falling back to the dialog manager."""
@@ -1289,134 +1224,6 @@ class EventDispatcher:
         dialog_manager = getattr(gui, "dialog_manager", None)
         if dialog_manager is not None:
             dialog_manager.show_error(title, message)
-
-    def _on_persist_roi_settings(self, data: payloads.EventPayload) -> None:
-        """Handle ZONE_APPLY_ROI_SETTINGS — persist the ROI rule.
-
-        O botão "Aplicar" da aba de Zonas mandava as três chaves para
-        ``update_detector_parameters``, que as descarta silenciosamente (não
-        constam de nenhuma lista de parâmetros válidos) e ainda loga sucesso.
-        Nada era persistido. O destino correto é ``project_data["roi_settings"]``
-        — exatamente onde ``resolve_roi_rule`` procura.
-
-        Sem projeto aberto (vídeo único), não há onde persistir: a regra é
-        aplicada no ``Settings`` da sessão para que a análise em curso a honre.
-
-        Os valores chegam crus da UI (texto). Nada de ``float()`` aqui nem lá:
-        ``resolve_roi_rule`` converte, valida, loga o que descartar e cai no
-        valor anterior — um campo digitado errado nunca derruba o clique.
-        """
-        gui = self._require_gui()
-        if not gui or not gui.controller:
-            return
-
-        from zebtrack.core.services.roi_rule_resolver import (
-            apply_roi_rule_to_settings,
-            resolve_roi_rule,
-        )
-
-        params = _payload_to_dict(data)
-        raw = {
-            "roi_inclusion_rule": params.get("rule"),
-            "roi_buffer_radius_value": params.get("buffer_radius"),
-            "roi_min_bbox_overlap_ratio": params.get("overlap_ratio"),
-        }
-        # Campo em branco = "não informado", não valor inválido: descartar aqui
-        # evita um roi_rule.resolve.invalid_value só de ruído.
-        roi_settings = {
-            key: value
-            for key, value in raw.items()
-            if value is not None and str(value).strip() != ""
-        }
-        if not roi_settings:
-            return
-
-        settings_obj = getattr(gui.controller, "settings", None) or getattr(gui, "settings", None)
-        project_manager = getattr(gui.controller, "project_manager", None)
-        # save_project() levanta ProjectInvalidError sem project_path — e o
-        # EventBusV2 engoliria a exceção neste handler.
-        project_data = getattr(project_manager, "project_data", None)
-
-        # A base de uma edição PARCIAL é a regra efetiva de hoje, não o global:
-        # o painel edita três campos mas o usuário costuma mexer em um. Resolver
-        # contra ``settings_obj`` faria um campo em branco sobrescrever o valor
-        # do projeto pelo global (projeto 0.42 + global 0.10, usuário troca só a
-        # regra → 0.10 gravado sem intenção). A config resolvida expõe os nomes
-        # de ``Settings``, então serve de camada de base direto.
-        current = resolve_roi_rule(project_data, settings_obj)
-        config = resolve_roi_rule({"roi_settings": roi_settings}, current)
-
-        if (
-            project_manager is not None
-            and getattr(project_manager, "project_path", None)
-            # ``project_data`` só é dict num projeto carregado com sucesso; se
-            # vier None/corrompido, gravar levantaria e o EventBusV2 engoliria.
-            # Sem onde persistir, o caminho de sessão abaixo ainda aplica a regra.
-            and isinstance(project_data, dict)
-        ):
-            stored = project_data.get("roi_settings")
-            if not isinstance(stored, dict):
-                # Um projeto com ``roi_settings`` corrompido (lista, string…)
-                # faria as atribuições abaixo levantarem TypeError — e o
-                # EventBusV2 engoliria. O resolvedor já ignora esse lixo; a
-                # gravação faz o mesmo e o substitui.
-                if stored is not None:
-                    self.log.warning(
-                        "zone_controls.roi_settings.replacing_invalid",
-                        found=type(stored).__name__,
-                    )
-                stored = {}
-                project_data["roi_settings"] = stored
-            stored.update(config.to_roi_settings())
-            project_manager.save_project()
-            self.log.info(
-                "zone_controls.roi_settings.persisted",
-                scope="project",
-                rule=config.rule,
-            )
-            gui.show_info(
-                _("ROI Rule Applied"),
-                _(
-                    "{description}\n\n"
-                    "Saved in the project: it applies to new analyses, to report "
-                    "regeneration and to the live Arduino trigger."
-                ).format(description=self._describe_roi_rule(config)),
-            )
-            return
-
-        apply_roi_rule_to_settings(settings_obj, config)
-        self.log.info(
-            "zone_controls.roi_settings.persisted",
-            scope="session",
-            rule=config.rule,
-        )
-        gui.show_info(
-            _("ROI Rule Applied"),
-            _(
-                "{description}\n\n"
-                "Applied to this session. With no project open it is not saved to disk."
-            ).format(description=self._describe_roi_rule(config)),
-        )
-
-    @staticmethod
-    def _describe_roi_rule(config: Any) -> str:
-        """Descreve os valores EFETIVOS, incluindo o parâmetro que a regra usa.
-
-        Mostrar o valor aplicado (e não o digitado) é o que torna visível um
-        campo inválido que caiu no valor anterior.
-        """
-        if config.uses_buffer:
-            detail = _("buffer radius {value:g} cm").format(value=config.buffer_radius_value)
-        elif config.uses_bbox and config.overlap_any:
-            detail = _("any non-zero area overlap")
-        elif config.uses_bbox:
-            detail = _("minimum overlap {value:g} (basis: {basis})").format(
-                value=config.min_bbox_overlap_ratio,
-                basis=config.bbox_overlap_basis,
-            )
-        else:
-            detail = _("no additional parameters")
-        return _("Rule '{rule}' ({detail}).").format(rule=config.rule, detail=detail)
 
     def _on_show_aquarium_assignment_dialog(self, data: payloads.EventPayload) -> None:
         """Handle ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG event.

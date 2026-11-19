@@ -11,7 +11,6 @@ Validates that ``OpenVINOPlugin.detect_batch()`` correctly:
 
 from __future__ import annotations
 
-import sys
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
@@ -40,9 +39,9 @@ def _make_plugin(
     manually sets the attributes that ``detect_batch`` / ``_run_async_batch``
     rely on.
     """
-    # Ensure openvino module mock is available
-    if "openvino" not in sys.modules:
-        sys.modules["openvino"] = MagicMock()
+    # openvino is a main dependency. A fake module installed here was never
+    # removed and every later test on that machine saw it (A7-08).
+    pytest.importorskip("openvino")
 
     from zebtrack.plugins.openvino_detector import OpenVINOPlugin
 

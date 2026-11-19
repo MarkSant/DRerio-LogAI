@@ -211,7 +211,7 @@ def test_arduino_manager_send_command_success(mock_controller, arduino_factory, 
     result = manager.send_command(42)
 
     assert result is True
-    assert manager.last_command() == 42
+    assert manager._last_command == 42
 
     mock_arduino.send_command.assert_called_once_with(42)
     mock_controller.log_arduino_event.assert_any_call("Command 42 sent to the Arduino.")
@@ -239,7 +239,7 @@ def test_arduino_manager_send_command_not_connected(mock_controller):
     result = manager.send_command(42)
 
     assert result is False
-    assert manager.last_command() is None
+    assert manager._last_command is None
 
     mock_controller.log_arduino_event.assert_called_with(
         "Could not send command: Arduino disconnected."
@@ -274,7 +274,7 @@ def test_send_command_ack_none_uses_async(mock_controller, arduino_factory, mock
     result = manager.send_command(42)
 
     assert result is True
-    assert manager.last_command() == 42
+    assert manager._last_command == 42
     mock_arduino.send_command_async.assert_called_once_with(42)
     mock_arduino.send_command.assert_not_called()
 
@@ -301,13 +301,13 @@ def test_arduino_manager_last_command(mock_controller, arduino_factory, mock_ard
     manager = ArduinoManager(mock_controller, arduino_factory=arduino_factory)
     manager.connect("COM3", 9600)
 
-    assert manager.last_command() is None
+    assert manager._last_command is None
 
     manager.send_command(10)
-    assert manager.last_command() == 10
+    assert manager._last_command == 10
 
     manager.send_command(20)
-    assert manager.last_command() == 20
+    assert manager._last_command == 20
 
     manager.disconnect()
 
@@ -653,3 +653,147 @@ def test_ack_lines_are_not_events(mock_controller):
     _run_reader_once(manager, [b"Red LED 1 ON\n"])
 
     assert seen == []
+
+
+# ---------------------------------------------------------------------------
+# A6-06: the handshake does not hold the state lock
+# ---------------------------------------------------------------------------
+
+
+def _blocking_arduino(release, entered):
+    """An Arduino whose ``connect`` blocks like a ``ready_line`` handshake."""
+    arduino = MagicMock()
+    arduino.ser = MagicMock()
+    arduino.ser.is_open = True
+    arduino.ser.readline = MagicMock(return_value=b"")
+
+    def slow_connect():
+        entered.set()
+        assert release.wait(5)
+        return True
+
+    arduino.connect = MagicMock(side_effect=slow_connect)
+    return arduino
+
+
+def test_is_connected_answers_while_a_handshake_is_in_progress(mock_controller):
+    """The dashboard asks ``is_connected()`` on the Tk thread (audit A6-06)."""
+    import threading
+
+    release, entered = threading.Event(), threading.Event()
+    arduino = _blocking_arduino(release, entered)
+    manager = ArduinoManager(mock_controller, arduino_factory=lambda _p, _b: arduino)
+
+    worker = threading.Thread(target=manager.connect, args=("COM3", 9600), daemon=True)
+    worker.start()
+    assert entered.wait(5)
+
+    answered: list = []
+    probe = threading.Thread(target=lambda: answered.append(manager.is_connected()), daemon=True)
+    probe.start()
+    probe.join(1.0)
+    try:
+        assert answered == [False], "is_connected() waited for the handshake"
+    finally:
+        release.set()
+        worker.join(5)
+
+    assert manager.is_connected() is True
+    assert manager.current_port() == "COM3"
+    manager.disconnect()
+
+
+def test_concurrent_connects_are_serialised(mock_controller):
+    """Two connects must not open the same port twice at the same time."""
+    import threading
+
+    release, entered = threading.Event(), threading.Event()
+    arduino = _blocking_arduino(release, entered)
+    built: list = []
+
+    def factory(port, _baud):
+        built.append(port)
+        return arduino
+
+    manager = ArduinoManager(mock_controller, arduino_factory=factory)
+    first = threading.Thread(target=manager.connect, args=("COM3", 9600), daemon=True)
+    first.start()
+    assert entered.wait(5)
+
+    second_result: list = []
+    second = threading.Thread(
+        target=lambda: second_result.append(manager.connect("COM3", 9600)), daemon=True
+    )
+    second.start()
+    second.join(0.3)
+    assert built == ["COM3"], "a second candidate was built while the first handshake ran"
+
+    release.set()
+    first.join(5)
+    second.join(5)
+    # The second call found the port already connected and reused it.
+    assert second_result == [True]
+    assert built == ["COM3"]
+    manager.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# F2 pragma review: hardware and controller failures never escape the manager
+# ---------------------------------------------------------------------------
+
+
+def test_connect_reports_false_when_the_port_object_cannot_be_built(mock_controller):
+    def failing_factory(port: str, baud_rate: int):
+        raise ValueError("baud rate not supported")
+
+    manager = ArduinoManager(mock_controller, arduino_factory=failing_factory)
+
+    assert manager.connect("COM9", 12345) is False
+    assert manager.arduino is None
+    assert manager.is_connected() is False
+    mock_controller.log_arduino_event.assert_called_once_with(
+        "Failed to initialize the Arduino on port COM9."
+    )
+
+
+def test_disconnect_completes_when_close_fails(mock_controller, arduino_factory, mock_arduino):
+    manager = ArduinoManager(mock_controller, arduino_factory=arduino_factory)
+    manager.connect("COM3", 9600)
+    mock_arduino.close.side_effect = OSError("handle already gone")
+
+    manager.disconnect()
+
+    assert manager.arduino is None
+    assert manager.current_port() is None
+    mock_controller.on_arduino_status_change.assert_called_with(False, None)
+
+
+def test_a_failing_controller_handler_does_not_stop_the_reader(mock_controller):
+    mock_controller.on_arduino_event.side_effect = RuntimeError("handler bug")
+    manager = ArduinoManager(mock_controller)
+
+    _run_reader_once(manager, [b"1\n", b"2\n"])
+
+    assert [c.args for c in mock_controller.on_arduino_event.call_args_list] == [(1,), (2,)]
+
+
+def test_failing_controller_callbacks_do_not_break_connect_send_or_disconnect(
+    arduino_factory, mock_arduino
+):
+    controller = MagicMock()
+    for name in (
+        "on_arduino_status_change",
+        "log_arduino_event",
+        "on_arduino_command_sent",
+    ):
+        getattr(controller, name).side_effect = RuntimeError(f"{name} bug")
+    manager = ArduinoManager(controller, arduino_factory=arduino_factory)
+
+    assert manager.connect("COM3", 9600) is True
+    manager.disconnect()
+    assert manager.send_command(5) is False
+
+    assert manager.arduino is None
+    controller.on_arduino_status_change.assert_called_with(False, None)
+    controller.log_arduino_event.assert_called_with("Could not send command: Arduino disconnected.")
+    controller.on_arduino_command_sent.assert_called_once_with(5, False, "auto")

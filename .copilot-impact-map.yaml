@@ -190,17 +190,17 @@ domains:
 
         # ── Legacy / generic widget events ──────────────────────────────
         ZONES_UPDATED:
-          publishers: ["ui/dialogs/dialog_manager.py", "ui/components/canvas/*", "ui/gui.py"]
+          publishers: ["ui/components/dialog_manager.py", "ui/components/canvas/*", "ui/gui.py"]
           subscribers: ["ui/components/event_dispatcher.py", "ui/components/canvas/*"]
 
         VIDEO_TREE_REFRESH_REQUESTED:
-          publishers: ["ui/dialogs/dialog_manager.py", "ui/components/zone_controls.py"]
+          publishers: ["ui/components/dialog_manager.py", "ui/components/zone_controls.py"]
           subscribers: ["ui/components/project_views/*"]
 
         WIZARD_CREATE_PROJECT:
           publishers: ["ui/wizard/*"]
           subscribers: ["coordinators/project_lifecycle_coordinator.py"]
-          payload: "WizardData (Pydantic model in ui/wizard/models.py)"
+          payload: "dict assembled from the step models in ui/wizard/models.py"
 
   # ---------------------------------------------------------------------------
   # MULTI-AQUARIUM DOMAIN (CRITICAL)
@@ -244,7 +244,7 @@ domains:
     key_files:
       - "src/zebtrack/core/project/zone_manager.py"
       - "src/zebtrack/core/project/project_manager.py"
-      - "src/zebtrack/plugins/detector.py"
+      - "src/zebtrack/core/detection/multi_aquarium_detector.py"
       - "src/zebtrack/io/recorder.py"
       - "src/zebtrack/analysis/analysis_service.py"
       - "src/zebtrack/coordinators/video_processing_coordinator.py"
@@ -490,7 +490,6 @@ domains:
       - "tests/analysis/reporters/test_excel_reporter_sheets.py"
       - "tests/coordinators/test_roi_rule_propagation.py"
       - "tests/core/test_arduino_roi_evaluator.py"
-      - "tests/ui/components/test_roi_settings_persistence.py"
       - "tests/analysis/test_roi_analyzer.py"
       - "tests/analysis/test_roi_flutter.py"
       - "tests/analysis/test_roi_time_attribution.py"
@@ -679,8 +678,8 @@ serialization:
 tests:
   gui:
     command: "pytest -m gui -n0"
-    count: "~949 tests"
-    covers: ["ui/", "widgets/", "dialogs/"]
+    count: "~1374 tests"
+    covers: ["ui/", "ui/components/", "ui/dialogs/", "ui/wizard/"]
 
   processing:
     command: "pytest tests/test_processing*.py tests/test_recorder.py"
@@ -700,7 +699,7 @@ tests:
 
   full:
     command: "pytest -m '' -n0"
-    count: "~2778 tests"
+    count: "~10033 tests"
     time: "6-7 minutes"
     coverage_requirement: "45% (Linux CI), 28% (Windows CI)"
 

@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Campanha de cobertura e pontas soltas (TASK-087, PR #717): cobertura de 58 % para 70 % na
+suíte core, um teste ponta a ponta por fluxo, e os defeitos que esses testes encontraram.
+
+### Fixed
+
+- **Remover um vídeo com "apagar arquivos" apagava a pasta inteira** dele: num projeto
+  pré-gravado, os vídeos vizinhos (ou o projeto todo, se o vídeo estava na raiz) iam junto.
+  Agora saem só os arquivos daquele vídeo, e a pasta só se ficar vazia.
+- **Zonas desenhadas num vídeo de resolução diferente da câmera** eram reescaladas pela
+  resolução da câmera: a arena encolhia e as detecções fora dela sumiam sem aviso. A zona
+  agora vale nos pixels do vídeo em que foi desenhada (A8-001/A8-002).
+- O regex de grupo/dia/sujeito do assistente nunca preenchia os metadados (vídeos caíam em
+  `Grupo_Sem_Grupo`), mostrava `None` com alternância de grupos e diferenciava maiúsculas só
+  em parte dos lugares: agora há uma regra única.
+- Ao vivo: o diálogo de conclusão contava trilhas, não animais; a detecção do aquário
+  anunciava 300 quadros e parava em 10; o diálogo de câmera desconectada não fechava quando a
+  câmera voltava; uma gravação temporizada pelo caminho legado nunca parava sozinha.
+- Parar uma sessão ao vivo, a calibração ao vivo, a busca de câmeras e de portas do Arduino e
+  outras esperas não travam mais a janela (rodam em segundo plano, com janela de espera).
+- Um lote cancelado (ou com erro fatal) deixava o contexto aberto e a execução seguinte era
+  tratada como parte dele.
+- O relatório unificado lia as ROIs só do aquário 0; zonas lidas do disco apagavam a arena em
+  memória; Auto-detectar com dois aquários não dizia nada ao falhar; os botões de benchmark e
+  de conversão OpenVINO não davam retorno; uma máquina de 16 GB era classificada um nível
+  abaixo; OpenVINO esticava as máscaras com o letterbox e trocava altura e largura.
+
+### Removed
+
+- Código morto: cerca de 10 mil linhas de `src` (classes, módulos, 154 funções sem chamador,
+  76 eventos sem publicador ou sem ouvinte, registros de DI não usados) e os testes que só os
+  exercitavam. A janela de prévia de dois aquários, que nunca chegava a ser construída, saiu;
+  a sessão ao vivo com dois aquários continua mostrando o quadro inteiro numa janela.
+
 ## [8.0.0] - 2026-11-14
 
 A 8.0.0 tira duas suposições herdadas do zebrafish: que todo peso tem exatamente

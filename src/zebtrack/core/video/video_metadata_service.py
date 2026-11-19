@@ -1,5 +1,7 @@
 """Service for retrieving video metadata."""
 
+from pathlib import Path
+
 import cv2
 import structlog
 
@@ -10,7 +12,7 @@ class VideoMetadataService:
     """Service responsible for extracting metadata from video files."""
 
     @staticmethod
-    def get_video_dimensions(video_path: str) -> tuple[int, int] | None:
+    def get_video_dimensions(video_path: Path | str) -> tuple[int, int] | None:
         """Get the dimensions of a video.
 
         Args:
@@ -23,21 +25,25 @@ class VideoMetadataService:
             ValueError: If the video cannot be opened.
         """
         try:
-            cap = cv2.VideoCapture(video_path)
+            cap = cv2.VideoCapture(str(video_path))
+            # ``finally``: an error between open and release left the handle open,
+            # and on Windows that keeps the video locked for a move or delete
+            # (A5-S-011).
+            try:
+                if not cap.isOpened():
+                    raise ValueError(f"Could not open video: {video_path}")
 
-            if not cap.isOpened():
-                raise ValueError(f"Could not open video: {video_path}")
-
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            cap.release()
+                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            finally:
+                cap.release()
 
             if width <= 0 or height <= 0:
                 raise ValueError(f"Invalid dimensions: {width}x{height}")
 
             log.debug(
                 "video_metadata.dimensions_retrieved",
-                video_path=video_path,
+                video_path=str(video_path),
                 width=width,
                 height=height,
             )
@@ -48,42 +54,7 @@ class VideoMetadataService:
         except Exception as e:
             log.error(
                 "video_metadata.dimensions_error",
-                video_path=video_path,
-                error=str(e),
-            )
-            raise
-
-    @staticmethod
-    def get_video_info(video_path: str) -> dict:
-        """Get comprehensive information about a video.
-
-        Args:
-            video_path: Path to the video file.
-
-        Returns:
-            Dict with width, height, fps, frame_count.
-        """
-        try:
-            cap = cv2.VideoCapture(video_path)
-
-            if not cap.isOpened():
-                raise ValueError(f"Could not open video: {video_path}")
-
-            info = {
-                "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-                "fps": cap.get(cv2.CAP_PROP_FPS),
-                "frame_count": int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
-            }
-
-            cap.release()
-            return info
-
-        # except Exception justified: cv2 VideoCapture - re-raises
-        except Exception as e:
-            log.error(
-                "video_metadata.info_error",
-                video_path=video_path,
+                video_path=str(video_path),
                 error=str(e),
             )
             raise

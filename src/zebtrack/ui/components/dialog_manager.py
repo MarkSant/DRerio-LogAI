@@ -44,7 +44,6 @@ class DialogManager:
         self.gui = gui
         self.event_bus_v2 = event_bus_v2
         self._zone_context_service = zone_context_service
-        self._suppress_batch_dialogs: bool = False
         # Videos whose foreign zone parquets the operator refused this session.
         # Kept apart from ``gui._zone_prompt_history`` on purpose: that set also
         # gates the "reuse zones from another video" prompt, and reusing it here
@@ -59,106 +58,35 @@ class DialogManager:
         return getattr(self.gui, "_zone_context_service", None)
 
     # =========================================================================
-    # Batch Dialog Suppression
-    # =========================================================================
-
-    def set_dialog_suppression(self, suppress: bool) -> None:
-        """Enable or disable batch dialog suppression.
-
-        When suppressed, show_info/show_warning/show_error will log the
-        message and update the status bar instead of opening a modal
-        messagebox.  This prevents blocking dialogs during batch
-        video processing.
-
-        Args:
-            suppress: True to suppress dialogs, False to restore normal behavior.
-        """
-        self._suppress_batch_dialogs = suppress
-        log.info(
-            "dialog_manager.suppression_changed",
-            suppress=suppress,
-        )
-
-    # =========================================================================
     # MessageBox Wrappers
     # =========================================================================
 
     def show_error(self, title: str, message: str) -> None:
         """Show an error message box.
 
-        When batch dialog suppression is active, logs the error and
-        updates the status bar instead of opening a modal dialog.
-
         Args:
             title: Dialog title
             message: Error message to display
         """
-        if self._suppress_batch_dialogs:
-            log.warning(
-                "dialog_manager.show_error.suppressed",
-                title=title,
-                message=message,
-            )
-            self._update_status_bar(
-                _("[Error] {title}: {message}").format(title=title, message=message)
-            )
-            return
         messagebox.showerror(title, message)
 
     def show_warning(self, title: str, message: str) -> None:
         """Show a warning message box.
 
-        When batch dialog suppression is active, logs the warning and
-        updates the status bar instead of opening a modal dialog.
-
         Args:
             title: Dialog title
             message: Warning message to display
         """
-        if self._suppress_batch_dialogs:
-            log.warning(
-                "dialog_manager.show_warning.suppressed",
-                title=title,
-                message=message,
-            )
-            self._update_status_bar(
-                _("[Warning] {title}: {message}").format(title=title, message=message)
-            )
-            return
         messagebox.showwarning(title, message)
 
     def show_info(self, title: str, message: str) -> None:
         """Show an info message box.
 
-        When batch dialog suppression is active, logs the info and
-        updates the status bar instead of opening a modal dialog.
-
         Args:
             title: Dialog title
             message: Info message to display
         """
-        if self._suppress_batch_dialogs:
-            log.info(
-                "dialog_manager.show_info.suppressed",
-                title=title,
-                message=message,
-            )
-            self._update_status_bar(f"{title}: {message}")
-            return
         messagebox.showinfo(title, message)
-
-    def _update_status_bar(self, text: str) -> None:
-        """Update the GUI status bar with a message (truncated to 200 chars).
-
-        Used as a non-blocking alternative to modal dialogs during batch
-        processing.
-        """
-        truncated = text[:200] if len(text) > 200 else text
-        try:
-            if self.gui and hasattr(self.gui, "status_var"):
-                self.gui.status_var.set(truncated)
-        except Exception:
-            log.debug("dialog_manager._update_status_bar.failed", text=truncated)
 
     def ask_ok_cancel(self, title: str, message: str) -> bool:
         """Show a confirmation dialog with OK/Cancel buttons.
@@ -433,79 +361,9 @@ class DialogManager:
         # Custom Dialogs - Calibration
         # =========================================================================
 
-    def open_global_calibration_window(self) -> None:
-        """Open the global calibration dialog."""
-        from zebtrack.ui.dialogs.calibration_dialog import CalibrationDialog
-
-        with self.gui.controller.global_calibration_session():
-            CalibrationDialog(self.gui.root, self.gui.controller)
-
-    def open_project_calibration_window(self) -> None:
-        """Open the project-specific model configuration workflow.
-
-        Shows warning if no project is loaded.
-        """
-        if not getattr(self.gui.controller.project_manager, "project_path", None):
-            self.show_warning(
-                _("No Project"),
-                _("Open a project before adjusting the specific calibration."),
-            )
-            return
-
-        if self.gui.show_project_model_configuration_tab():
-            return
-
-        from zebtrack.ui.dialogs.calibration_dialog import CalibrationDialog
-
-        with self.gui.controller.project_calibration_session():
-            CalibrationDialog(self.gui.root, self.gui.controller)
-        self.gui.weight_hardware_manager.update_openvino_checkbox(
-            self.gui.controller.hardware_vm.use_openvino
-        )
-        self.gui.weight_hardware_manager.set_active_weight_in_dropdown(
-            self.gui.controller.hardware_vm.active_weight_name
-        )
-        self.gui.weight_hardware_manager.update_openvino_status_display(
-            self.gui.controller.hardware_vm.get_openvino_status()
-        )
-
     # =========================================================================
     # Custom Dialogs - ROI Templates
     # =========================================================================
-
-    def show_template_save_dialog(
-        self,
-        *,
-        has_arena: bool,
-        has_rois: bool,
-        allow_project: bool,
-        initial_name: str,
-    ) -> dict[str, Any] | None:
-        """Show dialog to save ROI template.
-
-        Args:
-            has_arena: Whether current context has arena
-            has_rois: Whether current context has ROIs
-            allow_project: Whether to allow project-level save
-            initial_name: Initial name suggestion
-
-        Returns:
-            Dialog result dict with user choices, or None if cancelled
-        """
-        from zebtrack.ui.dialogs.save_roi_template_dialog import SaveROITemplateDialog
-
-        dialog = SaveROITemplateDialog(
-            self.gui.root,
-            default_name=initial_name,
-            has_arena=has_arena,
-            has_rois=has_rois,
-            allow_project=allow_project,
-        )
-
-        if not dialog.result:
-            return None
-
-        return dialog.result
 
     def import_roi_template(self) -> None:
         """Import a template file into the library (does not apply it)."""
@@ -522,7 +380,7 @@ class DialogManager:
 
         try:
             metadata = pm.import_roi_template(file_path)
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             log.error("gui.roi_templates.import_failed", error=str(exc), file=file_path)
             self.show_error(_("Import error"), str(exc))
             return
@@ -556,7 +414,7 @@ class DialogManager:
             if pending_video:
                 try:
                     pm.set_active_zone_video(pending_video)
-                except Exception as exc:  # pragma: no cover - defensive
+                except Exception as exc:
                     log.warning(
                         "gui.roi_templates.activate_pending_failed",
                         error=str(exc),
@@ -608,7 +466,7 @@ class DialogManager:
                 roi_count=len(template_zone.roi_polygons or []),
             )
 
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             log.error(
                 "gui.roi_templates.import_and_apply_failed",
                 error=str(exc),
@@ -650,7 +508,7 @@ class DialogManager:
                 "gui.roi_templates.import_and_apply.library_updated",
                 template_name=template_name,
             )
-        except Exception as exc:  # pragma: no cover - if import fails, we still applied
+        except Exception as exc:
             log.warning(
                 "gui.roi_templates.import_and_apply.library_import_failed",
                 error=str(exc),
@@ -667,43 +525,6 @@ class DialogManager:
     # =========================================================================
     # Custom Dialogs - Analysis
     # =========================================================================
-
-    def open_center_periphery_dialog(self) -> dict[str, Any] | None:
-        """Open the center-periphery analysis dialog.
-
-        Returns:
-            Dialog result with method and value, or None if cancelled
-        """
-        from zebtrack.ui.dialogs.center_periphery_dialog import CenterPeripheryDialog
-
-        dialog = CenterPeripheryDialog(self.gui.root)
-        return dialog.result if dialog.result else None
-
-    def open_template_rois_dialog(self) -> dict[str, Any] | None:
-        """Open the dialog to create ROIs from a template.
-
-        Returns:
-            Dialog result with template type and parameters, or None if cancelled
-        """
-        from zebtrack.ui.dialogs.template_dialog import TemplateDialog
-
-        dialog = TemplateDialog(self.gui.root)
-        return dialog.result if dialog.result else None
-
-    def open_single_video_config_dialog(self) -> dict[str, Any] | None:
-        """Open the single video configuration dialog.
-
-        Returns:
-            Dialog result with video config, or None if cancelled
-        """
-        from zebtrack.ui.dialogs.single_video_config_dialog import SingleVideoConfigDialog
-
-        dialog = SingleVideoConfigDialog(
-            self.gui.root,
-            settings_obj=self.gui.controller.settings,
-            event_bus=self.gui.event_bus,
-        )
-        return dialog.result if dialog.result else None
 
     def show_aquarium_assignment_dialog(
         self,
@@ -1171,34 +992,6 @@ class DialogManager:
     # Confirmation Dialogs
     # =========================================================================
 
-    def confirm_delete_roi_template(
-        self, template_name: str, template_file: str, template_location: str
-    ) -> bool:
-        """Confirm deletion of an ROI template.
-
-        Args:
-            template_name: Name of the template
-            template_file: File path of the template
-            template_location: Location description (global/project)
-
-        Returns:
-            True if user confirmed deletion, False otherwise
-        """
-        return self.ask_yes_no(
-            _("Confirm Template Deletion"),
-            _(
-                "Are you sure you want to delete template '{name}'?\n\n"
-                "Location: {location}\n"
-                "File: {file}\n\n"
-                "This action cannot be undone."
-            ).format(
-                name=template_name,
-                location=template_location,
-                file=template_file,
-            ),
-            icon="warning",
-        )
-
     def confirm_remove_roi(self, roi_name: str) -> bool:
         """Confirm removal of an ROI.
 
@@ -1437,24 +1230,6 @@ class DialogManager:
             self.gui.analysis_display_widget.progress_bar["value"] = 0
         if self.gui.analysis_display_widget and self.gui.analysis_display_widget.cancel_btn:
             self.gui.analysis_display_widget.cancel_btn.config(state="normal")
-
-    def open_path_in_explorer(self, target_path: Path | str) -> None:
-        """Open the given directory in the user's file explorer.
-
-        Args:
-            target_path: Path to open in file explorer
-        """
-        try:
-            from zebtrack.utils.os_opener import open_path
-
-            open_path(target_path)
-        except Exception as exc:  # pragma: no cover - GUI feedback
-            self.show_error(
-                _("Error opening folder"),
-                _("Could not open the results directory.\nPath: {path}\n\nDetails: {error}").format(
-                    path=target_path, error=exc
-                ),
-            )
 
     def _publish_zone_refresh(self, status_message: str, *, source: str) -> None:
         """Publish the trio of events the UI needs after zone data changed.

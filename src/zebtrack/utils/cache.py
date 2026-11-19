@@ -21,6 +21,7 @@ from typing import Any, TypeVar
 CacheInfo = namedtuple("CacheInfo", ["hits", "misses", "maxsize", "currsize"])
 
 _SENTINEL = object()
+_KWARGS_MARK = object()
 F = TypeVar("F", bound=Callable[..., Any])
 
 
@@ -91,6 +92,10 @@ class TTLCache:
         """Store *value* under *key* with the current timestamp."""
         now = time.time()
         with self._lock:
+            # Re-insert rather than overwrite: a dict keeps an overwritten key in
+            # its FIRST slot, and eviction breaks timestamp ties by slot. Under a
+            # coarse clock the key just rewritten was then evicted as "oldest".
+            self._store.pop(key, None)
             self._store[key] = (value, now)
             self._evict_if_needed(now)
 
@@ -193,7 +198,9 @@ def ttl_cache(
 
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            key = args + tuple(sorted(kwargs.items()))
+            # The marker separates the keyword pairs from the positionals, or
+            # ``f(("a", 1))`` and ``f(a=1)`` would share the key ``(("a", 1),)``.
+            key = (*args, _KWARGS_MARK, *sorted(kwargs.items())) if kwargs else args
             result = _cache.get(key, _SENTINEL)
             if result is not _SENTINEL:
                 return result

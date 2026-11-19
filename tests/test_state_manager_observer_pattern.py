@@ -2,115 +2,16 @@
 Tests for StateManager Observer Pattern enhancements.
 
 Phase 3, Step 2.2: Test coverage for explicit Observer pattern,
-BaseStateObserver, ObserverAdapter, and formal registration methods.
+formal registration methods.
 """
 
 from unittest.mock import MagicMock
 
 from tests.utils.wait_helpers import wait_for_condition
 from zebtrack.core.state_manager import (
-    BaseStateObserver,
-    ObserverAdapter,
     StateCategory,
     StateManager,
 )
-
-
-class TestObserverProtocol:
-    """Test formal Observer protocol and base class."""
-
-    def test_base_observer_subclass(self):
-        """BaseStateObserver subclass receives notifications."""
-        state_mgr = StateManager()
-        notifications = []
-
-        class TestObserver(BaseStateObserver):
-            def on_state_changed(self, category, key, old_value, new_value):
-                notifications.append((category, key, old_value, new_value))
-
-        observer = TestObserver()
-        # BaseStateObserver instances need to be wrapped for StateManager
-        state_mgr.subscribe(StateCategory.RECORDING, observer.on_state_changed)
-
-        # Trigger state change
-        state_mgr.update_recording_state(source="test", is_recording=True)
-
-        assert len(notifications) == 1
-        assert notifications[0][0] == StateCategory.RECORDING
-        assert notifications[0][1] == "is_recording"
-        assert notifications[0][2] is False
-        assert notifications[0][3] is True
-
-    def test_observer_adapter_category_filter(self):
-        """ObserverAdapter filters by category."""
-        state_mgr = StateManager()
-        callback = MagicMock()
-
-        # Create adapter that only observes RECORDING category
-        adapter = ObserverAdapter(
-            callback=callback,
-            categories={StateCategory.RECORDING},
-        )
-
-        state_mgr.subscribe(StateCategory.RECORDING, adapter)
-        state_mgr.subscribe(StateCategory.DETECTOR, adapter)
-
-        # Trigger changes in both categories
-        state_mgr.update_recording_state(source="test", is_recording=True)
-        state_mgr.update_detector_state(source="test", detector_initialized=True)
-
-        # Only RECORDING change should be notified
-        assert callback.call_count == 1
-        call_args = callback.call_args[0]
-        assert call_args[0] == StateCategory.RECORDING
-
-    def test_observer_adapter_key_filter(self):
-        """ObserverAdapter filters by specific keys."""
-        state_mgr = StateManager()
-        callback = MagicMock()
-
-        # Create adapter that only observes specific keys
-        adapter = ObserverAdapter(
-            callback=callback,
-            keys={"is_recording", "output_path"},
-        )
-
-        state_mgr.subscribe(StateCategory.RECORDING, adapter)
-
-        # Trigger changes to different keys
-        state_mgr.update_recording_state(source="test", is_recording=True)
-        state_mgr.update_recording_state(source="test", arduino_connected=True)
-
-        # Only is_recording should be notified
-        assert callback.call_count == 1
-        call_args = callback.call_args[0]
-        assert call_args[1] == "is_recording"
-
-    def test_observer_adapter_combined_filter(self):
-        """ObserverAdapter filters by both category and keys."""
-        state_mgr = StateManager()
-        callback = MagicMock()
-
-        # Create adapter with both filters
-        adapter = ObserverAdapter(
-            callback=callback,
-            categories={StateCategory.RECORDING},
-            keys={"is_recording"},
-        )
-
-        state_mgr.subscribe(StateCategory.RECORDING, adapter)
-        state_mgr.subscribe(StateCategory.DETECTOR, adapter)
-
-        # Trigger various changes
-        state_mgr.update_recording_state(source="test", is_recording=True)
-        state_mgr.update_recording_state(source="test", arduino_connected=True)
-        state_mgr.update_detector_state(source="test", detector_initialized=True)
-
-        # Only RECORDING.is_recording should be notified
-        assert callback.call_count == 1
-        call_args = callback.call_args[0]
-        assert call_args[0] == StateCategory.RECORDING
-        assert call_args[1] == "is_recording"
 
 
 class TestExplicitRegistration:
@@ -400,3 +301,27 @@ class TestThreadSafety:
 
         # Observer should be called twice per update (current_frame + total_frames)
         assert observer.call_count == 10
+
+
+class TestObserversAfterShutdown:
+    """After ``shutdown()`` the pool refuses work; observers run inline (F2 pragma review)."""
+
+    def test_observers_run_inline_and_a_failing_one_does_not_block_the_rest(self):
+        state_mgr = StateManager()
+        state_mgr.shutdown()
+        calls: list[tuple[str, object, object]] = []
+
+        def failing_observer(category, key, old_value, new_value):
+            raise RuntimeError("observer broke during shutdown")
+
+        def working_observer(category, key, old_value, new_value):
+            calls.append((key, old_value, new_value))
+
+        state_mgr.subscribe(StateCategory.RECORDING, failing_observer)
+        state_mgr.subscribe(StateCategory.RECORDING, working_observer)
+
+        state_mgr.update_recording_state(source="test", is_recording=True)
+
+        # Inline means synchronous: no waiting, the call already happened.
+        assert calls == [("is_recording", False, True)]
+        assert state_mgr.get_recording_state().is_recording is True

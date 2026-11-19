@@ -47,13 +47,6 @@ def test_set_draw_roi_enabled(widget):
 
 
 @pytest.mark.gui
-def test_update_template_list(widget):
-    widget.update_template_list(["A", "B"])
-
-    assert widget.roi_template_combobox["values"] == ("A", "B")
-
-
-@pytest.mark.gui
 def test_add_and_clear_zone_list(widget):
     widget.add_zone_to_list("zone-1", "Arena", "Polígono", "Azul")
     widget.add_zone_to_list("zone-2", "ROI 1", "ROI", "Vermelho")
@@ -187,7 +180,6 @@ def test_reconfigure_subjects_updates_metadata_and_refreshes(widget, event_bus):
         {"group": "Tratamento", "day": 2, "subject": "S02"},
     )
     event_types = [call.args[0] for call in event_bus.publish.call_args_list]
-    assert UIEvents.VIDEO_METADATA_UPDATED in event_types
     assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
 
 

@@ -242,10 +242,7 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
         )
 
         # Invoke callback in background thread to avoid blocking UI
-        threading.Thread(
-            target=lambda: self.on_action_callback("wait"),
-            daemon=True,
-        ).start()
+        self._invoke_callback_in_thread("wait")
 
         # Keep dialog open to show status
         # Callback should close it when camera reconnects or timeout expires
@@ -263,8 +260,8 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
             experiment_id=self.experiment_id,
         )
 
-        self.on_action_callback("resume")
-        self.destroy()
+        if self._invoke_callback("resume"):
+            self.destroy()
 
     def _on_stop(self) -> None:
         """Handle stop session action."""
@@ -279,8 +276,68 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
             experiment_id=self.experiment_id,
         )
 
-        self.on_action_callback("stop")
-        self.destroy()
+        if self._invoke_callback("stop"):
+            self.destroy()
+
+    def _invoke_callback(self, action: RecoveryAction) -> bool:
+        """Run the callback on the UI thread; on failure give the dialog back.
+
+        Returns:
+            True if the callback ran, False if it raised (the dialog is then
+            restored so the user can pick another action).
+        """
+        try:
+            self.on_action_callback(action)
+        # except Exception justified: the callback is supplied by the caller
+        # (it publishes an event); whatever it raises, the dialog must not stay
+        # latched with every button a silent no-op (A5-S-009).
+        except Exception:
+            logger.exception(
+                "camera_disconnect_dialog.callback.failed",
+                action=action,
+                experiment_id=self.experiment_id,
+            )
+            self._restore_after_callback_failure()
+            return False
+        return True
+
+    def _invoke_callback_in_thread(self, action: RecoveryAction) -> None:
+        """Run the callback in a daemon thread; a failure is logged and repaired."""
+
+        def _target() -> None:
+            try:
+                self.on_action_callback(action)
+            # except Exception justified: worker-thread boundary; nothing reads
+            # this thread's result, so an escaping exception would only reach
+            # stderr and leave the dialog latched (A5-S-009).
+            except Exception:
+                logger.exception(
+                    "camera_disconnect_dialog.callback.failed",
+                    action=action,
+                    experiment_id=self.experiment_id,
+                )
+                self._schedule_restore()
+
+        threading.Thread(target=_target, daemon=True).start()
+
+    def _schedule_restore(self) -> None:
+        """Marshal the repair onto the Tk thread (never touch widgets from here)."""
+        try:
+            self.after(0, self._restore_after_callback_failure)
+        except (tk.TclError, RuntimeError):
+            # The dialog (or the Tk main loop) is already gone: nothing to repair.
+            logger.debug("camera_disconnect_dialog.restore.not_scheduled", exc_info=True)
+
+    def _restore_after_callback_failure(self) -> None:
+        """Unlatch the dialog so Resume, Stop and a retry of Wait work again."""
+        if not self.winfo_exists():
+            return
+        self.action_taken = False
+        self.countdown_label.config(
+            text=_("The reconnection request failed. Choose how to continue."),
+            foreground="red",
+        )
+        self.wait_btn.config(state=tk.NORMAL)
 
     def close_dialog(self) -> None:
         """Programmatically close dialog (called by controller)."""

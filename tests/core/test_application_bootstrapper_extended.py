@@ -72,7 +72,6 @@ class TestBootstrapDTOsExtended:
             cancel_event=threading.Event(),
         )
         res = BootstrapResult(
-            project_service=MagicMock(),
             analysis_service=MagicMock(),
             video_classification_service=MagicMock(),
             video_selection_service=MagicMock(),
@@ -110,7 +109,8 @@ class TestApplicationBootstrapperExtended:
         bootstrapper = ApplicationBootstrapper(dependencies=mock_deps)
         bootstrapper._init_services()
 
-        assert "project_service" in bootstrapper._services
+        # The VM never read a ProjectService; ProjectManager owns the only one (A3-01/03).
+        assert "project_service" not in bootstrapper._services
         assert "analysis_service" in bootstrapper._services
         assert "video_classification_service" in bootstrapper._services
         assert "video_selection_service" in bootstrapper._services

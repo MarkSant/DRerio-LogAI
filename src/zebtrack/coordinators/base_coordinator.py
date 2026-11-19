@@ -32,7 +32,7 @@ from zebtrack.core.exceptions import ZebTrackError
 
 if TYPE_CHECKING:
     from zebtrack.core.state_manager import StateCategory, StateManager
-    from zebtrack.ui.event_bus_v2 import EventBusV2
+    from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -74,8 +74,8 @@ class BaseCoordinator:
                 def create_project(self, name: str) -> Path:
                     self.logger.info("project.create.start", name=name)
                     self._publish_event(
-                        UIEvents.PROJECT_CREATED,
-                        payloads.ProjectCreatedPayload(project=name, path=project_path),
+                        UIEvents.UI_REFRESH_PROJECT_VIEWS,
+                        payloads.ProjectViewsRefreshRequestedPayload(reason="created"),
                     )
                     return project_path
     """
@@ -199,46 +199,20 @@ class BaseCoordinator:
                     else:
                         update_state_fn(cat_enum, **kwargs)
 
-    def _get_state(self, category: str | StateCategory, key: str, default: Any = None) -> Any:
-        """Get a value from state manager.
-
-        Args:
-            category: State category (e.g., ``"project"``, ``"processing"``).
-            key: State key.
-            default: Default value if key not found.
-
-        Returns:
-            State value or *default*.
-
-        Example:
-            .. code-block:: python
-
-                project_name = self._get_state("project", "project_name")
-        """
-        from zebtrack.core.state_manager import StateCategory
-
-        cat_enum: StateCategory
-        if isinstance(category, str):
-            cat_enum = StateCategory[category.upper()]
-        else:
-            cat_enum = category
-
-        state = self.state_manager.get_state(cat_enum)
-        return state.get(key, default)
-
     # ------------------------------------------------------------------
     # Event helpers
     # ------------------------------------------------------------------
 
     def _publish_event(
         self,
-        event_type: Any,
+        event_type: UIEvents,
         data: Any | None = None,
     ) -> None:
         """Publish an event via EventBusV2.
 
         Args:
-            event_type: UIEvents enum member.
+            event_type: UIEvents enum member. A string is a type error: the bus
+                keys subscribers by member, so a string name reaches nobody.
             data: Optional event payload.
 
         Note:

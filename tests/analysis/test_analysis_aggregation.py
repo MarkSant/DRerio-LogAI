@@ -142,3 +142,27 @@ def test_aggregate_session_summaries_invalid_file(service, tmp_path):
     unified_df = pd.read_excel(output_path, sheet_name="All Sessions")
     assert len(unified_df) == 1
     assert unified_df.iloc[0]["session_file"] == "valid"
+
+
+def test_aggregate_session_summaries_returns_the_files_it_could_not_read(service, tmp_path):
+    """The caller needs to know which sessions the means leave out (audit A5-S-004)."""
+    valid = tmp_path / "valid.xlsx"
+    pd.DataFrame({"total_distance_cm": [100.0]}).to_excel(valid, index=False)
+    missing = tmp_path / "missing.xlsx"
+    corrupt = tmp_path / "corrupt.xlsx"
+    corrupt.write_bytes(b"not a workbook")
+
+    unreadable = service.aggregate_session_summaries(
+        [valid, missing, corrupt], tmp_path / "unified.xlsx"
+    )
+
+    assert unreadable == [missing, corrupt]
+
+
+def test_aggregate_session_summaries_returns_nothing_when_all_are_read(service, tmp_path):
+    first = tmp_path / "s1.xlsx"
+    second = tmp_path / "s2.xlsx"
+    pd.DataFrame({"total_distance_cm": [100.0]}).to_excel(first, index=False)
+    pd.DataFrame({"total_distance_cm": [80.0]}).to_excel(second, index=False)
+
+    assert service.aggregate_session_summaries([first, second], tmp_path / "unified.xlsx") == []

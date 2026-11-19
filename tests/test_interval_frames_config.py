@@ -21,16 +21,6 @@ SINGLE_VIDEO_DIALOG_PATH = (
 )
 SINGLE_VIDEO_DIALOG_SOURCE = SINGLE_VIDEO_DIALOG_PATH.read_text(encoding="utf-8")
 
-CREATE_PROJECT_DIALOG_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "src"
-    / "zebtrack"
-    / "ui"
-    / "dialogs"
-    / "create_project_dialog.py"
-)
-CREATE_PROJECT_DIALOG_SOURCE = CREATE_PROJECT_DIALOG_PATH.read_text(encoding="utf-8")
-
 
 def test_single_video_config_dialog_has_interval_methods() -> None:
     """Ensure the single-video dialog declares interval variables."""
@@ -39,14 +29,6 @@ def test_single_video_config_dialog_has_interval_methods() -> None:
     # Check for variable declarations (value can be default variable, not literal)
     assert "self.analysis_interval_var = StringVar(" in SINGLE_VIDEO_DIALOG_SOURCE
     assert "self.display_interval_var = StringVar(" in SINGLE_VIDEO_DIALOG_SOURCE
-
-
-def test_create_project_dialog_has_interval_methods() -> None:
-    """Ensure the project dialog declares interval variables."""
-
-    assert "class CreateProjectDialog" in CREATE_PROJECT_DIALOG_SOURCE
-    assert 'self.analysis_interval_var = StringVar(value="10")' in CREATE_PROJECT_DIALOG_SOURCE
-    assert 'self.display_interval_var = StringVar(value="10")' in CREATE_PROJECT_DIALOG_SOURCE
 
 
 def _generate_dummy_video(path: Path, *, frames: int = 8) -> Path:

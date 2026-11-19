@@ -9,7 +9,6 @@ reporter classes.
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -62,7 +61,9 @@ class ReporterContext:
 
     Construction Paths:
         1. **Modern (RECOMMENDED)**: ``ReporterContext.from_analysis(dto)``
-        2. **Legacy (DEPRECATED)**: ``ReporterContext(trajectory_df=..., ...)``
+        2. **Direct**: ``ReporterContext(trajectory_df=..., ...)``. This is the path
+           the project report generation uses; it is supported, not deprecated
+           (the warning promised a removal in v3.0 that never came, A4-05).
 
     The context is immutable after construction – pass it to
     ``WordReporter``, ``ExcelReporter``, etc.
@@ -108,14 +109,14 @@ class ReporterContext:
         instead of calling this constructor directly.
 
         Args:
-            trajectory_df: Raw trajectory DataFrame (DEPRECATED)
-            metadata: Experiment metadata (DEPRECATED)
-            pixelcm_x: Pixels-to-cm X conversion (DEPRECATED)
-            pixelcm_y: Pixels-to-cm Y conversion (DEPRECATED)
-            video_height_px: Video height (DEPRECATED)
-            arena_polygon_px: Arena polygon (DEPRECATED)
-            rois: ROI list (DEPRECATED)
-            fps: Frame rate (DEPRECATED)
+            trajectory_df: Raw trajectory DataFrame
+            metadata: Experiment metadata
+            pixelcm_x: Pixels-to-cm X conversion
+            pixelcm_y: Pixels-to-cm Y conversion
+            video_height_px: Video height
+            arena_polygon_px: Arena polygon
+            rois: ROI list
+            fps: Frame rate
             roi_colors: ROI colours dict (optional)
             video_path: Video file path (optional)
             calibration: Calibration object (optional)
@@ -142,24 +143,6 @@ class ReporterContext:
                 "ReporterContext: Either 'analysis' or 'trajectory_df' must be provided. "
                 "RECOMMENDED: Use ReporterContext.from_analysis(analysis_result) instead."
             )
-
-        # Deprecation warning
-        warnings.warn(
-            "ReporterContext: Direct instantiation with trajectory_df is DEPRECATED and "
-            "will be removed in v3.0. "
-            "\n"
-            "Migration Guide:\n"
-            "  Instead of: ReporterContext(trajectory_df=df, ...)\n"
-            "  Use:        service = AnalysisService(settings_obj=settings)\n"
-            "              analysis = service.run_full_analysis_as_dto(...)\n"
-            "              ctx = ReporterContext.from_analysis(analysis)\n"
-            "\n"
-            "Benefits: Better performance (no re-analysis), improved testability, type safety.\n"
-            "Timeline: Deprecation in v2.1 (2025-11), removal in v3.0 (2026-02).\n"
-            "See docs/migration/reporter-v3.md for details.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
 
         # --- store raw params ---
         self.settings = settings_obj

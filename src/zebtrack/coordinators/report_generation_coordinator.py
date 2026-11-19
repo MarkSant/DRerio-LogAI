@@ -669,19 +669,22 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         )
 
     def _find_project_roi_names(self, video_paths: list[str]) -> list[str] | None:
-        """Find ROI names from the first video with zone data."""
+        """ROI names of the first video that has any, across all its aquariums."""
         for path in video_paths:
             try:
-                zone_data = self.project_manager.get_zone_data(video_path=path)
-                if zone_data and (zone_data.roi_names or zone_data.polygon):
-                    if zone_data.roi_names:
-                        log.info(
-                            "processing_coordinator.found_project_rois",
-                            video=path,
-                            roi_count=len(zone_data.roi_names),
-                            roi_names=zone_data.roi_names,
-                        )
-                        return list(zone_data.roi_names)
+                names: list[str] = []
+                for zone_data in self._video_zone_sets(path):
+                    for name in zone_data.roi_names or []:
+                        if name not in names:
+                            names.append(name)
+                if names:
+                    log.info(
+                        "processing_coordinator.found_project_rois",
+                        video=path,
+                        roi_count=len(names),
+                        roi_names=names,
+                    )
+                    return names
             except (OSError, KeyError, ValueError) as e:
                 log.debug("processing_coordinator.zone_lookup_failed", video=path, error=str(e))
                 continue

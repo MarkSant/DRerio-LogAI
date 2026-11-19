@@ -48,10 +48,13 @@ def _payload_get(
 class MainViewModelRuntime:
     """Extracted event/state handlers to keep MainViewModel lean."""
 
+    # Longest a closing app waits for a live session's teardown to flush (A6-07):
+    # the teardown's own budget is ~18 s (drain/join 5 s, recorder 10 s, camera 3 s).
+    LIVE_STOP_EXIT_WAIT_S = 20.0
+
     _EVENTS_TO_HANDLE = (
         UIEvents.RECORDING_START,
         UIEvents.RECORDING_STOP,
-        UIEvents.RECORDING_TOGGLE,
         UIEvents.PROJECT_CREATE,
         UIEvents.PROJECT_OPEN,
         UIEvents.PROJECT_CLOSE,
@@ -61,18 +64,14 @@ class MainViewModelRuntime:
         UIEvents.UI_REQUEST_WEIGHT_FILE,
         UIEvents.VIDEO_ANALYZE_SINGLE,
         UIEvents.VIDEO_CANCEL_ANALYSIS,
-        UIEvents.MODEL_ADD_WEIGHT,
         UIEvents.MODEL_DELETE_WEIGHT,
         UIEvents.MODEL_LOAD_NEW_WEIGHT,
         UIEvents.MODEL_SET_DEFAULT_FOR,
         UIEvents.MODEL_RECLASSIFY_TARGET,
-        UIEvents.MODEL_CLEAR_OPENVINO_CACHE,
         UIEvents.MODEL_RESCAN_WEIGHTS,
         UIEvents.MODEL_RESET_REGISTRY,
         UIEvents.MODEL_FORCE_BENCHMARK,
-        UIEvents.MODEL_VALIDATE_WEIGHTS,
         UIEvents.MODEL_CONVERT_OPENVINO,
-        UIEvents.ZONE_SAVE_MANUAL_ARENA,
         UIEvents.PROJECT_DELETE_ASSET,
         UIEvents.PROJECT_DELETE_GROUP,
         UIEvents.PROJECT_DELETE_DAY,
@@ -80,8 +79,6 @@ class MainViewModelRuntime:
         UIEvents.PROJECT_DELETE_AQUARIUM,
         UIEvents.PROJECT_CLEAR_AQUARIUM_SUBJECT,
         UIEvents.PROJECT_RESET_ANALYSIS_DATA,
-        UIEvents.CALIBRATION_COPY_TO_PROJECT,
-        UIEvents.CALIBRATION_SAVE_TO_PROJECT,
         UIEvents.PROJECT_GENERATE_SUMMARIES,
         UIEvents.PROJECT_VIDEO_SELECTED,
         UIEvents.PROJECT_SELECTION_CHANGED,
@@ -115,7 +112,7 @@ class MainViewModelRuntime:
         payload_dict = _payload_to_dict(data)
 
         match event_name:
-            case UIEvents.RECORDING_START | UIEvents.RECORDING_STOP | UIEvents.RECORDING_TOGGLE:
+            case UIEvents.RECORDING_START | UIEvents.RECORDING_STOP:
                 self._handle_recording_event(event_name)
             case UIEvents.PROJECT_CREATE | UIEvents.PROJECT_OPEN | UIEvents.PROJECT_CLOSE:
                 self._handle_project_event(event_name, data, payload_dict)
@@ -123,31 +120,27 @@ class MainViewModelRuntime:
                 UIEvents.MODEL_SET_OPENVINO
                 | UIEvents.MODEL_SET_WEIGHT
                 | UIEvents.MODEL_RUN_DIAGNOSTIC
-                | UIEvents.MODEL_ADD_WEIGHT
                 | UIEvents.MODEL_DELETE_WEIGHT
                 | UIEvents.MODEL_LOAD_NEW_WEIGHT
                 | UIEvents.UI_REQUEST_WEIGHT_FILE
                 | UIEvents.MODEL_SET_DEFAULT_FOR
                 | UIEvents.MODEL_RECLASSIFY_TARGET
-                | UIEvents.MODEL_CLEAR_OPENVINO_CACHE
                 | UIEvents.MODEL_RESCAN_WEIGHTS
                 | UIEvents.MODEL_RESET_REGISTRY
                 | UIEvents.MODEL_FORCE_BENCHMARK
-                | UIEvents.MODEL_VALIDATE_WEIGHTS
                 | UIEvents.MODEL_CONVERT_OPENVINO
             ):
                 self._handle_model_event(event_name, data, payload_dict)
             case UIEvents.VIDEO_ANALYZE_SINGLE | UIEvents.VIDEO_CANCEL_ANALYSIS:
                 self._handle_video_event(event_name, data)
-            case UIEvents.ZONE_SAVE_MANUAL_ARENA:
-                self._handle_zone_event(data)
             case (
                 UIEvents.PROJECT_DELETE_ASSET
+                | UIEvents.PROJECT_DELETE_GROUP
+                | UIEvents.PROJECT_DELETE_DAY
+                | UIEvents.PROJECT_DELETE_SUBJECT
                 | UIEvents.PROJECT_DELETE_AQUARIUM
                 | UIEvents.PROJECT_CLEAR_AQUARIUM_SUBJECT
                 | UIEvents.PROJECT_RESET_ANALYSIS_DATA
-                | UIEvents.CALIBRATION_COPY_TO_PROJECT
-                | UIEvents.CALIBRATION_SAVE_TO_PROJECT
                 | UIEvents.PROJECT_GENERATE_SUMMARIES
                 | UIEvents.PROJECT_VIDEO_SELECTED
                 | UIEvents.PROJECT_SELECTION_CHANGED
@@ -165,8 +158,6 @@ class MainViewModelRuntime:
             vm.hardware_vm.start_recording()
         elif event_name is UIEvents.RECORDING_STOP:
             vm.hardware_vm.stop_recording()
-        elif event_name is UIEvents.RECORDING_TOGGLE:
-            vm.hardware_vm.toggle_recording()
 
     def _handle_project_event(
         self,
@@ -216,8 +207,6 @@ class MainViewModelRuntime:
             vm.hardware_vm.run_model_diagnostic(config)
         elif event_name is UIEvents.UI_REQUEST_WEIGHT_FILE:
             vm.hardware_vm.handle_request_weight_file()
-        elif event_name is UIEvents.MODEL_ADD_WEIGHT:
-            vm.hardware_vm.add_new_weight(**payload_dict)
         elif event_name is UIEvents.MODEL_DELETE_WEIGHT:
             vm.hardware_vm.delete_weight(**payload_dict)
         elif event_name is UIEvents.MODEL_LOAD_NEW_WEIGHT:
@@ -230,20 +219,16 @@ class MainViewModelRuntime:
             )
         elif event_name is UIEvents.MODEL_RECLASSIFY_TARGET:
             vm.hardware_vm.reclassify_weight_target(payload_dict["name"], payload_dict["target"])
-        elif event_name is UIEvents.MODEL_CLEAR_OPENVINO_CACHE:
-            vm.hardware_vm.clear_openvino_cache(payload_dict.get("name"))
         elif event_name is UIEvents.MODEL_RESCAN_WEIGHTS:
             vm.hardware_vm.rescan_weights_folder()
         elif event_name is UIEvents.MODEL_RESET_REGISTRY:
             vm.hardware_vm.reset_weights_registry()
-        elif event_name is UIEvents.MODEL_VALIDATE_WEIGHTS:
-            vm.hardware_vm.validate_weight_files()
         elif event_name is UIEvents.MODEL_FORCE_BENCHMARK:
             # Run on a worker thread so the UI stays responsive.
             import threading
 
             threading.Thread(
-                target=vm.hardware_vm.force_benchmark,
+                target=self._run_force_benchmark,
                 name="force-benchmark",
                 daemon=True,
             ).start()
@@ -253,11 +238,57 @@ class MainViewModelRuntime:
                 import threading
 
                 threading.Thread(
-                    target=vm.hardware_vm.convert_weight_to_openvino,
+                    target=self._run_openvino_conversion,
                     args=(name,),
                     name=f"openvino-convert-{name}",
                     daemon=True,
                 ).start()
+
+    # The two worker threads below used to discard their result: a success
+    # showed nothing and a failure only reached the log, so both buttons looked
+    # dead (A5-S-008). The message subscribers marshal onto the Tk thread.
+
+    def _run_force_benchmark(self) -> None:
+        result = self._vm.hardware_vm.force_benchmark()
+        if result is None:
+            self._publish_message(
+                UIEvents.UI_SHOW_ERROR,
+                _("Benchmark failed"),
+                _("The hardware benchmark did not finish. The log has the details."),
+            )
+            return
+        self._publish_message(
+            UIEvents.UI_SHOW_INFO,
+            _("Benchmark finished"),
+            _("Recommended backend: {backend}, live device: {device}.").format(
+                backend=result.get("backend") or "-", device=result.get("device_live") or "-"
+            ),
+        )
+
+    def _run_openvino_conversion(self, name: str) -> None:
+        converted = self._vm.hardware_vm.convert_weight_to_openvino(name)
+        if converted is None:
+            self._publish_message(
+                UIEvents.UI_SHOW_ERROR,
+                _("Conversion failed"),
+                _(
+                    "The weight {name} could not be converted to OpenVINO. The log has the details."
+                ).format(name=name),
+            )
+            return
+        self._publish_message(
+            UIEvents.UI_SHOW_INFO,
+            _("Conversion finished"),
+            _("The weight {name} was converted to OpenVINO: {path}").format(
+                name=name, path=converted
+            ),
+        )
+
+    def _publish_message(self, event_type: UIEvents, title: str, message: str) -> None:
+        if self._vm.ui_event_bus:
+            self._vm.ui_event_bus.publish(
+                Event(event_type, payloads.MessagePayload(title=title, message=message))
+            )
 
     def _handle_video_event(self, event_name: UIEvents, data: payloads.EventPayload) -> None:
         vm = self._vm
@@ -271,11 +302,6 @@ class MainViewModelRuntime:
         elif event_name is UIEvents.VIDEO_CANCEL_ANALYSIS:
             vm.analysis_vm.cancel_current_analysis()
 
-    def _handle_zone_event(self, data: payloads.EventPayload) -> None:
-        polygon_points = _payload_get(data, "polygon_points")
-        if polygon_points is not None:
-            self._vm.analysis_vm.save_manual_arena(polygon_points)
-
     def _handle_project_misc_event(
         self,
         event_name: UIEvents,
@@ -286,11 +312,7 @@ class MainViewModelRuntime:
         if self._handle_project_deletion_events(event_name, payload_dict):
             return
 
-        if event_name is UIEvents.CALIBRATION_COPY_TO_PROJECT:
-            vm.project_vm.handle_calibration_copy_to_project()
-        elif event_name is UIEvents.CALIBRATION_SAVE_TO_PROJECT:
-            vm.project_vm.handle_calibration_save_to_project()
-        elif event_name is UIEvents.PROJECT_GENERATE_SUMMARIES:
+        if event_name is UIEvents.PROJECT_GENERATE_SUMMARIES:
             video_paths = _payload_get(data, "video_paths")
             if video_paths is not None:
                 vm.analysis_vm.generate_parquet_summaries(list(video_paths))
@@ -502,7 +524,7 @@ class MainViewModelRuntime:
             if service and hasattr(service, "_on_project_manager_replaced"):
                 try:
                     service._on_project_manager_replaced(data)
-                except Exception as exc:  # pragma: no cover - orchestration boundary
+                except Exception as exc:
                     log.error(
                         "main_view_model.project_manager_replaced.service_update_failed",
                         service=name,
@@ -524,6 +546,13 @@ class MainViewModelRuntime:
 
         vm.program_exit_event.set()
         vm.analysis_vm.cancel_current_analysis()
+
+        # A live stop tears down on a daemon thread (A6-07); exiting under it
+        # would kill the recorder flush half-way. Bounded like the joins below.
+        live_service = getattr(vm, "live_camera_service", None)
+        wait_for_stop = getattr(live_service, "wait_for_pending_stop", None)
+        if callable(wait_for_stop) and not wait_for_stop(self.LIVE_STOP_EXIT_WAIT_S):
+            log.error("controller.shutdown.live_stop_still_running")
 
         if vm.processing_coordinator and vm.processing_coordinator.processing_thread:
             if vm.processing_coordinator.processing_thread.is_alive():

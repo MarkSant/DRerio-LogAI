@@ -7,6 +7,7 @@ from folder structure or filenames.
 
 import functools
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from tkinter import (
     Button,
@@ -22,6 +23,11 @@ from tkinter.simpledialog import Dialog
 
 import structlog
 
+from zebtrack.core.services.pattern_match import (
+    compile_user_pattern,
+    finditer_values,
+    search_value,
+)
 from zebtrack.i18n import _
 
 log = structlog.get_logger()
@@ -37,6 +43,143 @@ def _field_labels() -> dict[str, str]:
     to translate them without resolving the catalogue at import time.
     """
     return {"group": _("Group"), "day": _("Day"), "subject": _("Subject")}
+
+
+PATTERN_KEYS = ("group", "day", "subject")
+
+
+def compile_patterns(
+    patterns: Mapping[str, str],
+) -> tuple[dict[str, re.Pattern[str]], dict[str, str]]:
+    """Compile the non-blank patterns; collect the error text of invalid ones.
+
+    Args:
+        patterns: Pattern text by field key (``group``, ``day``, ``subject``).
+
+    Returns:
+        ``(compiled_by_key, error_text_by_key)``.
+    """
+    compiled: dict[str, re.Pattern[str]] = {}
+    errors: dict[str, str] = {}
+    for key in PATTERN_KEYS:
+        pattern = patterns.get(key, "").strip()
+        if not pattern:
+            continue
+        try:
+            compiled[key] = compile_user_pattern(pattern)
+        except re.error as exc:
+            errors[key] = str(exc)
+    return compiled, errors
+
+
+def match_path_rows(
+    path: Path | str,
+    compiled: Mapping[str, re.Pattern[str]],
+    errors: Mapping[str, str],
+) -> list[dict[str, str]]:
+    """One preview row per match of the patterns in ``path``.
+
+    A name with several matches (``G1_D1_S1--G1_D1_S2``) yields one row per
+    match; fields with fewer matches are padded with ``-``. An undefined
+    pattern shows ``-`` and an invalid one shows ``Error``.
+    """
+    path = str(path)
+    display_path = path
+    if len(path) > 65:
+        display_path = f"…{path[-64:]}"
+
+    found: dict[str, list[str]] = {key: [] for key in PATTERN_KEYS}
+    for key in PATTERN_KEYS:
+        if errors.get(key):
+            found[key].append(_("Error"))
+            continue
+
+        pattern = compiled.get(key)
+        if not pattern:
+            found[key].append("-")
+            continue
+
+        values = finditer_values(pattern, path)
+        found[key].extend(values if values else ["-"])
+
+    max_matches = max(len(values) for values in found.values())
+
+    if max_matches <= 1:
+        return [
+            {
+                "path": display_path,
+                **{key: found[key][0] if found[key] else "-" for key in PATTERN_KEYS},
+            }
+        ]
+
+    results = []
+    for i in range(max_matches):
+        if i == 0:
+            path_display = f"{display_path} (match {i + 1})"
+        else:
+            path_display = f"  └─ (match {i + 1})"
+        results.append(
+            {
+                "path": path_display,
+                **{key: found[key][i] if i < len(found[key]) else "-" for key in PATTERN_KEYS},
+            }
+        )
+    return results
+
+
+def evaluate_path(
+    path: Path | str,
+    patterns: Mapping[str, str],
+    compiled: Mapping[str, re.Pattern[str]],
+    errors: Mapping[str, str],
+) -> dict[str, str]:
+    """Per-field feedback line (plus ``summary``) for the test path.
+
+    Args:
+        path: Path typed in the test box.
+        patterns: Pattern text by field key (decides "not defined").
+        compiled: Patterns already compiled by ``compile_patterns``.
+        errors: Compile errors by field key.
+    """
+    path = str(path)
+    label_map = _field_labels()
+    results: dict[str, str] = {}
+
+    summary = "" if path else _("✗ Enter a path to test")
+
+    for key, label in label_map.items():
+        pattern_str = patterns.get(key, "").strip()
+        if not pattern_str:
+            results[key] = _("○ {label}: pattern not defined").format(label=label)
+            continue
+
+        error = errors.get(key)
+        if error:
+            results[key] = _("✗ {label}: invalid regex - {error}").format(label=label, error=error)
+            continue
+
+        pattern = compiled.get(key)
+        if not pattern:
+            try:
+                pattern = compile_user_pattern(pattern_str)
+            except re.error as exc:
+                results[key] = _("✗ {label}: invalid regex - {error}").format(
+                    label=label, error=exc
+                )
+                continue
+
+        if not path:
+            results[key] = _("✗ {label}: enter a path").format(label=label)
+            continue
+
+        value = search_value(pattern, path)
+        if value is not None:
+            results[key] = _("✓ {label}: '{value}'").format(label=label, value=value)
+        else:
+            results[key] = _("✗ {label}: no match").format(label=label)
+
+    results["summary"] = summary
+    return results
 
 
 class CustomRegexDialog(Dialog):
@@ -114,7 +257,7 @@ class CustomRegexDialog(Dialog):
         # Enable resizing
         try:
             self.resizable(True, True)
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             log.warning("custom_regex.geometry.resizable_failed", error=str(exc))
 
         # Title (full width)
@@ -647,24 +790,15 @@ class CustomRegexDialog(Dialog):
         self._render_test_feedback()
         self._update_live_preview()
 
+    def _pattern_texts(self) -> dict[str, str]:
+        return {
+            "group": self.group_pattern_var.get(),
+            "day": self.day_pattern_var.get(),
+            "subject": self.subject_pattern_var.get(),
+        }
+
     def _compile_patterns(self) -> tuple[dict[str, re.Pattern], dict[str, str]]:
-        compiled: dict[str, re.Pattern] = {}
-        errors: dict[str, str] = {}
-
-        for key, var in (
-            ("group", self.group_pattern_var),
-            ("day", self.day_pattern_var),
-            ("subject", self.subject_pattern_var),
-        ):
-            pattern = var.get().strip()
-            if not pattern:
-                continue
-            try:
-                compiled[key] = re.compile(pattern)
-            except re.error as exc:  # pragma: no cover - defensive
-                errors[key] = str(exc)
-
-        return compiled, errors
+        return compile_patterns(self._pattern_texts())
 
     def _render_test_feedback(self, preset_results: dict[str, str] | None = None):
         if preset_results is None:
@@ -684,48 +818,9 @@ class CustomRegexDialog(Dialog):
         self._test_summary_var.set(summary_text)
 
     def _evaluate_path(self, path: Path | str) -> dict[str, str]:
-        path = str(path)
-        label_map = _field_labels()
-        results: dict[str, str] = {}
-
-        summary = "" if path else _("✗ Enter a path to test")
-
-        for key, label in label_map.items():
-            pattern_str = getattr(self, f"{key}_pattern_var").get().strip()
-            if not pattern_str:
-                results[key] = _("○ {label}: pattern not defined").format(label=label)
-                continue
-
-            error = self._pattern_errors.get(key)
-            if error:
-                results[key] = _("✗ {label}: invalid regex - {error}").format(
-                    label=label, error=error
-                )
-                continue
-
-            pattern = self._compiled_patterns.get(key)
-            if not pattern:
-                try:
-                    pattern = re.compile(pattern_str)
-                except re.error as exc:
-                    results[key] = _("✗ {label}: invalid regex - {error}").format(
-                        label=label, error=exc
-                    )
-                    continue
-
-            if not path:
-                results[key] = _("✗ {label}: enter a path").format(label=label)
-                continue
-
-            match = pattern.search(path)
-            if match:
-                value = match.group(1) if match.groups() else match.group(0)
-                results[key] = _("✓ {label}: '{value}'").format(label=label, value=value)
-            else:
-                results[key] = _("✗ {label}: no match").format(label=label)
-
-        results["summary"] = summary
-        return results
+        return evaluate_path(
+            path, self._pattern_texts(), self._compiled_patterns, self._pattern_errors
+        )
 
     def _update_live_preview(self):
         for item in self.preview_tree.get_children():
@@ -781,93 +876,4 @@ class CustomRegexDialog(Dialog):
         If patterns match multiple times (e.g., G1_D1_S1--G1_D1_S2),
         returns multiple results.
         """
-        path = str(path)
-        display_path = path
-        if len(path) > 65:
-            display_path = f"…{path[-64:]}"
-
-        # Collect all matches for each pattern
-        all_group_matches: list[str] = []
-        all_day_matches: list[str] = []
-        all_subject_matches: list[str] = []
-
-        for key, match_list in [
-            ("group", all_group_matches),
-            ("day", all_day_matches),
-            ("subject", all_subject_matches),
-        ]:
-            error = self._pattern_errors.get(key)
-            if error:
-                match_list.append(_("Error"))
-                continue
-
-            pattern = self._compiled_patterns.get(key)
-            if not pattern:
-                match_list.append("-")
-                continue
-
-            # Use finditer to get ALL matches
-            matches = list(pattern.finditer(path))
-            if matches:
-                for m in matches:
-                    value = m.group(1) if m.groups() else m.group(0)
-                    match_list.append(value)
-            else:
-                match_list.append("-")
-
-        # Determine how many rows to create (max matches across all fields)
-        max_matches = max(
-            len(all_group_matches),
-            len(all_day_matches),
-            len(all_subject_matches),
-        )
-
-        if max_matches <= 1:
-            # Single or no match - return as before
-            return [
-                {
-                    "path": display_path,
-                    "group": all_group_matches[0] if all_group_matches else "-",
-                    "day": all_day_matches[0] if all_day_matches else "-",
-                    "subject": all_subject_matches[0] if all_subject_matches else "-",
-                }
-            ]
-
-        # Multiple matches - create one row per match
-        results = []
-        for i in range(max_matches):
-            group_val = all_group_matches[i] if i < len(all_group_matches) else "-"
-            day_val = all_day_matches[i] if i < len(all_day_matches) else "-"
-            subject_val = all_subject_matches[i] if i < len(all_subject_matches) else "-"
-
-            # Add match indicator to path for clarity
-            if i == 0:
-                path_display = f"{display_path} (match {i + 1})"
-            else:
-                path_display = f"  └─ (match {i + 1})"
-
-            results.append(
-                {
-                    "path": path_display,
-                    "group": group_val,
-                    "day": day_val,
-                    "subject": subject_val,
-                }
-            )
-
-        return results
-
-    def _match_path(self, path: Path | str) -> dict[str, str]:
-        """Legacy method - returns first match only."""
-        path = str(path)
-        results = self._match_path_all(path)
-        return (
-            results[0]
-            if results
-            else {
-                "path": path[:65] if len(path) <= 65 else f"…{path[-64:]}",
-                "group": "-",
-                "day": "-",
-                "subject": "-",
-            }
-        )
+        return match_path_rows(path, self._compiled_patterns, self._pattern_errors)

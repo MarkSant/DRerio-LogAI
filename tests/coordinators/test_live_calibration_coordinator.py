@@ -14,7 +14,9 @@ manually adjusted by the user before approval.
 
 from __future__ import annotations
 
+import contextlib
 import os
+import threading
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
@@ -22,10 +24,38 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from tests.utils.deferring_tk import bind_deferring_tk
 from zebtrack.coordinators.live_calibration_coordinator import (
     LiveCalibrationCoordinator,
 )
 from zebtrack.ui.event_bus_v2 import UIEvents
+
+
+def _deferring_root() -> Any:
+    """A MagicMock root whose ``after`` queues callbacks (``root.tk_loop`` drives them).
+
+    With a root, camera/detection steps run on a worker and come back through
+    ``after`` (audit A6-03); the test turns the loop explicitly.
+    """
+    root = MagicMock()
+    root.tk_loop = bind_deferring_tk(root)
+    return root
+
+
+def _settle(coordinator: Any) -> None:
+    """Let the calibration worker finish and run what it owes the Tk thread."""
+    loop = getattr(coordinator.root, "tk_loop", None)
+    if loop is not None:
+        loop.run_until_idle()
+
+
+def _calibrate(coordinator: Any, **kwargs: Any) -> bool:
+    """``run_live_calibration`` driven to completion; returns its outcome."""
+    outcomes: list[bool] = []
+    returned = coordinator.run_live_calibration(on_done=outcomes.append, **kwargs)
+    _settle(coordinator)
+    return outcomes[0] if outcomes else returned
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -256,7 +286,7 @@ def _make_calibration_coordinator_with_camera() -> LiveCalibrationCoordinator:
         weight_manager=weight_manager,
         settings_obj=settings_obj,
         event_bus=MagicMock(),
-        root=MagicMock(),
+        root=_deferring_root(),
         view=None,
     )
     return coordinator
@@ -310,7 +340,7 @@ def _run_live_calibration_with_dialog_source(dialog_source: str | None) -> str |
         ),
     ):
         fake_detector_cls.return_value = MagicMock()
-        success = coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
+        success = _calibrate(coordinator, stabilization_frames=4, show_preview=True)
 
     assert success is True, "calibration should succeed when dialog approves"
     return coordinator.last_polygon_source
@@ -422,7 +452,7 @@ def test_run_live_calibration_publishes_polygon_source_event():
         ),
     ):
         fake_detector_cls.return_value = MagicMock()
-        assert coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
+        assert _calibrate(coordinator, stabilization_frames=4, show_preview=True)
 
     events = [
         call.args[0]
@@ -502,7 +532,7 @@ def test_run_live_calibration_publishes_display_video_frame_on_success():
         ),
     ):
         fake_detector_cls.return_value = MagicMock()
-        assert coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
+        assert _calibrate(coordinator, stabilization_frames=4, show_preview=True)
 
     display_events = [
         call.args[0]
@@ -576,7 +606,7 @@ def _run_live_calibration_with_dialog_result(dialog_result: dict | None):
         ),
     ):
         fake_detector_cls.return_value = MagicMock()
-        success = coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
+        success = _calibrate(coordinator, stabilization_frames=4, show_preview=True)
 
     return coordinator, success, fake_camera
 
@@ -666,7 +696,7 @@ def test_run_live_calibration_clears_cancellation_flag_on_success():
             return_value=None,
         ),
     ):
-        success = coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
+        success = _calibrate(coordinator, stabilization_frames=4, show_preview=True)
 
     assert success is True
     assert coordinator._last_calibration_cancelled is False
@@ -694,6 +724,19 @@ def test_release_calibration_camera_swallows_release_exceptions():
     coordinator._release_calibration_camera(reason="test")
     assert coordinator.camera is None
     flaky_camera._stopped.set.assert_called()
+
+
+def test_release_calibration_camera_still_releases_when_stop_signal_fails():
+    """F2: a stop event that raises must not skip the device release."""
+    coordinator = _make_coordinator()
+    camera = MagicMock()
+    camera._stopped.set.side_effect = RuntimeError("event torn down")
+    coordinator.camera = camera
+
+    coordinator._release_calibration_camera(reason="test")
+
+    camera.release.assert_called_once_with()
+    assert coordinator.camera is None
 
 
 # ---------------------------------------------------------------------------
@@ -738,7 +781,7 @@ def test_run_live_calibration_resolves_perspective_from_behavioral_config(monkey
         coordinator.settings = MagicMock()
         coordinator.settings.camera = SimpleNamespace(index=0)
         coordinator.settings.yolo_model = SimpleNamespace(confidence_threshold=0.05)
-        coordinator.run_live_calibration(stabilization_frames=4, show_preview=False)
+        _calibrate(coordinator, stabilization_frames=4, show_preview=False)
 
     coordinator.weight_manager.get_weight_path_by_method.assert_called_once_with(  # type: ignore[attr-defined]
         method="seg", task="aquarium", perspective="top_down"
@@ -775,7 +818,7 @@ def test_run_live_calibration_falls_back_to_nested_perspective(monkeypatch):
         coordinator.settings = MagicMock()
         coordinator.settings.camera = SimpleNamespace(index=0)
         coordinator.settings.yolo_model = SimpleNamespace(confidence_threshold=0.05)
-        coordinator.run_live_calibration(stabilization_frames=4, show_preview=False)
+        _calibrate(coordinator, stabilization_frames=4, show_preview=False)
 
     coordinator.weight_manager.get_weight_path_by_method.assert_called_once_with(  # type: ignore[attr-defined]
         method="det", task="aquarium", perspective="lateral"
@@ -839,7 +882,7 @@ def test_run_live_calibration_saves_zones_under_reference_frame_key():
             return_value=None,
         ),
     ):
-        assert coordinator.run_live_calibration(stabilization_frames=4, show_preview=True)
+        assert _calibrate(coordinator, stabilization_frames=4, show_preview=True)
 
     save_calls = coordinator.project_manager.save_zone_data.call_args_list  # type: ignore[attr-defined]
     saved_keys: list[Any] = []
@@ -1035,10 +1078,12 @@ def test_ensure_zones_reuse_opens_zone_tab_and_defers(monkeypatch):
     # Já gravou antes → dispara o diálogo de reutilização.
     monkeypatch.setattr(coordinator, "_has_recorded_before", lambda: True)
     # Não tocar hardware na captura do frame de referência.
-    monkeypatch.setattr(coordinator, "_capture_reference_frame_for_zones", lambda **kwargs: True)
+    # (A6-03: with a root the capture runs on a worker, through these two seams.)
+    monkeypatch.setattr(coordinator, "_capture_reference_frame_work", lambda *_a, **_k: object())
+    monkeypatch.setattr(coordinator, "_publish_reference_frame", lambda _frame: True)
 
-    # Root com ``after`` real-mockado para agendar a edição deferida.
-    coordinator.root = MagicMock()
+    # Root com ``after`` enfileirado para agendar a edição deferida.
+    coordinator.root = _deferring_root()
 
     fake_dialog = MagicMock()
     fake_dialog.show.return_value = {"reuse": True}
@@ -1049,21 +1094,23 @@ def test_ensure_zones_reuse_opens_zone_tab_and_defers(monkeypatch):
         MagicMock(return_value=fake_dialog),
     ):
         result = coordinator.ensure_zones_before_recording()
+        # Deferido já durante a captura (A6-03): nenhum erro "falha ao iniciar".
+        assert result is False, "reuse deve deferir (não iniciar a sessão imediatamente)"
+        assert coordinator.pending_zone_confirmation is True
+        _settle(coordinator)
 
     # Deferido: NÃO inicia a sessão agora.
-    assert result is False, "reuse deve deferir (não iniciar a sessão imediatamente)"
     assert coordinator.pending_zone_confirmation is True
 
     published_types = [getattr(call.args[0], "type", None) for call in bus.publish.call_args_list]
     assert UIEvents.UI_SELECT_TAB in published_types, "reuse deve abrir a aba de zonas"
     # Edição do polígono é agendada via root.after (deferida ~150 ms).
-    assert coordinator.root.after.called, "deve agendar POLYGON_EDIT_REQUESTED deferido"
+    loop = coordinator.root.tk_loop
+    assert any(delay == 150 for delay, _cb in loop.scheduled), (
+        "deve agendar POLYGON_EDIT_REQUESTED deferido"
+    )
 
-    # O evento agendado carrega preselect_all=True.
-    scheduled = coordinator.root.after.call_args
-    deferred_fn = scheduled.args[1]
-    bus.reset_mock()
-    deferred_fn()
+    # O evento agendado (já executado pelo loop) carrega preselect_all=True.
     edit_calls = [
         call.args[0]
         for call in bus.publish.call_args_list
@@ -1265,12 +1312,14 @@ class TestPrepareZonesForLiveSession:
 
     def test_ensure_zones_auto_detect_failed_fallback_to_manual(self):
         coordinator: Any = _make_coordinator()
-        coordinator.root = MagicMock()
+        coordinator.root = _deferring_root()
         coordinator.project_manager.get_project_type.return_value = "live"
         coordinator.project_manager.get_zone_data.return_value = None
         coordinator.run_live_calibration = MagicMock(return_value=False)
         coordinator._last_calibration_cancelled = False
-        coordinator._capture_reference_frame_for_zones = MagicMock(return_value=True)
+        # A6-03: with a root the capture runs on a worker through these seams.
+        coordinator._capture_reference_frame_work = MagicMock(return_value=object())
+        coordinator._publish_reference_frame = MagicMock(return_value=True)
         coordinator._wait_for_zone_confirmation = MagicMock(return_value=True)
 
         mock_dialog = MagicMock()
@@ -1280,11 +1329,22 @@ class TestPrepareZonesForLiveSession:
             "zebtrack.ui.dialogs.zone_calibration_dialog.ZoneCalibrationDialog",
             return_value=mock_dialog,
         ):
-            res = coordinator.ensure_zones_before_recording(camera_index=0)
+            pending: list[str] = []
+            res = coordinator.ensure_zones_before_recording(
+                camera_index=0, on_pending=lambda: pending.append("pending")
+            )
+            # The manual fallback captures on a worker: deferred, not failed.
+            assert res is False
+            assert coordinator.pending_zone_confirmation is True
+            assert coordinator.calibration_in_progress is True
+            _settle(coordinator)
 
-        assert res is True
-        coordinator._capture_reference_frame_for_zones.assert_called_once()
+        assert coordinator.calibration_in_progress is False
+        coordinator._capture_reference_frame_work.assert_called_once_with(0)
+        coordinator._publish_reference_frame.assert_called_once()
         coordinator._wait_for_zone_confirmation.assert_called_once()
+        # _wait_for_zone_confirmation is mocked to True ("ready"): routed to on_pending.
+        assert pending == ["pending"]
         event_types = [c[0][0].type for c in coordinator.event_bus.publish.call_args_list]
         assert UIEvents.UI_SELECT_TAB in event_types
         assert UIEvents.UI_UPDATE_ZONE_LIST in event_types
@@ -1389,3 +1449,316 @@ class TestBurstConsensusPopulations:
 
         assert len(polygons) == 1
         assert len(polygons[0]) == 4
+
+
+# ---------------------------------------------------------------------------
+# A6-03: camera warm-up, burst and detection run off the Tk thread
+# ---------------------------------------------------------------------------
+
+
+class _ThreadRecordingCamera:
+    """Camera double that records which thread opened and read it."""
+
+    def __init__(self, settings_obj: Any, log: dict[str, list]) -> None:
+        log["opened_on"].append(threading.current_thread())
+        log["view_index"].append(settings_obj.camera.index)
+        self.is_open = True
+        self._log = log
+
+    def get_frame(self) -> tuple[bool, Any]:
+        self._log["read_on"].append(threading.current_thread())
+        return True, np.zeros((480, 640, 3), dtype=np.uint8)
+
+    def release(self) -> bool:
+        self._log["released_on"].append(threading.current_thread())
+        return True
+
+
+def _async_calibration(*, approved: bool = True, project_index: int | None = 7):
+    """A coordinator with a deferring root and the hardware seams recorded."""
+    coordinator = _make_calibration_coordinator_with_camera()
+    coordinator.camera = None
+    if project_index is not None:
+        coordinator.project_manager.project_data["camera_index"] = project_index
+    log: dict[str, list] = {
+        "opened_on": [],
+        "view_index": [],
+        "read_on": [],
+        "released_on": [],
+        "dialog_on": [],
+        "sleep_on": [],
+        "shared_index_during_open": [],
+    }
+    polygon = [[100, 100], [200, 100], [200, 200], [100, 200]]
+
+    def _camera(settings_obj: Any) -> _ThreadRecordingCamera:
+        log["shared_index_during_open"].append(coordinator.settings.camera.index)
+        return _ThreadRecordingCamera(settings_obj, log)
+
+    def _dialog(**_kwargs: Any) -> Any:
+        log["dialog_on"].append(threading.current_thread())
+        dialog = MagicMock()
+        dialog.show.return_value = (
+            {"approved": True, "polygon": polygon, "frame": None, "source": "auto"}
+            if approved
+            else None
+        )
+        return dialog
+
+    patches = (
+        patch.object(
+            LiveCalibrationCoordinator, "_detect_polygon_on_burst", return_value=[polygon]
+        ),
+        patch("zebtrack.coordinators.live_calibration_coordinator.AquariumDetector"),
+        patch("zebtrack.coordinators.live_calibration_coordinator.Camera", side_effect=_camera),
+        patch("zebtrack.coordinators.live_calibration_coordinator.cv2.imwrite", return_value=True),
+        patch(
+            "zebtrack.ui.dialogs.preview_polygon_dialog.PreviewPolygonDialog",
+            side_effect=_dialog,
+        ),
+        patch(
+            "zebtrack.coordinators.live_calibration_coordinator.time.sleep",
+            # ``time`` is the shared module: the test's own loop sleeps 1 ms too,
+            # so only the calibration's pauses (>= 50 ms) are recorded.
+            side_effect=lambda secs: (
+                log["sleep_on"].append(threading.current_thread()) if secs >= 0.05 else None
+            ),
+        ),
+    )
+    return coordinator, log, patches
+
+
+def test_calibration_runs_the_camera_and_detection_off_tk_and_the_dialog_on_tk():
+    coordinator, log, patches = _async_calibration()
+    outcomes: list[tuple[bool, threading.Thread]] = []
+    with contextlib.ExitStack() as stack:
+        for item in patches:
+            stack.enter_context(item)
+        returned = coordinator.run_live_calibration(
+            stabilization_frames=4,
+            show_preview=True,
+            on_done=lambda ok: outcomes.append((ok, threading.current_thread())),
+        )
+        # Returned at once: nothing final yet, the worker owns the camera.
+        assert returned is False
+        assert coordinator.calibration_in_progress is True
+        assert outcomes == []
+        _settle(coordinator)
+
+    main = threading.main_thread()
+    assert log["opened_on"] and all(t is not main for t in log["opened_on"])
+    assert log["read_on"] and all(t is not main for t in log["read_on"])
+    assert log["dialog_on"] == [main], "the preview dialog is Tk: it must open on Tk"
+    assert outcomes == [(True, main)]
+    assert coordinator.calibration_in_progress is False
+    assert main not in log["sleep_on"], "no sleep may run on the Tk thread"
+
+
+def test_the_camera_is_opened_on_a_settings_view_not_the_shared_settings():
+    """The old code set ``settings.camera.index`` for the length of the device open."""
+    coordinator, log, patches = _async_calibration(project_index=7)
+    shared_before = coordinator.settings.camera.index
+    with contextlib.ExitStack() as stack:
+        for item in patches:
+            stack.enter_context(item)
+        _calibrate(coordinator, stabilization_frames=4, show_preview=True)
+
+    assert log["view_index"] == [7]
+    assert log["shared_index_during_open"] == [shared_before]
+    assert coordinator.settings.camera.index == shared_before
+
+
+def test_a_rejected_preview_reports_false_and_marks_the_cancellation():
+    coordinator, _log, patches = _async_calibration(approved=False)
+    with contextlib.ExitStack() as stack:
+        for item in patches:
+            stack.enter_context(item)
+        assert _calibrate(coordinator, stabilization_frames=4, show_preview=True) is False
+
+    assert coordinator._last_calibration_cancelled is True
+    assert coordinator.calibration_in_progress is False
+
+
+def test_a_worker_crash_still_finishes_the_calibration_with_false():
+    coordinator = _make_calibration_coordinator_with_camera()
+
+    def _boom(*_a: Any, **_k: Any) -> Any:
+        raise RuntimeError("driver crashed")
+
+    coordinator._calibration_work = _boom  # type: ignore[method-assign]
+    camera = MagicMock()
+    coordinator.camera = camera
+
+    assert _calibrate(coordinator, stabilization_frames=4, show_preview=True) is False
+    camera.release.assert_called_once()
+    assert coordinator.camera is None
+    assert coordinator.calibration_in_progress is False
+
+
+def test_without_a_root_the_calibration_is_inline_and_on_done_is_not_called():
+    coordinator, log, patches = _async_calibration()
+    coordinator.root = None
+    outcomes: list[bool] = []
+    with contextlib.ExitStack() as stack:
+        for item in patches:
+            stack.enter_context(item)
+        assert (
+            coordinator.run_live_calibration(
+                stabilization_frames=4, show_preview=True, on_done=outcomes.append
+            )
+            is True
+        )
+
+    assert outcomes == []
+    assert log["opened_on"] == [threading.main_thread()]
+
+
+def test_settings_view_reads_through_and_overrides_only_the_index():
+    coordinator: Any = _make_coordinator()
+    coordinator.settings.camera.index = 0
+    coordinator.settings.camera.desired_width = 1280
+    coordinator.settings.marker = "shared"
+
+    view = coordinator._settings_for_camera(3)
+
+    assert view.camera.index == 3
+    assert view.camera.desired_width == 1280
+    assert view.marker == "shared"
+    assert coordinator.settings.camera.index == 0
+
+
+def test_auto_gate_with_a_root_defers_then_reports_pending():
+    """ensure_zones: False + pending while the worker runs; ``on_pending`` at the end."""
+    coordinator, _log, patches = _async_calibration()
+    coordinator.project_manager.get_project_type = MagicMock(return_value="live")
+    coordinator.project_manager.project_path = "/tmp/zebtrack"
+    coordinator.project_manager.get_zone_data = MagicMock(return_value=None)
+    coordinator.project_manager.get_last_zone_video = MagicMock(return_value=None)
+    calls: list[str] = []
+    zone_dialog = MagicMock()
+    zone_dialog.show.return_value = {"method": "auto"}
+    with contextlib.ExitStack() as stack:
+        for item in patches:
+            stack.enter_context(item)
+        stack.enter_context(
+            patch(
+                "zebtrack.ui.dialogs.zone_calibration_dialog.ZoneCalibrationDialog",
+                return_value=zone_dialog,
+            )
+        )
+        result = coordinator.ensure_zones_before_recording(
+            on_pending=lambda: calls.append("pending"),
+            on_abandoned=lambda: calls.append("abandoned"),
+        )
+        assert result is False
+        assert coordinator.pending_zone_confirmation is True
+        assert coordinator.calibration_in_progress is True
+        assert calls == []
+        _settle(coordinator)
+
+    assert calls == ["pending"]
+    assert coordinator.pending_zone_confirmation is True
+    assert coordinator.calibration_in_progress is False
+
+
+def test_auto_gate_cancelled_in_the_preview_reports_abandoned():
+    coordinator, _log, patches = _async_calibration(approved=False)
+    coordinator.project_manager.get_project_type = MagicMock(return_value="live")
+    coordinator.project_manager.project_path = "/tmp/zebtrack"
+    coordinator.project_manager.get_zone_data = MagicMock(return_value=None)
+    coordinator.project_manager.get_last_zone_video = MagicMock(return_value=None)
+    calls: list[str] = []
+    zone_dialog = MagicMock()
+    zone_dialog.show.return_value = {"method": "auto"}
+    with contextlib.ExitStack() as stack:
+        for item in patches:
+            stack.enter_context(item)
+        stack.enter_context(
+            patch(
+                "zebtrack.ui.dialogs.zone_calibration_dialog.ZoneCalibrationDialog",
+                return_value=zone_dialog,
+            )
+        )
+        coordinator.ensure_zones_before_recording(
+            on_pending=lambda: calls.append("pending"),
+            on_abandoned=lambda: calls.append("abandoned"),
+        )
+        _settle(coordinator)
+
+    assert calls == ["abandoned"]
+    assert coordinator.pending_zone_confirmation is False
+
+
+def test_manual_gate_captures_off_tk_and_publishes_on_tk():
+    coordinator: Any = _make_coordinator()
+    coordinator.root = _deferring_root()
+    coordinator.project_manager.get_project_type.return_value = "live"
+    coordinator.project_manager.get_zone_data.return_value = None
+    work_threads: list[threading.Thread] = []
+    publish_threads: list[threading.Thread] = []
+
+    def _work(_camera_index: Any) -> Any:
+        work_threads.append(threading.current_thread())
+        return object()
+
+    def _publish(_frame: Any) -> bool:
+        publish_threads.append(threading.current_thread())
+        return True
+
+    coordinator._capture_reference_frame_work = _work
+    coordinator._publish_reference_frame = _publish
+    zone_dialog = MagicMock()
+    zone_dialog.show.return_value = {"method": "manual"}
+    pending: list[str] = []
+    with patch(
+        "zebtrack.ui.dialogs.zone_calibration_dialog.ZoneCalibrationDialog",
+        return_value=zone_dialog,
+    ):
+        assert (
+            coordinator.ensure_zones_before_recording(on_pending=lambda: pending.append("p"))
+            is False
+        )
+        assert publish_threads == []
+        _settle(coordinator)
+
+    assert work_threads and work_threads[0] is not threading.main_thread()
+    assert publish_threads == [threading.main_thread()]
+    assert pending == ["p"]
+    assert coordinator.last_polygon_source == "manual"
+
+
+def test_manual_gate_without_a_frame_is_abandoned():
+    coordinator: Any = _make_coordinator()
+    coordinator.root = _deferring_root()
+    coordinator.project_manager.get_project_type.return_value = "live"
+    coordinator.project_manager.get_zone_data.return_value = None
+    coordinator._capture_reference_frame_work = MagicMock(return_value=None)
+    zone_dialog = MagicMock()
+    zone_dialog.show.return_value = {"method": "manual"}
+    calls: list[str] = []
+    with patch(
+        "zebtrack.ui.dialogs.zone_calibration_dialog.ZoneCalibrationDialog",
+        return_value=zone_dialog,
+    ):
+        coordinator.ensure_zones_before_recording(
+            on_pending=lambda: calls.append("pending"),
+            on_abandoned=lambda: calls.append("abandoned"),
+        )
+        _settle(coordinator)
+
+    assert calls == ["abandoned"]
+    assert coordinator.pending_zone_confirmation is False
+
+
+def test_a_crash_on_the_tk_side_still_ends_the_calibration_with_false():
+    """The chain must finish: a caller waiting on ``on_done`` would wait forever."""
+    coordinator = _make_calibration_coordinator_with_camera()
+    cast(Any, coordinator)._calibration_work = lambda *_a, **_k: object()
+
+    def _finish_boom(*_a: Any, **_k: Any) -> bool:
+        raise ValueError("dialog failed to build")
+
+    coordinator._calibration_finish = _finish_boom  # type: ignore[method-assign]
+
+    assert _calibrate(coordinator, stabilization_frames=4, show_preview=True) is False
+    assert coordinator.calibration_in_progress is False

@@ -644,7 +644,7 @@ class SingleDetector:
         if hasattr(self.plugin, "set_use_single_subject_mode"):
             try:
                 self.plugin.set_use_single_subject_mode(enabled)
-            except Exception:  # pragma: no cover - defensive
+            except Exception:
                 log.warning("single_detector.plugin_update_failed", exc_info=True)
 
     def set_source_fps(self, fps: float | None) -> None:
@@ -707,10 +707,6 @@ class SingleDetector:
         frame_time_s, self._frame_time_s = self._frame_time_s, None
         return frame_time_s
 
-    def is_single_subject_mode(self) -> bool:
-        """Expose the current single-subject tracking flag."""
-        return self._single_subject_mode
-
     def reset_tracking_state(self) -> None:
         """Reset tracker state between videos.
 
@@ -720,7 +716,7 @@ class SingleDetector:
         if hasattr(self.plugin, "reset_tracking_state"):
             try:
                 self.plugin.reset_tracking_state()
-            except Exception:  # pragma: no cover - defensive
+            except Exception:
                 log.warning(
                     "single_detector.reset_tracking_state.plugin_failed",
                     exc_info=True,
@@ -747,10 +743,6 @@ class SingleDetector:
     def clear_cache(self) -> None:
         """Clear the internal scaling cache to free memory."""
         self.zone_scaler.clear_cache()
-
-    def _is_inside_polygon(self, x1: int, y1: int, x2: int, y2: int, polygon: np.ndarray) -> bool:
-        """Backward-compat delegation to ``zone_scaler.is_inside_polygon``."""
-        return self.zone_scaler.is_inside_polygon(x1, y1, x2, y2, polygon)
 
     def _apply_simple_tracking(self, detections: list[tuple]) -> list[tuple]:
         """Apply simple SingleSubjectTracker (IoU+Distance) to detections.
@@ -1078,34 +1070,12 @@ class SingleDetector:
                 single_animal_mode=single_animal_mode,
             )
             self._byte_tracker_params = params
-        except Exception:  # pragma: no cover - defensive
+        except Exception:
             log.warning("single_detector.bytetrack.init_failed", exc_info=True)
             self._byte_tracker = None
             self._byte_tracker_params = None
 
         return self._byte_tracker
-
-    def _ensure_simple_tracker(self) -> SingleSubjectTracker:
-        """Ensure SingleSubjectTracker is up to date with settings."""
-        pp = DetectionPostProcessor
-        iou_thresh = pp.get_iou_threshold(self.settings)
-        max_dist = pp.get_max_center_distance(self.settings)
-
-        if (
-            self._single_subject_tracker.iou_threshold != iou_thresh
-            or self._single_subject_tracker.max_center_distance != max_dist
-        ):
-            log.info(
-                "single_detector.simple_tracker.updating",
-                iou=iou_thresh,
-                dist=max_dist,
-            )
-            self._single_subject_tracker = SingleSubjectTracker(
-                track_id=1,
-                iou_threshold=iou_thresh,
-                max_center_distance=max_dist,
-            )
-        return self._single_subject_tracker
 
     # =========================================================================
     # Overlay drawing
@@ -1157,12 +1127,6 @@ class SingleDetector:
                 (255, 0, 255),
                 2,
             )
-
-    def _draw_zones(self, frame: np.ndarray) -> None:
-        """Lightweight zone drawing for diagnostic output."""
-        if isinstance(self.zones, ZoneData):
-            colors = getattr(self.zones, "roi_colors", [])
-            log.debug("single_detector.drawing.single", rois=len(colors))
 
     # =========================================================================
     # Batch detection
@@ -1232,32 +1196,6 @@ class SingleDetector:
     # =========================================================================
     # State restoration
     # =========================================================================
-
-    def _restore_trackers(self, previous_state: dict[str, Any]) -> None:
-        """Restore tracker states from a previous state dictionary.
-
-        Args:
-            previous_state: Dict with tracker state to restore.
-        """
-        # Restore ByteTracker state
-        if "byte_tracker_state" in previous_state and self._byte_tracker is not None:
-            if hasattr(self._byte_tracker, "restore_state"):
-                self._byte_tracker.restore_state(  # type: ignore[attr-defined]
-                    previous_state["byte_tracker_state"]
-                )
-            log.debug("single_detector.restore_trackers.byte_tracker_restored")
-
-        # Restore global track ID counter
-        if "basetrack_id_counter" in previous_state:
-            from zebtrack.tracker.basetrack import BaseTrack
-
-            BaseTrack.set_id_counter(previous_state["basetrack_id_counter"])
-            log.debug(
-                "single_detector.restore_trackers.basetrack_id_counter_restored",
-                counter=previous_state["basetrack_id_counter"],
-            )
-
-        log.info("single_detector.restore_trackers.completed")
 
     # =========================================================================
     # Data accessors

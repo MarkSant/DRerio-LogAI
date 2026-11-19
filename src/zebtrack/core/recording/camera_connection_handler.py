@@ -7,6 +7,7 @@ Provides the ``CameraConnectionMixin`` mixed into ``LiveCameraService``.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import is_dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -67,7 +68,11 @@ class CameraConnectionMixin:
     preview_window: LivePreviewWindow | None
 
     def stop_session(  # type: ignore[empty-body]  # from LiveSessionManagerMixin
-        self, *, cancelled: bool = False, keep_data: bool = False
+        self,
+        *,
+        cancelled: bool = False,
+        keep_data: bool = False,
+        on_stopped: Callable[[bool], None] | None = None,
     ) -> bool: ...
 
     def _setup_camera(self, camera_index: int) -> bool:
@@ -217,41 +222,27 @@ class CameraConnectionMixin:
                 hardware_vm.active_frame_source = None  # type: ignore[union-attr]
 
     def _create_preview_window(self, camera_index: int, duration_s: float) -> None:
-        """Create the live preview window."""
-        from zebtrack.core.project.zone_manager import MultiAquariumZoneData
+        """Create the live preview window.
+
+        Always the single window, showing the whole camera frame with every
+        detection. A two-aquarium window existed, but it was chosen from
+        ``get_zone_data()`` (the aquarium-0 shim, never multi) before the session
+        resolved its aquariums, so it was never built; it was removed (A8-004).
+        """
         from zebtrack.ui.dialogs import LivePreviewWindow
-        from zebtrack.ui.dialogs.multi_aquarium_live_preview_window import (
-            MultiAquariumLivePreviewWindow,
-        )
 
         def on_stop_callback():
             """Handle manual stop from preview window."""
             log.info("live_camera_service.manual_stop_requested")
             self.stop_session()
 
-        zone_data = self.project_manager.get_zone_data() if self.project_manager else None
-
-        if isinstance(zone_data, MultiAquariumZoneData) and zone_data.aquariums:
-            num_aquariums = len(zone_data.aquariums)
-            self.preview_window = MultiAquariumLivePreviewWindow(
-                parent=self.root,
-                camera_index=camera_index,
-                num_aquariums=num_aquariums,
-                duration_s=duration_s,
-                on_stop_callback=on_stop_callback,
-            )
-            log.info(
-                "live_camera_service.multi_aquarium_preview_window_created",
-                num_aquariums=num_aquariums,
-            )
-        else:
-            self.preview_window = LivePreviewWindow(
-                parent=self.root,
-                camera_index=camera_index,
-                duration_s=duration_s,
-                on_stop_callback=on_stop_callback,
-            )
-            log.info("live_camera_service.preview_window_created")
+        self.preview_window = LivePreviewWindow(
+            parent=self.root,
+            camera_index=camera_index,
+            duration_s=duration_s,
+            on_stop_callback=on_stop_callback,
+        )
+        log.info("live_camera_service.preview_window_created")
 
     def _check_camera_disconnect(self) -> None:
         """Check if camera has been disconnected based on frame gap.

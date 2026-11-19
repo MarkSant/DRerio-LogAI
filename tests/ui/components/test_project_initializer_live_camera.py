@@ -15,9 +15,12 @@ preservation of the legacy hardware_vm.camera = None bookkeeping.
 
 from __future__ import annotations
 
+import threading
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
+
+from tests.utils.deferring_tk import bind_deferring_tk
 
 from zebtrack.ui.components.project_initializer import ProjectInitializer
 
@@ -360,13 +363,74 @@ def test_initialize_live_components_connects_when_the_project_asks():
     pm.project_data["arduino_port"] = "COM7"
 
     initializer = ProjectInitializer(gui)
+    tk_loop = bind_deferring_tk(gui.root)
 
     with patch(
         "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
         return_value=(0, "OK"),
     ):
         initializer.initialize_live_components(pm)
+    tk_loop.run_until_idle()
 
     arduino_manager.connect.assert_called_once()
     # The PROJECT's port wins over ``settings.arduino.port``.
     assert arduino_manager.connect.call_args.args[0] == "COM7"
+    gui.dialog_manager.show_warning.assert_not_called()
+
+
+def _arduino_project(connect):
+    gui = _make_gui_stub()
+    gui.controller.hardware_vm.arduino_manager = SimpleNamespace(connect=connect)
+    tk_loop = bind_deferring_tk(gui.root)
+    pm = _make_pm()
+    pm.project_data["use_arduino"] = True
+    pm.project_data["arduino_port"] = "COM7"
+    return gui, tk_loop, pm
+
+
+def test_arduino_connect_runs_off_tk_and_warns_on_tk():
+    """A6-06: opening a live project no longer waits for the serial handshake."""
+    threads: list = []
+    warnings: list = []
+
+    def connect(port, baud, **_kw):
+        threads.append(threading.current_thread())
+        return False
+
+    gui, tk_loop, pm = _arduino_project(connect)
+    gui.dialog_manager.show_warning.side_effect = lambda *a: warnings.append(
+        (a, threading.current_thread())
+    )
+
+    with patch(
+        "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
+        return_value=(0, "OK"),
+    ):
+        ProjectInitializer(gui).initialize_live_components(pm)
+    assert warnings == []
+
+    tk_loop.run_until_idle()
+
+    assert len(threads) == 1
+    assert threads[0] is not threading.main_thread()
+    assert len(warnings) == 1
+    (title, message), thread = warnings[0]
+    assert title == "Arduino Warning"
+    assert message == "Could not connect to the Arduino on port COM7. Running in offline mode."
+    assert thread is threading.main_thread()
+
+
+def test_arduino_connect_exception_still_warns():
+    def connect(*_a, **_k):
+        raise OSError("port vanished")
+
+    gui, tk_loop, pm = _arduino_project(connect)
+    with patch(
+        "zebtrack.core.services.wizard_service.WizardService.resolve_camera_index",
+        return_value=(0, "OK"),
+    ):
+        ProjectInitializer(gui).initialize_live_components(pm)
+    tk_loop.run_until_idle()
+
+    gui.dialog_manager.show_warning.assert_called_once()
+    assert "COM7" in gui.dialog_manager.show_warning.call_args.args[1]

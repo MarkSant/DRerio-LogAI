@@ -680,11 +680,11 @@ class ZoneEditor:
         if current_editing_zone == "arena":
             # Persistir DIRETAMENTE a arena editada (Single Aquarium).
             #
-            # ANTES publicava UIEvents.ZONE_SAVE_MANUAL_ARENA com
+            # ANTES publicava o evento ZONE_SAVE_MANUAL_ARENA (ja removido) com
             # {"polygon_points": ...}, MAS esse evento está registrado como
             # ``EmptyPayload`` em event_bus_v2 e ``_coerce_payload`` DESCARTA o
             # dict (retorna EmptyPayload()) — então o handler de persistência
-            # (``MainViewModelRuntime._handle_zone_event`` → ``save_manual_arena``)
+            # (``save_manual_arena``, via a runtime handler since deleted)
             # recebia ``polygon_points=None`` e a edição NUNCA era salva (a
             # auto-detecção reaparecia). As demais ramificações (ROI/fallback)
             # já persistem por chamada direta; o arena agora faz o mesmo.

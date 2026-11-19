@@ -112,7 +112,8 @@ class TestLiveCameraSessionCoordinatorExtended3:
         coord._active_live_session_id = "session_123"
 
         coord.stop_live_session()
-        live_srv.stop_session.assert_called_once_with(cancelled=True)
+        live_srv.stop_session.assert_called_once()
+        assert live_srv.stop_session.call_args.kwargs["cancelled"] is True
 
     def test_stop_live_session_when_idle_returns_false(self):
         coord = object.__new__(LiveCameraSessionCoordinator)
@@ -144,11 +145,6 @@ class TestLiveCameraSessionCoordinatorExtended4:
 
         coord._active_live_session_id = "session_99"
         assert coord.is_live_session_active() is True
-
-    def test_get_live_session_info_idle(self):
-        coord = object.__new__(LiveCameraSessionCoordinator)
-        coord._active_live_session_id = None
-        assert coord.get_live_session_info() is None
 
 
 class TestLiveCameraSessionCoordinatorExtended5:

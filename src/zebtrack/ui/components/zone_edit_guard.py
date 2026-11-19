@@ -109,18 +109,6 @@ class ZoneEditGuard:
     # Warnings
     # ------------------------------------------------------------------
 
-    def warn_about_pending_zone_edit(self, *, context: str) -> None:
-        """Show a non-blocking warning if user navigates with an unfinished zone edit."""
-        if not self.has_pending_zone_edit():
-            return
-        self.dialog_manager.show_warning(
-            _("Zone editing in progress"),
-            _(
-                "A zone edit/drawing is in progress. Click 'Finish Video Editing' "
-                "when you are done, before {context}."
-            ).format(context=context),
-        )
-
     # ------------------------------------------------------------------
     # Confirm navigation
     # ------------------------------------------------------------------

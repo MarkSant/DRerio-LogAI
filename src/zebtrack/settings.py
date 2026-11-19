@@ -359,15 +359,6 @@ class YOLOModelSettings(BaseModel):
         ),
     )
 
-    @property
-    def effective_animal_confidence(self) -> float:
-        """Confidence floor to use for animal detection.
-
-        Prefer :func:`resolve_animal_confidence` at call sites that may receive a
-        stub or mock settings object; this property assumes a real model.
-        """
-        return resolve_animal_confidence(self)
-
     nms_threshold: float = Field(
         ...,
         gt=0,
@@ -1086,7 +1077,7 @@ class UIFeatureFlags(BaseModel):
 
     use_wizard_for_project_creation: bool = Field(
         True,
-        description="Use new 5-step wizard instead of legacy CreateProjectDialog (v1.6+ default)",
+        description="Legacy flag: the wizard is the only project-creation path",
     )
     enable_event_queue: bool = Field(
         False,

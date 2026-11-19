@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
-from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 @pytest.fixture
@@ -107,10 +106,6 @@ def test_register_event_handlers(coordinator):
     coordinator.register_event_handlers(zone_manager=mock_zone_manager)
 
     assert coordinator._zone_manager == mock_zone_manager
-    coordinator.event_bus.subscribe.assert_any_call(
-        UIEvents.ZONE_AQUARIUM_CONFIG_UPDATED,
-        coordinator._handle_aquarium_config_updated,
-    )
 
 
 def test_close_project(coordinator):
@@ -246,19 +241,6 @@ def test_reset_analysis_data(coordinator):
     coordinator.project_manager.reset_analysis_data.assert_called_once()
 
 
-def test_register_project_outputs(coordinator):
-    coordinator.register_project_outputs(
-        video_path="video.mp4",
-        results_dir="res",
-        trajectory_path="traj.parquet",
-        summary_parquet="sum.parquet",
-        summary_excel="sum.xlsx",
-        report_path="rep.docx",
-    )
-
-    coordinator.project_manager.register_processing_outputs.assert_called_once()
-
-
 def test_are_project_overrides_active(coordinator):
     coordinator._model_override_service.are_project_overrides_active.return_value = True
     assert coordinator.are_project_overrides_active() is True
@@ -284,17 +266,6 @@ def test_resolve_project_model_settings(coordinator):
     coordinator._model_override_service.resolve_project_model_settings.return_value = ("test", True)
 
     result = coordinator.resolve_project_model_settings()
-
-    assert result == ("test", True)
-
-
-def test_save_current_calibration_to_project(coordinator):
-    coordinator._model_override_service.save_current_calibration_to_project.return_value = (
-        "test",
-        True,
-    )
-
-    result = coordinator.save_current_calibration_to_project(lambda: "test", lambda: True)
 
     assert result == ("test", True)
 
@@ -349,29 +320,6 @@ def test_build_calibration_context(coordinator):
     assert ratio == (1.0, 1.0)
 
 
-def test_handle_aquarium_config_updated(coordinator):
-    mock_zone_manager = MagicMock()
-    mock_zone_data = MagicMock()
-    mock_aquarium = MagicMock()
-    mock_zone_data.get_aquarium.return_value = mock_aquarium
-    mock_zone_manager.get_multi_aquarium_zone_data.return_value = mock_zone_data
-
-    coordinator.register_event_handlers(zone_manager=mock_zone_manager)
-
-    payload = {
-        "aquarium_id": 1,
-        "config": {"group": "g1", "subject_id": "s1", "day": "d1"},
-        "video_path": "video.mp4",
-    }
-
-    coordinator._handle_aquarium_config_updated(payload)
-
-    assert mock_aquarium.group == "g1"
-    assert mock_aquarium.subject_id == "s1"
-    assert mock_aquarium.day == "d1"
-    mock_zone_manager.save_multi_aquarium_zone_data.assert_called_once()
-
-
 def test_stop_live_session_if_active_no_service(coordinator):
     coordinator.live_camera_service = None
     coordinator._stop_live_session_if_active()
@@ -392,71 +340,6 @@ def test_close_project_stops_live_session(coordinator):
     coordinator.live_camera_service.is_session_active.return_value = True
     coordinator.close_project()
     coordinator.live_camera_service.stop_session.assert_called_once()
-
-
-def test_handle_aquarium_config_updated_missing_data(coordinator):
-    coordinator._handle_aquarium_config_updated({})
-
-
-def test_handle_aquarium_config_updated_no_zone_manager(coordinator):
-    coordinator._zone_manager = None
-    coordinator._handle_aquarium_config_updated(
-        {"aquarium_id": 1, "config": {}, "video_path": "path"}
-    )
-
-
-def test_handle_aquarium_config_updated_no_zone_data(coordinator):
-    mock_zm = MagicMock()
-    mock_zm.get_multi_aquarium_zone_data.return_value = None
-    coordinator._zone_manager = mock_zm
-    coordinator._handle_aquarium_config_updated(
-        {"aquarium_id": 1, "config": {"group": "g1"}, "video_path": "path"}
-    )
-
-
-def test_handle_aquarium_config_updated_no_aquarium(coordinator):
-    mock_zm = MagicMock()
-    mock_zd = MagicMock()
-    mock_zd.get_aquarium.return_value = None
-    mock_zm.get_multi_aquarium_zone_data.return_value = mock_zd
-    coordinator._zone_manager = mock_zm
-    coordinator._handle_aquarium_config_updated(
-        {"aquarium_id": 1, "config": {"group": "g1"}, "video_path": "path"}
-    )
-
-
-def test_handle_aquarium_config_updated_dict_config(coordinator):
-    mock_zm = MagicMock()
-    mock_zd = MagicMock()
-    mock_aq = MagicMock()
-    mock_aq.group = "old"
-    mock_aq.subject_id = "old"
-    mock_aq.day = "old"
-    mock_zd.get_aquarium.return_value = mock_aq
-    mock_zm.get_multi_aquarium_zone_data.return_value = mock_zd
-    coordinator._zone_manager = mock_zm
-
-    coordinator._handle_aquarium_config_updated(
-        {
-            "aquarium_id": 1,
-            "config": {"group": "new_g", "subject_id": "new_s", "day": "new_d"},
-            "video_path": "path",
-        }
-    )
-
-    assert mock_aq.group == "new_g"
-    assert mock_aq.subject_id == "new_s"
-    assert mock_aq.day == "new_d"
-    mock_zm.save_multi_aquarium_zone_data.assert_called_once_with("path", mock_zd)
-
-
-def test_handle_aquarium_config_updated_exception(coordinator):
-    mock_zm = MagicMock()
-    mock_zm.get_multi_aquarium_zone_data.side_effect = Exception("test error")
-    coordinator._zone_manager = mock_zm
-    coordinator._handle_aquarium_config_updated(
-        {"aquarium_id": 1, "config": {"group": "g1"}, "video_path": "path"}
-    )
 
 
 def test_create_project_default_callbacks_failure(coordinator):
@@ -508,3 +391,37 @@ def test_default_setup_detector(coordinator):
         source="project_lifecycle_coordinator.openvino_fallback",
         use_openvino=False,
     )
+
+
+# ---------------------------------------------------------------------------
+# F2 pragma review: a failing ProjectManager never escapes to the UI caller
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("method", "pm_method", "kwargs"),
+    [
+        ("delete_project_asset", "remove_asset", {"asset": "arena"}),
+        ("delete_aquarium_scope", "remove_aquarium_scope", {"aquarium_id": 1}),
+        ("clear_aquarium_subject", "clear_aquarium_subject", {"aquarium_id": 1}),
+        ("reset_analysis_data", "reset_analysis_data", {"aquarium_id": 0}),
+    ],
+)
+def test_removal_failure_reports_false_and_refreshes_nothing(
+    coordinator, mock_event_bus, method, pm_method, kwargs
+):
+    getattr(coordinator.project_manager, pm_method).side_effect = OSError("file locked")
+
+    result = getattr(coordinator, method)("video.mp4", **kwargs)
+
+    assert result is False
+    mock_event_bus.publish.assert_not_called()
+
+
+def test_can_remove_failure_refuses_with_a_message(coordinator):
+    coordinator.project_manager.can_remove_asset.side_effect = KeyError("video")
+
+    allowed, reason = coordinator.can_remove_project_asset("video.mp4", "arena")
+
+    assert allowed is False
+    assert reason == "Could not validate the requested removal."

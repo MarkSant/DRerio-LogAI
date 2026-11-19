@@ -19,6 +19,7 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorValidationError,
 )
 from zebtrack.core.state_manager import StateCategory, StateManager
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 class ConcreteCoordinator(BaseCoordinator):
@@ -113,11 +114,11 @@ def test_publish_event_with_event_bus():
         event_bus=event_bus,
     )
 
-    coordinator._publish_event("TEST_EVENT", {"key": "value"})
+    coordinator._publish_event(UIEvents.SET_STATUS, {"key": "value"})
 
     event_bus.publish.assert_called_once()
     event_obj = event_bus.publish.call_args[0][0]
-    assert event_obj.type == "TEST_EVENT"
+    assert event_obj.type is UIEvents.SET_STATUS
     assert event_obj.data == {"key": "value"}
     print("✓ test_publish_event_with_event_bus passed")
 
@@ -128,7 +129,7 @@ def test_publish_event_without_event_bus():
     coordinator = ConcreteCoordinator(state_manager=state_manager)
 
     # Should not raise error
-    coordinator._publish_event("TEST_EVENT", {"key": "value"})
+    coordinator._publish_event(UIEvents.SET_STATUS, {"key": "value"})
     print("✓ test_publish_event_without_event_bus passed")
 
 

@@ -681,6 +681,13 @@ def main():
 
     args = parser.parse_args()
 
+    # The reports carry emoji; a legacy console codec (cp1252 on Windows) cannot encode them.
+    # Keep the console's encoding and escape what it cannot represent instead of crashing.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="backslashreplace")
+
     if not args.command:
         parser.print_help()
         return 1

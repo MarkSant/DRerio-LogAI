@@ -133,21 +133,6 @@ class UIScheduler:
             )
             return None
 
-    def cancel_scheduled(self, after_id: str) -> None:
-        """
-        Cancel a scheduled callback.
-
-        Args:
-            after_id: ID returned from schedule_after
-        """
-        if self.root is None or after_id is None:
-            return
-
-        try:
-            self.root.after_cancel(after_id)
-        except tk.TclError as e:
-            log.warning("ui_scheduler.cancel_failed", after_id=after_id, error=str(e))
-
     # === Convenience Methods for Common UI Operations ===
 
     def update_view(self, view: Any, method_name: str, *args: Any, **kwargs: Any) -> None:

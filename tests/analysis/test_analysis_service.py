@@ -110,31 +110,6 @@ def test_collect_analysis_parameters_nested_analysis_falls_back(settings_obj: Se
     )
 
 
-def test_validate_trajectory_schema_success(settings_obj: Settings):
-    """Test that the schema validation passes with a valid dataframe."""
-    service = AnalysisService(settings_obj=settings_obj)
-    df = pd.DataFrame(
-        {
-            "timestamp": [],
-            "frame": [],
-            "track_id": [],
-            "x1": [],
-            "y1": [],
-            "x2": [],
-            "y2": [],
-        }
-    )
-    assert service.validate_trajectory_schema(df) is True
-
-
-def test_validate_trajectory_schema_missing_columns(settings_obj: Settings):
-    """Test that schema validation fails if columns are missing."""
-    service = AnalysisService(settings_obj=settings_obj)
-    df = pd.DataFrame({"timestamp": [], "frame": []})
-    with pytest.raises(ValueError, match="missing required columns"):
-        service.validate_trajectory_schema(df)
-
-
 # ---------------------------------------------------------------------------
 # Recording duration from the time base, not rows / fps
 # ---------------------------------------------------------------------------
@@ -860,3 +835,87 @@ class TestPlausibleSpeedIsConfigurable:
 
         assert violations is not None
         assert violations["threshold_cm_s"] == 60.0
+
+
+# ---------------------------------------------------------------------------
+# A5-S-005 — a requested metric that fails must be named in the report
+# ---------------------------------------------------------------------------
+
+
+class TestFailedWallAndDepthMetricsAreReported:
+    """Thigmotaxis/geotaxis used to vanish from the report with only a log line."""
+
+    @staticmethod
+    def _break(monkeypatch, method: str) -> None:
+        from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
+
+        def _boom(self, *args, **kwargs):
+            raise ValueError("arena has no area")
+
+        monkeypatch.setattr(ConcreteBehavioralAnalyzer, method, _boom)
+
+    def test_a_failed_thigmotaxis_is_named_in_the_report_warnings(
+        self, settings_obj: Settings, monkeypatch
+    ):
+        self._break(monkeypatch, "calculate_thigmotaxis_index")
+
+        report = _run(
+            settings_obj,
+            _walk(),
+            fps=10.0,
+            behavioral_config={"aquarium_perspective": "top_down", "thigmotaxis_distance_cm": 2.0},
+        )
+
+        assert "thigmotaxis_indice" not in report["comportamento_geral"]
+        warnings = report["validacao"]["avisos"]
+        assert (
+            warnings.count("Thigmotaxis was requested but could not be computed: arena has no area")
+            == 1
+        )
+
+    def test_a_failed_geotaxis_is_named_in_the_report_warnings(
+        self, settings_obj: Settings, monkeypatch
+    ):
+        self._break(monkeypatch, "calculate_geotaxis_index")
+
+        report = _run(
+            settings_obj,
+            _walk(),
+            fps=10.0,
+            behavioral_config={"aquarium_perspective": "lateral", "geotaxis_distance_cm": 1.5},
+        )
+
+        assert _geotaxis_keys(report) == set()
+        assert (
+            "Geotaxis was requested but could not be computed: arena has no area"
+            in report["validacao"]["avisos"]
+        )
+
+    def test_a_metric_that_was_not_requested_adds_no_warning(
+        self, settings_obj: Settings, monkeypatch
+    ):
+        self._break(monkeypatch, "calculate_thigmotaxis_index")
+        self._break(monkeypatch, "calculate_geotaxis_index")
+
+        report = _run(
+            settings_obj,
+            _walk(),
+            fps=10.0,
+            behavioral_config={
+                "aquarium_perspective": "top_down",
+                "thigmotaxis_distance_cm": None,
+                "geotaxis_distance_cm": None,
+            },
+        )
+
+        assert not [w for w in report["validacao"]["avisos"] if "could not be computed" in w]
+
+    def test_metrics_that_succeed_add_no_warning(self, settings_obj: Settings):
+        report = _run(
+            settings_obj,
+            _walk(),
+            fps=10.0,
+            behavioral_config={"aquarium_perspective": "lateral", "geotaxis_distance_cm": 1.5},
+        )
+
+        assert not [w for w in report["validacao"]["avisos"] if "could not be computed" in w]

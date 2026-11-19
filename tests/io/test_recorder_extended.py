@@ -311,3 +311,39 @@ class TestRecorderExtended9:
         rec = Recorder(settings_obj=None)
         assert rec._settings_obj is None
         assert rec.video_writer is None
+
+
+class _CloseFails:
+    """A Parquet writer whose ``close`` fails (disk yanked, handle revoked)."""
+
+    def __init__(self) -> None:
+        self.close_calls = 0
+
+    def close(self) -> None:
+        self.close_calls += 1
+        raise OSError("handle revoked")
+
+
+class TestWriterCloseFailures:
+    """F2 pragma review: a failing close is logged and the writer is dropped."""
+
+    @pytest.mark.parametrize(
+        ("close_method", "writer_attr", "path_attr"),
+        [
+            ("_close_parquet_writer", "_parquet_writer", "_parquet_filename"),
+            ("_close_mask_writer", "_mask_parquet_writer", "_mask_parquet_filename"),
+            ("_close_object_writer", "_object_parquet_writer", "_object_parquet_filename"),
+        ],
+    )
+    def test_failed_close_releases_the_writer(
+        self, tmp_path: Path, close_method: str, writer_attr: str, path_attr: str
+    ) -> None:
+        recorder = Recorder()
+        writer = _CloseFails()
+        setattr(recorder, writer_attr, writer)
+        setattr(recorder, path_attr, str(tmp_path / "out.parquet"))
+
+        getattr(recorder, close_method)()
+
+        assert writer.close_calls == 1
+        assert getattr(recorder, writer_attr) is None

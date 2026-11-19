@@ -561,7 +561,7 @@ class ArduinoBindingsPanel(ttk.Frame):
             self.after(0, func, *args)
         # except Exception justified: ``after`` raises TclError once the widget
         # (or the interpreter) is gone — nothing left to update.
-        except Exception:  # pragma: no cover - defensive
+        except Exception:
             log.debug("arduino_bindings_panel.schedule_ui.after_failed")
 
     def _finish_test(

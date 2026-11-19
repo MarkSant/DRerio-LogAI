@@ -126,7 +126,6 @@ class MainViewModel:
     def _assign_bootstrap_result(self, result: BootstrapResult) -> None:
         """Assign components created by ApplicationBootstrapper."""
         # Services
-        self.project_service = result.project_service
         self.analysis_service = result.analysis_service
         self.video_classification_service = result.video_classification_service
         self.video_selection_service = result.video_selection_service

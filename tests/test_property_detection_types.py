@@ -122,13 +122,6 @@ class TestMultiAquariumZoneDataProperties:
 
     @given(aquariums=st.lists(aquarium_data_strategy, min_size=0, max_size=4))
     @settings(max_examples=50, database=None)
-    def test_aquarium_count_matches_list_length(self, aquariums: list[AquariumData]) -> None:
-        """aquarium_count must equal len(aquariums)."""
-        mz = MultiAquariumZoneData(aquariums=aquariums)
-        assert mz.aquarium_count == len(aquariums)
-
-    @given(aquariums=st.lists(aquarium_data_strategy, min_size=0, max_size=4))
-    @settings(max_examples=50, database=None)
     def test_is_multi_aquarium_threshold(self, aquariums: list[AquariumData]) -> None:
         """is_multi_aquarium should be True only when > 1 aquarium."""
         mz = MultiAquariumZoneData(aquariums=aquariums)

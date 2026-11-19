@@ -1200,3 +1200,79 @@ class TestExperimentNotes:
         [excel_path] = tmp_path.glob("unified_summary_*.xlsx")
         with pd.ExcelFile(excel_path) as workbook:
             assert "Notes" not in workbook.sheet_names
+
+
+# =============================================================================
+# A4-01: the unified report reads ROIs from EVERY aquarium, not only aquarium 0
+# =============================================================================
+
+
+def _two_aquarium_zones():
+    from zebtrack.core.detection import AquariumData, MultiAquariumZoneData
+
+    return MultiAquariumZoneData(
+        aquariums=[
+            AquariumData(
+                id=0,
+                polygon=[[0, 0], [100, 0], [100, 100], [0, 100]],
+                roi_names=["toca", "centro"],
+                roi_colors=[(1, 1, 1), (2, 2, 2)],
+            ),
+            AquariumData(
+                id=1,
+                polygon=[[200, 0], [300, 0], [300, 100], [200, 100]],
+                roi_names=["centro", "alimentador"],
+                roi_colors=[(9, 9, 9), (3, 3, 3)],
+            ),
+        ]
+    )
+
+
+def test_roi_names_of_a_multi_aquarium_video_come_from_every_aquarium(coordinator):
+    coordinator.project_manager.get_multi_aquarium_zone_data = Mock(
+        return_value=_two_aquarium_zones()
+    )
+    coordinator.project_manager.get_zone_data = Mock(side_effect=AssertionError("aquarium-0 shim"))
+
+    names = coordinator._find_project_roi_names(["/p/multi.mp4"])
+
+    # In order of first appearance, each name once.
+    assert names == ["toca", "centro", "alimentador"]
+
+
+def test_roi_names_of_a_single_aquarium_video_still_come_from_its_zones(coordinator):
+    from zebtrack.core.detection import ZoneData
+
+    coordinator.project_manager.get_multi_aquarium_zone_data = Mock(return_value=None)
+    coordinator.project_manager.get_zone_data = Mock(
+        return_value=ZoneData(polygon=[[0, 0], [1, 0], [1, 1]], roi_names=["toca"])
+    )
+
+    assert coordinator._find_project_roi_names(["/p/single.mp4"]) == ["toca"]
+
+
+def test_roi_colors_of_a_multi_aquarium_video_cover_every_aquarium(coordinator):
+    coordinator.project_manager.get_multi_aquarium_zone_data = Mock(
+        return_value=_two_aquarium_zones()
+    )
+    coordinator.project_manager.get_zone_data = Mock(side_effect=AssertionError("aquarium-0 shim"))
+    colors: dict = {}
+
+    coordinator._collect_roi_colors_into("/p/multi.mp4", colors)
+
+    # A name already coloured keeps its first colour ("centro" from aquarium 0).
+    assert colors == {"toca": (1, 1, 1), "centro": (2, 2, 2), "alimentador": (3, 3, 3)}
+
+
+def test_roi_colors_of_a_single_aquarium_video_are_unchanged(coordinator):
+    from zebtrack.core.detection import ZoneData
+
+    coordinator.project_manager.get_multi_aquarium_zone_data = Mock(return_value=None)
+    coordinator.project_manager.get_zone_data = Mock(
+        return_value=ZoneData(roi_names=["toca"], roi_colors=[(5, 6, 7)])
+    )
+    colors: dict = {"toca": (0, 0, 0)}
+
+    coordinator._collect_roi_colors_into("/p/single.mp4", colors)
+
+    assert colors == {"toca": (0, 0, 0)}

@@ -74,7 +74,7 @@ class DetectorSetupCoordinator(BaseCoordinator):
     - ModelService: Model and weight management
     - WeightManager: Active weight resolution
     - StateManager: Detector state persistence
-    - EventBusV2: UI notifications
+    - EventBusV2: accepted for BaseCoordinator; this coordinator publishes no event
 
     Phase 4.9: Replaces both HardwareCoordinator (Group A) and
     DetectorCoordinator (Sprint 5 duplicate).
@@ -144,7 +144,6 @@ class DetectorSetupCoordinator(BaseCoordinator):
         1. Validating dependencies
         2. Delegating to DetectorService.initialize_detector()
         3. Updating StateManager with detector state
-        4. Publishing events for UI updates
 
         Args:
             animal_method: Detection method ('det' or 'seg'). If None, uses settings
@@ -249,7 +248,6 @@ class DetectorSetupCoordinator(BaseCoordinator):
         1. Validating dependencies and inputs
         2. Delegating to DetectorService.configure_zones()
         3. Updating StateManager with zone state
-        4. Publishing events for UI updates
 
         Args:
             zones_data: Zone definitions (list of dicts, ZoneData, or MultiAquariumZoneData)
@@ -321,7 +319,7 @@ class DetectorSetupCoordinator(BaseCoordinator):
             )
 
             if success:
-                # Calculate count for state/events
+                # Calculate count for state
                 count = 0
                 if zones_data:
                     count = 1
@@ -337,16 +335,6 @@ class DetectorSetupCoordinator(BaseCoordinator):
                     StateCategory.DETECTOR,
                     zones_configured=True,
                     zones_count=count,
-                )
-
-                # Publish success event
-                self._publish_event(
-                    "ZONES_CONFIGURED",
-                    {
-                        "zones_count": count,
-                        "video_width": video_width,
-                        "video_height": video_height,
-                    },
                 )
 
                 log.info(
@@ -390,7 +378,6 @@ class DetectorSetupCoordinator(BaseCoordinator):
         1. Validating dependencies and inputs
         2. Delegating to DetectorService.update_tracking_parameters()
         3. Updating StateManager with parameter state
-        4. Publishing events for UI updates
 
         Args:
             track_threshold: Detection confidence threshold (0.0-1.0)
@@ -470,19 +457,6 @@ class DetectorSetupCoordinator(BaseCoordinator):
 
                 self._update_state(StateCategory.DETECTOR, **state_update)
 
-                # Publish success event
-                self._publish_event(
-                    "TRACKING_PARAMETERS_UPDATED",
-                    {
-                        "track_threshold": track_threshold,
-                        "match_threshold": match_threshold,
-                        "track_buffer": track_buffer,
-                        "use_bytetrack": use_bytetrack,
-                        "max_center_distance": max_center_distance,
-                        "iou_threshold": iou_threshold,
-                    },
-                )
-
                 log.info(
                     "detector_setup.update_tracking_parameters.success",
                     track_threshold=track_threshold,
@@ -521,7 +495,6 @@ class DetectorSetupCoordinator(BaseCoordinator):
         1. Validating dependencies and inputs
         2. Delegating to DetectorService.update_tracking_parameters()
         3. Updating StateManager with parameter state
-        4. Publishing events for UI updates
 
         Args:
             params: Dict of parameters to update (e.g., {'conf_threshold': 0.5})
@@ -707,12 +680,6 @@ class DetectorSetupCoordinator(BaseCoordinator):
                 single_subject_mode=enabled,
             )
 
-            # Publish success event
-            self._publish_event(
-                "SINGLE_SUBJECT_MODE_CHANGED",
-                {"enabled": enabled},
-            )
-
             log.info(
                 "detector_setup.set_single_subject_mode.success",
                 enabled=enabled,
@@ -835,12 +802,6 @@ class DetectorSetupCoordinator(BaseCoordinator):
             self._update_state(
                 StateCategory.DETECTOR,
                 settings_restored=True,
-            )
-
-            # Publish success event
-            self._publish_event(
-                "DETECTOR_SETTINGS_RESTORED",
-                {"config": saved_detector_config},
             )
 
             log.info(

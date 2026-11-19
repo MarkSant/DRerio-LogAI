@@ -137,89 +137,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         if not self.event_bus:
             return
 
-        # Subscribe to aquarium config update events
-        self.event_bus.subscribe(
-            UIEvents.ZONE_AQUARIUM_CONFIG_UPDATED,
-            self._handle_aquarium_config_updated,
-        )
-
         log.info("project_lifecycle_coordinator.register_handlers.complete")
-
-    def _handle_aquarium_config_updated(self, payload: payloads.EventPayload) -> None:
-        """Handle aquarium configuration update event.
-
-        Phase 5: Updates aquarium configuration in zone data.
-
-        Args:
-            payload: Event payload with aquarium_id, config, and video_path.
-        """
-        aquarium_id = _payload_get(payload, "aquarium_id")
-        config = _payload_get(payload, "config")
-        video_path = _payload_get(payload, "video_path")
-
-        if aquarium_id is None or not config or not video_path:
-            log.warning(
-                "aquarium_config_update.missing_data",
-                has_id=aquarium_id is not None,
-                has_config=bool(config),
-                has_video=bool(video_path),
-            )
-            return
-
-        if not self._zone_manager:
-            log.warning("aquarium_config_update.no_zone_manager")
-            return
-
-        try:
-            zone_data = self._zone_manager.get_multi_aquarium_zone_data(
-                self.project_manager.project_data, video_path
-            )
-            if not zone_data:
-                log.warning(
-                    "aquarium_config_update.no_zone_data",
-                    video_path=str(video_path),
-                )
-                return
-
-            aquarium = zone_data.get_aquarium(aquarium_id)
-            if not aquarium:
-                log.warning(
-                    "aquarium_config_update.aquarium_not_found",
-                    aquarium_id=aquarium_id,
-                )
-                return
-
-            # Update aquarium config
-            if hasattr(config, "group"):
-                aquarium.group = config.group
-            elif isinstance(config, dict):
-                aquarium.group = config.get("group", aquarium.group)
-
-            if hasattr(config, "subject_id"):
-                aquarium.subject_id = config.subject_id
-            elif isinstance(config, dict):
-                aquarium.subject_id = config.get("subject_id", aquarium.subject_id)
-
-            if hasattr(config, "day"):
-                aquarium.day = config.day
-            elif isinstance(config, dict):
-                aquarium.day = config.get("day", aquarium.day)
-
-            # Save updated zone data
-            self._zone_manager.save_multi_aquarium_zone_data(video_path, zone_data)
-
-            log.info(
-                "aquarium_config_update.success",
-                aquarium_id=aquarium_id,
-                video_path=str(video_path),
-            )
-
-        except Exception as e:  # except Exception justified: event handler fault isolation
-            log.error(
-                "aquarium_config_update.failed",
-                aquarium_id=aquarium_id,
-                error=str(e),
-            )
 
     # ========================================================================
     # Group A: Project Lifecycle (create, open, close)
@@ -243,7 +161,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             live_service.stop_session()
             self.logger.info("project.close.live_session_stopped")
         # except Exception justified: cleanup boundary — never block close
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             self.logger.warning(
                 "project.close.live_session_stop_failed", error=str(exc), exc_info=True
             )
@@ -751,7 +669,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         try:
             asset_type = cast(AssetType, asset)
             return self.project_manager.can_remove_asset(str(video_path), asset_type)
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             self.logger.error(
                 "project.asset.can_remove_failed",
                 asset=asset,
@@ -796,7 +714,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                 delete_source=delete_source,
             )
             return removed
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             self.logger.error(
                 "project.asset.remove_failed",
                 asset=asset,
@@ -889,7 +807,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                     {"source": "aquarium_delete_scope"},
                 )
             return removed
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             self.logger.error(
                 "project.aquarium_delete.failed",
                 video=str(video_path),
@@ -930,7 +848,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                     {"source": "aquarium_clear_subject"},
                 )
             return removed
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             self.logger.error(
                 "project.aquarium_subject_clear.failed",
                 video=str(video_path),
@@ -968,7 +886,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                     {"source": "analysis_reset"},
                 )
             return removed
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             self.logger.error(
                 "project.analysis_reset.failed",
                 video=str(video_path),
@@ -977,49 +895,6 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                 exc_info=True,
             )
             return False
-
-    def register_project_outputs(
-        self,
-        *,
-        video_path: str,
-        results_dir: str,
-        trajectory_path: str,
-        summary_parquet: str,
-        summary_excel: str,
-        report_path: str,
-        refresh_callback: Callable[[str, bool], None] | None = None,
-    ) -> None:
-        """Register processing outputs to project.
-
-        Args:
-            video_path: Path to processed video
-            results_dir: Results directory path
-            trajectory_path: Trajectory parquet path
-            summary_parquet: Summary parquet path
-            summary_excel: Summary excel path
-            report_path: Report docx path
-            refresh_callback: Optional callback to refresh project views
-
-        Phase 3: Consolidated from ProjectOrchestrator._register_project_outputs
-        """
-        self.logger.info("project.outputs.register.start", video=video_path)
-
-        # Register through project manager
-        if hasattr(self.project_manager, "register_processing_outputs"):
-            self.project_manager.register_processing_outputs(
-                video_path=video_path,
-                results_dir=results_dir,
-                trajectory_path=trajectory_path,
-                summary_parquet=summary_parquet,
-                summary_excel=summary_excel,
-                report_path=report_path,
-            )
-
-        # Refresh views if callback provided
-        if refresh_callback:
-            refresh_callback("processing_progress", True)
-
-        self.logger.info("project.outputs.register.complete", video=video_path)
 
     # ========================================================================
     # Group C: Model Override Management (delegated to ModelOverrideService)
@@ -1173,19 +1048,6 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         if self._model_override_service:
             return self._model_override_service.resolve_project_model_settings(overrides)
         return self.project_workflow_service.resolve_project_model_settings(overrides)
-
-    def save_current_calibration_to_project(
-        self,
-        get_active_weight_name: Callable[[], str | None],
-        get_use_openvino: Callable[[], bool],
-        refresh_callback: Callable[[str, bool], None] | None = None,
-    ) -> tuple[str | None, bool] | None:
-        """Save current model settings as project-specific overrides."""
-        if self._model_override_service:
-            return self._model_override_service.save_current_calibration_to_project(
-                get_active_weight_name, get_use_openvino, refresh_callback
-            )
-        return None
 
     def _project_animal_method(self) -> str:
         """det/seg method of the open project, before the global setting.

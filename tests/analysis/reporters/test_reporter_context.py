@@ -41,11 +41,12 @@ class TestReporterContextLegacyValidation:
                 warnings.simplefilter("ignore", DeprecationWarning)
                 ReporterContext(trajectory_df=None, analysis=None)
 
-    def test_legacy_path_emits_deprecation_warning(
+    def test_direct_path_is_supported_and_silent(
         self, reporter_trajectory_df, reporter_rois, reporter_mock_settings
     ):
-        """Construção legada emite DeprecationWarning."""
-        with pytest.warns(DeprecationWarning, match="DEPRECATED"):
+        """A4-05: the project report generation uses this path; no deprecation."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
             ReporterContext(
                 **_legacy_kwargs(reporter_trajectory_df, reporter_rois, reporter_mock_settings)
             )

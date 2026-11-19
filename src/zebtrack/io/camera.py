@@ -264,7 +264,7 @@ class Camera(FrameSource):
         try:
             if self.cap.isOpened():
                 self.cap.release()
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             log.warning("camera.reconnect.force_release_failed", error=str(exc))
         self._stopped.set()
         self._reconnect_state_ready.set()

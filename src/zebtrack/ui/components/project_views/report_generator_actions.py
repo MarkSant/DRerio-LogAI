@@ -15,11 +15,61 @@ import structlog
 
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
+from zebtrack.ui.background_task import run_in_background
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
+
+
+UNIFIED_DELETE_ATTEMPTS = 3
+UNIFIED_DELETE_RETRY_PAUSE_S = 0.5
+
+
+def delete_unified_reports_dir(unified_dir: Path | str) -> tuple[bool, Exception | None]:
+    """Remove ``unified_dir``, retrying while OneDrive/antivirus hold a file.
+
+    Runs on a background worker (never touches Tk). Pauses between attempts,
+    never after the last one: that pause only delayed the error dialog.
+
+    Returns:
+        ``(True, None)`` when the folder is gone, else ``(False, last_error)``.
+    """
+    import shutil
+    import stat
+    import time
+
+    def on_rm_error(func: Any, path: Path | str, exc_info: Any) -> None:
+        """Handler to clear read-only/locked files."""
+        try:
+            os.chmod(path, stat.S_IWRITE)
+            func(path)
+        except OSError:
+            log.debug(
+                "report_generator_actions.rmtree_retry.suppressed",
+                path=path,
+                exc_info=True,
+            )
+
+    last_error: Exception | None = None
+    # NOT ``for _ in ...``: ``_`` is the gettext callable in this module,
+    # and rebinding it here would break every _() call further down.
+    for attempt in range(UNIFIED_DELETE_ATTEMPTS):
+        if attempt:
+            time.sleep(UNIFIED_DELETE_RETRY_PAUSE_S)
+        try:
+            shutil.rmtree(unified_dir, onerror=on_rm_error)
+        except OSError as e:
+            last_error = e
+            continue
+        # ``on_rm_error`` swallows what it cannot fix, so rmtree "returns
+        # normally" even when a file is locked: the folder itself is the
+        # only proof that the deletion worked.
+        if not os.path.exists(unified_dir):
+            return True, None
+        last_error = OSError(_("the folder still exists after the deletion attempt"))
+    return False, last_error
 
 
 class ReportGeneratorActions:
@@ -71,6 +121,8 @@ class ReportGeneratorActions:
             report_tree_metadata if report_tree_metadata is not None else {}
         )
         self._reports_tree_getter = reports_tree_getter
+        # A unified-report deletion is running on a worker (audit A6-02).
+        self._unified_delete_pending = False
 
     @property
     def project_manager(self) -> Any:
@@ -262,71 +314,92 @@ class ReportGeneratorActions:
     def delete_all_unified_reports(self, data: dict | None = None) -> None:
         """Delete the entire unified_reports directory.
 
-        May be subscribed to event ``reports.delete_unified``.
+        May be subscribed to event ``reports.delete_unified``. The event bus is
+        synchronous and the button lives on the Tk thread, so the deletion
+        itself (``rmtree`` of an OneDrive folder, with retries) runs on a
+        background worker and the result dialog is shown back on Tk (audit
+        A6-02). A second request while one is in flight is ignored.
         """
         pm = self.project_manager
         if not pm.project_path:
             return
+        project_path = pm.project_path
+        unified_dir = os.path.join(project_path, "unified_reports")
 
-        import shutil
-        import stat
-        import time
-
-        unified_dir = os.path.join(pm.project_path, "unified_reports")
-
-        def on_rm_error(func: Any, path: Path | str, exc_info: Any) -> None:
-            """Handler to clear read-only/locked files."""
-            try:
-                os.chmod(path, stat.S_IWRITE)
-                func(path)
-            except OSError:
-                log.debug(
-                    "report_generator_actions.rmtree_retry.suppressed",
-                    path=path,
-                    exc_info=True,
-                )
-
-        if os.path.exists(unified_dir):
-            success = False
-            last_error = None
-
-            # NOT ``for _ in ...``: ``_`` is the gettext callable in this module,
-            # and rebinding it here would break every _() call further down.
-            for _attempt in range(3):
-                try:
-                    shutil.rmtree(unified_dir, onerror=on_rm_error)
-                    success = True
-                    break
-                except OSError as e:
-                    last_error = e
-                    time.sleep(0.5)
-
-            if success:
-                log.info("project.delete_unified.success", path=unified_dir)
-                self.dialog_manager.show_info(
-                    _("Success"), _("All unified reports have been deleted.")
-                )
-
-                widget = self._processing_reports_widget
-                if widget and hasattr(widget, "_update_button_states"):
-                    widget._update_button_states(pm.project_path)
-            else:
-                log.warning("project.delete_unified.failed", error=str(last_error))
-
-                msg = _("Could not delete the folder.\nCheck whether a file is still open.")
-                if last_error and "OneDrive" in str(unified_dir):
-                    msg += _("\n\nOneDrive may be locking files. Try again in a few moments.")
-
-                self.dialog_manager.show_error(
-                    _("Deletion Error"),
-                    _("{message}\n\nError: {error}").format(message=msg, error=last_error),
-                )
-
-        # Always refresh button states regardless of success/failure
-        widget = self._processing_reports_widget
-        if widget and hasattr(widget, "_update_button_states"):
-            widget._update_button_states(pm.project_path)
-        else:
+        if not os.path.exists(unified_dir):
             self.dialog_manager.show_info(
                 _("Warning"), _("There were no unified reports to delete.")
             )
+            self._refresh_unified_buttons(project_path)
+            return
+
+        if self._unified_delete_pending:
+            log.info("project.delete_unified.already_running", path=unified_dir)
+            return
+
+        owner = self._tk_owner()
+        if owner is None:
+            # No Tk widget to come back to (headless use): nothing to freeze.
+            self._finish_unified_delete(
+                project_path, unified_dir, delete_unified_reports_dir(unified_dir)
+            )
+            return
+
+        self._unified_delete_pending = True
+
+        def _done(outcome: tuple[bool, Exception | None]) -> None:
+            self._unified_delete_pending = False
+            self._finish_unified_delete(project_path, unified_dir, outcome)
+
+        def _failed(exc: BaseException) -> None:
+            self._unified_delete_pending = False
+            error = exc if isinstance(exc, Exception) else RuntimeError(str(exc))
+            self._finish_unified_delete(project_path, unified_dir, (False, error))
+
+        run_in_background(
+            owner,
+            lambda: delete_unified_reports_dir(unified_dir),
+            _done,
+            _failed,
+            name="delete-unified-reports",
+        )
+
+    def _tk_owner(self) -> Any | None:
+        """A Tk widget whose ``after`` can bring a background result back."""
+        widget = self._processing_reports_widget
+        if widget is not None and hasattr(widget, "after"):
+            return widget
+        gui = getattr(self._dialog_manager, "gui", None)
+        root = getattr(gui, "root", None)
+        return root if root is not None and hasattr(root, "after") else None
+
+    def _finish_unified_delete(
+        self,
+        project_path: Path | str,
+        unified_dir: Path | str,
+        outcome: tuple[bool, Exception | None],
+    ) -> None:
+        """Tell the user how the deletion went and refresh the buttons (Tk thread)."""
+        success, last_error = outcome
+        if success:
+            log.info("project.delete_unified.success", path=unified_dir)
+            self.dialog_manager.show_info(_("Success"), _("All unified reports have been deleted."))
+        else:
+            log.warning("project.delete_unified.failed", error=str(last_error))
+
+            msg = _("Could not delete the folder.\nCheck whether a file is still open.")
+            if last_error and "OneDrive" in str(unified_dir):
+                msg += _("\n\nOneDrive may be locking files. Try again in a few moments.")
+
+            self.dialog_manager.show_error(
+                _("Deletion Error"),
+                _("{message}\n\nError: {error}").format(message=msg, error=last_error),
+            )
+
+        # Always refresh button states regardless of success/failure
+        self._refresh_unified_buttons(project_path)
+
+    def _refresh_unified_buttons(self, project_path: Path | str) -> None:
+        widget = self._processing_reports_widget
+        if widget and hasattr(widget, "_update_button_states"):
+            widget._update_button_states(project_path)

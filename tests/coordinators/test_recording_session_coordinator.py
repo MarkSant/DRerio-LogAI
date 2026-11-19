@@ -142,6 +142,27 @@ def test_start_recording_zones_pending_confirmation(coordinator):
     assert coordinator._pending_recording_context is not None
 
 
+def test_an_asynchronous_gate_that_ends_without_zones_drops_the_saved_context(coordinator):
+    """A6-03: the gate can end later, on Tk, without zones; the context must go."""
+    calibration = coordinator.live_calibration_coordinator
+    captured: dict = {}
+
+    def _ensure(**kwargs):
+        captured.update(kwargs)
+        calibration.pending_zone_confirmation = True  # deferred while the worker runs
+        return False
+
+    calibration.ensure_zones_before_recording.side_effect = _ensure
+
+    assert coordinator.start_recording(output_path="test/out", experiment_id="slow") is False
+    assert coordinator._pending_recording_context is not None
+
+    captured["on_abandoned"]()
+
+    assert coordinator._pending_recording_context is None
+    coordinator.recording_service.schedule_recording.assert_not_called()
+
+
 def test_stop_recording_success(coordinator):
     recording_state = MagicMock()
     recording_state.is_recording = True
@@ -170,29 +191,6 @@ def test_is_recording(coordinator):
     coordinator.state_manager.get_recording_state.return_value = recording_state
 
     assert coordinator.is_recording() is True
-
-
-def test_get_recording_info(coordinator):
-    recording_state = MagicMock()
-    recording_state.is_recording = True
-    recording_state.output_path = "test/path"
-    recording_state.experiment_id = "test_exp"
-    recording_state.duration = 300
-    coordinator.state_manager.get_recording_state.return_value = recording_state
-
-    info = coordinator.get_recording_info()
-
-    assert info is not None
-    assert info["is_recording"] is True
-    assert info["output_path"] == "test/path"
-
-
-def test_get_recording_info_not_recording(coordinator):
-    recording_state = MagicMock()
-    recording_state.is_recording = False
-    coordinator.state_manager.get_recording_state.return_value = recording_state
-
-    assert coordinator.get_recording_info() is None
 
 
 @patch("zebtrack.core.services.external_trigger_gate.decide_external_trigger")
@@ -349,3 +347,49 @@ class TestStartRecordingDetailsAndExplicitPath:
 
         coordinator.on_arduino_event(0)
         assert coordinator._pending_external_trigger is None
+
+
+def test_the_recording_service_reports_through_the_coordinator(
+    mock_state_manager,
+    mock_live_camera_service,
+    mock_project_manager,
+    mock_settings,
+    mock_live_calibration_coordinator,
+    mock_event_bus,
+):
+    """A2-13: the plain RecordingService path had no UI callbacks wired.
+
+    A timed recording therefore never stopped by itself, and the service's
+    status and error messages reached nobody. The real service now calls back
+    into the coordinator, which publishes on the bus.
+    """
+    from zebtrack.core.recording.recording_service import RecordingService
+    from zebtrack.ui import payloads
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    service = RecordingService(state_manager=MagicMock(), project_manager=MagicMock())
+    coord = RecordingSessionCoordinator(
+        state_manager=mock_state_manager,
+        recording_service=service,
+        live_camera_service=mock_live_camera_service,
+        project_manager=mock_project_manager,
+        settings_obj=mock_settings,
+        live_calibration_coordinator=mock_live_calibration_coordinator,
+        event_bus=mock_event_bus,
+    )
+    mock_event_bus.publish.reset_mock()
+
+    assert service._ui_callbacks["stop_recording_callback"] == coord.stop_recording
+    service._show_error("Camera", "not found")
+    service._set_status("Recording session: S1")
+    service._update_button_state("record", "disabled")
+
+    published = [(c.args[0].type, c.args[0].data) for c in mock_event_bus.publish.call_args_list]
+    assert published == [
+        (UIEvents.SHOW_ERROR, payloads.MessagePayload(title="Camera", message="not found")),
+        (UIEvents.UI_SET_STATUS, payloads.StatusPayload(message="Recording session: S1")),
+        (
+            UIEvents.UI_UPDATE_BUTTON_STATE,
+            payloads.UpdateButtonStatePayload(button_name="record", state="disabled"),
+        ),
+    ]

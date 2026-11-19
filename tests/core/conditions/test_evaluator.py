@@ -569,7 +569,6 @@ class TestWindow:
         for observation in frames:
             evaluator.step(observation)
         evaluator.finish()
-        assert evaluator.skipped_observations == 1
         assert evaluator.result.start is not None
         assert evaluator.result.start.frame == 3
 
@@ -897,3 +896,48 @@ class TestProperties:
             if index < len(dup) and dup[index]:
                 doubled.append(observation)
         assert _run(spec, doubled)[1] == _run(spec, stream)[1]
+
+
+# ---------------------------------------------------------------------------
+# Nodes the compiler does not know (F2 pragma review)
+# ---------------------------------------------------------------------------
+
+
+class _AlienTrigger:
+    """A trigger node from outside the model: what ``model_construct`` lets through."""
+
+
+class _AlienLevel:
+    """A composite-looking level node the compiler has no branch for."""
+
+    children: tuple[object, ...] = ()
+
+
+class TestUnknownNodes:
+    """An unknown node must stop the evaluator at construction, never compile to a no-op.
+
+    ``WindowSpec`` validation rejects foreign nodes, but ``model_construct`` skips
+    validation; the compiler's own ``TypeError`` is the last line of defence.
+    """
+
+    def test_unknown_trigger_node_is_refused_by_its_type_name(self) -> None:
+        spec = WindowSpec.model_construct(start=_AlienTrigger())  # type: ignore[arg-type]
+
+        with pytest.raises(TypeError, match=r"^Unknown trigger node: _AlienTrigger$"):
+            ConditionEvaluator(spec, role_names={})
+
+    def test_unknown_stop_node_is_refused_too(self) -> None:
+        spec = WindowSpec.model_construct(stop=_AlienTrigger())  # type: ignore[arg-type]
+
+        with pytest.raises(TypeError, match=r"^Unknown trigger node: _AlienTrigger$"):
+            ConditionEvaluator(spec, role_names={})
+
+    def test_unknown_level_node_is_refused_by_its_type_name(self) -> None:
+        persist = Persist.model_construct(
+            level=_AlienLevel(),  # type: ignore[arg-type]
+            hold=Hold(frames=1),
+        )
+        spec = WindowSpec.model_construct(start=persist)
+
+        with pytest.raises(TypeError, match=r"^Unknown level node: _AlienLevel$"):
+            ConditionEvaluator(spec, role_names={})

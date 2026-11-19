@@ -10,8 +10,7 @@ Phase 3: Massively expanded to include video processing orchestration (~500 line
 Now handles batch processing, single video processing, and all coordination logic.
 """
 
-import os
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -37,8 +36,6 @@ from zebtrack.analysis.trajectory_validator import (
 )
 from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig, resolve_roi_rule
 from zebtrack.i18n import _
-from zebtrack.ui import payloads as payloads
-from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.core.detection import AquariumData
@@ -544,8 +541,15 @@ class AnalysisService:
                 report["comportamento_geral"]["thigmotaxis_avg_dist"] = (
                     b_analyzer.calculate_thigmotaxis_index(method="average_distance")
                 )
+            # except Exception justified: one metric failing must not cost the
+            # whole report, but the report has to say the metric is missing
             except Exception as e:
                 self.log.warning("analysis.thigmotaxis.failed", error=str(e))
+                validation_warnings.append(
+                    _("Thigmotaxis was requested but could not be computed: {error}").format(
+                        error=e
+                    )
+                )
 
         # Calculate Geotaxis (side view only, #631): it measures depth, and a
         # video filmed from above has no bottom. ``geotaxis_applies`` is the one
@@ -568,8 +572,12 @@ class AnalysisService:
                         method="zone_time", num_zones=int(num_zones), bottom_zones=int(bottom_zones)
                     )
                 )
+            # except Exception justified: same as thigmotaxis above
             except Exception as e:
                 self.log.warning("analysis.geotaxis.failed", error=str(e))
+                validation_warnings.append(
+                    _("Geotaxis was requested but could not be computed: {error}").format(error=e)
+                )
 
         # 3. If ROIs are provided, perform ROI analysis and append to the report
         # (the analyser was built above, from the resolved rule: the debounce
@@ -918,12 +926,19 @@ class AnalysisService:
 
         return results
 
-    def aggregate_session_summaries(self, summary_paths: list[Path], output_path: Path) -> None:
+    def aggregate_session_summaries(
+        self, summary_paths: list[Path], output_path: Path
+    ) -> list[Path]:
         """Aggregate individual session summaries into unified Excel.
 
         Args:
             summary_paths: List of individual summary Excel files
             output_path: Path for unified output
+
+        Returns:
+            The summaries that could not be read and were therefore left out.
+            The workbook is still written from the others; the caller must
+            report the gap, because every mean in it is over fewer sessions.
         """
         self.log.info(
             "analysis_service.aggregate_summaries.start",
@@ -931,6 +946,7 @@ class AnalysisService:
         )
 
         all_data = []
+        unreadable: list[Path] = []
         for i, summary_path in enumerate(summary_paths, 1):
             try:
                 df = pd.read_excel(summary_path)
@@ -943,6 +959,7 @@ class AnalysisService:
                     summary_path=str(summary_path),
                     error=str(e),
                 )
+                unreadable.append(summary_path)
 
         if not all_data:
             raise ValueError("No valid summary data to aggregate")
@@ -989,7 +1006,9 @@ class AnalysisService:
             "analysis_service.aggregate_summaries.success",
             output=str(output_path),
             total_rows=len(unified_df),
+            unreadable=len(unreadable),
         )
+        return unreadable
 
     # -------------------------------------------------------------------------
     # Analysis Orchestration Methods (Phase 1, Step 3)
@@ -1155,32 +1174,6 @@ class AnalysisService:
         )
         return params
 
-    def validate_trajectory_schema(self, df: pd.DataFrame) -> bool:
-        """
-        Validate that trajectory dataframe has required columns.
-
-        Args:
-            df: Trajectory dataframe to validate
-
-        Returns:
-            bool: True if schema is valid
-
-        Raises:
-            ValueError: If required columns are missing
-        """
-        required_columns = {"timestamp", "frame", "track_id", "x1", "y1", "x2", "y2"}
-        missing_columns = required_columns - set(df.columns)
-
-        if missing_columns:
-            raise ValueError(f"Trajectory dataframe missing required columns: {missing_columns}")
-
-        self.log.debug(
-            "analysis_service.validate_schema.success",
-            rows=len(df),
-            columns=list(df.columns),
-        )
-        return True
-
     def resolve_analysis_profile(
         self,
         metadata: dict | None,
@@ -1314,271 +1307,3 @@ class AnalysisService:
             from_single_video=bool(single_video_config),
         )
         return intervals.analysis, intervals.display
-
-    def build_metadata_context(
-        self,
-        video_info: dict,
-        single_video_config: dict | None,
-        experiment_id: str,
-        video_path: Path | str,
-        derive_callback: Callable[[str, str], dict] | None = None,
-    ) -> dict | None:
-        """
-        Build metadata context for a video.
-
-        Args:
-            video_info: Video information dictionary
-            single_video_config: Single video configuration (returns None if present)
-            experiment_id: Experiment identifier
-            video_path: Path to video file
-            derive_callback: Optional callback to derive metadata (project_manager method)
-
-        Returns:
-            dict | None: Metadata context or None for single video
-        """
-        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
-        if single_video_config:
-            return None
-
-        metadata_context = dict(video_info.get("metadata") or {})
-
-        if derive_callback:
-            try:
-                derived_metadata = derive_callback(experiment_id, video_path)
-                metadata_context.update(derived_metadata)
-            except Exception:  # pragma: no cover - defensive fallback
-                self.log.debug(
-                    "analysis_service.metadata_derive_failed",
-                    experiment=experiment_id,
-                    video_path=video_path,
-                )
-
-        return metadata_context
-
-    def process_videos_batch(
-        self,
-        videos_to_process: list[dict],
-        output_base_dir: Path | str,
-        single_video_config: dict | None,
-        controller,  # MainViewModel reference for callbacks
-        cancel_event,
-        project_manager,
-        root_tk,  # Tkinter root for after() scheduling
-    ) -> tuple[bool, str]:
-        """
-        Process a batch of videos end-to-end.
-
-        This is the main orchestration method extracted from MainViewModel._process_videos().
-
-        Args:
-            videos_to_process: List of video info dictionaries
-            output_base_dir: Base directory for outputs
-            single_video_config: Configuration for single video mode (or None)
-            controller: MainViewModel reference for accessing detector, recorder, etc.
-            cancel_event: Threading event for cancellation
-            project_manager: ProjectManager instance
-            root_tk: Tkinter root for UI scheduling
-
-        Returns:
-            tuple[bool, str]: (was_cancelled, final_output_dir)
-        """
-        self.log.info("analysis_service.batch.start", count=len(videos_to_process))
-        total_videos = max(len(videos_to_process), 1)
-
-        # Determine intervals
-        project_data = (
-            project_manager.project_data if hasattr(project_manager, "project_data") else None
-        )
-        analysis_interval_frames, display_interval_frames = self.determine_processing_intervals(
-            single_video_config, project_data
-        )
-
-        # Apply settings if batch project
-        if not single_video_config:
-            settings_success = controller.project_vm.apply_project_settings_to_batch(
-                videos_to_process
-            )
-            if not settings_success:
-                self.log.warning("analysis_service.batch.settings_partial_failure")
-
-        was_cancelled = False
-        final_output_dir = output_base_dir
-
-        # Prepare UI
-        root_tk.after(0, controller.view.show_progress_bar)
-        root_tk.after(
-            0,
-            lambda: controller.view.set_status(
-                _("Starting processing for {count} videos...").format(count=total_videos)
-            ),
-        )
-        project_manager.set_active_zone_video(None)
-
-        # Publish processing mode
-        controller._publish_processing_mode(source="processing.loop_start", force=True)
-
-        try:
-            # Main processing loop
-            for index, video_info in enumerate(videos_to_process):
-                if cancel_event.is_set():
-                    was_cancelled = True
-                    self.log.info("analysis_service.batch.cancelled_by_user")
-                    break
-
-                video_path = video_info.get("path")
-                experiment_id = (
-                    os.path.splitext(os.path.basename(video_path))[0]
-                    if isinstance(video_path, str) and video_path
-                    else f"video_{index + 1}"
-                )
-
-                metadata_context = self.build_metadata_context(
-                    video_info=video_info,
-                    single_video_config=single_video_config,
-                    experiment_id=experiment_id,
-                    video_path=video_path or "",
-                    derive_callback=getattr(project_manager, "derive_processing_metadata", None),
-                )
-
-                profile_context = metadata_context or single_video_config or {}
-
-                try:
-                    analysis_profile = project_manager.resolve_analysis_profile(profile_context)
-                except Exception:  # pragma: no cover - defensive
-                    self.log.warning(
-                        "analysis_service.batch.profile_resolve_failed",
-                        video=experiment_id,
-                        exc_info=True,
-                    )
-                    analysis_profile = project_manager.resolve_analysis_profile({})
-
-                profile_name = (
-                    analysis_profile.get("name", "default")
-                    if isinstance(analysis_profile, dict)
-                    else "default"
-                )
-
-                # Update UI with profile
-                root_tk.after(
-                    0,
-                    lambda name=profile_name: controller.view.update_analysis_profile(name),
-                )
-                root_tk.after(
-                    0,
-                    lambda name=profile_name: controller.ui_event_bus.publish(
-                        Event(
-                            type=UIEvents.UI_UPDATE_SOCIAL_SUMMARY,
-                            data=payloads.SocialSummaryPayload(
-                                profile=name,
-                                stats=None,
-                                tracks=[],
-                            ),
-                        )
-                    ),
-                )
-
-                # Process single video (delegates to controller's existing method)
-                processed, results_dir = controller._process_single_video(
-                    index=index,
-                    total_videos=total_videos,
-                    video_info=video_info,
-                    single_video_config=single_video_config,
-                    analysis_interval_frames=analysis_interval_frames,
-                    display_interval_frames=display_interval_frames,
-                    output_base_dir=output_base_dir,
-                    experiment_id=experiment_id,
-                    metadata_context=metadata_context,
-                    analysis_profile=analysis_profile,
-                )
-
-                if results_dir:
-                    final_output_dir = results_dir
-
-                if not processed and cancel_event.is_set():
-                    was_cancelled = True
-                    break
-
-        except Exception as exc:  # pragma: no cover - defensive
-            self.log.error("analysis_service.batch.error", error=str(exc), exc_info=True)
-            root_tk.after(
-                0,
-                lambda e=exc: controller.view.show_error(
-                    _("Analysis Error"),
-                    _("An unexpected error occurred: {error}").format(error=e),
-                ),
-            )
-        finally:
-            # Finalize
-            self._finalize_batch_processing(
-                was_cancelled=was_cancelled,
-                videos_to_process=videos_to_process,
-                final_output_dir=final_output_dir,
-                controller=controller,
-                project_manager=project_manager,
-                root_tk=root_tk,
-            )
-
-        return was_cancelled, str(final_output_dir)
-
-    def _finalize_batch_processing(
-        self,
-        was_cancelled: bool,
-        videos_to_process: list[dict],
-        final_output_dir: Path | str,
-        controller,
-        project_manager,
-        root_tk,
-    ) -> None:
-        """
-        Finalize batch processing (cleanup, UI updates).
-
-        Args:
-            was_cancelled: Whether processing was cancelled
-            videos_to_process: List of videos that were queued
-            final_output_dir: Final output directory
-            controller: MainViewModel reference
-            project_manager: ProjectManager instance
-            root_tk: Tkinter root for UI scheduling
-        """
-        project_manager.set_active_zone_video(None)
-        root_tk.after(0, controller.view.stop_analysis_view_mode)
-        root_tk.after(0, controller.view.hide_progress_bar)
-
-        if was_cancelled:
-            root_tk.after(
-                0,
-                lambda: controller.view.show_info(
-                    _("Cancelled"), _("Video analysis was cancelled.")
-                ),
-            )
-        elif videos_to_process:
-            msg = _("Analysis finished. Results saved to:\n{path}").format(path=final_output_dir)
-            root_tk.after(0, lambda: controller.view.show_info(_("Success"), msg))
-
-        root_tk.after(0, lambda: controller.view.set_status(_("Ready.")))
-        controller._publish_processing_mode(source="processing.finalize", force=True)
-        controller.ui_event_bus.publish(
-            Event(
-                type=UIEvents.UI_REFRESH_PROJECT_VIEWS,
-                data=payloads.ProjectViewsRefreshRequestedPayload(
-                    reason="Analysis completed", append_summary=True
-                ),
-            )
-        )
-
-        def _refresh_views(*, immediate: bool) -> None:
-            refresher = getattr(controller, "refresh_project_views", None)
-            if callable(refresher):
-                refresher(reason="Analysis completed")
-                return
-
-            ui_state_controller = getattr(controller, "ui_state_controller", None)
-            if ui_state_controller:
-                ui_state_controller.refresh_project_views(
-                    reason="Analysis completed",
-                    append_summary=True,
-                    immediate=immediate,
-                )
-
-        _refresh_views(immediate=True)
-        root_tk.after(0, lambda: _refresh_views(immediate=False))

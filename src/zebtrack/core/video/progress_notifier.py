@@ -258,7 +258,7 @@ class ProgressNotifierMixin:
                 video_path,
             )
             metadata_context.update(derived_metadata)
-        except Exception:  # pragma: no cover - defensive fallback
+        except Exception:
             log.debug(
                 "controller.processing.metadata_derive_failed",
                 experiment=experiment_id,

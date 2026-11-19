@@ -72,14 +72,6 @@ class TestVideoSelectorTreeManagerExtended:
         mgr.navigate_to_processing_reports_tab()
         mock_gui.notebook.select.assert_called_once_with(mock_gui.processing_reports_tab_frame)
 
-    def test_on_request_process_videos(self):
-        mock_gui = MagicMock()
-        mgr = VideoSelectorTreeManager(mock_gui)
-        mgr.trigger_batch_trajectory_processing = MagicMock()  # type: ignore[assignment]
-
-        mgr._on_request_process_videos({})
-        mgr.trigger_batch_trajectory_processing.assert_called_once_with(fallback_to_pending=True)
-
 
 class TestVideoSelectorTreeManagerExtended6:
     def test_payload_get_dict(self):

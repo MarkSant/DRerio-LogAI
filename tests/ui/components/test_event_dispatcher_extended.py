@@ -77,9 +77,9 @@ class TestEventDispatcherModes:
         handler = MagicMock()
 
         dispatcher.register_handler(
-            UIEvents.APP_CLOSE, handler, mode=EventDispatcher.MODE_NO_PARAMS
+            UIEvents.SET_STATUS, handler, mode=EventDispatcher.MODE_NO_PARAMS
         )
-        bus.publish(UIEvents.APP_CLOSE, {})
+        bus.publish(UIEvents.SET_STATUS, {})
 
         handler.assert_called_once_with()
 
@@ -146,10 +146,10 @@ class TestEventDispatcherModes:
         bad_handler = MagicMock(side_effect=ValueError("Handler failed"))
 
         dispatcher.register_handler(
-            UIEvents.APP_CLOSE, bad_handler, mode=EventDispatcher.MODE_NO_PARAMS
+            UIEvents.SET_STATUS, bad_handler, mode=EventDispatcher.MODE_NO_PARAMS
         )
         # Should not raise exception out of publish
-        bus.publish(UIEvents.APP_CLOSE, {})
+        bus.publish(UIEvents.SET_STATUS, {})
         bad_handler.assert_called_once()
 
     def test_has_meaningful_analysis_metadata(self):
@@ -516,6 +516,43 @@ def test_refresh_project_views_is_marshalled_to_the_tk_thread():
     )
 
 
+def test_state_manager_observer_events_are_marshalled_to_the_tk_thread():
+    """A6-09: these four are published by StateManager observers, on its pool.
+
+    ``on_project_state_changed`` (zones), ``on_detector_state_changed`` (OpenVINO
+    status) and ``on_processing_state_changed`` (navigation) run on the
+    ``ThreadPoolExecutor`` of the StateManager; their subscribers draw on the
+    canvas, fill the zone listbox and set StringVars.
+    """
+    gui = SimpleNamespace(
+        root=_DeferringRoot(),
+        canvas_manager=MagicMock(),
+        weight_hardware_manager=MagicMock(),
+        analysis_view_controller=MagicMock(),
+    )
+    _dispatcher, bus = _dispatcher_with(gui)
+    zones = object()
+
+    bus.publish(UIEvents.UI_REDRAW_ZONES, payloads.ZonesUpdatedPayload(zone_data=zones))
+    bus.publish(UIEvents.UI_UPDATE_ZONE_LIST, payloads.ZonesUpdatedPayload(zone_data=zones))
+    bus.publish(
+        UIEvents.UI_UPDATE_OPENVINO_STATUS, payloads.UIUpdateOpenVinoStatusPayload(status="GPU")
+    )
+    bus.publish(UIEvents.UI_NAVIGATE_TO_ANALYSIS_VIEW)
+
+    assert gui.canvas_manager.mock_calls == []
+    assert gui.weight_hardware_manager.mock_calls == []
+    assert gui.analysis_view_controller.mock_calls == []
+    assert len(gui.root.pending) == 4
+
+    gui.root.run_pending()
+
+    gui.canvas_manager.redraw_zones_from_project_data.assert_called_once_with(zones)
+    gui.canvas_manager.update_zone_listbox.assert_called_once_with()
+    gui.weight_hardware_manager.update_openvino_status_display.assert_called_once_with("GPU")
+    gui.analysis_view_controller.start_analysis_view_mode.assert_called_once_with()
+
+
 def test_refresh_payload_uses_immediate_not_imm():
     """``imm`` is a dead alias on the payload — nothing reads it.
 
@@ -601,3 +638,18 @@ def test_single_aquarium_state_drops_the_aquarium_lines():
     shown = gui.external_trigger_notice_var.set.call_args.args[0]
     assert "Aquarium" not in shown
     assert "finished at 3.0 s" in shown
+
+
+class TestUnregisterWhenTheBusRefuses:
+    """F2 pragma review: a bus that fails to unsubscribe must not keep a stale entry."""
+
+    def test_handler_entry_is_dropped_anyway(self):
+        bus = MagicMock()
+        bus.unsubscribe.side_effect = RuntimeError("bus already shut down")
+        dispatcher = EventDispatcher(bus)
+        dispatcher.register_handler(UIEvents.ZONES_UPDATED, MagicMock())
+
+        dispatcher.unregister_handler(UIEvents.ZONES_UPDATED)
+
+        assert UIEvents.ZONES_UPDATED not in dispatcher.handlers
+        bus.unsubscribe.assert_called_once()

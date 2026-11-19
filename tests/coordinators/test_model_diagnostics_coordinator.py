@@ -447,6 +447,33 @@ class TestRunDiagnosticFrameLoop:
         assert len(results["YOLO (PyTorch)"]) == 1
         cap.release.assert_called_once()
 
+    @patch("zebtrack.coordinators.model_diagnostics_coordinator.cv2.VideoCapture")
+    def test_openvino_failure_aborts_with_the_frame_number(self, mock_cap, coordinator):
+        """F2: a plugin error on frame 2 aborts the run and tells the user which frame."""
+        cap = MagicMock()
+        cap.isOpened.return_value = True
+        cap.read.side_effect = [(True, MagicMock()), (True, MagicMock()), (False, None)]
+        mock_cap.return_value = cap
+        coordinator.cancel_event = None
+        openvino_model = MagicMock()
+        openvino_model.predict.side_effect = [["box"], RuntimeError("device lost")]
+        results: dict = {}
+        progress_dialog = MagicMock(user_cancelled=False)
+
+        with pytest.raises(DiagnosticAbortError):
+            coordinator._run_diagnostic_frame_loop(
+                "test.mp4", 3, 0.5, None, openvino_model, results, progress_dialog
+            )
+
+        assert results == {"OpenVINO": [["box"]]}
+        errors = [
+            call.args[0].data
+            for call in coordinator.event_bus.publish.call_args_list
+            if call.args[0].type == UIEvents.UI_SHOW_ERROR
+        ]
+        assert [e.message for e in errors] == ["Inference failed on frame 2: device lost"]
+        cap.release.assert_called_once()
+
 
 class TestDiagnosticProcessingThread:
     @patch("zebtrack.coordinators.model_diagnostics_coordinator.cv2.VideoCapture")

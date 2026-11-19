@@ -329,7 +329,7 @@ class VideoContextFactoryMixin:
             return set()
         try:
             return {item.name for item in results_path.iterdir()}
-        except Exception:  # pragma: no cover - best effort snapshot
+        except Exception:
             log.warning(
                 "controller.results.snapshot_failed",
                 results_dir=str(results_path),
@@ -365,7 +365,7 @@ class VideoContextFactoryMixin:
             if not baseline_items and not remaining:
                 results_path.rmdir()
                 log.info("controller.results.cleanup_removed_directory", path=str(results_path))
-        except Exception:  # pragma: no cover - defensive cleanup
+        except Exception:
             log.warning(
                 "controller.results.cleanup_unexpected_error",
                 results_dir=str(results_dir),

@@ -61,28 +61,6 @@ class TestWeightManagerExtended:
         assert name is None
         assert details is None
 
-    def test_set_default_weight_by_type(self, tmp_path: Path):
-        wm = self._create_weight_manager(tmp_path)
-        wm.weights = {
-            "seg1.pt": {"type": "seg", "target": "zebrafish"},
-            "det1.pt": {"type": "det", "target": "eyes"},
-        }
-        wm.set_default_weight_for = MagicMock()  # type: ignore[method-assign]
-
-        # Not found
-        wm.set_default_weight_by_type("unknown.pt", "seg")
-        wm.set_default_weight_for.assert_not_called()
-
-        # Type mismatch
-        wm.set_default_weight_by_type("det1.pt", "seg")
-        wm.set_default_weight_for.assert_not_called()
-
-        # Success
-        wm.set_default_weight_by_type("seg1.pt", "seg")
-        wm.set_default_weight_for.assert_called_once_with(
-            "seg1.pt", method="seg", target="zebrafish"
-        )
-
     def test_set_default_weight(self, tmp_path: Path):
         wm = self._create_weight_manager(tmp_path)
         wm.weights = {

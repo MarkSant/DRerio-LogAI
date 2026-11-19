@@ -115,12 +115,6 @@ class TestGUIComponentIntegration:
             cm.edit_selected_zone_vertices()
             mock_edit.assert_called_once()
 
-    def test_remove_selected_roi_confirm(self, gui_fixture):
-        """Test removal of ROI delegates to canvas_manager."""
-        with patch.object(gui_fixture.canvas_manager, "remove_selected_roi") as mock_remove:
-            gui_fixture._remove_selected_roi_confirm()
-            mock_remove.assert_called_once()
-
     def test_update_button_state(self, gui_fixture):
         """Test button state updates."""
         mock_btn = MagicMock()

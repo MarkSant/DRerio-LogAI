@@ -223,3 +223,54 @@ def test_mask_rows_join_the_trajectory_on_frame_and_track(output_dir: str) -> No
 
     merged = trajectory.merge(masks, on=["frame", "track_id"], how="inner")
     assert len(merged) == len(masks)
+
+
+def test_mask_sidecar_failure_never_costs_the_trajectory(
+    output_dir: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F2 pragma review: the sidecar is optional; losing it must keep ``3_CoordMovimento``."""
+    import zebtrack.io.recorder as recorder_module
+
+    real_writer = recorder_module.pq.ParquetWriter
+
+    def writer(path: Any, *args: Any, **kwargs: Any) -> Any:
+        if "3b_Mascaras" in str(path):
+            raise OSError("disk full while opening the sidecar")
+        return real_writer(path, *args, **kwargs)
+
+    monkeypatch.setattr(recorder_module.pq, "ParquetWriter", writer)
+    recorder = _make_recorder(persist=True)
+
+    _record(recorder, output_dir, {1: {7: SQUARE}, 2: {7: SQUARE}})
+
+    trajectory = pd.read_parquet(Path(output_dir) / "3_CoordMovimento_sessao.parquet")
+    assert trajectory[["frame", "track_id"]].values.tolist() == [[1, 7], [2, 7]]
+    assert not _sidecar(output_dir).exists()
+
+
+def test_mask_flush_failure_is_contained_without_the_flush_thread(
+    output_dir: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Callers that drain by hand (no flush thread around them) must not see the error."""
+    import zebtrack.io.recorder as recorder_module
+
+    recorder = _make_recorder(persist=True)
+    recorder._flush_row_threshold = 10_000
+    recorder._flush_interval_seconds = 9999.0
+    recorder.start_recording(
+        output_dir, 640, 480, zones=ZoneData(), is_video_file=True, base_name="sessao"
+    )
+    recorder.write_mask_data(1, {7: SQUARE})
+    real_writer = recorder_module.pq.ParquetWriter
+
+    def failing_writer(*args: Any, **kwargs: Any) -> Any:
+        raise OSError("disk full while opening the sidecar")
+
+    monkeypatch.setattr(recorder_module.pq, "ParquetWriter", failing_writer)
+
+    recorder._flush_mask_data(force=True)
+
+    assert recorder._mask_data == []
+    monkeypatch.setattr(recorder_module.pq, "ParquetWriter", real_writer)
+    recorder.stop_recording()
+    assert not _sidecar(output_dir).exists()

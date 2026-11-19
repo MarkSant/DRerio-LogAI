@@ -305,22 +305,6 @@ class ProjectManager:
             "has_complete_data": bool(has_arena and has_rois and has_trajectory),
         }
 
-    def has_trajectory_data_for_aquarium(
-        self,
-        video_path: Path | str | None,
-        aquarium_id: int,
-    ) -> bool:
-        """Check if trajectory data exists for the requested aquarium."""
-        return self.get_aquarium_asset_flags(video_path, aquarium_id)["has_trajectory"]
-
-    def has_summary_data_for_aquarium(
-        self,
-        video_path: Path | str | None,
-        aquarium_id: int,
-    ) -> bool:
-        """Check if summary data exists for the requested aquarium."""
-        return self.get_aquarium_asset_flags(video_path, aquarium_id)["has_summary"]
-
     def save_zone_data(
         self,
         zone_data: ZoneData,
@@ -488,10 +472,6 @@ class ProjectManager:
             project_path=Path(self.project_path) if self.project_path else None,
             settings_obj=self.settings,
         )
-
-    def _validate_project_parameters(self, **kwargs) -> None:
-        """Validate project creation parameters (delegate)."""
-        ProjectLifecycleManager.validate_project_parameters(**kwargs)
 
     def create_new_project(
         self,
@@ -900,7 +880,7 @@ class ProjectManager:
                 clear_zone_data_fn=lambda vp: self.clear_zone_data_for_video(vp, persist=False),
                 refresh_last_zone_source_fn=self._refresh_last_zone_source,
             )
-        else:  # pragma: no cover - guarded by type
+        else:
             raise ValueError(f"Asset type '{asset}' desconhecido.")
 
         if changed:
@@ -1362,47 +1342,6 @@ class ProjectManager:
     # ------------------------------------------------------------------
     # Convenience arena/ROI accessors
     # ------------------------------------------------------------------
-
-    def set_arena_for_video(
-        self,
-        video_path: Path | str,
-        polygon: Sequence[Sequence[int]] | None,
-    ) -> None:
-        """Set the arena polygon for a specific video."""
-        zone_data = self.get_zone_data(video_path=video_path, fallback_to_global=False)
-        zone_data.polygon = polygon or []
-        self.save_zone_data(zone_data, video_path, persist=True)
-
-    def get_arena_for_video(
-        self,
-        video_path: Path | str,
-    ) -> Sequence[Sequence[int]] | None:
-        """Get the arena polygon for a specific video."""
-        zone_data = self.get_zone_data(video_path=video_path, fallback_to_global=False)
-        return zone_data.polygon if zone_data.polygon else None
-
-    def set_rois_for_video(
-        self,
-        video_path: Path | str,
-        roi_polygons: Sequence[Sequence[Sequence[int]]] | None = None,
-        roi_names: Sequence[str] | None = None,
-        roi_colors: Sequence[tuple[int, int, int]] | None = None,
-    ) -> None:
-        """Set ROIs for a specific video."""
-        zone_data = self.get_zone_data(video_path=video_path, fallback_to_global=False)
-        zone_data.roi_polygons = roi_polygons or []
-        zone_data.roi_names = roi_names or []
-        zone_data.roi_colors = roi_colors or []
-        self.save_zone_data(zone_data, video_path, persist=True)
-
-    def get_rois_for_video(self, video_path: Path | str) -> dict[str, Any]:
-        """Get ROIs for a specific video as a dict."""
-        zone_data = self.get_zone_data(video_path=video_path, fallback_to_global=False)
-        return {
-            "roi_polygons": zone_data.roi_polygons,
-            "roi_names": zone_data.roi_names,
-            "roi_colors": zone_data.roi_colors,
-        }
 
     def get_multi_aquarium_zone_data(
         self,

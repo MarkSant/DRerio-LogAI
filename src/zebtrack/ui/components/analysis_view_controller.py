@@ -94,19 +94,6 @@ class AnalysisViewController:
     # View toggling
     # ------------------------------------------------------------------
 
-    def toggle_canvas_view(self) -> None:
-        """Toggle between zone drawing view and analysis progress view."""
-        if not self._notebook or not self._analysis_tab_frame or not self._zone_tab_frame:
-            return
-
-        current_tab = self._notebook.select()
-        analysis_tab_id = str(self._analysis_tab_frame)
-
-        if current_tab != analysis_tab_id:
-            self.switch_to_analysis_view()
-        else:
-            self.switch_to_zones_view()
-
     def switch_to_analysis_view(self) -> None:
         """Switch to analysis progress view.
 
@@ -449,10 +436,6 @@ class AnalysisViewController:
 
         ordered = sorted(observed, key=str)
         return [all_tracks_label(), *ordered]
-
-    def on_track_selection_changed(self, _event: Any = None) -> None:
-        """Handle track selector change — re-render the last analysis frame."""
-        self._canvas_manager._render_last_analysis_frame()
 
     # ------------------------------------------------------------------
     # Widget cleanup helpers

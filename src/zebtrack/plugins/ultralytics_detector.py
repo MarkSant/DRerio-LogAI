@@ -354,19 +354,6 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         # For a more robust implementation, one might inspect the model's properties.
         return (640, 640)
 
-    def set_tracking_parameters(
-        self,
-        *,
-        track_threshold: float | None = None,
-        match_threshold: float | None = None,
-    ) -> None:
-        """Update internal ByteTrack thresholds used during tracking."""
-
-        if track_threshold is not None and track_threshold > 0:
-            self.track_threshold = track_threshold
-        if match_threshold is not None and match_threshold > 0:
-            self.match_threshold = match_threshold
-
     def reset_tracking_state(self) -> None:
         """Compatibility shim for detector.reset_tracking_state."""
 

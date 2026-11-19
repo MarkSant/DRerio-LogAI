@@ -187,13 +187,6 @@ class TestMultiAquariumZoneData:
         assert zone_data.polygon == []
         assert zone_data.roi_polygons == []
 
-    def test_aquarium_count_property(self, two_aquariums):
-        """Testa propriedade aquarium_count."""
-        assert two_aquariums.aquarium_count == 2
-
-        empty_data = MultiAquariumZoneData()
-        assert empty_data.aquarium_count == 0
-
     def test_is_multi_aquarium_property(self, two_aquariums):
         """Testa propriedade is_multi_aquarium."""
         assert two_aquariums.is_multi_aquarium is True

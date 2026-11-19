@@ -4,6 +4,7 @@ Extended unit tests for SingleDetector in core/detection/single_detector.py.
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -686,3 +687,56 @@ class TestConfiguredTrackerParametersReachByteTrack:
 
         assert second is not first
         assert second is not None and second.processing_interval == 4
+
+
+# ---------------------------------------------------------------------------
+# F2 pragma review: a misbehaving plugin or tracker never breaks the detector
+# ---------------------------------------------------------------------------
+
+
+class TestPluginAndTrackerFailuresDegrade:
+    def test_mode_switch_survives_a_plugin_that_rejects_it(self):
+        detector = _fps_detector(_fps_settings())
+        plugin: Any = detector.plugin
+        plugin.set_use_single_subject_mode = MagicMock(side_effect=RuntimeError("no"))
+
+        detector.set_single_subject_mode(True)
+
+        plugin.set_use_single_subject_mode.assert_called_once_with(True)
+        assert detector.single_mode is True
+        tracker = detector._ensure_byte_tracker()
+        assert tracker is not None
+        assert tracker.single_animal_mode is True
+
+    def test_reset_still_restarts_ids_when_the_plugin_reset_fails(self):
+        from zebtrack.tracker.basetrack import BaseTrack
+
+        detector = _fps_detector(_fps_settings())
+        plugin: Any = detector.plugin
+        plugin.reset_tracking_state = MagicMock(side_effect=RuntimeError("gone"))
+        detector.set_source_fps(30.0)
+        first = detector._ensure_byte_tracker()
+        BaseTrack._count = 41
+
+        detector.reset_tracking_state()
+
+        plugin.reset_tracking_state.assert_called_once_with()
+        assert BaseTrack.next_id() == 1
+        assert detector._ensure_byte_tracker() is not first
+
+    def test_tracker_build_failure_is_not_cached(self, monkeypatch):
+        from zebtrack.core.detection import single_detector as module
+
+        real_tracker = module.BYTETracker
+        detector = _fps_detector(_fps_settings())
+        detector.set_source_fps(30.0)
+
+        def broken(*args, **kwargs):
+            raise ValueError("bad tracker parameters")
+
+        monkeypatch.setattr(module, "BYTETracker", broken)
+        assert detector._ensure_byte_tracker() is None
+
+        monkeypatch.setattr(module, "BYTETracker", real_tracker)
+        rebuilt = detector._ensure_byte_tracker()
+        assert isinstance(rebuilt, real_tracker)

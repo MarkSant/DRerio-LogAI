@@ -28,6 +28,6 @@ def default_live_sessions_dir() -> Path:
 
     ``~/ZebTrack/live_analysis_sessions`` — the home directory is writable, is
     stable across launches, and matches where projects already default to
-    (``Path.home() / "ZebTrack" / "Projects"`` in ``ProjectCoordinator``).
+    (``Path.home() / "ZebTrack" / "Projects"``).
     """
     return Path.home() / "ZebTrack" / LIVE_SESSIONS_FOLDER_NAME

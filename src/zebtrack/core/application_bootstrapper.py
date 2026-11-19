@@ -34,7 +34,6 @@ from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
 from zebtrack.coordinators.ui_state_coordinator import UIStateController
 from zebtrack.core.dependency_container import MainViewModelDependencies
 from zebtrack.core.exceptions import MissingDetectorWeightsError
-from zebtrack.core.project.project_service import ProjectService
 from zebtrack.core.video.batch_configuration_service import BatchConfigurationService
 from zebtrack.core.video.video_classification_service import VideoClassificationService
 from zebtrack.core.video.video_selection_service import VideoSelectionService
@@ -78,7 +77,6 @@ class BootstrapResult:
     """Result of the application bootstrap process."""
 
     # Internal Services
-    project_service: ProjectService
     analysis_service: AnalysisService
     video_classification_service: VideoClassificationService
     video_selection_service: VideoSelectionService
@@ -174,7 +172,6 @@ class ApplicationBootstrapper:
         log.info("bootstrapper.initialize.complete")
 
         return BootstrapResult(
-            project_service=self._services["project_service"],
             analysis_service=self._services["analysis_service"],
             video_classification_service=self._services["video_classification_service"],
             video_selection_service=self._services["video_selection_service"],
@@ -205,7 +202,6 @@ class ApplicationBootstrapper:
     def _init_services(self):
         """Initialize all service layer components."""
         # Core services
-        project_service = ProjectService()
         analysis_service = (
             self.deps.analysis_service
             if self.deps.analysis_service is not None
@@ -233,7 +229,6 @@ class ApplicationBootstrapper:
         event_dispatcher = EventDispatcher(self.deps.event_bus)
 
         self._services = {
-            "project_service": project_service,
             "analysis_service": analysis_service,
             "video_classification_service": video_classification_service,
             "video_selection_service": video_selection_service,

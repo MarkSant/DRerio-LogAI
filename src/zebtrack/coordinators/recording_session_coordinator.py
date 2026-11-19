@@ -128,6 +128,20 @@ class RecordingSessionCoordinator(BaseCoordinator):
         self._pending_recording_trigger_source: str | None = None
         self._pending_recording_project_data: dict[str, Any] | None = None
 
+        # The plain RecordingService path (legacy Record button, external trigger)
+        # reports through these callbacks. Nothing wired them, so a timed
+        # recording never stopped by itself and its status and error messages
+        # reached nobody (A2-13).
+        if recording_service is not None:
+            recording_service.set_ui_callbacks(
+                {
+                    "stop_recording_callback": self.stop_recording,
+                    "show_error": self._show_service_error,
+                    "set_status": self._show_service_status,
+                    "update_button_state": self._update_service_button,
+                }
+            )
+
         log.info(
             "recording_session_coordinator.initialized",
             has_recording_service=recording_service is not None,
@@ -345,7 +359,11 @@ class RecordingSessionCoordinator(BaseCoordinator):
 
         # Ensure zones are defined before recording
         calibrator = self.live_calibration_coordinator
-        if not zones_validated and not calibrator.ensure_zones_before_recording():
+        # ``on_abandoned``: with a Tk root the gate can end later, on the Tk
+        # thread, without zones (A6-03); the saved context goes then.
+        if not zones_validated and not calibrator.ensure_zones_before_recording(
+            on_abandoned=self._clear_pending_recording_context
+        ):
             # Check if we're waiting for zone confirmation
             if calibrator.pending_zone_confirmation:
                 # Don't clear context - will be resumed later
@@ -475,24 +493,6 @@ class RecordingSessionCoordinator(BaseCoordinator):
         """
         recording_state = self.state_manager.get_recording_state()
         return recording_state is not None and recording_state.is_recording
-
-    def get_recording_info(self) -> dict[str, Any] | None:
-        """Get information about current recording session.
-
-        Returns:
-            dict with recording info, or None if not recording
-        """
-        recording_state = self.state_manager.get_recording_state()
-
-        if not recording_state or not recording_state.is_recording:
-            return None
-
-        return {
-            "is_recording": recording_state.is_recording,
-            "output_path": getattr(recording_state, "output_path", None),
-            "experiment_id": getattr(recording_state, "experiment_id", None),
-            "duration": getattr(recording_state, "duration", None),
-        }
 
     # =============================================================================
     # EXTERNAL TRIGGER HANDLING
@@ -747,16 +747,6 @@ class RecordingSessionCoordinator(BaseCoordinator):
                     experiment_id=experiment_id,
                     duration=duration_s,
                 )
-                # Publish event
-                self._publish_event(
-                    UIEvents.RECORDING_STARTED,
-                    {
-                        "folder_name": context.get("folder_name"),
-                        "output_folder": output_folder,
-                        "trigger_source": trigger_source,
-                        "mode": "live_analysis",
-                    },
-                )
 
                 # FIX Bug 3: Enable cancel button in integrated canvas mode
                 if self.view and hasattr(self.view, "show_progress_bar"):
@@ -795,20 +785,23 @@ class RecordingSessionCoordinator(BaseCoordinator):
             trigger_source=trigger_source,
         )
 
-        # Publish event
-        self._publish_event(
-            UIEvents.RECORDING_STARTED,
-            {
-                "folder_name": context.get("folder_name"),
-                "output_folder": context.get("output_folder"),
-                "trigger_source": trigger_source,
-                "duration": effective_duration,
-            },
-        )
-
     # =============================================================================
     # EVENT LISTENERS
     # =============================================================================
+
+    def _show_service_error(self, title: str, message: str) -> None:
+        self._publish_event(
+            UIEvents.SHOW_ERROR, payloads.MessagePayload(title=title, message=message)
+        )
+
+    def _show_service_status(self, message: str) -> None:
+        self._publish_event(UIEvents.UI_SET_STATUS, payloads.StatusPayload(message=message))
+
+    def _update_service_button(self, button: str, state: str) -> None:
+        self._publish_event(
+            UIEvents.UI_UPDATE_BUTTON_STATE,
+            payloads.UpdateButtonStatePayload(button_name=button, state=state),
+        )
 
     def _setup_event_listeners(self):
         """Setup event listeners for coordination."""
@@ -816,8 +809,6 @@ class RecordingSessionCoordinator(BaseCoordinator):
             return
 
         # Listen for zone saving events to resume pending recording
-        self.event_bus.subscribe(UIEvents.ZONE_SAVE_MANUAL_ARENA, self._on_zone_saved)
-        self.event_bus.subscribe(UIEvents.ZONE_SET_ARENA_POLYGON, self._on_zone_saved)
         self.event_bus.subscribe(UIEvents.ZONE_SAVE_ARENA, self._on_zone_saved)
 
     def _on_zone_saved(self, data: payloads.EventPayload | None = None) -> None:
@@ -830,7 +821,7 @@ class RecordingSessionCoordinator(BaseCoordinator):
         # a sessão pendente pertence ao ``LiveCameraSessionCoordinator`` (fluxo
         # live, retomado por ``LIVE_RECORDING_RESUME_REQUESTED`` do botão
         # "Iniciar Gravação"/"Concluir"). Nesse caso, clicar "Salvar Edição"
-        # (que publica ZONE_SAVE_ARENA/ZONE_SAVE_MANUAL_ARENA) NÃO pode ser
+        # (que publica ZONE_SAVE_ARENA) NÃO pode ser
         # tratado como confirmação de zonas: resetar a flag aqui corrompia o
         # handshake live, disparava o caminho de gravação errado e fazia a
         # auto-detecção reaparecer por cima da edição do usuário.

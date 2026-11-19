@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import threading
+from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import MagicMock
+
+from tests.utils.deferring_tk import bind_deferring_tk
 
 from zebtrack.ui.components.global_model_configuration_panel import (
     _CONVERSION_POLL_INTERVAL_MS,
@@ -66,3 +71,101 @@ class TestGlobalModelConfigurationPanelExtended7:
     def test_method_labels_keys(self):
         labels = _method_labels()
         assert set(labels.keys()) == {"seg", "det"}
+
+
+class TestClearOpenVinoCacheOffTk:
+    """A6-10: deleting OpenVINO caches runs on a worker; dialogs stay on Tk."""
+
+    @staticmethod
+    def _panel(clear_cache):
+        panel = cast(Any, GlobalModelConfigurationPanel.__new__(GlobalModelConfigurationPanel))
+        panel._cache_clear_pending = False
+        panel.controller = SimpleNamespace(
+            hardware_vm=SimpleNamespace(clear_openvino_cache=clear_cache)
+        )
+        events: list = []
+        panel._show_cache_clear_report = lambda report, *, scope: events.append(
+            ("report", report, scope, threading.current_thread())
+        )
+        panel._populate_weights_treeview = lambda: events.append(("refresh",))
+        return panel, bind_deferring_tk(panel), events
+
+    def test_selected_weight_cache_is_cleared_off_tk(self, monkeypatch):
+        threads: list = []
+        report = {"cleared": ["yolo"], "locked": [], "orphans_locked": []}
+
+        def clear(name):
+            threads.append((name, threading.current_thread()))
+            return report
+
+        panel, tk_loop, events = self._panel(clear)
+        panel._selected_weight_name = lambda: "yolo"
+        monkeypatch.setattr(
+            "zebtrack.ui.components.global_model_configuration_panel.messagebox.askyesno",
+            lambda *a, **k: True,
+        )
+
+        panel._on_clear_cache_selected()
+        assert events == []
+
+        tk_loop.run_until_idle()
+
+        assert len(threads) == 1
+        assert threads[0][0] == "yolo"
+        assert threads[0][1] is not threading.main_thread()
+        assert events == [
+            ("report", report, "yolo", threading.main_thread()),
+            ("refresh",),
+        ]
+        assert panel._cache_clear_pending is False
+
+    def test_clear_all_passes_none_and_ignores_a_second_request(self, monkeypatch):
+        release = threading.Event()
+        names: list = []
+
+        def clear(name):
+            names.append(name)
+            release.wait(5)
+            return {"cleared": [], "locked": ["a"], "orphans_locked": []}
+
+        panel, tk_loop, events = self._panel(clear)
+        monkeypatch.setattr(
+            "zebtrack.ui.components.global_model_configuration_panel.messagebox.askyesno",
+            lambda *a, **k: True,
+        )
+
+        panel._on_clear_cache_all()
+        panel._on_clear_cache_all()
+        release.set()
+        tk_loop.run_until_idle()
+
+        assert names == [None]
+        assert [e[0] for e in events] == ["report", "refresh"]
+        assert events[0][2] is None
+
+    def test_a_failure_refreshes_the_list_and_unlocks_the_buttons(self):
+        def clear(_name):
+            raise OSError("cache root unreadable")
+
+        panel, tk_loop, events = self._panel(clear)
+
+        panel._clear_cache_in_background("yolo")
+        tk_loop.run_until_idle()
+
+        assert events == [("refresh",)]
+        assert panel._cache_clear_pending is False
+
+    def test_declining_the_confirmation_deletes_nothing(self, monkeypatch):
+        calls: list = []
+        panel, tk_loop, events = self._panel(calls.append)
+        panel._selected_weight_name = lambda: "yolo"
+        monkeypatch.setattr(
+            "zebtrack.ui.components.global_model_configuration_panel.messagebox.askyesno",
+            lambda *a, **k: False,
+        )
+
+        panel._on_clear_cache_selected()
+        tk_loop.run_until_idle()
+
+        assert calls == []
+        assert events == []

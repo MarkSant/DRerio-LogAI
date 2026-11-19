@@ -64,6 +64,9 @@ class ArduinoManager:
         self._write_queue: queue.Queue[tuple[int, dict[str, Any] | None]] = queue.Queue()
         self._stop_event = threading.Event()
         self._lock = threading.RLock()
+        # Serialises connect() calls without holding ``_lock`` across the
+        # serial open + handshake (audit A6-06).
+        self._connect_lock = threading.Lock()
         self._port: str | None = None
         self._baud_rate: int | None = None
         self._last_command: int | None = None
@@ -117,20 +120,25 @@ class ArduinoManager:
                 for sketches that do not reply "OK"). Defaults to 'ok' to
                 preserve callers that do not opt in.
         """
-        with self._lock:
-            self._ack = ack
-            if self.is_connected() and self._port == port:
-                log.debug("arduino_manager.connect.already_connected", port=port)
-                return True
+        # ``_connect_lock`` serialises connects; ``_lock`` guards the state and
+        # is NOT held across the port open / handshake (up to the serial
+        # timeout). Holding it there made every ``is_connected()`` — the
+        # dashboard asks on the Tk thread — wait for the handshake (audit A6-06).
+        with self._connect_lock:
+            with self._lock:
+                self._ack = ack
+                if self.is_connected() and self._port == port:
+                    log.debug("arduino_manager.connect.already_connected", port=port)
+                    return True
 
-            self._shutdown_reader_locked()
+                self._shutdown_reader_locked()
 
             try:
                 candidate = self._arduino_factory(port, baud_rate)
                 # Apply the handshake policy on the instance so it works whether
                 # the factory is the Arduino class or a test double.
                 candidate.handshake = handshake
-            except Exception:  # pragma: no cover - constructor errors are rare
+            except Exception:
                 log.error(
                     "arduino_manager.connect.init_failed",
                     port=port,
@@ -169,23 +177,24 @@ class ArduinoManager:
                 )
                 return False
 
-            self.arduino = candidate
-            self._port = port
-            self._baud_rate = baud_rate
-            self._stop_event.clear()
-            self._drain_write_queue()
-            self._reader_thread = threading.Thread(
-                target=self._reader_loop,
-                name="ArduinoReader",
-                daemon=True,
-            )
-            self._reader_thread.start()
-            self._writer_thread = threading.Thread(
-                target=self._writer_loop,
-                name="ArduinoWriter",
-                daemon=True,
-            )
-            self._writer_thread.start()
+            with self._lock:
+                self.arduino = candidate
+                self._port = port
+                self._baud_rate = baud_rate
+                self._stop_event.clear()
+                self._drain_write_queue()
+                self._reader_thread = threading.Thread(
+                    target=self._reader_loop,
+                    name="ArduinoReader",
+                    daemon=True,
+                )
+                self._reader_thread.start()
+                self._writer_thread = threading.Thread(
+                    target=self._writer_loop,
+                    name="ArduinoWriter",
+                    daemon=True,
+                )
+                self._writer_thread.start()
 
         log.info("arduino_manager.connect.success", port=port, baud_rate=baud_rate)
         self._notify_status(True, port)
@@ -216,17 +225,6 @@ class ArduinoManager:
     def current_port(self) -> str | None:
         """Return the currently connected port, if any."""
         return self._port
-
-    def list_available_ports(self) -> list[str]:
-        """List available serial ports using WizardService.
-
-        Returns:
-            List of serial port names
-        """
-        from zebtrack.core.services.wizard_service import WizardService
-
-        ports = WizardService.detect_arduino_ports(use_cache=True)
-        return [port.get("device", "") for port in ports if port.get("device")]
 
     def send_command(self, command: int | str, *, source: str = "auto") -> bool:
         """Sends a command to Arduino and reports outcome to controller."""
@@ -469,10 +467,6 @@ class ArduinoManager:
         )
         return [(token, results.get(index)) for index, token in enumerate(tokens)]
 
-    def last_command(self) -> int | None:
-        """Returns the last successful command sent."""
-        return self._last_command
-
     def shutdown(self) -> None:
         """Stops reader thread and closes Arduino connection."""
         self.disconnect()
@@ -490,7 +484,7 @@ class ArduinoManager:
         if self.arduino:
             try:
                 self.arduino.close()
-            except Exception:  # pragma: no cover - best effort close
+            except Exception:
                 log.warning("arduino_manager.disconnect.close_error", exc_info=True)
             self.arduino = None
         self._drain_write_queue()
@@ -658,28 +652,28 @@ class ArduinoManager:
         try:
             if hasattr(self.controller, "on_arduino_event"):
                 self.controller.on_arduino_event(event_code)
-        except Exception:  # pragma: no cover - controller should handle safely
+        except Exception:
             log.error("arduino_manager.event.dispatch_failed", code=event_code, exc_info=True)
 
     def _notify_status(self, connected: bool, port: str | None) -> None:
         try:
             if hasattr(self.controller, "on_arduino_status_change"):
                 self.controller.on_arduino_status_change(connected, port)
-        except Exception:  # pragma: no cover - UI callbacks must not break flow
+        except Exception:
             log.warning("arduino_manager.status.notify_failed", exc_info=True)
 
     def _notify_log(self, message: str) -> None:
         try:
             if hasattr(self.controller, "log_arduino_event"):
                 self.controller.log_arduino_event(message)
-        except Exception:  # pragma: no cover
+        except Exception:
             log.warning("arduino_manager.log.notify_failed", exc_info=True)
 
     def _notify_command(self, command: int, *, success: bool, source: str) -> None:
         try:
             if hasattr(self.controller, "on_arduino_command_sent"):
                 self.controller.on_arduino_command_sent(command, success, source)
-        except Exception:  # pragma: no cover
+        except Exception:
             log.warning("arduino_manager.command.notify_failed", exc_info=True)
 
     @staticmethod

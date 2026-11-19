@@ -33,8 +33,17 @@ if TYPE_CHECKING:
     from zebtrack.ui.dialogs.aquarium_detection_progress_dialog import (
         AquariumDetectionProgressDialog,
     )
+    from zebtrack.ui.dialogs.camera_disconnect_recovery_dialog import (
+        CameraDisconnectRecoveryDialog,
+    )
 
 log = structlog.get_logger().bind(component="ui.ui_coordinator")
+
+#: Length of the aquarium-detection dialog's bar when the progress payload gives none.
+AQUARIUM_DETECTION_DEFAULT_FRAMES = 100
+#: Detection progress arrives every analysed frame that saw an aquarium (a fraction of a
+#: second apart); this long without one means the phase is over.
+AQUARIUM_DETECTION_STALE_MS = 5000
 
 
 def _payload_to_dict(payload: payloads.EventPayload | dict[str, Any]) -> dict[str, Any]:
@@ -138,6 +147,11 @@ class UICoordinator:
 
         # v2.2.0: Progress dialog for aquarium detection
         self._aquarium_detection_dialog: AquariumDetectionProgressDialog | None = None
+        self._aquarium_detection_watchdog_id: str | None = None
+
+        # F2-UI-007: the camera-disconnect dialog stays open while the user waits for the
+        # camera; the coordinator keeps it so CAMERA_RECONNECTED can close it.
+        self._camera_disconnect_dialog: CameraDisconnectRecoveryDialog | None = None
 
         # Setup subscriptions to all relevant events
         self._setup_subscriptions()
@@ -160,7 +174,6 @@ class UICoordinator:
         self.event_bus.subscribe(UIEvents.POLYGON_EDIT_REQUESTED, self._on_polygon_edit_requested)
 
         # Project & Video Management Events
-        self.event_bus.subscribe(UIEvents.VIDEO_LOADED, self._on_video_loaded)
         self.event_bus.subscribe(
             UIEvents.VIDEO_TREE_REFRESH_REQUESTED, self._on_video_tree_refresh_requested
         )
@@ -175,17 +188,7 @@ class UICoordinator:
             UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED, self._on_project_views_refresh_requested
         )
 
-        # Analysis & Processing Events
-        self.event_bus.subscribe(
-            UIEvents.PROCESSING_STATS_UPDATED, self._on_processing_stats_updated
-        )
-        self.event_bus.subscribe(UIEvents.SOCIAL_SUMMARY_UPDATED, self._on_social_summary_updated)
-        self.event_bus.subscribe(
-            UIEvents.ANALYSIS_TASK_STATUS_UPDATED, self._on_analysis_task_status_updated
-        )
-
         # External Trigger Events
-        self.event_bus.subscribe(UIEvents.EXTERNAL_TRIGGER_NOTICE, self._on_external_trigger_notice)
 
         # Live Camera Events (v2.2.0)
         self.event_bus.subscribe(UIEvents.CAMERA_DISCONNECT_DETECTED, self._on_camera_disconnect)
@@ -402,47 +405,6 @@ class UICoordinator:
             self._errors_count += 1
             log.exception("ui_coordinator.video_hierarchy_snapshot.error", error=str(e))
 
-    def _on_video_loaded(self, data: payloads.EventPayload) -> None:
-        """Handle VIDEO_LOADED event.
-
-        **Workflow 6: Video Load Coordination**
-
-        Publishers: CanvasManager, VideoDisplayWidget
-
-        Coordinates:
-        1. Load video frame to canvas
-        2. Check for existing zones
-        3. Offer zone reuse if no zones exist
-
-        Args:
-            data: Event payload containing:
-                - video_path: str - Path to the loaded video
-        """
-        self._events_handled += 1
-        video_path = _payload_get(data, "video_path")
-
-        try:
-            # 1. Load frame to canvas
-            canvas_manager = self.canvas_manager
-            if canvas_manager is not None and video_path:
-                self._safe_ui_call(lambda: canvas_manager.load_video_frame_to_canvas(video_path))
-                log.debug("ui_coordinator.video_loaded.frame_loaded", video_path=video_path)
-
-            # 2. Check for existing zones and offer reuse
-            dialog_manager = self.dialog_manager
-            if (
-                self.validation_manager
-                and dialog_manager is not None
-                and video_path
-                and not self.validation_manager.has_zones(video_path)
-            ):
-                self._safe_ui_call(lambda: dialog_manager.offer_zone_reuse(video_path))
-                log.debug("ui_coordinator.video_loaded.zone_reuse_offered")
-
-        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
-            self._errors_count += 1
-            log.exception("ui_coordinator.video_loaded.error", error=str(e))
-
     def _on_project_views_refresh_requested(self, data: payloads.EventPayload) -> None:
         """Handle PROJECT_VIEWS_REFRESH_REQUESTED event.
 
@@ -480,61 +442,6 @@ class UICoordinator:
         except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.project_views_refresh.error", error=str(e))
-
-    def _on_processing_stats_updated(self, data: payloads.EventPayload) -> None:
-        """Handle PROCESSING_STATS_UPDATED event."""
-        self._events_handled += 1
-        try:
-            if self.state_synchronizer:
-                state_synchronizer = self.state_synchronizer
-                self._safe_ui_call(
-                    lambda: state_synchronizer.update_processing_stats(**_payload_to_dict(data))
-                )
-        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
-            self._errors_count += 1
-            log.exception("ui_coordinator.processing_stats_updated.error", error=str(e))
-
-    def _on_social_summary_updated(self, data: payloads.EventPayload) -> None:
-        """Handle SOCIAL_SUMMARY_UPDATED event."""
-        self._events_handled += 1
-        try:
-            if self.state_synchronizer:
-                state_synchronizer = self.state_synchronizer
-                self._safe_ui_call(
-                    lambda: state_synchronizer.update_social_summary(**_payload_to_dict(data))
-                )
-        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
-            self._errors_count += 1
-            log.exception("ui_coordinator.social_summary_updated.error", error=str(e))
-
-    def _on_analysis_task_status_updated(self, data: payloads.EventPayload) -> None:
-        """Handle ANALYSIS_TASK_STATUS_UPDATED event."""
-        self._events_handled += 1
-        try:
-            if self.state_synchronizer:
-                state_synchronizer = self.state_synchronizer
-                self._safe_ui_call(
-                    lambda: state_synchronizer.update_analysis_task_status(**_payload_to_dict(data))
-                )
-        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
-            self._errors_count += 1
-            log.exception("ui_coordinator.analysis_task_status_updated.error", error=str(e))
-
-    def _on_external_trigger_notice(self, data: payloads.EventPayload) -> None:
-        """Handle EXTERNAL_TRIGGER_NOTICE event."""
-        self._events_handled += 1
-        try:
-            if self.dialog_manager:
-                dialog_manager = self.dialog_manager
-                self._safe_ui_call(
-                    lambda: dialog_manager.show_external_trigger_notice(
-                        _payload_get(data, "session_label", ""),
-                        **_payload_to_dict(data),
-                    )
-                )
-        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
-            self._errors_count += 1
-            log.exception("ui_coordinator.external_trigger_notice.error", error=str(e))
 
     def _on_external_trigger_notice_cleared(self, data: payloads.EventPayload) -> None:
         """Handle EXTERNAL_TRIGGER_NOTICE_CLEARED event."""
@@ -692,7 +599,10 @@ class UICoordinator:
                         ),
                     )
 
-                CameraDisconnectRecoveryDialog(
+                # A second disconnect before the first dialog went away must not stack a
+                # second modal grab on top of it.
+                self._close_camera_disconnect_dialog()
+                self._camera_disconnect_dialog = CameraDisconnectRecoveryDialog(
                     parent=self.root,
                     gap_duration_s=gap_duration,
                     experiment_id=experiment_id,
@@ -710,10 +620,23 @@ class UICoordinator:
             )
             self._errors_count += 1
 
+    def _close_camera_disconnect_dialog(self) -> None:
+        """Close the camera-disconnect dialog, if one is open (Tk main thread only).
+
+        After "wait" the dialog keeps its modal grab and ignores every further click (its
+        window-close button is a no-op once an action was taken), so this is the only way
+        it goes away. Closing one the user already dismissed (resume/stop destroy it) is
+        harmless: ``close_dialog`` swallows the already-destroyed error.
+        """
+        dialog, self._camera_disconnect_dialog = self._camera_disconnect_dialog, None
+        if dialog is not None:
+            dialog.close_dialog()
+
     def _on_camera_reconnected(self, event_data: payloads.EventPayload) -> None:
         """Handle camera reconnected event.
 
-        Logs reconnection and optionally shows toast notification.
+        Closes the disconnect dialog that is still waiting for the camera, then logs the
+        reconnection and updates the status bar.
 
         Args:
             event_data: Event payload with gap_duration_s, total_gaps, etc.
@@ -727,6 +650,8 @@ class UICoordinator:
                 gap_duration_s=gap_duration,
                 total_gaps=total_gaps,
             )
+
+            self._safe_ui_call(self._close_camera_disconnect_dialog)
 
             # Update status synchronizer if available
             if self.state_synchronizer:
@@ -749,17 +674,42 @@ class UICoordinator:
             )
             self._errors_count += 1
 
+    def _close_aquarium_detection_dialog(self) -> None:
+        """Close the aquarium-detection dialog and its watchdog (Tk main thread only)."""
+        self._cancel_aquarium_detection_watchdog()
+        dialog, self._aquarium_detection_dialog = self._aquarium_detection_dialog, None
+        if dialog is not None:
+            dialog.close_dialog()
+
+    def _cancel_aquarium_detection_watchdog(self) -> None:
+        after_id, self._aquarium_detection_watchdog_id = self._aquarium_detection_watchdog_id, None
+        if after_id is not None and self.root:
+            try:
+                self.root.after_cancel(after_id)
+            except tk.TclError:
+                log.debug("ui_coordinator.detection_watchdog_cancel.suppressed", exc_info=True)
+
+    def _arm_aquarium_detection_watchdog(self) -> None:
+        """(Re)start the countdown that closes the dialog when progress events stop."""
+        self._cancel_aquarium_detection_watchdog()
+        if self.root:
+            self._aquarium_detection_watchdog_id = self.root.after(
+                AQUARIUM_DETECTION_STALE_MS, self._close_aquarium_detection_dialog
+            )
+
     def _on_aquarium_detection_progress(self, event_data: payloads.EventPayload) -> None:
         """Handle aquarium detection progress event.
 
-        Creates dialog on first event, updates it on subsequent events.
-        Closes dialog when frame count reaches max_frames (100).
+        Creates the dialog on the first event of a phase and updates it on the next ones.
+        Closes it on the phase's last frame (``max_frames`` of the payload) or, when the
+        publisher goes quiet for ``AQUARIUM_DETECTION_STALE_MS`` (the phase also ends early
+        once enough aquariums were collected, and nothing else announces that), by watchdog.
 
         Args:
             event_data: Event payload with frame_number, frame_image, bbox, etc.
         """
         try:
-            frame_number = _payload_get(event_data, "frame_number", 0)
+            frame_number = _payload_get(event_data, "frame_number", 0) or 0
             experiment_id = _payload_get(event_data, "experiment_id", "unknown")
             frame_image = _payload_get(event_data, "frame_image")
             detected_bbox = _payload_get(event_data, "detected_bbox")
@@ -772,45 +722,51 @@ class UICoordinator:
                 has_image=frame_image is not None,
             )
 
-            # Create dialog on first event (frame 1)
-            if self._aquarium_detection_dialog is None and frame_number == 1:
-                if self.root:
-                    from zebtrack.ui.dialogs.aquarium_detection_progress_dialog import (
-                        AquariumDetectionProgressDialog,
-                    )
+            # The phase length is the publisher's (payload ``max_frames``); the dialog used
+            # to hard-code 100 while the live pipeline ends detection after ~10 frames.
+            total = _payload_get(event_data, "max_frames")
+            if not isinstance(total, int) or isinstance(total, bool) or total <= 0:
+                total = AQUARIUM_DETECTION_DEFAULT_FRAMES
+            # ``frame_number`` is the publisher's 0-based counter of analysed frames, so the
+            # last frame of the phase is ``total - 1``.
+            phase_done = frame_number + 1 >= total
 
-                    def create_dialog():
+            # Create the dialog on the first event of a phase, whatever its frame number:
+            # events start at frame 0 and a frame only publishes when it saw an aquarium, so
+            # waiting for frame 1 could mean never. A final-frame event must not open one
+            # (a frame with two detections publishes twice, and the first closes it).
+            if self.root and self._aquarium_detection_dialog is None and not phase_done:
+                from zebtrack.ui.dialogs.aquarium_detection_progress_dialog import (
+                    AquariumDetectionProgressDialog,
+                )
+
+                def create_dialog():
+                    # Re-checked on the Tk thread: two events can queue a creation each.
+                    if self._aquarium_detection_dialog is None:
                         self._aquarium_detection_dialog = AquariumDetectionProgressDialog(
                             parent=self.root,
                             experiment_id=experiment_id,
-                            max_frames=100,
+                            max_frames=total,
                         )
 
-                    self._safe_ui_call(create_dialog)
+                self._safe_ui_call(create_dialog)
 
-            # Update dialog if it exists
-            if self._aquarium_detection_dialog and self.root:
+            if self.root:
 
                 def update_dialog():
-                    if self._aquarium_detection_dialog:
-                        self._aquarium_detection_dialog.update_progress(
-                            frame_number=frame_number,
-                            frame_image=frame_image,
-                            detected_bbox=detected_bbox,
-                            is_valid=is_valid,
-                        )
-
-                        # Close dialog when detection phase completes
-                        if frame_number >= 100:
-                            try:
-                                self._aquarium_detection_dialog.destroy()
-                            except tk.TclError:
-                                log.debug(
-                                    "ui_coordinator.detection_dialog_destroy.suppressed",
-                                    exc_info=True,
-                                )
-                            finally:
-                                self._aquarium_detection_dialog = None
+                    dialog = self._aquarium_detection_dialog
+                    if dialog is None:
+                        return
+                    dialog.update_progress(
+                        frame_number=frame_number,
+                        frame_image=frame_image,
+                        detected_bbox=detected_bbox,
+                        is_valid=is_valid,
+                    )
+                    if phase_done:
+                        self._close_aquarium_detection_dialog()
+                    else:
+                        self._arm_aquarium_detection_watchdog()
 
                 self._safe_ui_call(update_dialog)
 
@@ -820,7 +776,9 @@ class UICoordinator:
 
                 def update_status():
                     state_synchronizer.update_status(
-                        _("Detecting aquarium: frame {frame}/100").format(frame=frame_number)
+                        _("Detecting aquarium: frame {frame}/{total}").format(
+                            frame=frame_number, total=total
+                        )
                     )
 
                 self._safe_ui_call(update_status)

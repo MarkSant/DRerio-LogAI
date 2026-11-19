@@ -365,7 +365,7 @@ class DesignEditorDialog(Dialog):
         if hasattr(self, "groups_canvas"):
             try:
                 self.groups_canvas.yview_moveto(0)
-            except Exception:  # pragma: no cover - depends on widget state
+            except Exception:
                 log.debug("design_editor.scroll_reset.error", exc_info=True)
 
     def _open_custom_regex_dialog(self) -> None:
@@ -386,7 +386,7 @@ class DesignEditorDialog(Dialog):
         if self.on_custom_regex_configured:
             try:
                 new_design = self.on_custom_regex_configured(result_patterns)
-            except Exception:  # pragma: no cover - defensive logging only
+            except Exception:
                 log.exception("design_editor.custom_regex_callback_failed")
 
         self._load_design(new_design)

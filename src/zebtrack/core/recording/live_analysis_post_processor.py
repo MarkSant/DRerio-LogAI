@@ -10,6 +10,7 @@ import datetime
 import glob
 import math
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -87,7 +88,11 @@ class LiveAnalysisPostProcessorMixin:
 
     # Methods from other mixins
     def stop_session(  # type: ignore[empty-body]
-        self, *, cancelled: bool = False, keep_data: bool = False
+        self,
+        *,
+        cancelled: bool = False,
+        keep_data: bool = False,
+        on_stopped: Callable[[bool], None] | None = None,
     ) -> bool: ...
     def _setup_session_timer(self, duration_s: float, output_dir: Path) -> None: ...
 
@@ -458,7 +463,7 @@ class LiveAnalysisPostProcessorMixin:
             aquarium_data_map[aq_id] = (df, aquarium)
             total_frames += int(df["frame"].nunique())
             total_detections += len(df)
-            total_tracks += int(df["track_id"].nunique()) if "track_id" in df.columns else 0
+            total_tracks += self._count_live_subjects(df)
 
         if not aquarium_data_map:
             if self.project_manager.project_path and outputs_by_aquarium:
@@ -582,21 +587,6 @@ class LiveAnalysisPostProcessorMixin:
             )
             self.stop_session()
             return
-
-        # Stop threads and cleanup
-        self.stop_session(keep_data=keep_data)
-
-        log.info(
-            "live_camera_service.starting_post_analysis",
-            output_dir=str(output_dir),
-            keep_data=keep_data,
-        )
-
-        # ``stop_session`` já levou a aba Análise a "Análise finalizada", mas os
-        # relatórios só existem depois da thread abaixo — uma janela silenciosa
-        # de vários segundos em que a UI afirma ter terminado e a pasta ainda
-        # não tem ``.xlsx``/``.docx``. Diz o que está acontecendo.
-        self._publish_post_analysis_status(_("Generating the reports for the live session..."))
 
         def _run_post_analysis() -> None:  # noqa: C901
             """Background thread worker for post-processing analysis."""
@@ -867,7 +857,7 @@ class LiveAnalysisPostProcessorMixin:
                 # Finalize
                 total_frames = df["frame"].nunique()
                 total_detections = len(df)
-                unique_tracks = df["track_id"].nunique() if "track_id" in df.columns else 0
+                unique_tracks = self._count_live_subjects(df)
 
                 if self.root:
                     stats = {
@@ -885,14 +875,50 @@ class LiveAnalysisPostProcessorMixin:
                         0, self._show_completion_message, output_dir, False, None, "error"
                     )
 
-        # Start background thread for post-analysis
-        analysis_thread = threading.Thread(
-            target=_run_post_analysis,
-            name="PostAnalysisThread",
-            daemon=True,
+        def _start_post_analysis(_stopped: bool) -> None:
+            log.info(
+                "live_camera_service.starting_post_analysis",
+                output_dir=str(output_dir),
+                keep_data=keep_data,
+            )
+
+            # ``stop_session`` já levou a aba Análise a "Análise finalizada", mas os
+            # relatórios só existem depois da thread abaixo — uma janela silenciosa
+            # de vários segundos em que a UI afirma ter terminado e a pasta ainda
+            # não tem ``.xlsx``/``.docx``. Diz o que está acontecendo.
+            self._publish_post_analysis_status(_("Generating the reports for the live session..."))
+
+            # Start background thread for post-analysis
+            analysis_thread = threading.Thread(
+                target=_run_post_analysis,
+                name="PostAnalysisThread",
+                daemon=True,
+            )
+            analysis_thread.start()
+            log.info("live_camera_service.post_analysis_thread_started")
+
+        # Stop threads and cleanup. The post-analysis reads the files this stop
+        # flushes, so it starts from ``on_stopped``: with a Tk root the teardown
+        # runs on a worker and returns before the recorder is closed (A6-07).
+        self.stop_session(keep_data=keep_data, on_stopped=_start_post_analysis)
+
+    def _count_live_subjects(self, df: pd.DataFrame) -> int:
+        """How many animals the completion dialog reports (A4-02).
+
+        The report's own reading, never ``df["track_id"].nunique()``: rows
+        without a ``track_id`` and tracks shorter than ``min_track_duration_s``
+        are screened by ``screen_window_subjects`` (the screening the report and
+        the analysis window run), then ``count_subjects`` counts what is left. A
+        raw ``nunique()`` showed a one-row ByteTrack glitch as a second animal
+        and an all-unidentified trajectory as zero.
+        """
+        from zebtrack.analysis.track_significance import count_subjects, min_track_duration_from
+        from zebtrack.analysis.window_observations import screen_window_subjects
+
+        screening = screen_window_subjects(
+            df, min_track_duration_s=min_track_duration_from(self.settings)
         )
-        analysis_thread.start()
-        log.info("live_camera_service.post_analysis_thread_started")
+        return count_subjects(df if screening is None else screening.trajectory)
 
     @staticmethod
     def _format_generated_files(output_dir: Path) -> str:
@@ -1206,6 +1232,62 @@ class LiveAnalysisPostProcessorMixin:
             )
         )
 
+    def _publish_recording_error(self, title: str, message: str) -> None:
+        """Show the operator an error about the recording of the running session.
+
+        Safe from the processing thread: the ``SHOW_ERROR`` handler marshals the
+        dialog to the Tk thread itself.
+        """
+        event_bus = getattr(self, "event_bus", None)
+        if not event_bus:
+            return
+        from zebtrack.ui import payloads
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+        event_bus.publish(
+            Event(
+                type=UIEvents.SHOW_ERROR,
+                data=payloads.MessagePayload(title=title, message=message),
+            )
+        )
+
+    def _report_recorder_start_failure(self, error: str) -> None:
+        """The recorder did not start after the arena was defined (audit A5-S-007).
+
+        Until 8.0 this was only logged: no timer was armed, the preview kept
+        running and the operator could believe the session was being recorded.
+        """
+        self._publish_recording_error(
+            _("Recording did not start"),
+            _(
+                "The recorder could not be started after the arena was defined: {error}\n\n"
+                "This session is NOT being recorded. Stop it and check the output "
+                "folder {folder}."
+            ).format(error=error, folder=self.current_output_dir),
+        )
+
+    def _report_multi_aquarium_detection_failure(self, error: str) -> None:
+        """Multi-aquarium detection is failing while the preview goes on (A5-S-006).
+
+        The fallback keeps the preview alive with the single detector, but the
+        recorder write sits inside the failing block, so nothing is saved for
+        those frames. The log gets one line per frame; the operator is told
+        once per session folder.
+        """
+        session = self.current_output_dir
+        if getattr(self, "_multi_aq_failure_reported_for", None) == session:
+            return
+        self._multi_aq_failure_reported_for = session
+        self._publish_recording_error(
+            _("Detections are not being recorded"),
+            _(
+                "Multi-aquarium detection failed: {error}\n\n"
+                "The preview keeps running, but the detections of this session are not "
+                "being saved while the error lasts. Stop the session and check the "
+                "aquarium zones."
+            ).format(error=error),
+        )
+
     def _start_recording_after_arena(self) -> None:
         """Start recorder and timer AFTER arena has been defined.
 
@@ -1225,6 +1307,7 @@ class LiveAnalysisPostProcessorMixin:
                 recorder_started = self._start_live_recorder(zone_data, f"{self._experiment_id}")
                 if not recorder_started:
                     log.error("live_camera_service.recorder_start_failed_after_arena")
+                    self._report_recorder_start_failure(_("the recorder refused to start"))
                     return
 
                 log.info(
@@ -1240,6 +1323,7 @@ class LiveAnalysisPostProcessorMixin:
                     error=str(e),
                     exc_info=True,
                 )
+                self._report_recorder_start_failure(str(e))
                 return
 
         # Start session timer NOW (after arena defined)
@@ -1458,5 +1542,6 @@ class LiveAnalysisPostProcessorMixin:
                 error=str(e),
                 exc_info=True,
             )
+            self._report_multi_aquarium_detection_failure(str(e))
             detections, _annotated = detector.detect(frame, "live")
             return detections

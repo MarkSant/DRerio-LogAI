@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+from tests.helpers.fake_backends import stop_session_that_completes
 from zebtrack.coordinators.live_camera_session_coordinator import (
     LiveCameraSessionCoordinator,
     LiveCameraSessionCoordinatorError,
@@ -287,13 +288,74 @@ class TestLiveCameraSessionCoordinatorLifecycle:
     def test_stop_live_session(self, coordinator, mock_live_camera_service):
         """Should stop session via service."""
         coordinator._active_live_session_id = "test_exp"
-        mock_live_camera_service.stop_session.return_value = True
+        mock_live_camera_service.stop_session.side_effect = stop_session_that_completes()
 
         res = coordinator.stop_live_session()
 
         assert res is True
         assert not coordinator.is_live_session_active()
-        mock_live_camera_service.stop_session.assert_called_once_with(cancelled=True)
+        mock_live_camera_service.stop_session.assert_called_once()
+        assert mock_live_camera_service.stop_session.call_args.kwargs["cancelled"] is True
+
+    def test_cancel_finalizes_once_when_the_stop_finishes_later(
+        self, coordinator, mock_live_camera_service
+    ):
+        """A6-07: with a Tk root the service finishes the stop AFTER returning.
+
+        Its ``on_session_stopped`` then fires from the Tk thread, just before the
+        coordinator's own ``on_stopped``. The suppression must still be on at that
+        moment, or the session would be finalized twice.
+        """
+        coordinator._active_live_session_id = "test_exp"
+        pending: list = []
+
+        def _stop_later(**kw):
+            pending.append(kw["on_stopped"])
+            return True
+
+        mock_live_camera_service.stop_session.side_effect = _stop_later
+        finalized: list[dict] = []
+        real_finalize = coordinator._finalize_live_session_ui
+
+        def _spy(**kw):
+            finalized.append(kw)
+            return real_finalize(**kw)
+
+        coordinator._finalize_live_session_ui = _spy
+
+        assert coordinator.stop_live_session() is True
+        assert finalized == []  # nothing final until the teardown is done
+        assert coordinator._suppress_service_stop_callback is True
+
+        # Service side, on Tk: on_session_stopped first, then on_stopped.
+        coordinator._on_live_service_session_stopped(True)
+        pending[0](True)
+
+        assert finalized == [{"cancelled": True, "publish_refresh": True, "service_success": True}]
+        assert coordinator._suppress_service_stop_callback is False
+        assert not coordinator.is_live_session_active()
+
+    def test_cancel_with_a_failed_teardown_finalizes_without_refresh(
+        self, coordinator, mock_live_camera_service
+    ):
+        coordinator._active_live_session_id = "test_exp"
+        mock_live_camera_service.stop_session.side_effect = stop_session_that_completes(
+            stopped=False
+        )
+
+        assert coordinator.stop_live_session() is True
+
+        assert not coordinator.is_live_session_active()
+        assert coordinator._suppress_service_stop_callback is False
+
+    def test_cancel_clears_the_suppression_when_the_service_raises(
+        self, coordinator, mock_live_camera_service
+    ):
+        coordinator._active_live_session_id = "test_exp"
+        mock_live_camera_service.stop_session.side_effect = OSError("camera gone")
+
+        assert coordinator.stop_live_session() is False
+        assert coordinator._suppress_service_stop_callback is False
 
     def test_stop_live_session_keeping_data_finishes_instead_of_discarding(
         self, coordinator, mock_live_camera_service
@@ -618,23 +680,6 @@ class TestPendingAndResumeFlows:
         assert event_obj.type == UIEvents.UI_SHOW_ERROR
 
 
-class TestSessionInfo:
-    def test_get_live_session_info_not_active(self, coordinator):
-        coordinator._active_live_session_id = None
-        assert coordinator.get_live_session_info() is None
-
-    def test_get_live_session_info_active(self, coordinator, mock_state_manager):
-        coordinator._active_live_session_id = "sess_123"
-        mock_proc = Mock(camera_index=0, experiment_id="exp_1", duration_s=100.0)
-        mock_state_manager.get_processing_state.return_value = mock_proc
-
-        info = coordinator.get_live_session_info()
-        assert info is not None
-        assert info["session_id"] == "sess_123"
-        assert info["is_active"] is True
-        assert info["camera_index"] == 0
-
-
 class TestBatchSessionRegistration:
     def test_register_batch_session_no_wizard_data(self, coordinator):
         coordinator._active_wizard_data = None
@@ -933,6 +978,53 @@ class TestStartLiveProjectSessionExtended:
         )
 
         assert success is False
+        assert coordinator._pending_live_kind == "project"
+        assert coordinator._pending_live_context["experiment_id"] == "day1_Ctrl_F1"
+
+    def test_start_session_from_config_defers_only_when_the_calibration_ends(self, coordinator):
+        """A6-03: no "Start Recording" banner before a polygon exists."""
+        calibration = coordinator.live_calibration_coordinator
+        captured: dict = {}
+
+        def _ensure(**kwargs):
+            captured.update(kwargs)
+            calibration.calibration_in_progress = True
+            calibration.pending_zone_confirmation = True
+            return False
+
+        calibration.ensure_zones_before_recording.side_effect = _ensure
+
+        success = coordinator.start_session_from_config(
+            {"camera_index": 0, "experiment_id": "slow_cam"}, zones_validated=False
+        )
+
+        assert success is False
+        assert coordinator._pending_live_kind is None, "deferred before the polygon exists"
+        captured["on_pending"]()
+        assert coordinator._pending_live_kind == "config"
+        assert coordinator._pending_live_context["experiment_id"] == "slow_cam"
+
+    def test_start_live_project_session_defers_only_when_the_calibration_ends(self, coordinator):
+        coordinator.project_manager.get_project_type.return_value = "live"
+        coordinator.project_manager.project_data = {"camera_index": 0}
+        calibration = coordinator.live_calibration_coordinator
+        captured: dict = {}
+
+        def _ensure(**kwargs):
+            captured.update(kwargs)
+            calibration.calibration_in_progress = True
+            calibration.pending_zone_confirmation = True
+            return False
+
+        calibration.ensure_zones_before_recording.side_effect = _ensure
+
+        success = coordinator.start_live_project_session(
+            day=1, group="Ctrl", subject="F1", camera_index_override=0, zones_validated=False
+        )
+
+        assert success is False
+        assert coordinator._pending_live_kind is None
+        captured["on_pending"]()
         assert coordinator._pending_live_kind == "project"
         assert coordinator._pending_live_context["experiment_id"] == "day1_Ctrl_F1"
 

@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from zebtrack.core.application_bootstrapper import BootstrapResult
     from zebtrack.core.dependency_container import MainViewModelDependencies
     from zebtrack.core.detection import Detector
+    from zebtrack.ui.event_bus_v2 import UIEvents
 
 log = structlog.get_logger()
 
@@ -110,16 +111,7 @@ class HardwareStatusViewModel:
 
         # --- Arduino ---
 
-    def setup_arduino(self) -> bool:
-        # Note: Arduino setup is now handled differently in HardwareCoordinator
-        # These methods are deprecated
-        log.warning(
-            "hardware_status_view_model.arduino_deprecated",
-            message="Direct Arduino access via HardwareCoordinator is deprecated.",
-        )
-        return False
-
-    def _publish_arduino_ui(self, event_type: Any, payload: Any) -> None:
+    def _publish_arduino_ui(self, event_type: UIEvents, payload: Any) -> None:
         """Publish an Arduino UI event on the bus (best-effort, thread-safe).
 
         These callbacks fire from ``ArduinoManager`` (main thread on connect,
@@ -191,10 +183,6 @@ class HardwareStatusViewModel:
             UIEvents.UI_APPEND_ARDUINO_LOG,
             UIAppendArduinoLogPayload(message=message),
         )
-
-    def _get_arduino_manager(self):
-        # Lazy init if needed, though passed in bootstrap
-        return self.arduino_manager
 
     def _on_project_manager_replaced(self, _data: Any) -> None:
         """Release the serial port when the project that owned it goes away.
@@ -531,12 +519,6 @@ class HardwareStatusViewModel:
         # Phase 4.7: Delegates to RecordingSessionCoordinator
         if self.recording_session_coordinator:
             self.recording_session_coordinator.stop_recording()
-
-    def toggle_recording(self) -> None:
-        if self.recording_service and self.recording_service.is_recording:
-            self.stop_recording()
-        else:
-            self.start_recording()
 
     @property
     def recording_service(self) -> Any | None:

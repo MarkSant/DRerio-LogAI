@@ -1246,10 +1246,6 @@ class MultiAquariumDetector:
     # Data accessors
     # =========================================================================
 
-    def is_multi_aquarium_mode(self) -> bool:
-        """Check if detector is in multi-aquarium mode."""
-        return self._multi_aquarium_mode
-
     def get_aquarium_polygon(self, aquarium_id: int) -> np.ndarray | None:
         """Get scaled polygon for a specific aquarium."""
         return self._scaled_aquarium_polygons.get(aquarium_id)
@@ -1279,10 +1275,6 @@ class MultiAquariumDetector:
     # =========================================================================
     # Backward-compat delegation helpers
     # =========================================================================
-
-    def _point_in_polygon(self, point: tuple[float, float], polygon: np.ndarray) -> bool:
-        """Delegate to ``ZoneScaler.point_in_polygon`` (backward compat)."""
-        return ZoneScaler.point_in_polygon(point, polygon)
 
     def _crop_aquarium_region(
         self,

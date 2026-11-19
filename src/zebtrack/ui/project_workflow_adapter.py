@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
     from zebtrack.core.services.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
-    from zebtrack.ui.event_bus_v2 import EventBusV2
+    from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -72,7 +72,7 @@ class ProjectWorkflowAdapter:
 
         log.info("project_workflow_adapter.initialized")
 
-    def _publish_event(self, event_type: Any, data: Any = None) -> None:
+    def _publish_event(self, event_type: UIEvents, data: Any = None) -> None:
         """Safely publish an event if the event bus is available."""
         if self.ui_event_bus:
             from zebtrack.ui.event_bus_v2 import Event

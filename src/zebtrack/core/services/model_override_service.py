@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
-    from zebtrack.ui.event_bus_v2 import EventBusV2
+    from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 log = structlog.get_logger()
 
@@ -74,7 +74,7 @@ class ModelOverrideService:
     # Event helper (mirrors BaseCoordinator._publish_event)
     # ------------------------------------------------------------------
 
-    def _publish_event(self, event_type: Any, data: Any = None) -> None:
+    def _publish_event(self, event_type: UIEvents, data: Any = None) -> None:
         """Publish an event via EventBusV2.
 
         Args:
@@ -326,54 +326,6 @@ class ModelOverrideService:
             Tuple of (resolved_weight, resolved_openvino)
         """
         return self.project_workflow_service.resolve_project_model_settings(overrides)
-
-    def save_current_calibration_to_project(
-        self,
-        get_active_weight_name: Callable[[], str | None],
-        get_use_openvino: Callable[[], bool],
-        refresh_callback: Callable[[str, bool], None] | None = None,
-    ) -> tuple[str | None, bool] | None:
-        """Save current model settings as project-specific overrides.
-
-        Args:
-            get_active_weight_name: Callback to get active weight name
-            get_use_openvino: Callback to get OpenVINO usage
-            refresh_callback: Optional callback to refresh project views
-
-        Returns:
-            Tuple of (weight_name, use_openvino) if successful, None otherwise
-        """
-        from zebtrack.ui.event_bus_v2 import UIEvents
-
-        if not getattr(self.project_manager, "project_path", None):
-            self._publish_event(
-                UIEvents.UI_SHOW_WARNING,
-                payloads.MessagePayload(
-                    title=_("No Project"),
-                    message=_("Open a project before saving calibration overrides."),
-                ),
-            )
-            return None
-
-        overrides = self._persist_project_model_settings(
-            get_active_weight_name() or None,
-            bool(get_use_openvino()),
-        )
-
-        # Apply overrides
-        self.apply_project_model_overrides(
-            overrides=overrides,
-            active_weight_setter=lambda w: None,  # Will be set by caller
-            use_openvino_setter=lambda v: None,  # Will be set by caller
-        )
-
-        message = _("Project overrides updated from this calibration.")
-        self._publish_event(UIEvents.UI_SET_STATUS, payloads.StatusPayload(message=message))
-
-        if refresh_callback:
-            refresh_callback(message, True)
-
-        return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
 
     def apply_project_model_overrides(
         self,

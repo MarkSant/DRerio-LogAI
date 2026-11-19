@@ -104,3 +104,23 @@ def assert_condition_met(
     if not wait_for_condition(condition_fn, timeout):
         msg = error_msg or f"Condition not met within {timeout}s"
         raise AssertionError(msg)
+
+
+def drain_background_tasks(root, timeout: float = 5.0) -> None:
+    """Finish every ``ui.background_task`` worker and run what it owes Tk.
+
+    ``run_in_background`` delivers results from a Tk-side ``after`` poll, so a
+    test that triggers one must pump the Tk loop until every task has been
+    delivered. A delivered callback may start another task (template restore
+    then Arduino detection), which the same loop also waits for.
+
+    Raises:
+        AssertionError: when tasks are still pending after ``timeout``.
+    """
+    from zebtrack.ui import background_task
+
+    deadline = time.monotonic() + timeout
+    while background_task.pending_tasks():
+        assert time.monotonic() < deadline, "background tasks did not finish"
+        root.update()
+        time.sleep(0.005)

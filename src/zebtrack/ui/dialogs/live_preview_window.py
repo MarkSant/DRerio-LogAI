@@ -319,7 +319,7 @@ class LivePreviewWindow:
                 self.progress_bar.stop()
             # except Exception justified: defensive — Progressbar.stop can raise
             # TclError during shutdown when the widget is being torn down.
-            except Exception:  # pragma: no cover - defensive
+            except Exception:
                 log.debug("live_preview.progress_stop_failed")
         if hasattr(self, "eta_label"):
             self.eta_label.config(text="--")

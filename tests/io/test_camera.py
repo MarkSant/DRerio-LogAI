@@ -208,3 +208,19 @@ def test_get_properties_is_thread_safe(camera_and_mock, monkeypatch):
 
     # The test passes if no inconsistent states were ever recorded
     assert not inconsistent_states, f"Found inconsistent states: {inconsistent_states}"
+
+
+def test_reconnect_abort_still_stops_when_the_driver_release_fails(camera_and_mock):
+    """F2 pragma review: a failing release on give-up must still stop the thread."""
+    camera, mock_vc = camera_and_mock
+    mock_vc.isOpened.side_effect = itertools.repeat(True)
+    mock_vc.release.side_effect = cv2.error("driver refused release")
+
+    camera._handle_reconnect_abort()
+
+    assert camera._stopped.is_set()
+    assert camera._reconnect_state_ready.is_set()
+    assert camera._frame_available is False
+    assert len(camera._frame_buffer) == 0
+    camera._thread.join(timeout=2.0)
+    assert not camera._thread.is_alive()

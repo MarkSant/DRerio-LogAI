@@ -240,7 +240,7 @@ class Arduino:
         try:
             try:
                 ser.reset_input_buffer()
-            except Exception:  # pragma: no cover - not all drivers support it
+            except Exception:
                 log.debug("arduino.probe.reset_buffer_unsupported", port=port, exc_info=True)
 
             if warmup_delay:
@@ -250,7 +250,7 @@ class Arduino:
             while time.time() < deadline:
                 try:
                     raw_line = ser.readline()
-                except Exception:  # pragma: no cover - serial driver quirks
+                except Exception:
                     break
                 if not raw_line:
                     continue
@@ -265,7 +265,7 @@ class Arduino:
         finally:
             try:
                 ser.close()
-            except Exception:  # pragma: no cover - best effort close
+            except Exception:
                 log.debug("arduino.probe.close_error", port=port, exc_info=True)
 
     @classmethod
@@ -278,13 +278,13 @@ class Arduino:
 
         try:
             from serial.tools import list_ports
-        except Exception:  # pragma: no cover - pyserial not installed
+        except Exception:
             log.warning("arduino.scan.list_ports_unavailable")
             return handshake_ports, fallback_ports
 
         try:
             ports = list(list_ports.comports())
-        except Exception as exc:  # pragma: no cover - driver issues
+        except Exception as exc:
             log.warning("arduino.scan.list_ports_failed", exc_info=exc)
             return handshake_ports, fallback_ports
 

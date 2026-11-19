@@ -6,6 +6,53 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-14] Campanha de cobertura (`plugins/`, `utils/`) e auditoria de pontas soltas
+
+__ID:__ TASK-087
+__Agent:__ Claude Code (Fable 5.2)
+__Status:__ Completed ✅ (PR #717, draft; what is left is the maintainer's decision, listed below)
+__Branch:__ worktree-cov-plugins-utils (a partir de `main`, b03e5546)
+__Description:__
+Aumentar a cobertura de testes começando por `src/zebtrack/plugins` e `src/zebtrack/utils`, e
+auditar o código atrás de eventos sem ouvinte, código morto, registros de DI decorativos, falhas
+silenciosas e fluxos quebrados. Os achados ficam em
+[`docs/audits/2026-11_loose_ends.md`](../../audits/2026-11_loose_ends.md).
+
+Frentes, na ordem:
+
+- [x] Fase 0 — régua: medição fresca com ramos, tabela por pacote em `COVERAGE_BASELINE.md`,
+  `__init__.py` de volta à medição, piso por pacote (`scripts/coverage_summary.py --fail-under`).
+- [x] Fase 1 — `plugins/` e `utils/` a ≥ 85 % de linha: decidir o código morto local, fundir os 15
+  arquivos `*_extended`, fakes compartilhados de backend, `openvino_detector.py`,
+  `hardware_benchmark.py`, blocos novos no catálogo de mutação.
+- [x] A1 — eventos: publicações por string, guarda cega aos wrappers e às direções inversas.
+- [x] A2/A3 — código morto e DI (dois lotes removidos; cauda de 267 funções lida e proposta).
+- [x] A4/A5 — fonte única, corretude científica e falhas silenciosas.
+- [x] Fase 2 — `core/viewmodels`, `core/video`, `core/project`, `core/recording` e diálogos de UI.
+- [x] A6–A8 — threads/Tk, configuração e documentação, um teste ponta a ponta por fluxo.
+
+Resultado (CI em `e2fbff4c`): core 70,50 %, GUI 37,42 %, Windows 61,03 % (antes da campanha:
+58,19 / 33,18 / 51,92); gates 69,5 / 36,5 / 60,0; pisos por pacote `plugins` 94, `utils` 92,
+`core.viewmodels` 96, `core.video` 94, `core.project` 95, `core.recording` 93.
+
+Decisões tomadas (2026-11-18), todas registradas em `docs/audits/2026-11_loose_ends.md`, que
+não tem mais linha aberta:
+
+- A8-001/A8-002: contrato (a), zonas nos pixels do vídeo em que foram desenhadas.
+- A8-004: fica a janela de prévia única (comportamento de sempre); a de dois aquários, que nunca
+  era construída, saiu.
+- Remoções aprovadas pelo mantenedor: 154 das 163 funções do lote seguro (A2-08), registros e
+  campos de DI (A3-02/A3-03) e os 76 eventos mortos ou órfãos (A1-02..04); as três listas da
+  guarda de eventos estão vazias.
+- A6: todos os bloqueios do Tk corrigidos ou registrados com motivo, inclusive a parada ao vivo
+  assíncrona e a calibração ao vivo fora do Tk.
+- A2-13: os três chamadores ausentes foram ligados ou removidos; achado no caminho: lote
+  cancelado deixava o contexto aberto.
+- Aceitos com motivo: A1-07, A2-07, A5-01 (29 handlers não lidos), A7-01.
+
+Regra da campanha: código morto é decidido ANTES de ganhar teste, e apagar é decisão do
+mantenedor — o registro traz a evidência e nada sai sem aprovação.
+
 ### [2026-11-14] Preparação do release 8.0.0
 
 __ID:__ TASK-086

@@ -658,3 +658,129 @@ def test_resolve_session_detector_config_falls_back_when_workflow_service_missin
     assert weight is None
     assert openvino is False
     assert source == "settings"
+
+
+# === Facade: thread-safe accessors, preferred mode, context manager ==========
+
+
+def test_new_service_subscribes_to_the_disconnect_dialog():
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    bus = Mock()
+    svc = LiveCameraService(
+        controller=None,
+        state_manager=Mock(),
+        project_manager=Mock(),
+        recording_service=Mock(),
+        detector_service=Mock(),
+        settings_obj=Mock(),
+        recorder=Mock(),
+        event_bus=bus,
+    )
+
+    bus.subscribe.assert_called_once_with(
+        UIEvents.CAMERA_DISCONNECT_USER_ACTION, svc._on_disconnect_user_action
+    )
+    # Without a separate baseline the live settings double as one.
+    assert svc.settings_baseline is svc.settings
+
+
+def test_explicit_settings_baseline_is_kept_apart():
+    baseline = object()
+    svc = LiveCameraService(
+        controller=None,
+        state_manager=Mock(),
+        project_manager=Mock(),
+        recording_service=Mock(),
+        detector_service=Mock(),
+        settings_obj=Mock(),
+        recorder=Mock(),
+        event_bus=None,  # type: ignore[arg-type]
+        settings_baseline=baseline,
+    )
+
+    assert svc.settings_baseline is baseline
+
+
+def test_analysis_completed_round_trips(live_camera_service):
+    assert live_camera_service.analysis_completed is False
+    live_camera_service.analysis_completed = True
+    assert live_camera_service.analysis_completed is True
+
+
+def test_last_detections_are_copied_both_ways(live_camera_service):
+    original = [{"track_id": 1}]
+    live_camera_service.set_last_detections(original)
+    original.append({"track_id": 2})
+
+    snapshot = live_camera_service.get_last_detections()
+    snapshot.append({"track_id": 3})
+
+    # Neither the caller's list nor the returned copy aliases the stored one.
+    assert live_camera_service.get_last_detections() == [{"track_id": 1}]
+
+
+def test_preferred_mode_from_enum_name(live_camera_service):
+    from zebtrack.core.recording.live_camera_mode import LiveCameraMode
+
+    live_camera_service.set_preferred_mode("RECORD_ONLY")
+
+    assert live_camera_service._preferred_mode is LiveCameraMode.RECORD_ONLY
+
+
+def test_preferred_mode_unknown_name_is_cleared(live_camera_service):
+    live_camera_service._preferred_mode = "stale"
+
+    live_camera_service.set_preferred_mode("record_only")  # value, not the enum NAME
+
+    assert live_camera_service._preferred_mode is None
+
+
+def test_preferred_mode_enum_is_stored_as_is(live_camera_service):
+    from zebtrack.core.recording.live_camera_mode import LiveCameraMode
+
+    live_camera_service.set_preferred_mode(LiveCameraMode.SEQUENTIAL_AQUARIUM)
+
+    assert live_camera_service._preferred_mode is LiveCameraMode.SEQUENTIAL_AQUARIUM
+
+
+def test_context_manager_signals_workers_to_exit(live_camera_service, tmp_path):
+    live_camera_service.current_output_dir = tmp_path
+
+    with live_camera_service as svc:
+        assert svc is live_camera_service
+        assert not svc.exit_event.is_set()
+
+    assert live_camera_service.exit_event.is_set()
+
+
+def test_context_manager_does_not_swallow_exceptions(live_camera_service):
+    with pytest.raises(ValueError, match="boom"):
+        with live_camera_service:
+            raise ValueError("boom")
+
+    assert live_camera_service.exit_event.is_set()
+
+
+def test_context_manager_exit_tolerates_a_broken_output_dir_lookup(
+    live_camera_service, monkeypatch
+):
+    def _broken(_self):
+        raise RuntimeError("lock poisoned")
+
+    monkeypatch.setattr(LiveCameraService, "current_output_dir", property(_broken))
+
+    assert live_camera_service.__exit__(None, None, None) is False
+    assert live_camera_service.exit_event.is_set()
+
+
+def test_the_announced_detection_total_is_the_frame_the_loop_stops_at(live_camera_service):
+    """F2-UI-008 (producer side): the service announced 300 while the loop ended at 10.
+
+    The status text and AQUARIUM_DETECTION_PROGRESS carry
+    ``_aquarium_detection_max_frames`` as the phase's total; the loop must end on
+    that same number, or the dialog waits for frames that never come.
+    """
+    from zebtrack.core.recording.frame_processing_pipeline import AQUARIUM_DETECTION_FRAMES
+
+    assert live_camera_service._aquarium_detection_max_frames == AQUARIUM_DETECTION_FRAMES

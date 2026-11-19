@@ -28,6 +28,7 @@ from zebtrack.ui.wizard.templates import format_template_banner
 from zebtrack.ui.wizard.tooltip import ToolTip
 
 if TYPE_CHECKING:
+    from zebtrack.settings import Settings
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
 
@@ -54,11 +55,13 @@ class CalibrationStep(WizardStep):
         parent: "Frame",
         wizard_data: dict[str, Any],
         event_bus: "EventBusV2 | None" = None,
+        settings_obj: "Settings | None" = None,
     ):
         """Initialize calibration step."""
         super().__init__(parent, wizard_data)
         self.step_id = WizardStepID.CALIBRATION
         self.event_bus = event_bus
+        self.settings_obj = settings_obj
 
         # UI state
         self.num_aquariums_var = IntVar(value=1)
@@ -288,10 +291,13 @@ class CalibrationStep(WizardStep):
         )
         behavioral_frame.grid(row=0, column=1, sticky="nsew")
 
-        # Determine defaults from global settings
-        from zebtrack.settings import load_settings
+        # Defaults come from the injected settings (A7-02); only a step built
+        # without them (tests, a bare wizard) loads them itself.
+        settings = self.settings_obj
+        if settings is None:
+            from zebtrack.settings import load_settings
 
-        settings = load_settings()
+            settings = load_settings()
 
         def_thig = settings.behavioral_analysis.default_thigmotaxis_distance_cm
         def_geo = settings.behavioral_analysis.default_geotaxis_distance_cm

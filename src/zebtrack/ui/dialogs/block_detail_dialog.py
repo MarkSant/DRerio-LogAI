@@ -34,6 +34,7 @@ from zebtrack.core.services.session_duration_resolver import (
     set_duration_override,
 )
 from zebtrack.i18n import _
+from zebtrack.ui.background_task import run_in_background
 from zebtrack.utils.report_files import find_summary_excel_file, has_summary_excel_output
 
 if TYPE_CHECKING:
@@ -154,6 +155,8 @@ class BlockDetailDialog(Toplevel):
         self._camera_index_override: int | None = None
         self._camera_friendly_name_override: str | None = None
         self._camera_label: Label | None = None
+        # Camera enumeration in flight (audit A6-04): a second click is ignored.
+        self._camera_detection_pending = False
 
         # Duration widgets (populated by build_ui). Unlike the camera override,
         # durations are PERSISTED in project_data — an experiment where animals
@@ -719,21 +722,45 @@ class BlockDetailDialog(Toplevel):
 
     def _open_camera_chooser(self) -> None:
         """Modal sub-dialog: detect + pick a camera (and optionally persist)."""
-        # Local imports keep dialog cold-import light.
-        from tkinter import BooleanVar, Checkbutton, StringVar
-
+        # Local import keeps dialog cold-import light.
         from zebtrack.core.services.wizard_service import WizardService
 
-        try:
-            cameras = WizardService.detect_available_cameras(use_cache=False)
-        # except Exception justified: camera enumeration is hardware I/O
-        except Exception as exc:
+        if self._camera_detection_pending:
+            return
+        self._camera_detection_pending = True
+        if self._camera_label is not None:
+            self._camera_label.config(text=_("Detecting..."))
+
+        def _settle() -> None:
+            self._camera_detection_pending = False
+            if self._camera_label is not None:
+                self._camera_label.config(text=self._format_current_camera())
+
+        def _done(cameras: list[dict[str, Any]]) -> None:
+            _settle()
+            self._show_camera_chooser(cameras)
+
+        def _failed(exc: BaseException) -> None:
+            _settle()
             messagebox.showerror(
                 _("Detection failed"),
                 _("Could not detect cameras:\n\n{error}").format(error=exc),
                 parent=self,
             )
-            return
+
+        # Enumeration opens each camera index and waits up to 3 s for a frame
+        # (audit A6-04): run it off the Tk thread, open the chooser on Tk.
+        run_in_background(
+            self,
+            lambda: WizardService.detect_available_cameras(use_cache=False),
+            _done,
+            _failed,
+            name="camera-chooser",
+        )
+
+    def _show_camera_chooser(self, cameras: list[dict[str, Any]]) -> None:
+        """Modal chooser over an already-detected camera list (Tk thread only)."""
+        from tkinter import BooleanVar, Checkbutton, StringVar
 
         if not cameras:
             messagebox.showwarning(

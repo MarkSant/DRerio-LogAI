@@ -222,55 +222,6 @@ class DetectionPostProcessor:
         return adjusted
 
     @staticmethod
-    def validate_track_continuity(detections: list[tuple]) -> None:
-        """Validate track_id continuity and log warnings for gaps.
-
-        Detects missing track IDs which may indicate tracking issues
-        or object loss. This helps identify potential problems with ByteTracker.
-
-        Args:
-            detections: List of (x1, y1, x2, y2, confidence, track_id, class_id) tuples.
-        """
-        if not detections:
-            return
-
-        # Extract track_ids, filtering out None values
-        track_ids = [d[5] for d in detections if d[5] is not None]
-
-        if not track_ids:
-            return  # No valid track_ids to validate
-
-        # Check for gaps in track_id sequence
-        min_id, max_id = min(track_ids), max(track_ids)
-        expected_ids = set(range(min_id, max_id + 1))
-        actual_ids = set(track_ids)
-        missing_ids = expected_ids - actual_ids
-
-        if missing_ids:
-            log.warning(
-                "post_processor.track_id_gaps_detected",
-                missing_track_ids=sorted(missing_ids),
-                present_track_ids=sorted(actual_ids),
-                total_detections=len(detections),
-                message=(
-                    "Gaps in track_id sequence detected. This may indicate: "
-                    "(1) Objects temporarily lost by tracker, "
-                    "(2) Objects left the frame, or "
-                    "(3) ByteTracker configuration issues."
-                ),
-            )
-
-        # Additional validation: Check for duplicate track_ids
-        if len(track_ids) != len(actual_ids):
-            duplicate_ids = [tid for tid in actual_ids if track_ids.count(tid) > 1]
-            log.error(
-                "post_processor.duplicate_track_ids",
-                duplicate_track_ids=duplicate_ids,
-                total_detections=len(detections),
-                message="Multiple detections with same track_id in single frame!",
-            )
-
-    @staticmethod
     def resolve_class_ids(
         plugin: "DetectorPlugin",
         aliases: ClassAliases | None = None,

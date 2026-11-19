@@ -61,7 +61,7 @@ class TestStartRecordingMultiAquarium:
         )
 
         assert success
-        assert recorder.is_multi_aquarium_mode()
+        assert recorder._multi_aquarium_mode
         recorders = recorder.get_aquarium_recorders()
         assert len(recorders) == 2
         assert 0 in recorders
@@ -120,7 +120,7 @@ class TestStartRecordingMultiAquarium:
         )
 
         assert not success
-        assert not recorder.is_multi_aquarium_mode()
+        assert not recorder._multi_aquarium_mode
 
     def test_single_aquarium_allowed(self, tmp_path):
         """Test that single aquarium mode is allowed."""
@@ -137,7 +137,7 @@ class TestStartRecordingMultiAquarium:
         )
 
         assert success
-        assert recorder.is_multi_aquarium_mode()
+        assert recorder._multi_aquarium_mode
         assert len(recorder.get_aquarium_recorders()) == 1
 
         recorder.stop_recording_multi_aquarium()
@@ -346,11 +346,11 @@ class TestStopRecordingMultiAquarium:
             },
         )
 
-        assert recorder.is_multi_aquarium_mode()
+        assert recorder._multi_aquarium_mode
 
         recorder.stop_recording_multi_aquarium()
 
-        assert not recorder.is_multi_aquarium_mode()
+        assert not recorder._multi_aquarium_mode
         assert len(recorder.get_aquarium_recorders()) == 0
 
     def test_creates_output_files(self, tmp_path):
@@ -409,40 +409,6 @@ class TestStopRecordingMultiAquarium:
 
         # Should not raise
         recorder.stop_recording_multi_aquarium()
-
-
-class TestWriteVideoFrameMultiAquarium:
-    """Tests for video frame writing per aquarium."""
-
-    def test_writes_frame_to_correct_recorder(self, tmp_path):
-        """Test that frames are written to correct aquarium recorder."""
-        recorder = Recorder()
-
-        zones = {
-            0: ZoneData(polygon=[(0, 0), (100, 0), (100, 100), (0, 100)]),
-            1: ZoneData(polygon=[(200, 0), (300, 0), (300, 100), (200, 100)]),
-        }
-
-        recorder.start_recording_multi_aquarium(
-            output_folder=str(tmp_path),
-            width=640,
-            height=480,
-            zones_by_aquarium=zones,
-            write_video=True,  # Enable video writing
-        )
-
-        # Create test frames
-        frame = np.zeros((480, 640, 3), dtype=np.uint8)
-
-        # Write frames for each aquarium
-        recorder.write_video_frame_multi_aquarium(0, frame)
-        recorder.write_video_frame_multi_aquarium(1, frame)
-
-        recorder.stop_recording_multi_aquarium()
-
-        # Verify video files exist
-        assert (tmp_path / "aquarium_1" / "aquarium_1.mp4").exists()
-        assert (tmp_path / "aquarium_2" / "aquarium_2.mp4").exists()
 
 
 _TWO_AQUARIUMS = {
@@ -545,7 +511,7 @@ class TestLiveSessionVideoFailures:
         )
 
         assert started is False
-        assert not recorder.is_multi_aquarium_mode()
+        assert not recorder._multi_aquarium_mode
         assert recorder.is_capturing_video() is False
         assert recorder.get_aquarium_recorders() == {}
 
@@ -572,7 +538,7 @@ class TestLiveSessionVideoFailures:
         assert started is False
         assert recorder.video_writer is None
         assert recorder.is_capturing_video() is False
-        assert not recorder.is_multi_aquarium_mode()
+        assert not recorder._multi_aquarium_mode
 
 
 class TestStopRecordingDispatch:
@@ -608,7 +574,7 @@ class TestStopRecordingDispatch:
             for path in tmp_path.glob("aquarium_*/3_CoordMovimento_*.parquet")
         }
         assert rows == {"aquarium_1": 1, "aquarium_2": 1}
-        assert not recorder.is_multi_aquarium_mode()
+        assert not recorder._multi_aquarium_mode
 
     def test_forced_stop_reaches_the_sub_recorders(self, tmp_path):
         recorder = Recorder()
@@ -912,3 +878,101 @@ class TestUncertaintyColumns:
         # IoU = 50/150 ≈ 0.333
         iou = Recorder._calculate_iou((0, 0, 10, 10), (5, 0, 15, 10))
         assert iou == pytest.approx(50 / 150, rel=0.01)
+
+
+class TestStopFailureIsReported:
+    """A failed per-aquarium stop must not look like a finished recording (audit A5-S-001)."""
+
+    @staticmethod
+    def _recording(tmp_path) -> Recorder:
+        recorder = Recorder()
+        zones = {
+            0: ZoneData(polygon=[(0, 0), (100, 0), (100, 100), (0, 100)]),
+            1: ZoneData(polygon=[(200, 0), (300, 0), (300, 100), (200, 100)]),
+        }
+        recorder.start_recording_multi_aquarium(
+            output_folder=str(tmp_path),
+            width=640,
+            height=480,
+            zones_by_aquarium=zones,
+            write_video=False,
+        )
+        recorder.write_partitioned_detection_data(
+            timestamp=0.5,
+            frame_number=15,
+            partitioned_detections={
+                0: [(10, 10, 30, 30, 0.9, 1001, 1)],
+                1: [(210, 10, 230, 30, 0.85, 2001, 1)],
+            },
+        )
+        return recorder
+
+    @staticmethod
+    def _break_stop(recorder: Recorder, aquarium_id: int, monkeypatch) -> None:
+        def _fail(*args, **kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(recorder.get_aquarium_recorders()[aquarium_id], "stop_recording", _fail)
+
+    def test_one_failing_aquarium_raises_and_names_it(self, tmp_path, monkeypatch):
+        from zebtrack.core.exceptions import RecorderError
+
+        recorder = self._recording(tmp_path)
+        self._break_stop(recorder, 1, monkeypatch)
+
+        with pytest.raises(RecorderError) as excinfo:
+            recorder.stop_recording_multi_aquarium()
+
+        # Aquarium ids are 0-based; folders and messages are 1-based.
+        assert "aquarium 2" in str(excinfo.value)
+        assert "aquarium 1" not in str(excinfo.value)
+        assert "disk full" in str(excinfo.value)
+
+    def test_the_other_aquariums_are_still_saved(self, tmp_path, monkeypatch):
+        from zebtrack.core.exceptions import RecorderError
+
+        recorder = self._recording(tmp_path)
+        # The FIRST one fails: the loop must go on and flush the second.
+        self._break_stop(recorder, 0, monkeypatch)
+
+        with pytest.raises(RecorderError):
+            recorder.stop_recording_multi_aquarium()
+
+        saved = list((tmp_path / "aquarium_2").glob("3_CoordMovimento*.parquet"))
+        assert len(saved) == 1
+        assert pq.read_table(saved[0]).num_rows == 1
+        # State is cleaned up even though the stop is reported as failed.
+        assert not recorder._multi_aquarium_mode
+        assert recorder.get_aquarium_recorders() == {}
+
+    def test_every_failing_aquarium_is_listed(self, tmp_path, monkeypatch):
+        from zebtrack.core.exceptions import RecorderError
+
+        recorder = self._recording(tmp_path)
+        self._break_stop(recorder, 0, monkeypatch)
+        self._break_stop(recorder, 1, monkeypatch)
+
+        with pytest.raises(RecorderError) as excinfo:
+            recorder.stop_recording_multi_aquarium()
+
+        assert "aquarium 1" in str(excinfo.value)
+        assert "aquarium 2" in str(excinfo.value)
+
+    def test_a_forced_stop_never_raises(self, tmp_path, monkeypatch):
+        # force_stop is the error-state cleanup path: it must not add a second failure.
+        recorder = self._recording(tmp_path)
+        self._break_stop(recorder, 1, monkeypatch)
+
+        recorder.stop_recording_multi_aquarium(force_stop=True)
+
+        assert not recorder._multi_aquarium_mode
+
+    def test_the_generic_stop_reports_the_failure_too(self, tmp_path, monkeypatch):
+        # The live session stops through stop_recording(), which dispatches here.
+        from zebtrack.core.exceptions import RecorderError
+
+        recorder = self._recording(tmp_path)
+        self._break_stop(recorder, 1, monkeypatch)
+
+        with pytest.raises(RecorderError):
+            recorder.stop_recording()

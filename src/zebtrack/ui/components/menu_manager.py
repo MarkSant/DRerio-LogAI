@@ -7,7 +7,6 @@ Handles menu bar, context menus, and menu-related operations.
 from __future__ import annotations
 
 import os
-import tkinter.font as tkfont
 from collections.abc import Callable
 from pathlib import Path
 from tkinter import Menu, Toplevel, messagebox, ttk
@@ -43,7 +42,6 @@ class MenuManager:
 
         # Menu-related attributes
         self._overview_context_menu: Menu | None = None
-        self._overview_menu_font: tkfont.Font | None = None
         self._about_logo_image: ImageTk.PhotoImage | None = None
 
     @property
@@ -395,16 +393,6 @@ class MenuManager:
         if self.gui.event_bus_v2:
             self.gui.event_bus_v2.publish(
                 Event(
-                    type=UIEvents.VIDEO_METADATA_UPDATED,
-                    data=payloads.VideoMetadataUpdatedPayload(
-                        video_path=video_path,  # type: ignore[arg-type]
-                        metadata=dialog.result,
-                    ),
-                    source="MenuManager._edit_video_metadata",
-                )
-            )
-            self.gui.event_bus_v2.publish(
-                Event(
                     type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
                     data=payloads.ProjectViewsRefreshRequestedPayload(
                         reason=status_message,
@@ -421,104 +409,6 @@ class MenuManager:
                     source="MenuManager._edit_video_metadata",
                 )
             )
-
-    def get_overview_badge_font(self) -> tkfont.Font:
-        """Get or create the font used for overview badges."""
-        if self._overview_menu_font is None:
-            tree = self.gui.project_overview_tree
-            font_name = tree.cget("font") if tree else ""
-            try:
-                if font_name:
-                    self._overview_menu_font = tkfont.Font(font=font_name)
-                else:
-                    self._overview_menu_font = tkfont.nametofont("TkDefaultFont")
-            except Exception:
-                self._overview_menu_font = tkfont.nametofont("TkDefaultFont")
-
-        return self._overview_menu_font
-
-    def resolve_overview_asset_from_click(self, item_id: str, event_x: int) -> str | None:
-        """Resolve which asset was clicked in the overview tree.
-
-        Args:
-            item_id: Tree item ID
-            event_x: X coordinate of the click event
-
-        Returns:
-            Asset type ("arena", "rois", "trajectory", "summary") or None
-        """
-        tree = self.gui.project_overview_tree
-        if not tree or not tree.winfo_exists():
-            return None
-
-        bbox = tree.bbox(item_id, "#2")
-        if not bbox:
-            return None
-
-        cell_x = event_x - bbox[0]
-        if cell_x < 0:
-            return None
-
-        data_text = tree.set(item_id, "data")
-        if not data_text:
-            return None
-
-        tokens = [token for token in data_text.split("  ") if token.strip()]
-        assets = ("arena", "rois", "trajectory", "summary")
-        font = self.get_overview_badge_font()
-        cursor = 0
-
-        for token, asset in zip(tokens, assets, strict=False):
-            segment = token.strip()
-            if not segment:
-                continue
-            display = f"{segment}  "
-            segment_width = font.measure(display)
-            if cursor <= cell_x <= cursor + segment_width:
-                return asset
-            cursor += segment_width
-
-        return None
-
-    def show_overview_context_menu(
-        self,
-        event,
-        video_path: Path | str,
-        asset: str,
-    ) -> None:
-        """Show context menu for overview asset removal.
-
-        Args:
-            event: The event object containing position information
-            video_path: Path to the video file
-            asset: Asset type to remove ("arena", "rois", "trajectory", "summary", "video")
-        """
-        tree = self.gui.project_overview_tree
-        if not tree or not tree.winfo_exists():
-            return
-
-        if self._overview_context_menu is None:
-            self._overview_context_menu = Menu(tree, tearoff=0)
-
-        labels = {
-            "arena": _("Delete arena"),
-            "rois": _("Delete ROIs"),
-            "trajectory": _("Delete trajectory"),
-            "summary": _("Delete reports/summaries"),
-            "video": _("Remove video from project"),
-        }
-
-        menu = self._overview_context_menu
-        menu.delete(0, "end")
-        menu.add_command(
-            label=labels.get(asset, _("Remove {asset}").format(asset=asset)),
-            command=lambda: self.handle_overview_asset_removal(video_path, asset),
-        )
-
-        try:
-            menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            menu.grab_release()
 
     def handle_overview_asset_removal(self, video_path: Path | str, asset: str) -> None:
         """Handle removal of project assets (arena, ROIs, trajectory, summary, video).

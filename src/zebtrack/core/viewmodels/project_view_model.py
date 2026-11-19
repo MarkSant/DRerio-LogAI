@@ -251,30 +251,6 @@ class ProjectViewModel:
             get_active_weight_name=get_active_weight_name,
         )
 
-    def handle_calibration_save_to_project(self):
-        """Save current calibration settings to project."""
-        if not self.project_lifecycle_coordinator:
-            return
-
-        def get_active_weight_name() -> str | None:
-            if self.state_manager:
-                return self.state_manager.get_state(StateCategory.DETECTOR).get(
-                    "active_weight_name"
-                )
-            return None
-
-        def get_use_openvino() -> bool:
-            if self.state_manager:
-                return self.state_manager.get_state(StateCategory.DETECTOR).get(
-                    "use_openvino", False
-                )
-            return False
-
-        self.project_lifecycle_coordinator.save_current_calibration_to_project(
-            get_active_weight_name=get_active_weight_name,
-            get_use_openvino=get_use_openvino,
-        )
-
     def get_calibration_scope_info(self) -> dict:
         """Get calibration scope information for display."""
         if not self.project_lifecycle_coordinator:

@@ -183,14 +183,6 @@ class CanvasRenderer:
             tags=self.PLACEHOLDER_TAG,
         )
 
-    def clear_placeholder_logo(self) -> None:
-        """Remove the placeholder, if any. Safe to call when none is drawn."""
-        canvas = self._get_canvas()
-        if canvas is None:
-            return
-        canvas.delete(self.PLACEHOLDER_TAG)
-        self.manager._canvas_placeholder_image = None
-
     def draw_bg_image(self):
         """Draw the background image to canvas with proper scaling and centering."""
         canvas = self._get_canvas()

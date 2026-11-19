@@ -1000,10 +1000,6 @@ class ZoneControlsWidget(BaseWidget):
         """Handle draw ROI button click."""
         self.emit_event(UIEvents.ZONE_DRAW_ROI, payloads.EmptyPayload())
 
-    def _on_toggle_view_clicked(self) -> None:
-        """Handle toggle view button click."""
-        self.emit_event(UIEvents.ZONE_TOGGLE_VIEW, payloads.EmptyPayload())
-
     def _on_apply_template_clicked(self) -> None:
         """Handle apply template button click."""
         self.emit_event(
@@ -1029,10 +1025,6 @@ class ZoneControlsWidget(BaseWidget):
             UIEvents.ZONE_VIDEO_SEARCH_CHANGED,
             {"search_text": self.video_search_var.get()},
         )
-
-    def _on_video_refresh_clicked(self) -> None:
-        """Handle video refresh button click."""
-        self.emit_event(UIEvents.ZONE_VIDEO_REFRESH, payloads.EmptyPayload())
 
     def _on_video_tree_double_click(self, event: tk.Event) -> None:
         """Handle video tree double-click."""
@@ -1319,13 +1311,6 @@ class ZoneControlsWidget(BaseWidget):
                 metadata_keys=list(dialog.result.keys()),
             )
             self.emit_event(
-                UIEvents.VIDEO_METADATA_UPDATED,
-                payloads.VideoMetadataUpdatedPayload(
-                    video_path=video_path,
-                    metadata=dialog.result,
-                ),
-            )
-            self.emit_event(
                 UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
                 payloads.ProjectViewsRefreshRequestedPayload(
                     reason=_("Video metadata updated."),
@@ -1541,11 +1526,6 @@ class ZoneControlsWidget(BaseWidget):
         if self.interactive_buttons_frame:
             self.interactive_buttons_frame.pack_forget()
 
-    def update_template_list(self, templates: list[str]) -> None:
-        """Update the template combobox with available templates."""
-        if self.roi_template_combobox:
-            self.roi_template_combobox.config(values=templates)
-
     def clear_zone_list(self) -> None:
         """Clear all items from the zone list."""
         if not self.zone_listbox:
@@ -1634,14 +1614,6 @@ class ZoneControlsWidget(BaseWidget):
         """Hide the aquarium selector frame."""
         if self.aquarium_selector_frame:
             self.aquarium_selector_frame.pack_forget()
-
-    def get_active_aquarium_id(self) -> int:
-        """Get the currently selected aquarium ID.
-
-        Returns:
-            Aquarium ID (0 for aquarium 1, 1 for aquarium 2).
-        """
-        return self.active_aquarium_var.get()
 
     def set_active_aquarium(self, aquarium_id: int) -> None:
         """Set the active aquarium programmatically.

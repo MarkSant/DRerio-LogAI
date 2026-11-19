@@ -36,6 +36,18 @@ class TestVideoMetadataServiceExtended:
             with pytest.raises(ValueError, match="Could not open video"):
                 VideoMetadataService.get_video_dimensions("/bad/video.mp4")
 
+    def test_the_capture_is_released_when_reading_it_fails(self):
+        # A5-S-011: an error between open and release kept the file locked on Windows.
+        mock_cap = MagicMock()
+        mock_cap.isOpened.return_value = True
+        mock_cap.get.side_effect = cv2.error("backend lost the stream")
+
+        with patch("cv2.VideoCapture", return_value=mock_cap):
+            with pytest.raises(cv2.error):
+                VideoMetadataService.get_video_dimensions("/flaky/video.mp4")
+
+        mock_cap.release.assert_called_once_with()
+
     def test_get_video_dimensions_zero_dimensions_raises(self):
         mock_cap = MagicMock()
         mock_cap.isOpened.return_value = True
@@ -44,29 +56,3 @@ class TestVideoMetadataServiceExtended:
         with patch("cv2.VideoCapture", return_value=mock_cap):
             with pytest.raises(ValueError, match="Invalid dimensions"):
                 VideoMetadataService.get_video_dimensions("/zero/video.mp4")
-
-    def test_get_video_info_success(self):
-        mock_cap = MagicMock()
-        mock_cap.isOpened.return_value = True
-        mock_cap.get.side_effect = lambda prop: {
-            cv2.CAP_PROP_FRAME_WIDTH: 1280.0,
-            cv2.CAP_PROP_FRAME_HEIGHT: 720.0,
-            cv2.CAP_PROP_FPS: 30.0,
-            cv2.CAP_PROP_FRAME_COUNT: 900.0,
-        }.get(prop, 0.0)
-
-        with patch("cv2.VideoCapture", return_value=mock_cap):
-            info = VideoMetadataService.get_video_info("/path/to/video.mp4")
-            assert info["width"] == 1280
-            assert info["height"] == 720
-            assert info["fps"] == 30.0
-            assert info["frame_count"] == 900
-            mock_cap.release.assert_called_once()
-
-    def test_get_video_info_cannot_open_raises(self):
-        mock_cap = MagicMock()
-        mock_cap.isOpened.return_value = False
-
-        with patch("cv2.VideoCapture", return_value=mock_cap):
-            with pytest.raises(ValueError, match="Could not open video"):
-                VideoMetadataService.get_video_info("/bad/video.mp4")
