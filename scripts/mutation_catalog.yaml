@@ -6169,3 +6169,77 @@ _load_registry()"
         description: "F2: close do parquet principal que falha escapa"
         find: "        except Exception as e:\n            log.error(\n                \"recorder.parquet_writer.close_error\","
         replace: "        except KeyError as e:\n            log.error(\n                \"recorder.parquet_writer.close_error\","
+  pragma_review_event_dispatcher_unsubscribe:
+    source: src/zebtrack/ui/components/event_dispatcher.py
+    tests:
+      - tests/ui/components/test_event_dispatcher_extended.py
+    mutations:
+      - id: unsubscribe-failure-propagates
+        description: "F2: barramento que recusa o unsubscribe derruba a remocao do handler"
+        find: "                unsubscribe(event_name, dispatcher)\n            except Exception as exc:"
+        replace: "                unsubscribe(event_name, dispatcher)\n            except KeyError as exc:"
+  pragma_review_model_selection_openvino_devices:
+    source: src/zebtrack/ui/wizard/model_selection_step.py
+    tests:
+      - tests/ui/wizard/test_model_selection_step_extended.py
+    mutations:
+      - id: discovery-failure-propagates
+        description: "F2: descoberta de dispositivos OpenVINO que falha quebra o passo do wizard"
+        find: "            devices = tuple(get_openvino_devices())\n        except Exception:"
+        replace: "            devices = tuple(get_openvino_devices())\n        except KeyError:"
+  pragma_review_dialog_manager_template_import:
+    source: src/zebtrack/ui/components/dialog_manager.py
+    tests:
+      - tests/ui/components/test_dialog_manager_extended.py
+    mutations:
+      - id: library-import-failure-propagates
+        description: "F2: template invalido escapa em vez de virar mensagem de erro"
+        find: "            metadata = pm.import_roi_template(file_path)\n        except Exception as exc:\n            log.error(\"gui.roi_templates.import_failed\""
+        replace: "            metadata = pm.import_roi_template(file_path)\n        except KeyError as exc:\n            log.error(\"gui.roi_templates.import_failed\""
+      - id: pending-activation-failure-propagates
+        description: "F2: video avulso que nao ativa impede aplicar o template"
+        find: "                    pm.set_active_zone_video(pending_video)\n                except Exception as exc:"
+        replace: "                    pm.set_active_zone_video(pending_video)\n                except OSError as exc:"
+      - id: apply-failure-propagates
+        description: "F2: template ilegivel escapa em vez de virar mensagem de erro"
+        find: "        except Exception as exc:\n            log.error(\n                \"gui.roi_templates.import_and_apply_failed\","
+        replace: "        except KeyError as exc:\n            log.error(\n                \"gui.roi_templates.import_and_apply_failed\","
+      - id: library-copy-failure-loses-applied-zones
+        description: "F2: falha ao copiar para a biblioteca desfaz a confirmacao de zonas aplicadas"
+        find: "        except Exception as exc:\n            log.warning(\n                \"gui.roi_templates.import_and_apply.library_import_failed\","
+        replace: "        except KeyError as exc:\n            log.warning(\n                \"gui.roi_templates.import_and_apply.library_import_failed\","
+  pragma_review_arduino_panel_schedule_ui:
+    source: src/zebtrack/ui/components/arduino_bindings_panel.py
+    tests:
+      - tests/ui/components/test_arduino_bindings_panel.py
+    mutations:
+      - id: dead-widget-raises
+        description: "F2: widget destruido faz o worker de teste do Arduino explodir"
+        find: "        except Exception:\n            log.debug(\"arduino_bindings_panel.schedule_ui.after_failed\")"
+        replace: "        except KeyError:\n            log.debug(\"arduino_bindings_panel.schedule_ui.after_failed\")"
+      - id: dead-widget-runs-inline
+        description: "F2: widget destruido roda a atualizacao fora da thread do Tk"
+        find: "            log.debug(\"arduino_bindings_panel.schedule_ui.after_failed\")"
+        replace: "            func(*args)"
+  pragma_review_live_preview_freeze:
+    source: src/zebtrack/ui/dialogs/live_preview_window.py
+    tests:
+      - tests/test_live_analysis_ui.py
+    mutations:
+      - id: bar-teardown-skips-eta-reset
+        description: "F2: barra de progresso destruida impede zerar o ETA ao parar"
+        find: "            except Exception:\n                log.debug(\"live_preview.progress_stop_failed\")"
+        replace: "            except KeyError:\n                log.debug(\"live_preview.progress_stop_failed\")"
+  pragma_review_design_editor_failures:
+    source: src/zebtrack/ui/wizard/design_editor_dialog.py
+    tests:
+      - tests/ui/wizard/test_design_editor_dialog.py
+    mutations:
+      - id: scroll-reset-failure-loses-design
+        description: "F2: canvas que recusa rolar derruba o carregamento do delineamento"
+        find: "                self.groups_canvas.yview_moveto(0)\n            except Exception:"
+        replace: "                self.groups_canvas.yview_moveto(0)\n            except KeyError:"
+      - id: regex-callback-failure-propagates
+        description: "F2: deteccao por regex que falha derruba o editor de delineamento"
+        find: "                new_design = self.on_custom_regex_configured(result_patterns)\n            except Exception:"
+        replace: "                new_design = self.on_custom_regex_configured(result_patterns)\n            except KeyError:"

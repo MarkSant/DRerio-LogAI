@@ -262,7 +262,7 @@ class EventDispatcher:
         if callable(unsubscribe):
             try:
                 unsubscribe(event_name, dispatcher)
-            except Exception as exc:  # pragma: no cover - defensive
+            except Exception as exc:
                 self.log.warning(
                     "event_dispatcher.unsubscribe_failed",
                     event_name=event_name,

@@ -1663,3 +1663,27 @@ def test_detect_cameras_failure_is_reported_on_tk_and_allows_a_retry():
     assert thread is threading.main_thread()
     dialog.camera_status_label.config.assert_called_with(text="✗ Error detecting cameras", fg="red")
     assert dialog._camera_detection_pending is False
+
+
+class TestFreezeStopTimeWithoutAWindow:
+    """F2 pragma review: a TclError from the bar must not skip the ETA reset.
+
+    ``object.__new__`` because the real window needs a display; the method under
+    test is the real ``_freeze_stop_time``.
+    """
+
+    def test_bar_torn_down_at_stop_still_resets_the_eta(self):
+        import tkinter
+
+        window = object.__new__(LivePreviewWindow)
+        window.stop_time_label = Mock()
+        window.eta_label = Mock()
+        window.progress_bar = Mock()
+        window.progress_bar.stop.side_effect = tkinter.TclError("invalid command name")
+
+        window._freeze_stop_time()
+
+        window.progress_bar.stop.assert_called_once_with()
+        window.eta_label.config.assert_called_once_with(text="--")
+        clock = window.stop_time_label.config.call_args.kwargs["text"]
+        assert len(clock.split(":")) == 3

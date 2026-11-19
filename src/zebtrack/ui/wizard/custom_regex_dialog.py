@@ -257,7 +257,7 @@ class CustomRegexDialog(Dialog):
         # Enable resizing
         try:
             self.resizable(True, True)
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             log.warning("custom_regex.geometry.resizable_failed", error=str(exc))
 
         # Title (full width)

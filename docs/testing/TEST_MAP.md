@@ -191,6 +191,8 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `ui/components/canvas/overlay_roles.py` | `tests/ui/components/canvas/test_overlay_roles.py`; renderer/frame wiring in `test_canvas_renderer.py`, `test_canvas_manager.py` + `--module overlay_roles` |
 | `coordinators/model_diagnostics_coordinator.py` (class roles) | `tests/coordinators/test_model_diagnostics_coordinator.py::TestReportClassRoles` |
 | `ui/wizard/model_selection_step.py` (class roles) | `tests/ui/wizard/test_model_selection_step.py::TestModelSelectionClassRoles` |
+| `ui/wizard/design_editor_dialog.py` | `tests/ui/wizard/test_design_editor_dialog.py` (fast suite: `object.__new__` + real methods); close validation in `tests/ui/dialogs/test_project_video_import_dialog_extended.py` |
+| Defensive branches freed by the F2 pragma review | [`docs/audits/2026-11_F2_pragmas.md`](../audits/2026-11_F2_pragmas.md) names the test and the `pragma_review_*` mutation block of each site |
 | Barnes acceptance (ADR-011) | `tests/integration/test_barnes_window_e2e.py` |
 | `src/zebtrack/locales/_pairs/*.json` (removing a `_()` string) | `tests/i18n/test_pairs_not_orphaned.py` (every pair names a msgid still in the `.po`; an orphan stops `update_translations.py` before the `.mo` is compiled) |
 | `src/zebtrack/locales/*` (any new `_()`) | `tests/i18n/test_pot_in_sync.py` (every source msgid is in the `.pot`), `tests/i18n/test_catalog_integrity.py` |
