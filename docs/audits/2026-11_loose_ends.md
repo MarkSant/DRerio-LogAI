@@ -53,8 +53,9 @@ mypy and to the user.
 | ID | Finding | Evidence | Status | Decision |
 | --- | --- | --- | --- | --- |
 | A3-01 | Three `ProjectService` instances exist: the container's, the bootstrapper's and `ProjectManager`'s. | `core/di_registrations.py:198`; `core/application_bootstrapper.py:208`; `core/project/project_manager.py:71` | fixed | 2026-11-15: `ProjectService` holds no state (a logger), so the copies never diverged, but only `ProjectManager`'s does the I/O. The container factory and the bootstrapper now hand out that instance; pinned by identity asserts in `test_di_registrations_extended.py` and `test_application_bootstrapper_extended.py`. `MainViewModel.project_service` is still read by nothing in `src` (A3-03). |
-| A3-02 | Twelve container registrations are never resolved; the same objects are wired by hand. | `core/di_registrations.py:437-442,524-527` | removed | 2026-11-18, maintainer's decision: the eleven `container.register(..., instance=...)` lines and the `ProjectService` factory nothing resolved; the stateless services are still wired into the coordinators by hand |
+| A3-02 | Twelve container registrations are never resolved; the same objects are wired by hand. | `core/di_registrations.py:437-442,524-527` | removed | 2026-11-18, maintainer's decision: the eleven `container.register(..., instance=...)` lines and the `ProjectService` factory nothing resolved; the stateless services are still wired into the coordinators by hand **Guard (2026-11-19):** `tests/quality/test_di_registrations_resolved.py` fails on a `container.register(X, ...)` whose key no `_resolve(container, X)` or `.resolve(X)` in `src` names; its first run found two more (A3-04). Proof in [Guards that stay](#guards-that-stay-2026-11-19). |
 | A3-03 | `MainViewModelDependencies` carries fields nothing reads, and `test_sync_event` is a test-only field in a production dataclass. | `core/dependency_container.py:207` | removed | 2026-11-18, maintainer's decision: `MainViewModelDependencies.recording_service` and `MainViewModel.project_service` (with the `BootstrapResult` field). `test_sync_event` stays: it is read by `MainViewModel`, and moving it needs a test seam |
+| A3-04 | Two more registrations are never resolved: `container.register(Settings, instance=settings_obj)` and `container.register(RecorderFactory, instance=...)`. Every factory closes over the local `settings_obj` and reads `context.recorder_factory` directly; nothing in `src` or `tests` resolves either key. Same shape as A3-02, missed by its count. | `core/di_registrations.py` (`build_container`, first registrations) | confirmed | found 2026-11-19 by the A3 guard; listed in its shrink-only `ALLOWED_UNRESOLVED` until the maintainer decides the deletion (two lines, no reader) |
 
 ## A4 — Single source of truth and scientific correctness
 
@@ -117,3 +118,20 @@ listed in [`LIVE_FLOW_TEST_PROTOCOL.md`](../testing/LIVE_FLOW_TEST_PROTOCOL.md))
 | A8-003 | `os.scandir` iterator returned from inside its loop without being closed (`ResourceWarning`; on Windows the handle can block renaming the subject folder). | `core/project/metadata_manager.py` (~474) | fixed | 2026-11-18 (final pass): every `os.scandir` in `metadata_manager.py` runs in a `with` block |
 | A8-004 | Two-aquarium live sessions always open the single-aquarium preview: the window is chosen from `get_zone_data()` (the aquarium-0 shim) and before `_resolve_session_multi_zone_data()` runs. `MultiAquariumLivePreviewWindow` now has `update_frame` and `aquarium_regions` (F2-UI-002) but is never built. | `core/recording/camera_connection_handler.py` (`_create_preview_window`); `live_session_manager.py:435` vs `:616` | removed | 2026-11-18 (final pass): kept the single preview window (the behaviour every two-aquarium session has always had). The two-aquarium window could never be built and switching to it cannot be validated without a camera; it was removed with its tests and blocks, and `_create_preview_window` builds the single window |
 | A8-005 | `CLAUDE.md` says the single-video flow writes `<video>_report.docx` / `<video>_summary.xlsx`; the real flow writes `4_Relatorio_<stem>.{docx,xlsx}` in `<video_dir>/<stem>_results/`. The `_report`/`_summary` names come only from the dead chain of A4-13. | `test_flow_e2e_single_video.py` | fixed | 2026-11-18: `CLAUDE.md` "Output Structure" now names the real single-video outputs |
+
+## Guards that stay (2026-11-19)
+
+The plan's "guard that stays" column, built after the register was closed. Each guard was
+proved to see: a violation was planted in a real source file, the guard failed naming it, and
+the file was restored by copy (SHA-256 prefix checked before and after). The A2, A5 and A7
+guards record their proofs in their own front's report.
+
+### A3 — `tests/quality/test_di_registrations_resolved.py`
+
+Every `container.register(X, ...)` key in `core/di_registrations.py` must appear as the key of
+a `_resolve(container, X)` or `<obj>.resolve(X)` call somewhere in `src/zebtrack`. Allowlist:
+`ALLOWED_UNRESOLVED` (`Settings`, `RecorderFactory`, see A3-04), shrink-only, stale entries fail.
+
+Proof: added `container.register(WeightManager.__class__, instance=object())` after the
+`LazyRef` registration. The guard failed with `WeightManager.__class__ (di_registrations.py:108)`.
+Restored; `d13b6e1706b6b821` before and after.
