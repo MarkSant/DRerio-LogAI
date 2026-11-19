@@ -704,17 +704,6 @@ def test_selection_changed_uses_the_first_selected_item() -> None:
     assert vm.project_vm.only("on_video_selected") == (("/first.mp4",), {})
 
 
-def test_selection_changed_prefers_an_explicit_video_path() -> None:
-    vm = _vm()
-
-    _runtime(vm).handle_event(
-        UIEvents.PROJECT_SELECTION_CHANGED,
-        cast(Any, {"video_path": "/explicit.mp4", "selection": ["/first.mp4"]}),
-    )
-
-    assert vm.project_vm.only("on_video_selected") == (("/explicit.mp4",), {})
-
-
 def test_selection_changed_with_nothing_selected_does_nothing() -> None:
     vm = _vm()
 

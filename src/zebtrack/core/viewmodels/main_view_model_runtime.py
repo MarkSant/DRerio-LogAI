@@ -328,13 +328,11 @@ class MainViewModelRuntime:
             if video_path:
                 vm.project_vm.on_video_selected(video_path)
         elif event_name is UIEvents.PROJECT_SELECTION_CHANGED:
-            video_path = _payload_get(data, "video_path")
-            if not video_path:
-                selection = _payload_get(data, "selection", [])
-                if selection:
-                    video_path = selection[0]
-            if video_path:
-                vm.project_vm.on_video_selected(video_path)
+            # ProjectSelectionChangedPayload carries only ``selection``; a
+            # ``video_path`` key never survives the bus's coercion.
+            selection = _payload_get(data, "selection", [])
+            if selection:
+                vm.project_vm.on_video_selected(selection[0])
 
     def _handle_project_deletion_events(
         self,

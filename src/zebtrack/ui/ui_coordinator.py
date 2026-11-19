@@ -795,17 +795,15 @@ class UICoordinator:
         Updates status and refreshes views without blocking popups.
 
         Args:
-            event_data: Event payload with batch_id, report_path, session_count
+            event_data: ``LiveBatchCompletedPayload`` (batch_id, session_count, ...).
         """
         try:
             batch_id = _payload_get(event_data, "batch_id", "unknown")
-            report_path = _payload_get(event_data, "report_path")
             session_count = _payload_get(event_data, "session_count", 0)
 
             log.info(
                 "ui_coordinator.batch_analysis_completed",
                 batch_id=batch_id,
-                report_path=report_path,
                 session_count=session_count,
             )
 

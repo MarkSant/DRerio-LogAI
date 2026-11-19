@@ -1240,14 +1240,15 @@ class EventDispatcher:
         gui = self._require_gui()
 
         video_path = payload.get("video_path")
+        available_groups = list(payload.get("available_groups") or [])
 
         self.log.info(
             "aquarium_assignment_dialog.showing",
             video_path=video_path,
-            available_groups=payload.get("available_groups", []),
+            available_groups=available_groups,
         )
         configs, apply_to_all = gui.dialog_manager.show_aquarium_assignment_dialog(
-            available_groups=payload.get("available_groups", []),
+            available_groups=available_groups,
             video_path=video_path,
             multi_aquarium_config=payload.get("multi_aquarium_config"),
             entry_metadata=payload.get("entry_metadata"),
