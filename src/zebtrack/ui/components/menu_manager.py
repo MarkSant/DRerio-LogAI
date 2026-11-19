@@ -206,7 +206,8 @@ class MenuManager:
                     )
             else:
                 version = "Development"
-        except Exception:
+        except Exception as exc:
+            log.debug("menu.about_version.failed", error=str(exc))
             version = "Unknown"
 
         version_label = ttk.Label(

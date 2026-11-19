@@ -786,7 +786,8 @@ class ModelDiagnosticsPanel(ttk.Frame):
             _resolved_weight, resolved_openvino = (
                 self.controller.project_vm.resolve_project_model_settings({})
             )
-        except Exception:
+        except Exception as exc:
+            log.warning("model_diagnostics.openvino_resolution.failed", error=str(exc))
             resolved_openvino = False
 
         lines = [_("Effective weights for this project:")]

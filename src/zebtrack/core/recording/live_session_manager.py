@@ -928,7 +928,8 @@ class LiveSessionManagerMixin:
             try:
                 if self.recorder is not None and self.recorder.start_time:
                     elapsed_s = max(0.0, time.time() - self.recorder.start_time)
-            except Exception:
+            except Exception as exc:
+                log.debug("live_session.cancel_elapsed.failed", error=str(exc))
                 elapsed_s = 0.0
         else:
             try:

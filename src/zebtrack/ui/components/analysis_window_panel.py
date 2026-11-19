@@ -1573,7 +1573,8 @@ class AnalysisWindowPanel(ttk.Frame):
         try:
             zone_data = self.project_manager.get_zone_data()
         # except Exception justified: zone data may be unavailable early on.
-        except Exception:
+        except Exception as exc:
+            log.warning("analysis_window.zone_data.failed", error=str(exc))
             zone_data = None
         names = [str(n) for n in (getattr(zone_data, "roi_names", []) or []) if str(n).strip()]
         for name in ZoneManager.roi_names_in_project(self._project_data()):

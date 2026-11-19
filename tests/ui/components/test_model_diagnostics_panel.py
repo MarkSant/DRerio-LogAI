@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
+from structlog.testing import capture_logs
 
 from zebtrack.ui.components.model_diagnostics_panel import ModelDiagnosticsPanel
 from zebtrack.ui.event_bus_v2 import UIEvents
@@ -141,3 +142,20 @@ def test_global_diagnostic_ships_no_project_roles(tkinter_root, diagnostics_cont
 
     config = diagnostics_controller.ui_event_bus.publish.call_args.args[0].data.config
     assert "class_roles" not in config
+
+
+def test_failing_openvino_resolution_is_logged_and_summary_still_renders(
+    tkinter_root, diagnostics_controller
+):
+    diagnostics_controller.project_vm.resolve_project_model_settings.side_effect = RuntimeError(
+        "resolution broken"
+    )
+    panel = ModelDiagnosticsPanel(tkinter_root, diagnostics_controller, scope="project")
+
+    with capture_logs() as logs:
+        panel._refresh_project_weight_summary()
+
+    failed = [e for e in logs if e["event"] == "model_diagnostics.openvino_resolution.failed"]
+    assert len(failed) >= 1
+    assert failed[0]["log_level"] == "warning"
+    assert failed[0]["error"] == "resolution broken"

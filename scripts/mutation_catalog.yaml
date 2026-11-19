@@ -6044,8 +6044,8 @@ _load_registry()"
     mutations:
       - id: unreadable-name-breaks-scope-info
         description: "F2: nome de projeto ilegivel derruba a janela de calibracao"
-        find: "                project_name = self.project_manager.get_project_name()\n            except Exception:"
-        replace: "                project_name = self.project_manager.get_project_name()\n            except OSError:"
+        find: "                project_name = self.project_manager.get_project_name()\n            except Exception as exc:"
+        replace: "                project_name = self.project_manager.get_project_name()\n            except OSError as exc:"
   pragma_review_live_calibration_release:
     source: src/zebtrack/coordinators/live_calibration_coordinator.py
     tests:
@@ -6153,8 +6153,8 @@ _load_registry()"
         replace: "                ser.reset_input_buffer()\n            except KeyError:"
       - id: failed-read-keeps-polling
         description: "F2: leitura que falha prende a sondagem ate o timeout"
-        find: "                    raw_line = ser.readline()\n                except Exception:\n                    break"
-        replace: "                    raw_line = ser.readline()\n                except Exception:\n                    continue"
+        find: "                    raw_line = ser.readline()\n                except Exception as exc:\n                    log.debug(\"arduino.probe_read.failed\", error=str(exc))\n                    break"
+        replace: "                    raw_line = ser.readline()\n                except Exception as exc:\n                    log.debug(\"arduino.probe_read.failed\", error=str(exc))\n                    continue"
       - id: failed-close-propagates
         description: "F2: close que falha transforma uma porta que respondeu em erro"
         find: "                ser.close()\n            except Exception:"
