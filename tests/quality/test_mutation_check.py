@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -329,7 +331,7 @@ def test_failing_runner_self_test_stops_before_any_mutant(monkeypatch):
 def test_runner_self_test_reads_pytest_outcomes(monkeypatch):
     seen: list[tuple[list[str], Path]] = []
 
-    def fake_pytest(paths, root, *, basetemp=None):
+    def fake_pytest(paths, root, *, basetemp=None, display=None):
         seen.append((paths, root))
         return answers.pop(0)
 
@@ -691,7 +693,14 @@ def _probe_spec(*mutations: tuple[str, str, str]) -> dict:
     }
 
 
-def _run(selected: dict, checkout: Path, scratch: Path, *, jobs: int = 1):
+def _run(
+    selected: dict,
+    checkout: Path,
+    scratch: Path,
+    *,
+    jobs: int = 1,
+    virtual_display: bool = False,
+):
     scratch.mkdir(exist_ok=True)
     return mutation_check._run_blocks(
         selected,
@@ -700,6 +709,7 @@ def _run(selected: dict, checkout: Path, scratch: Path, *, jobs: int = 1):
         snapshot=mutation_check._snapshot_sources(selected, checkout),
         source_root=checkout,
         tmp_root=scratch,
+        virtual_display=virtual_display,
     )
 
 
@@ -733,7 +743,7 @@ def test_the_checkout_is_pristine_while_every_mutant_runs(tmp_path, monkeypatch)
     real_source = checkout / "src" / "zebtrack" / "probe.py"
     observed: list[tuple[bytes, bytes, Path | None]] = []
 
-    def fake_pytest(paths, root, *, basetemp=None):
+    def fake_pytest(paths, root, *, basetemp=None, display=None):
         assert all(Path(path).is_relative_to(root) for path in paths)
         copy = (root / "src" / "zebtrack" / "probe.py").read_bytes()
         observed.append((real_source.read_bytes(), copy, basetemp))
@@ -765,7 +775,7 @@ def test_killing_the_runner_mid_mutant_leaves_nothing_behind(tmp_path, monkeypat
     checkout = _fake_checkout(tmp_path / "checkout")
     calls = {"n": 0}
 
-    def interrupted(paths, root, *, basetemp=None):
+    def interrupted(paths, root, *, basetemp=None, display=None):
         calls["n"] += 1
         if calls["n"] == 1:
             return 0, 2, "2 passed"
@@ -787,7 +797,7 @@ def test_red_baseline_runs_no_mutant_and_marks_the_block(tmp_path, monkeypatch, 
     checkout = _fake_checkout(tmp_path / "checkout")
     calls: list[bytes] = []
 
-    def red(paths, root, *, basetemp=None):
+    def red(paths, root, *, basetemp=None, display=None):
         calls.append((root / "src" / "zebtrack" / "probe.py").read_bytes())
         return 3, 1, "3 failed, 1 passed"
 
@@ -803,11 +813,346 @@ def test_red_baseline_runs_no_mutant_and_marks_the_block(tmp_path, monkeypatch, 
     assert "SKIPPED: baseline is not green (3 failing)" in capsys.readouterr().out
 
 
+# --- #724: a baseline that tested nothing proves nothing --------------------
+#
+# pytest.ini deselects ``gui`` and ``slow``. Before #724 the runner inherited
+# that, so a block whose tests were all ``gui`` ran ZERO tests: a "green"
+# baseline, then every mutant reported SURVIVED with nothing tested.
+
+_MARKED_INI = """\
+[pytest]
+addopts = -m "not (gui or slow)"
+markers =
+    gui: needs Tk
+    slow: takes a while
+"""
+
+_MARKED_TESTS = """\
+import pytest
+
+import zebtrack.probe as probe
+
+
+@pytest.mark.gui
+def test_value_is_one():
+    assert probe.VALUE == 1
+
+
+@pytest.mark.slow
+def test_name_is_probe():
+    assert probe.NAME == "probe"
+"""
+
+
+@pytest.mark.parametrize(
+    ("answer", "reason"),
+    [
+        ((0, 0, "no tests ran in 0.01s"), "baseline ran 0 tests"),
+        ((0, 0, "4 deselected in 0.01s"), "baseline ran 0 tests"),
+        (
+            (
+                0,
+                3,
+                "3 passed, 2 skipped\nSKIPPED [2] tests/test_probe.py:4: "
+                "GUI tests disabled in headless mode",
+            ),
+            "skipped its GUI tests for lack of a display",
+        ),
+    ],
+)
+def test_a_baseline_that_tested_nothing_runs_no_mutant_and_exits_2(
+    tmp_path, monkeypatch, capsys, answer, reason
+):
+    calls = {"n": 0}
+
+    def hollow(paths, root, *, basetemp=None, display=None):
+        calls["n"] += 1
+        return answer
+
+    monkeypatch.setattr(mutation_check, "_run_pytest", hollow)
+    checkout = _fake_checkout(tmp_path / "checkout")
+
+    [report] = _run(
+        {"probe": _probe_spec(("value", "VALUE = 1", "VALUE = 2"))}, checkout, tmp_path / "s"
+    )
+
+    assert calls["n"] == 1  # the baseline only: no mutant was queued
+    assert report.baseline_failed is True
+    assert report.results == []
+    assert reason in report.skipped_reason
+    assert f"SKIPPED: {report.skipped_reason}" in capsys.readouterr().out
+    assert mutation_check._exit_code([report]) == 2
+
+
+def test_a_real_test_file_without_tests_is_an_unproven_block(tmp_path):
+    checkout = _fake_checkout(tmp_path / "checkout")
+    (checkout / "tests" / "test_probe.py").write_bytes(b"import zebtrack.probe\n")
+
+    [report] = _run(
+        {"probe": _probe_spec(("value", "VALUE = 1", "VALUE = 2"))}, checkout, tmp_path / "s"
+    )
+
+    assert report.baseline_failed is True
+    assert "baseline ran 0 tests" in report.skipped_reason
+    assert mutation_check._exit_code([report]) == 2
+
+
+def test_gui_and_slow_marked_tests_run_although_pytest_ini_deselects_them(tmp_path):
+    """Real pytest runs: the copy's pytest.ini deselects both marks, as the repo's does."""
+    checkout = _fake_checkout(tmp_path / "checkout")
+    (checkout / "pytest.ini").write_bytes(_MARKED_INI.encode())
+    (checkout / "tests" / "test_probe.py").write_bytes(_MARKED_TESTS.encode())
+    spec = _probe_spec(("value", "VALUE = 1", "VALUE = 2"), ("name", "'probe'", "'other'"))
+
+    [report] = _run({"probe": spec}, checkout, tmp_path / "s")
+
+    assert report.baseline_failed is False, report.skipped_reason
+    # Only the gui test reads VALUE and only the slow test reads NAME.
+    assert [(r.mutation_id, r.killed) for r in report.results] == [
+        ("value", True),
+        ("name", True),
+    ]
+
+
+def test_pytest_command_selects_every_marker_without_xdist(tmp_path):
+    command = mutation_check._pytest_command(["tests/test_a.py"], tmp_path / "bt")
+
+    assert command[:4] == [sys.executable, "-m", "pytest", "tests/test_a.py"]
+    marker_values = [command[i + 1] for i in range(3, len(command) - 1) if command[i] == "-m"]
+    assert marker_values == [""]
+    assert "-n0" in command
+    assert "-ra" in command
+    assert "--no-cov" in command
+    assert command[-1] == f"--basetemp={tmp_path / 'bt'}"
+    assert not any(arg.startswith("--basetemp") for arg in mutation_check._pytest_command([]))
+
+
+def test_run_pytest_sends_the_command_and_the_workers_display(tmp_path, monkeypatch):
+    seen: dict = {}
+
+    class _Completed:
+        stdout = "1 failed, 4 passed in 0.2s"
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        seen["command"] = command
+        seen.update(kwargs)
+        return _Completed()
+
+    monkeypatch.setenv("ZEBTRACK_HEADLESS_TESTS", "1")
+    monkeypatch.setattr(mutation_check.subprocess, "run", fake_run)
+
+    failures, passes, _ = mutation_check._run_pytest(
+        ["t.py"], tmp_path, basetemp=tmp_path / "bt", display=":7"
+    )
+
+    assert (failures, passes) == (1, 4)
+    assert seen["command"] == mutation_check._pytest_command(["t.py"], tmp_path / "bt")
+    assert seen["cwd"] == tmp_path
+    assert seen["env"]["DISPLAY"] == ":7"
+    # Inherited, it would make the suite skip every gui test.
+    assert "ZEBTRACK_HEADLESS_TESTS" not in seen["env"]
+
+
+def test_pytest_env_keeps_the_inherited_display_when_no_worker_display(monkeypatch, tmp_path):
+    monkeypatch.setenv("DISPLAY", ":3")
+
+    assert mutation_check._pytest_env(tmp_path)["DISPLAY"] == ":3"
+    assert mutation_check._pytest_env(tmp_path, ":9")["DISPLAY"] == ":9"
+
+
+@pytest.mark.parametrize(
+    ("platform", "environ", "expected"),
+    [
+        ("linux", {}, True),
+        ("linux", {"DISPLAY": ""}, True),
+        ("linux", {"DISPLAY": ":0"}, False),
+        ("freebsd14", {}, True),
+        # The maintainer's Windows machine and a Mac draw natively.
+        ("win32", {}, False),
+        ("cygwin", {}, False),
+        ("darwin", {}, False),
+    ],
+)
+def test_needs_virtual_display(platform, environ, expected):
+    assert mutation_check._needs_virtual_display(platform, environ) is expected
+
+
+_FAKE_XVFB = """\
+import os
+import shutil
+import subprocess
+import sys
+import time
+
+fd = int(sys.argv[sys.argv.index("-displayfd") + 1])
+{action}
+time.sleep(60)
+"""
+
+
+def _fake_xvfb(tmp_path: Path, action: str = 'os.write(fd, b"42\\n")') -> str:
+    """An executable that behaves like ``Xvfb -displayfd`` (or fails to)."""
+    script = tmp_path / "fake_xvfb.py"
+    script.write_text(_FAKE_XVFB.format(action=action), encoding="utf-8")
+    launcher = tmp_path / "Xvfb"
+    launcher.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{script}" "$@"\n', encoding="utf-8")
+    launcher.chmod(0o755)
+    return str(launcher)
+
+
+_posix_only = pytest.mark.skipif(
+    sys.platform.startswith("win"), reason="Xvfb and -displayfd exist only on X11 systems"
+)
+
+
+@_posix_only
+def test_virtual_display_reads_the_number_xvfb_announces(tmp_path):
+    display = mutation_check._start_virtual_display(_fake_xvfb(tmp_path), timeout=10)
+    try:
+        assert display.name == ":42"
+        assert display.process.poll() is None
+    finally:
+        display.stop()
+
+    assert display.process.poll() is not None
+
+
+@_posix_only
+@pytest.mark.parametrize(
+    "action",
+    ["pass", "sys.exit(1)", 'os.write(fd, b"not-a-number\\n")'],
+    ids=["silent", "dies", "garbled"],
+)
+def test_an_xvfb_that_announces_no_display_stops_the_run(tmp_path, monkeypatch, action):
+    started: list = []
+    real_popen = mutation_check.subprocess.Popen
+
+    def recording_popen(*args, **kwargs):
+        started.append(real_popen(*args, **kwargs))
+        return started[-1]
+
+    monkeypatch.setattr(mutation_check.subprocess, "Popen", recording_popen)
+
+    with pytest.raises(mutation_check.UntrustedRunError, match="did not report a display"):
+        mutation_check._start_virtual_display(_fake_xvfb(tmp_path, action), timeout=1)
+
+    [process] = started
+    assert process.poll() is not None  # never left running behind the error
+
+
+@_posix_only
+def test_an_xvfb_that_cannot_start_stops_the_run(tmp_path):
+    with pytest.raises(mutation_check.UntrustedRunError, match="could not start"):
+        mutation_check._start_virtual_display(str(tmp_path / "missing-Xvfb"), timeout=1)
+
+
+@_posix_only
+def test_each_worker_gets_one_display_reused_until_close(tmp_path):
+    pool = mutation_check._WorkspacePool(tmp_path, tmp_path / "ws", xvfb=_fake_xvfb(tmp_path))
+    names: list = []
+    worker = threading.Thread(target=lambda: names.extend([pool.display(), pool.display()]))
+    worker.start()
+    worker.join()
+    names.append(pool.display())
+
+    assert names == [":42", ":42", ":42"]
+    assert len(pool.displays) == 2  # one per thread, not one per pytest
+    processes = [display.process for display in pool.displays]
+
+    pool.close()
+
+    assert pool.displays == []
+    assert all(process.poll() is not None for process in processes)
+
+
+def test_a_pool_without_xvfb_has_no_display(tmp_path):
+    pool = mutation_check._WorkspacePool(tmp_path, tmp_path / "ws")
+
+    assert pool.display() is None
+    pool.close()
+
+
+@_posix_only
+def test_every_pytest_of_a_worker_gets_its_display_and_it_is_stopped(tmp_path, monkeypatch):
+    checkout = _fake_checkout(tmp_path / "checkout")
+    seen: list = []
+
+    def fake_pytest(paths, root, *, basetemp=None, display=None):
+        seen.append(display)
+        return (0, 2, "2 passed") if len(seen) == 1 else (1, 1, "1 failed, 1 passed")
+
+    started: list = []
+    real_start = mutation_check._start_virtual_display
+
+    def recording_start(xvfb, timeout=10.0):
+        started.append(real_start(xvfb, timeout))
+        return started[-1]
+
+    monkeypatch.setattr(mutation_check, "_run_pytest", fake_pytest)
+    monkeypatch.setattr(mutation_check, "_start_virtual_display", recording_start)
+    monkeypatch.setattr(mutation_check.shutil, "which", lambda name: _fake_xvfb(tmp_path))
+
+    [report] = _run(
+        {"probe": _probe_spec(("value", "VALUE = 1", "VALUE = 2"))},
+        checkout,
+        tmp_path / "s",
+        virtual_display=True,
+    )
+
+    assert [r.killed for r in report.results] == [True]
+    assert seen == [":42", ":42"]
+    assert len(started) == 1
+    assert started[0].process.poll() is not None
+
+
+def test_without_xvfb_the_run_warns_and_runs_without_a_display(tmp_path, monkeypatch, capsys):
+    checkout = _fake_checkout(tmp_path / "checkout")
+    seen: list = []
+
+    def fake_pytest(paths, root, *, basetemp=None, display=None):
+        seen.append(display)
+        return 0, 2, "2 passed"
+
+    monkeypatch.setattr(mutation_check, "_run_pytest", fake_pytest)
+    monkeypatch.setattr(mutation_check.shutil, "which", lambda name: None)
+
+    _run(
+        {"probe": _probe_spec(("name", "'probe'", "'x'"))},
+        checkout,
+        tmp_path / "s",
+        virtual_display=True,
+    )
+
+    assert seen == [None, None]
+    assert "no DISPLAY and no Xvfb on PATH" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(
+    shutil.which("Xvfb") is None or sys.platform.startswith("win"),
+    reason="needs a real Xvfb (installed in the CI job that runs the mutation check)",
+)
+def test_a_real_xvfb_gives_tk_a_display(tmp_path):
+    display = mutation_check._start_virtual_display(shutil.which("Xvfb") or "Xvfb")
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-c", "import tkinter; root = tkinter.Tk(); root.destroy()"],
+            env={**os.environ, "DISPLAY": display.name},
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    finally:
+        display.stop()
+
+    assert completed.returncode == 0, completed.stderr
+
+
 def test_ambiguous_pattern_is_a_survivor_with_a_note_and_runs_no_pytest(tmp_path, monkeypatch):
     checkout = _fake_checkout(tmp_path / "checkout", {"probe": "A = 1\nB = 1\n"})
     calls = {"n": 0}
 
-    def count(paths, root, *, basetemp=None):
+    def count(paths, root, *, basetemp=None, display=None):
         calls["n"] += 1
         return 0, 1, "1 passed"
 
@@ -853,7 +1198,7 @@ def _scrambled_pytest(roots: set[Path]):
     """
     lock = threading.Lock()
 
-    def fake(paths, root, *, basetemp=None):
+    def fake(paths, root, *, basetemp=None, display=None):
         with lock:
             roots.add(root)
         package = root / "src" / "zebtrack"

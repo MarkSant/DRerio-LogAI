@@ -566,6 +566,11 @@ stay in catalogue order. A red baseline now exits **2**, not 0: it proves nothin
 block. A catalogued test that reads a directory outside that list fails its baseline in the copy;
 add the directory to `_WORKSPACE_DIRS`.
 
+**Every marker runs (#724).** The runner passes `-m "" -n0`, so `gui`/`slow` tests in a block are
+not deselected; on Linux without a `DISPLAY` each worker starts its own Xvfb (Windows/macOS need
+none). A baseline that ran **0 tests**, or whose GUI tests were skipped for lack of a display, exits
+**2** like a red one — it never reports its mutants as survivors.
+
 Three shapes are rejected automatically by `tests/quality/test_no_hollow_tests.py`:
 
 - **Tautology** — building an instance with `object.__new__`, assigning attributes, and asserting

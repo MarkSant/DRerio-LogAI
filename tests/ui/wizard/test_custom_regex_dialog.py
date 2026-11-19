@@ -454,11 +454,20 @@ class TestTestPanel:
         assert dialog._live_update_job is None
 
     def test_the_panel_starts_as_waiting_until_the_first_refresh(self, tkinter_root):
-        dialog = _build(tkinter_root)
+        # The first refresh is an after(0) timer. Whether it fires inside
+        # __init__ depends on the window system (Dialog's wait_visibility spins
+        # the event loop under Xvfb, not on Windows), so it is held here and
+        # run explicitly: the assertion is about the state BEFORE it.
+        with patch.object(CustomRegexDialog, "_refresh_live_previews", lambda self: None):
+            dialog = _build(tkinter_root)
 
         assert dialog._test_result_vars["group"].get() == "○ Group: waiting"
         assert dialog._test_result_vars["day"].get() == "○ Day: waiting"
         assert dialog._test_result_vars["subject"].get() == "○ Subject: waiting"
+
+        dialog._refresh_live_previews()
+
+        assert dialog._test_result_vars["group"].get() == "○ Group: pattern not defined"
 
 
 @pytest.mark.gui

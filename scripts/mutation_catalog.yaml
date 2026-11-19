@@ -6319,3 +6319,14 @@ _load_registry()"
         description: "F2: deteccao por regex que falha derruba o editor de delineamento"
         find: "                new_design = self.on_custom_regex_configured(result_patterns)\n            except Exception:"
         replace: "                new_design = self.on_custom_regex_configured(result_patterns)\n            except KeyError:"
+  # #724: the only test that kills this needs the real dialog (gui). It was
+  # mutated by hand in the F2 review while the runner deselected gui tests.
+  pragma_review_custom_regex_resizable:
+    source: src/zebtrack/ui/wizard/custom_regex_dialog.py
+    tests:
+      - tests/ui/wizard/test_custom_regex_dialog.py
+    mutations:
+      - id: refused-resizable-aborts-dialog
+        description: "F2: gerenciador de janelas que recusa resizable aborta o dialogo de regex"
+        find: "        except Exception as exc:\n            log.warning(\"custom_regex.geometry.resizable_failed\""
+        replace: "        except KeyError as exc:\n            log.warning(\"custom_regex.geometry.resizable_failed\""

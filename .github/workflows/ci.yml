@@ -382,10 +382,17 @@ jobs:
       # (#717) selected 226 of 272 blocks and was cut at 30 min with ~200 done
       # (--jobs 4). A normal PR selects a handful of blocks and is unaffected.
       # The steps before this one take ~13 min; the job limit (75) covers both.
+      #
+      # No xvfb-run wrapper (#724): the runner selects gui-marked tests too
+      # (-m "", -n0) and, with no DISPLAY, starts one private Xvfb per worker
+      # (the xvfb package comes from the system-dependencies step; tkinter
+      # ships with setup-python), so parallel Tk tests never share a display.
+      # A block whose gui tests cannot get a display, or whose baseline runs
+      # zero tests, exits 2 instead of reporting survivors.
       - name: "Mutation check (Linux, modules this change touches)"
         if: runner.os == 'Linux' && matrix.suite == 'core'
         run: |
-          xvfb-run --auto-servernum poetry run python scripts/mutation_check.py --changed-since HEAD^ --jobs 4
+          poetry run python scripts/mutation_check.py --changed-since HEAD^ --jobs 4
         timeout-minutes: 50
 
       - name: "Run GUI tests (Linux - with xvfb)"
