@@ -80,7 +80,7 @@ mypy and to the user.
 
 | ID | Finding | Evidence | Status | Decision |
 | --- | --- | --- | --- | --- |
-| A5-01 | 40 of 532 broad handlers neither log nor re-raise; 30 are in `ui/`. | scan | accepted | 2026-11-18 (final pass): the 11 handlers read one by one are closed (A5 report). The other 29 of the 2026-11 scan were not read; accepted as residual risk, listed by the scan for a later pass |
+| A5-01 | 40 of 532 broad handlers neither log nor re-raise; 30 are in `ui/`. | scan | accepted | 2026-11-18 (final pass): the 11 handlers read one by one are closed (A5 report). The other 29 of the 2026-11 scan were not read; accepted as residual risk, listed by the scan for a later pass **Read and guarded (2026-11-19):** every handler of the silent shape (47 in the current code, the 29 unread among them) has a verdict in [`2026-11_A5_remaining_handlers.md`](2026-11_A5_remaining_handlers.md): none hides a data failure, 14 should log (UI probes and labels), 33 are legitimate. `tests/quality/test_no_silent_handlers.py` fails on a new broad handler that neither logs, re-raises nor returns a documented fallback; the 27 silent ones today are in its shrink-only `ALLOWED_SILENT`. |
 | A5-02 | The `MODEL_FORCE_BENCHMARK` and `MODEL_CONVERT_OPENVINO` worker threads discard their result; the user gets no answer. | `core/viewmodels/main_view_model_runtime.py:246,256` | fixed | 2026-11-18 (final pass): A5-S-008. The benchmark and OpenVINO-conversion threads now report success or failure through `UI_SHOW_INFO`/`UI_SHOW_ERROR` (block `runtime_worker_results_reported`) |
 
 ## A6 — Threads, Tk and resources
