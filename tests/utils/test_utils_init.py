@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import random
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -117,6 +118,58 @@ class TestSetSeed:
         result2 = np.random.rand(10)
 
         assert not np.array_equal(result1, result2)
+
+
+class _FakeTorch:
+    """Records the seeds ``set_seed`` hands to torch (F2 pragma review)."""
+
+    def __init__(self, *, cuda: bool) -> None:
+        self.calls: list[tuple[str, int]] = []
+        self.cuda = SimpleNamespace(
+            is_available=lambda: cuda,
+            manual_seed=lambda seed: self.calls.append(("cuda", seed)),
+            manual_seed_all=lambda seed: self.calls.append(("cuda_all", seed)),
+        )
+        self.backends = SimpleNamespace(cudnn=SimpleNamespace(deterministic=None, benchmark=None))
+
+    def manual_seed(self, seed: int) -> None:
+        self.calls.append(("cpu", seed))
+
+
+class TestSetSeedTorch:
+    """Torch is seeded only when present, and CUDA only when a GPU is visible."""
+
+    @staticmethod
+    def _install(monkeypatch, *, available: bool, torch: object) -> None:
+        import zebtrack.utils as utils_module
+
+        lazy = {"TORCH_AVAILABLE": available, "torch": torch}
+        monkeypatch.setattr(utils_module, "__getattr__", lazy.__getitem__)
+
+    @pytest.mark.parametrize(
+        ("cuda", "expected"),
+        [
+            (False, [("cpu", 11)]),
+            (True, [("cpu", 11), ("cuda", 11), ("cuda_all", 11)]),
+        ],
+    )
+    def test_seeds_torch_and_cuda_with_the_same_seed(self, monkeypatch, cuda, expected):
+        torch = _FakeTorch(cuda=cuda)
+        self._install(monkeypatch, available=True, torch=torch)
+
+        set_seed(11)
+
+        assert torch.calls == expected
+        cudnn = torch.backends.cudnn
+        assert (cudnn.deterministic, cudnn.benchmark) == ((True, False) if cuda else (None, None))
+
+    def test_unavailable_torch_is_left_alone(self, monkeypatch):
+        torch = _FakeTorch(cuda=True)
+        self._install(monkeypatch, available=False, torch=torch)
+
+        set_seed(11)
+
+        assert torch.calls == []
 
 
 class TestRootUtilsExtended:

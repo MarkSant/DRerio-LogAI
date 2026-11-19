@@ -872,3 +872,28 @@ class TestRowRoundTrip:
         assert panel._aquarium_id_for_choice("1") == 0
         assert panel._aquarium_id_for_choice("All") is None
         assert panel._aquarium_id_for_choice("0") is None
+
+
+class TestScheduleUi:
+    """F2 pragma review: ``after`` on a dying widget drops the update, never runs it inline."""
+
+    def test_update_is_queued_on_the_tk_thread(self):
+        panel = object.__new__(ArduinoBindingsPanel)
+        panel.after = MagicMock()  # type: ignore[method-assign]
+        callback = MagicMock()
+
+        panel._schedule_ui(callback, "ok")
+
+        panel.after.assert_called_once_with(0, callback, "ok")
+        callback.assert_not_called()
+
+    def test_destroyed_widget_drops_the_update(self):
+        import tkinter
+
+        panel = object.__new__(ArduinoBindingsPanel)
+        panel.after = MagicMock(side_effect=tkinter.TclError("application destroyed"))  # type: ignore[method-assign]
+        callback = MagicMock()
+
+        panel._schedule_ui(callback, "ok")
+
+        callback.assert_not_called()

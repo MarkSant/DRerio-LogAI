@@ -644,7 +644,7 @@ class SingleDetector:
         if hasattr(self.plugin, "set_use_single_subject_mode"):
             try:
                 self.plugin.set_use_single_subject_mode(enabled)
-            except Exception:  # pragma: no cover - defensive
+            except Exception:
                 log.warning("single_detector.plugin_update_failed", exc_info=True)
 
     def set_source_fps(self, fps: float | None) -> None:
@@ -716,7 +716,7 @@ class SingleDetector:
         if hasattr(self.plugin, "reset_tracking_state"):
             try:
                 self.plugin.reset_tracking_state()
-            except Exception:  # pragma: no cover - defensive
+            except Exception:
                 log.warning(
                     "single_detector.reset_tracking_state.plugin_failed",
                     exc_info=True,
@@ -1070,7 +1070,7 @@ class SingleDetector:
                 single_animal_mode=single_animal_mode,
             )
             self._byte_tracker_params = params
-        except Exception:  # pragma: no cover - defensive
+        except Exception:
             log.warning("single_detector.bytetrack.init_failed", exc_info=True)
             self._byte_tracker = None
             self._byte_tracker_params = None

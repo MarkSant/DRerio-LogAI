@@ -705,7 +705,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                             detections=len(preds),
                         )
                         results.setdefault("OpenVINO", []).append(preds)
-                    except Exception as exc:  # pragma: no cover - plugin specific
+                    except Exception as exc:
                         log.error(
                             "diagnostic.thread.openvino_predict_error",
                             frame=frame_count + 1,

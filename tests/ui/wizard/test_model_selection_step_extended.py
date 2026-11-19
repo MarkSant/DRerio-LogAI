@@ -198,3 +198,27 @@ class TestConfiguredByteTrackDefaults:
         assert defaults["match_threshold"] == DEFAULT_MATCH_THRESHOLD
         assert defaults["max_center_distance"] == 250.0
         assert defaults["iou_threshold"] == DEFAULT_IOU_THRESHOLD
+
+
+class TestOpenVinoDeviceDiscovery:
+    """F2 pragma review: device discovery that fails offers only AUTO."""
+
+    def test_detected_devices_become_options(self, monkeypatch):
+        import zebtrack.ui.wizard.model_selection_step as module
+
+        monkeypatch.setattr(module, "get_openvino_devices", lambda: ["CPU", "GPU.0"])
+        step = object.__new__(ModelSelectionStep)
+
+        assert step._available_openvino_devices() == ["AUTO", "CPU", "GPU"]
+
+    def test_failed_discovery_offers_only_auto(self, monkeypatch):
+        import zebtrack.ui.wizard.model_selection_step as module
+
+        def broken():
+            raise RuntimeError("openvino runtime missing")
+
+        monkeypatch.setattr(module, "get_openvino_devices", broken)
+        step = object.__new__(ModelSelectionStep)
+
+        assert step._available_openvino_devices() == ["AUTO"]
+        assert step._normalize_openvino_device("GPU") == "AUTO"

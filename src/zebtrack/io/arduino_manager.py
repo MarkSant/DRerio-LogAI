@@ -138,7 +138,7 @@ class ArduinoManager:
                 # Apply the handshake policy on the instance so it works whether
                 # the factory is the Arduino class or a test double.
                 candidate.handshake = handshake
-            except Exception:  # pragma: no cover - constructor errors are rare
+            except Exception:
                 log.error(
                     "arduino_manager.connect.init_failed",
                     port=port,
@@ -484,7 +484,7 @@ class ArduinoManager:
         if self.arduino:
             try:
                 self.arduino.close()
-            except Exception:  # pragma: no cover - best effort close
+            except Exception:
                 log.warning("arduino_manager.disconnect.close_error", exc_info=True)
             self.arduino = None
         self._drain_write_queue()
@@ -652,28 +652,28 @@ class ArduinoManager:
         try:
             if hasattr(self.controller, "on_arduino_event"):
                 self.controller.on_arduino_event(event_code)
-        except Exception:  # pragma: no cover - controller should handle safely
+        except Exception:
             log.error("arduino_manager.event.dispatch_failed", code=event_code, exc_info=True)
 
     def _notify_status(self, connected: bool, port: str | None) -> None:
         try:
             if hasattr(self.controller, "on_arduino_status_change"):
                 self.controller.on_arduino_status_change(connected, port)
-        except Exception:  # pragma: no cover - UI callbacks must not break flow
+        except Exception:
             log.warning("arduino_manager.status.notify_failed", exc_info=True)
 
     def _notify_log(self, message: str) -> None:
         try:
             if hasattr(self.controller, "log_arduino_event"):
                 self.controller.log_arduino_event(message)
-        except Exception:  # pragma: no cover
+        except Exception:
             log.warning("arduino_manager.log.notify_failed", exc_info=True)
 
     def _notify_command(self, command: int, *, success: bool, source: str) -> None:
         try:
             if hasattr(self.controller, "on_arduino_command_sent"):
                 self.controller.on_arduino_command_sent(command, success, source)
-        except Exception:  # pragma: no cover
+        except Exception:
             log.warning("arduino_manager.command.notify_failed", exc_info=True)
 
     @staticmethod

@@ -1069,3 +1069,44 @@ class TestAquariumScopedRemoval:
         (folder / "sub").mkdir(parents=True)
         assert AssetManager._rmtree_safe(folder) is True
         assert not folder.exists()
+
+
+# ---------------------------------------------------------------------------
+# Defensive branches reviewed in the F2 pragma pass
+# ---------------------------------------------------------------------------
+
+
+def test_list_roi_templates_keeps_project_templates_when_global_listing_fails():
+    """A broken global library must not hide the project's own templates."""
+    manager = AssetManager()
+    manager.roi_template_manager = MagicMock()
+    manager.roi_template_manager.list_global_templates.side_effect = OSError("library offline")
+    project_data = {"roi_templates": [{"name": "Project B"}, {"name": "Project A"}]}
+
+    result = manager.list_roi_templates(project_data, include_global=True)
+
+    assert [(item["name"], item["location"]) for item in result] == [
+        ("Project A", "project"),
+        ("Project B", "project"),
+    ]
+
+
+def test_profile_criterion_without_values_is_ignored_not_failed():
+    """``None`` / empty lists mean "no constraint", so the other keys decide."""
+    manager = AssetManager()
+    metadata = {"subject": "Alpha"}
+
+    empties: tuple[object, ...] = (None, [], ())
+    for empty in empties:
+        assert manager._profile_matches({"day": empty, "subject": ["alpha"]}, metadata) is True
+        assert manager._profile_matches({"day": empty, "subject": ["beta"]}, metadata) is False
+
+
+def test_delete_file_if_exists_reports_false_when_the_os_refuses(tmp_path):
+    """A directory cannot be removed by ``os.remove``: report False, leave it alone."""
+    manager = AssetManager()
+    target = tmp_path / "not_a_file"
+    target.mkdir()
+
+    assert manager.delete_file_if_exists(target) is False
+    assert target.is_dir()

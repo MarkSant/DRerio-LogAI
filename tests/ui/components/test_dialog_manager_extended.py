@@ -203,3 +203,63 @@ class TestDialogManagerExtended7:
         gui = MagicMock()
         dm = DialogManager(gui)
         assert dm.gui is gui
+
+
+class TestROITemplateImportFailures:
+    """F2 pragma review: every failure in the template import reaches the operator."""
+
+    @staticmethod
+    def _manager(tmp_path, content: str = '{"polygon": [[0, 0], [10, 0], [10, 10]]}'):
+        path = tmp_path / "gaiolas.json"
+        path.write_text(content, encoding="utf-8")
+        gui = MagicMock()
+        gui.pending_single_video_path = None
+        bus = MagicMock()
+        dm = DialogManager(gui, bus)
+        dm.ask_open_filename = MagicMock(return_value=str(path))  # type: ignore[method-assign]
+        dm.show_error = MagicMock()  # type: ignore[method-assign]
+        dm.show_info = MagicMock()  # type: ignore[method-assign]
+        dm.show_warning = MagicMock()  # type: ignore[method-assign]
+        return dm, gui.controller.project_manager, bus
+
+    def test_library_import_failure_is_shown_and_nothing_refreshes(self, tmp_path):
+        dm, pm, _bus = self._manager(tmp_path)
+        pm.import_roi_template.side_effect = ValueError("not a template")
+
+        dm.import_roi_template()
+
+        dm.show_error.assert_called_once_with("Import error", "not a template")
+        dm.gui.roi_template_manager.refresh_templates.assert_not_called()
+
+    def test_pending_video_that_cannot_be_activated_still_receives_the_zones(self, tmp_path):
+        dm, pm, _bus = self._manager(tmp_path)
+        pm.get_active_zone_video.return_value = None
+        pm.set_active_zone_video.side_effect = [KeyError("not in project"), None]
+        pm.import_roi_template.return_value = {"name": "Gaiolas"}
+        dm.gui.pending_single_video_path = "/videos/single.mp4"
+
+        dm.import_and_apply_roi_template()
+
+        assert pm.save_zone_data.call_args.kwargs["video_path"] == "/videos/single.mp4"
+        dm.show_warning.assert_not_called()
+
+    def test_unreadable_template_is_reported_and_nothing_is_saved(self, tmp_path):
+        dm, pm, bus = self._manager(tmp_path, "{not json")
+        pm.get_active_zone_video.return_value = "/videos/a.mp4"
+
+        dm.import_and_apply_roi_template()
+
+        assert dm.show_error.call_args[0][0] == "Import-and-apply error"
+        pm.save_zone_data.assert_not_called()
+        bus.publish.assert_not_called()
+
+    def test_zones_stay_applied_when_the_library_copy_fails(self, tmp_path):
+        dm, pm, _bus = self._manager(tmp_path)
+        pm.get_active_zone_video.return_value = "/videos/a.mp4"
+        pm.import_roi_template.side_effect = OSError("library folder is read-only")
+
+        dm.import_and_apply_roi_template()
+
+        pm.save_zone_data.assert_called_once()
+        dm.gui.roi_template_manager.refresh_templates.assert_called_once()
+        assert dm.show_info.call_args[0][1] == "The zones were updated with template 'gaiolas'."

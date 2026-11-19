@@ -390,7 +390,7 @@ class ModelSelectionStep(WizardStep):
         options = ["AUTO"]
         try:
             devices = tuple(get_openvino_devices())
-        except Exception:  # pragma: no cover - defensive fallback
+        except Exception:
             devices = ()
 
         for candidate in ("CPU", "GPU", "NPU"):

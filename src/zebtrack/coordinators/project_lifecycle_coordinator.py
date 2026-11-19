@@ -161,7 +161,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             live_service.stop_session()
             self.logger.info("project.close.live_session_stopped")
         # except Exception justified: cleanup boundary — never block close
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             self.logger.warning(
                 "project.close.live_session_stop_failed", error=str(exc), exc_info=True
             )
@@ -669,7 +669,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         try:
             asset_type = cast(AssetType, asset)
             return self.project_manager.can_remove_asset(str(video_path), asset_type)
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             self.logger.error(
                 "project.asset.can_remove_failed",
                 asset=asset,
@@ -714,7 +714,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                 delete_source=delete_source,
             )
             return removed
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             self.logger.error(
                 "project.asset.remove_failed",
                 asset=asset,
@@ -807,7 +807,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                     {"source": "aquarium_delete_scope"},
                 )
             return removed
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             self.logger.error(
                 "project.aquarium_delete.failed",
                 video=str(video_path),
@@ -848,7 +848,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                     {"source": "aquarium_clear_subject"},
                 )
             return removed
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             self.logger.error(
                 "project.aquarium_subject_clear.failed",
                 video=str(video_path),
@@ -886,7 +886,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                     {"source": "analysis_reset"},
                 )
             return removed
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             self.logger.error(
                 "project.analysis_reset.failed",
                 video=str(video_path),

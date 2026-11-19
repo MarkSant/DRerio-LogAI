@@ -1596,3 +1596,33 @@ class TestAquariumDetectionPhase:
         # 64 % of the frame is below a 90 % minimum.
         assert h._detected_aquarium_bboxes == []
         assert [e.is_valid for e in h.progress_events()] == [False]
+
+
+class TestShutdownFailuresDegrade:
+    """F2 pragma review: teardown errors fall back instead of losing the update."""
+
+    def test_preview_status_falls_back_to_a_direct_call_when_after_fails(self):
+        pipe = DummyPipeline()
+        preview = MagicMock()
+        root = MagicMock()
+        root.after.side_effect = RuntimeError("main thread is not in main loop")
+        pipe.preview_window = preview
+        pipe.root = root
+
+        pipe._post_preview_status("Stopping...", "orange")
+
+        preview.update_status_text.assert_called_once_with("Stopping...", "orange")
+
+    def test_a_previous_ledger_that_fails_to_finalize_is_still_replaced(self):
+        from zebtrack.core.recording.frame_ledger import FrameLedger
+
+        pipe = DummyPipeline()
+        stale = MagicMock()
+        stale.finalize.side_effect = OSError("disk unplugged")
+        pipe._frame_ledger = stale
+
+        pipe._reset_frame_ledger()
+
+        stale.finalize.assert_called_once_with()
+        assert isinstance(pipe._frame_ledger, FrameLedger)
+        pipe._frame_ledger.finalize()

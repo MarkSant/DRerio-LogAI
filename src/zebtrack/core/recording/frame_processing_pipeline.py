@@ -230,7 +230,7 @@ class FrameProcessingMixin:
             # except Exception justified: ``root.after`` may be unavailable
             # during shutdown (TclError); fall through to a direct call so
             # we still log the intent.
-            except Exception:  # pragma: no cover - defensive
+            except Exception:
                 log.debug("live_camera_service.post_preview_status.after_failed")
         preview.update_status_text(message, color)
 
@@ -351,7 +351,7 @@ class FrameProcessingMixin:
             try:
                 previous.finalize()
             # except Exception justified: limpeza best-effort de artefato opcional.
-            except Exception:  # pragma: no cover - defensivo
+            except Exception:
                 log.warning("frame_ledger.previous_finalize_failed")
         self._frame_ledger = FrameLedger()
 

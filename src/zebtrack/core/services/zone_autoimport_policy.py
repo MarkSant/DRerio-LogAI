@@ -79,7 +79,7 @@ def _normalize(path: Any) -> str:
         return os.path.normcase(os.path.normpath(str(path)))
     # except Exception justified: path values come from user projects and may be
     # malformed; an unusable path simply never matches.
-    except Exception:  # pragma: no cover - defensive
+    except Exception:
         return ""
 
 

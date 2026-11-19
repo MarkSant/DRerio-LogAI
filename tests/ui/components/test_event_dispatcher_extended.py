@@ -638,3 +638,18 @@ def test_single_aquarium_state_drops_the_aquarium_lines():
     shown = gui.external_trigger_notice_var.set.call_args.args[0]
     assert "Aquarium" not in shown
     assert "finished at 3.0 s" in shown
+
+
+class TestUnregisterWhenTheBusRefuses:
+    """F2 pragma review: a bus that fails to unsubscribe must not keep a stale entry."""
+
+    def test_handler_entry_is_dropped_anyway(self):
+        bus = MagicMock()
+        bus.unsubscribe.side_effect = RuntimeError("bus already shut down")
+        dispatcher = EventDispatcher(bus)
+        dispatcher.register_handler(UIEvents.ZONES_UPDATED, MagicMock())
+
+        dispatcher.unregister_handler(UIEvents.ZONES_UPDATED)
+
+        assert UIEvents.ZONES_UPDATED not in dispatcher.handlers
+        bus.unsubscribe.assert_called_once()

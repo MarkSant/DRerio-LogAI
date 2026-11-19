@@ -380,7 +380,7 @@ class DialogManager:
 
         try:
             metadata = pm.import_roi_template(file_path)
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             log.error("gui.roi_templates.import_failed", error=str(exc), file=file_path)
             self.show_error(_("Import error"), str(exc))
             return
@@ -414,7 +414,7 @@ class DialogManager:
             if pending_video:
                 try:
                     pm.set_active_zone_video(pending_video)
-                except Exception as exc:  # pragma: no cover - defensive
+                except Exception as exc:
                     log.warning(
                         "gui.roi_templates.activate_pending_failed",
                         error=str(exc),
@@ -466,7 +466,7 @@ class DialogManager:
                 roi_count=len(template_zone.roi_polygons or []),
             )
 
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             log.error(
                 "gui.roi_templates.import_and_apply_failed",
                 error=str(exc),
@@ -508,7 +508,7 @@ class DialogManager:
                 "gui.roi_templates.import_and_apply.library_updated",
                 template_name=template_name,
             )
-        except Exception as exc:  # pragma: no cover - if import fails, we still applied
+        except Exception as exc:
             log.warning(
                 "gui.roi_templates.import_and_apply.library_import_failed",
                 error=str(exc),

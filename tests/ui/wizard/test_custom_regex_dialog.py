@@ -625,3 +625,16 @@ class TestGeometry:
 
         assert dialog._geometry_initialized is False
         assert dialog.minsize() == (300, 300)
+
+    def test_a_window_manager_that_refuses_resizing_still_gets_the_full_dialog(self, tkinter_root):
+        """F2 pragma review: ``resizable`` failing in ``body`` must not abort the build."""
+
+        def refuse(*_args: Any) -> None:
+            raise tk.TclError("bad window path name")
+
+        with patch.object(CustomRegexDialog, "resizable", refuse):
+            dialog = _build(tkinter_root, {"group_pattern": GROUP}, ["a/Controle_CECT_4_Dia_2.mp4"])
+
+        assert dialog.group_pattern_entry.get() == GROUP
+        assert dialog.test_path_entry.get() == "a/Controle_CECT_4_Dia_2.mp4"
+        assert _buttons(dialog, "Test")

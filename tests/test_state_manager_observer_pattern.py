@@ -301,3 +301,27 @@ class TestThreadSafety:
 
         # Observer should be called twice per update (current_frame + total_frames)
         assert observer.call_count == 10
+
+
+class TestObserversAfterShutdown:
+    """After ``shutdown()`` the pool refuses work; observers run inline (F2 pragma review)."""
+
+    def test_observers_run_inline_and_a_failing_one_does_not_block_the_rest(self):
+        state_mgr = StateManager()
+        state_mgr.shutdown()
+        calls: list[tuple[str, object, object]] = []
+
+        def failing_observer(category, key, old_value, new_value):
+            raise RuntimeError("observer broke during shutdown")
+
+        def working_observer(category, key, old_value, new_value):
+            calls.append((key, old_value, new_value))
+
+        state_mgr.subscribe(StateCategory.RECORDING, failing_observer)
+        state_mgr.subscribe(StateCategory.RECORDING, working_observer)
+
+        state_mgr.update_recording_state(source="test", is_recording=True)
+
+        # Inline means synchronous: no waiting, the call already happened.
+        assert calls == [("is_recording", False, True)]
+        assert state_mgr.get_recording_state().is_recording is True
