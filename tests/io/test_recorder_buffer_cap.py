@@ -45,38 +45,6 @@ class TestRecorderBufferCap:
         r.detection_data = [{"frame": i} for i in range(10)]
         assert r._should_flush()
 
-    def test_reinjection_capped_on_error(self):
-        """Simulate a flush error path where snapshot is re-injected.
-
-        The combined buffer should never exceed _max_buffer_rows.
-        """
-        r = self._make_recorder(max_buffer_rows=20)
-        # Existing buffer has 10 items
-        r.detection_data = [{"frame": i, "track_id": i} for i in range(10)]
-        # Simulate a snapshot of 25 items that failed to write
-        snapshot = [{"frame": i + 100, "track_id": i} for i in range(25)]
-
-        with r._data_lock:
-            combined = snapshot + r.detection_data
-            if len(combined) > r._max_buffer_rows:
-                combined = combined[-r._max_buffer_rows :]
-            r.detection_data = combined
-
-        assert len(r.detection_data) == 20  # capped at max_buffer_rows
-
-    def test_reinjection_keeps_all_when_under_cap(self):
-        r = self._make_recorder(max_buffer_rows=100)
-        r.detection_data = [{"frame": i} for i in range(5)]
-        snapshot = [{"frame": i + 100} for i in range(10)]
-
-        with r._data_lock:
-            combined = snapshot + r.detection_data
-            if len(combined) > r._max_buffer_rows:
-                combined = combined[-r._max_buffer_rows :]
-            r.detection_data = combined
-
-        assert len(r.detection_data) == 15  # all kept
-
 
 class TestFailedWriteKeepsTheRows:
     """F2 pragma review: drive the real flush, not a copy of its arithmetic."""
