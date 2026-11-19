@@ -3,9 +3,19 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any, cast
+from unittest import mock
 
+from hypothesis import given, settings
+from hypothesis import strategies as st
+from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, rule
+
+import zebtrack.utils.cache as cache_module
 from zebtrack.utils.cache import TTLCache, ttl_cache
+
+_MISSING = object()
 
 
 class TestTTLCache:
@@ -348,3 +358,250 @@ class TestCacheExtended2:
         info = expensive_calc.cache_info()  # type: ignore[attr-defined]
         assert info.hits == 1
         assert info.misses == 2
+
+
+# ---------------------------------------------------------------------------
+# Property-based invariants (hypothesis)
+# ---------------------------------------------------------------------------
+
+#: The same examples on every machine: a CI failure must be one a developer can
+#: reproduce, never a draw nobody saw locally.
+_PROPERTY = settings(max_examples=100, database=None, derandomize=True, deadline=None)
+
+_KEYS = st.sampled_from(["a", "b", "c", "d", "e"])
+
+
+class _FakeClock:
+    """Stands in for the ``time`` module inside ``zebtrack.utils.cache``.
+
+    Whole seconds only, so ``now - written`` is exact and the TTL boundary is
+    hit on the dot instead of a rounding error away from it.
+    """
+
+    def __init__(self) -> None:
+        self.now = 1_000.0
+
+    def time(self) -> float:
+        return self.now
+
+
+@contextmanager
+def _frozen_clock() -> Iterator[_FakeClock]:
+    clock = _FakeClock()
+    with mock.patch.object(cache_module, "time", clock):
+        yield clock
+
+
+class TestTTLCacheProperties:
+    @_PROPERTY
+    @given(_KEYS, st.integers(), st.integers(1, 60), st.integers(0, 120))
+    def test_a_value_is_read_back_exactly_until_its_ttl_runs_out(self, key, value, ttl, elapsed):
+        # Two caches, because both ``get`` and ``in`` delete what they find
+        # expired: whichever ran first would decide the other's answer.
+        with _frozen_clock() as clock:
+            read_by_get = TTLCache(ttl_seconds=float(ttl))
+            read_by_in = TTLCache(ttl_seconds=float(ttl))
+            read_by_get.set(key, value)
+            read_by_in.set(key, value)
+            clock.now += elapsed
+            alive = elapsed < ttl
+            assert read_by_get.get(key, _MISSING) == (value if alive else _MISSING)
+            assert (key in read_by_in) is alive
+
+    @_PROPERTY
+    @given(st.integers(1, 10), st.lists(st.integers(0, 12), min_size=1, max_size=6))
+    def test_a_write_purges_every_entry_whose_ttl_has_run_out(self, ttl, ages):
+        with _frozen_clock() as clock:
+            cache = TTLCache(ttl_seconds=float(ttl))
+            now = clock.now + max(ages)
+            for index, age in enumerate(sorted(ages, reverse=True)):
+                clock.now = now - age
+                cache.set(f"written-{index}", index)
+            clock.now = now
+
+            cache.set("fresh", -1)
+
+            # ``len`` does not purge, so it shows exactly what the write kept.
+            assert len(cache) == 1 + sum(age < ttl for age in ages)
+
+    @_PROPERTY
+    @given(st.lists(_KEYS, min_size=1, max_size=30), st.integers(0, 4), st.booleans())
+    def test_the_cap_keeps_exactly_the_most_recently_written_keys(
+        self, writes, maxsize, clock_ticks
+    ):
+        # With a clock that does not move between writes (a coarse timer), every
+        # entry has the same timestamp and "oldest" must mean "written first".
+        with _frozen_clock() as clock:
+            cache = TTLCache(ttl_seconds=1e9, maxsize=maxsize)
+            for index, key in enumerate(writes):
+                if clock_ticks:
+                    clock.now += 1
+                cache.set(key, index)
+                assert len(cache) <= maxsize
+
+            newest_first = list(dict.fromkeys(reversed(writes)))
+            survivors = newest_first[:maxsize]
+            last_write = {key: index for index, key in enumerate(writes)}
+            for key in newest_first:
+                expected = last_write[key] if key in survivors else _MISSING
+                assert cache.get(key, _MISSING) == expected
+
+    def test_rewriting_a_key_makes_it_the_newest_entry_for_eviction(self):
+        with _frozen_clock():
+            cache = TTLCache(ttl_seconds=60.0, maxsize=2)
+            cache.set("a", 1)
+            cache.set("b", 2)
+            cache.set("a", 3)  # same tick: only the write order tells them apart
+            cache.set("c", 4)
+
+            assert cache.get("b") is None
+            assert cache.get("a") == 3
+            assert cache.get("c") == 4
+
+    @_PROPERTY
+    @given(st.dictionaries(_KEYS, st.integers(), min_size=1), st.data())
+    def test_invalidating_one_key_leaves_the_others_alone(self, entries, data):
+        victim = data.draw(st.sampled_from(sorted(entries)))
+        with _frozen_clock():
+            cache = TTLCache(ttl_seconds=60.0)
+            for key, value in entries.items():
+                cache.set(key, value)
+
+            cache.invalidate(victim)
+
+            assert victim not in cache
+            for key, value in entries.items():
+                if key != victim:
+                    assert cache.get(key) == value
+
+
+_ARG = st.one_of(
+    st.integers(-2, 2),
+    st.tuples(st.sampled_from(["a", "b"]), st.integers(0, 1)),
+)
+
+
+class TestTTLCacheDecoratorProperties:
+    @_PROPERTY
+    @given(
+        st.lists(
+            st.tuples(
+                st.lists(_ARG, max_size=1),
+                st.dictionaries(st.sampled_from(["a", "b"]), st.integers(0, 1), max_size=1),
+            ),
+            min_size=1,
+            max_size=8,
+        )
+    )
+    def test_every_call_reads_back_its_own_result(self, calls):
+        @ttl_cache(ttl_seconds=60.0)
+        def echo(*args: Any, **kwargs: Any) -> tuple[tuple[Any, ...], dict[str, Any]]:
+            return args, kwargs
+
+        for args, kwargs in calls:
+            assert echo(*args, **kwargs) == (tuple(args), kwargs)
+
+    def test_a_keyword_argument_never_reads_a_positional_tuples_entry(self):
+        # ``f(("a", 1))`` and ``f(a=1)`` used to build the same key, ``(("a", 1),)``.
+        @ttl_cache(ttl_seconds=60.0)
+        def echo(*args: Any, **kwargs: Any) -> tuple[tuple[Any, ...], dict[str, Any]]:
+            return args, kwargs
+
+        assert echo(("a", 1)) == ((("a", 1),), {})
+        assert echo(a=1) == ((), {"a": 1})
+
+
+class TTLCacheMachine(RuleBasedStateMachine):
+    """``TTLCache`` against a plain dict in write order plus a fake clock."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.clock = _FakeClock()
+        self._patch = mock.patch.object(cache_module, "time", self.clock)
+        self._patch.start()
+        self.ttl = 1
+        self.maxsize: int | None = None
+        self.cache = TTLCache()
+        # key -> (value, written_at), oldest write first
+        self.model: dict[str, tuple[int, float]] = {}
+        self.hits = 0
+        self.misses = 0
+
+    def teardown(self) -> None:
+        self._patch.stop()
+
+    def _alive(self, key: str) -> bool:
+        return key in self.model and self.clock.now - self.model[key][1] < self.ttl
+
+    @initialize(ttl=st.integers(1, 6), maxsize=st.one_of(st.none(), st.integers(0, 4)))
+    def build(self, ttl: int, maxsize: int | None) -> None:
+        self.ttl = ttl
+        self.maxsize = maxsize
+        self.cache = TTLCache(ttl_seconds=float(ttl), maxsize=maxsize)
+
+    @rule(seconds=st.integers(0, 4))
+    def tick(self, seconds: int) -> None:
+        self.clock.now += seconds
+
+    @rule(key=_KEYS, value=st.integers())
+    def set(self, key: str, value: int) -> None:
+        self.cache.set(key, value)
+        self.model.pop(key, None)
+        self.model[key] = (value, self.clock.now)
+        for stale in [k for k in self.model if not self._alive(k)]:
+            del self.model[stale]
+        while self.maxsize is not None and len(self.model) > self.maxsize:
+            del self.model[next(iter(self.model))]
+
+    @rule(key=_KEYS)
+    def get(self, key: str) -> None:
+        if self._alive(key):
+            self.hits += 1
+            expected: Any = self.model[key][0]
+        else:
+            self.misses += 1
+            self.model.pop(key, None)
+            expected = _MISSING
+        assert self.cache.get(key, _MISSING) == expected
+
+    @rule(key=_KEYS)
+    def contains(self, key: str) -> None:
+        alive = self._alive(key)
+        if not alive:
+            self.model.pop(key, None)
+        assert (key in self.cache) is alive
+
+    @rule(key=_KEYS)
+    def invalidate(self, key: str) -> None:
+        self.cache.invalidate(key)
+        self.model.pop(key, None)
+
+    @rule()
+    def clear(self) -> None:
+        self.cache.clear()
+        self.model.clear()
+        self.hits = 0
+        self.misses = 0
+
+    @rule(ttl=st.integers(1, 6))
+    def change_ttl(self, ttl: int) -> None:
+        self.cache.ttl_seconds = float(ttl)
+        self.ttl = ttl
+
+    @invariant()
+    def size_and_counters_match_the_model(self) -> None:
+        info = self.cache.info()
+        assert info == (self.hits, self.misses, self.maxsize, len(self.model))
+        assert len(self.cache) == len(self.model)
+        if self.maxsize is not None:
+            assert len(self.cache) <= self.maxsize
+
+
+TestTTLCacheModel = TTLCacheMachine.TestCase
+TestTTLCacheModel.settings = settings(
+    max_examples=60,
+    stateful_step_count=30,
+    database=None,
+    derandomize=True,
+    deadline=None,
+)
