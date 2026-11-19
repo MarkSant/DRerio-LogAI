@@ -30,7 +30,6 @@ class TestProjectLifecycleManagerExtended:
             display_interval_frames=5,
             camera_index=0,
             project_type="Pre-recorded",
-            video_files=["video.mp4"],
         )
 
     def test_validate_project_parameters_invalid_aquariums_raises(self):
@@ -44,7 +43,6 @@ class TestProjectLifecycleManagerExtended:
                 display_interval_frames=1,
                 camera_index=0,
                 project_type="Live",
-                video_files=None,
             )
 
         with pytest.raises(ValueError, match="num_aquariums must be <= 100"):
@@ -57,7 +55,6 @@ class TestProjectLifecycleManagerExtended:
                 display_interval_frames=1,
                 camera_index=0,
                 project_type="Live",
-                video_files=None,
             )
 
     def test_validate_project_parameters_invalid_dimensions_raises(self):
@@ -71,7 +68,6 @@ class TestProjectLifecycleManagerExtended:
                 display_interval_frames=1,
                 camera_index=0,
                 project_type="Live",
-                video_files=None,
             )
 
         with pytest.raises(ValueError, match="aquarium_width_cm must be <= 500"):
@@ -84,7 +80,6 @@ class TestProjectLifecycleManagerExtended:
                 display_interval_frames=1,
                 camera_index=0,
                 project_type="Live",
-                video_files=None,
             )
 
     def test_validate_project_parameters_invalid_intervals_and_types(self):
@@ -98,7 +93,6 @@ class TestProjectLifecycleManagerExtended:
                 display_interval_frames=1,
                 camera_index=0,
                 project_type="Live",
-                video_files=None,
             )
 
         with pytest.raises(ValueError, match="project_type must be one of"):
@@ -111,7 +105,6 @@ class TestProjectLifecycleManagerExtended:
                 display_interval_frames=1,
                 camera_index=0,
                 project_type="CustomNonExistent",
-                video_files=None,
             )
 
     def test_save_project_data_no_path_raises(self):
@@ -255,8 +248,6 @@ class TestV8Migrations:
             "Pre-recorded",
             None,
             lambda: {"name": "default", "settings": {}},
-            lambda *_a, **_k: None,
-            lambda: None,
         )
 
         assert data["analysis_window"] is None
@@ -277,7 +268,6 @@ BASE_PARAMS: dict[str, Any] = {
     "display_interval_frames": 10,
     "camera_index": 0,
     "project_type": "live",
-    "video_files": None,
 }
 
 LEGACY_7_2 = Path(__file__).resolve().parents[2] / "fixtures" / "legacy" / "project_7_2_0"
@@ -320,9 +310,7 @@ class TestTypedErrors:
         blocker.write_text("")
 
         with pytest.raises(ProjectInvalidError):
-            ProjectLifecycleManager.create_new_project(
-                blocker / "proj", "Live", None, dict, lambda *a, **k: None, lambda: None
-            )
+            ProjectLifecycleManager.create_new_project(blocker / "proj", "Live", None, dict)
 
 
 class TestUpperBounds:
@@ -418,8 +406,6 @@ class TestBatchesAndWizardRegex:
             "Pre-recorded",
             None,
             dict,
-            lambda *a, **k: None,
-            lambda: None,
             _wizard_metadata={
                 "custom_regex_patterns": {
                     "group_pattern": "G(\\d+)",
@@ -445,8 +431,6 @@ class TestBatchesAndWizardRegex:
             "Live",
             None,
             dict,
-            lambda *a, **k: None,
-            lambda: None,
             _wizard_metadata={"custom_regex_patterns": patterns, "x": 1},
         )
 

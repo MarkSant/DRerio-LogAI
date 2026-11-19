@@ -493,7 +493,6 @@ class TestCopyZoneParquets:
         return ParquetIOManager().copy_zone_parquet_files(
             source,
             target,
-            project_data={},
             project_path=tmp_path / "proj",
             set_active_zone_video_fn=activated.append,
             scan_input_paths_fn=lambda paths: list(scan),

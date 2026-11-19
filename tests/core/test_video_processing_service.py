@@ -412,7 +412,6 @@ class _Rig:
             "metadata_context": None,
             "analysis_profile": None,
             "detector": _Detector(),
-            "recorder": object(),
         }
         kwargs.update(overrides)
         self.kwargs = kwargs
@@ -443,20 +442,21 @@ class TestProcessSingleVideoOrchestration:
         # Derived metadata (the day) reaches the results-path resolution.
         assert resolve["metadata_context"] == {"derived_for": path, "day": 2}
         _, args, kw = rig.call("track")
-        detector, recorder = rig.kwargs["detector"], rig.kwargs["recorder"]
-        assert args[:5] == (path, str(rig.results), "CECT_4", detector, recorder)
-        assert callable(args[5])
+        detector = rig.kwargs["detector"]
+        # The worker builds its own detector/recorder and opens the video itself;
+        # it never receives a calibration (the trajectory stays in raw pixels).
+        assert args[:3] == (path, str(rig.results), "CECT_4")
+        assert len(args) == 4
+        assert callable(args[3])
         assert kw == {
-            "calibration_data": None,
             "analysis_interval_frames": 4,
             "display_interval_frames": 2,
-            "video_context": rig.ctx,
         }
         analysis = rig.call("analysis")[1]
         assert analysis["arena_polygon_px"] == [[0, 0], [1, 0], [1, 1]]
         assert analysis["results_dir"] == str(rig.results)
         assert analysis["video_context"] is rig.ctx
-        assert analysis["progress_callback"] is args[5]
+        assert analysis["progress_callback"] is args[3]
         # Released once, and the detector cache cleared once.
         assert rig.ctx.released == 1
         assert cast(Any, detector).cleared == 1
@@ -486,7 +486,10 @@ class TestProcessSingleVideoOrchestration:
         rig.process(single_video_config=config)
 
         assert rig.call("resolve")[1]["metadata_context"] is None
-        assert rig.call("track")[2]["calibration_data"] is config
+        # The config shapes the analysis, never the tracking: no calibration
+        # reaches the worker, so the trajectory stays in raw video pixels.
+        assert "calibration_data" not in rig.call("track")[2]
+        assert rig.call("analysis")[1]["single_video_config"] is config
 
     @pytest.mark.parametrize("info", [{}, {"path": ""}, {"path": None}])
     def test_a_video_without_a_path_is_refused_before_any_work(self, tmp_path, monkeypatch, info):

@@ -142,7 +142,6 @@ class ProjectManager:
             project_path=self.project_path or "",
             name=name,
             zone_data=zone_data,
-            zone_data_to_dict_fn=self._zone_data_to_dict,
             save_arena=save_arena,
             save_rois=save_rois,
             save_location=save_location,
@@ -165,7 +164,6 @@ class ProjectManager:
             project_path=self.project_path,
             file_path=file_path,
             zone_data_from_dict_fn=self._zone_data_from_dict,
-            zone_data_to_dict_fn=self._zone_data_to_dict,
             name=name,
             persist_callback=persist_callback,
         )
@@ -186,10 +184,6 @@ class ProjectManager:
             location=location,
             file_path=file_path,
         )
-
-    def _zone_data_to_dict(self, zone_data: ZoneData | None) -> dict[str, Any]:
-        """Serialize ZoneData into a JSON-friendly dictionary. Delegates to ZoneManager."""
-        return ZoneManager.zone_data_to_dict(zone_data)
 
     def _zone_data_from_dict(self, data: dict | None) -> ZoneData:
         """Deserialize zone data stored in JSON back into ZoneData. Delegates to ZoneManager."""
@@ -376,7 +370,6 @@ class ProjectManager:
         return self.parquet_io_manager.copy_zone_parquet_files(
             source_video_path,
             target_video_path,
-            project_data=self.project_data,
             project_path=self.project_path,
             set_active_zone_video_fn=self.set_active_zone_video,
             persist=persist,
@@ -482,7 +475,8 @@ class ProjectManager:
         """Initialize a new project. Delegates to ProjectLifecycleManager.
 
         Accepts all keyword arguments defined by ``ProjectLifecycleManager.create_new_project``
-        (e.g. use_openvino, video_files, num_aquariums, etc.).
+        (e.g. use_openvino, num_aquariums, etc.), plus ``video_files``: the
+        initial batch, which this method adds itself before saving.
         """
         project_path = Path(project_path) if isinstance(project_path, str) else project_path
         self.project_path = project_path
@@ -493,9 +487,6 @@ class ProjectManager:
             project_type=project_type,
             settings_obj=self.settings,
             default_analysis_profile_fn=self.asset_manager._default_analysis_profile,
-            add_video_batch_fn=self.add_video_batch,
-            save_project_fn=self.save_project,
-            video_files=video_files,
             **kwargs,
         )
 
@@ -548,7 +539,6 @@ class ProjectManager:
     def _sync_multi_aquarium_flags(self) -> None:
         """Synchronize has_arena/has_rois flags for multi-aquarium videos (delegate)."""
         ZoneOrchestrationManager.sync_multi_aquarium_flags(
-            self.project_data,
             iter_project_videos_fn=self._iter_project_videos,
             get_multi_aquarium_zone_data_fn=self.get_multi_aquarium_zone_data,
         )

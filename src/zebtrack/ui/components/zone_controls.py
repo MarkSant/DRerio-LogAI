@@ -475,8 +475,8 @@ class ZoneControlsWidget(BaseWidget):
         self.aquarium_selector_frame = ttk.LabelFrame(
             parent, text=_("🐟 Active Aquarium"), padding=5
         )
-        # Initially hidden - shown only when 2 aquariums are detected
-        # self.aquarium_selector_frame.pack(fill="x", pady=5, padx=5)
+        # Initially hidden (never packed here): ``show_aquarium_selector`` packs
+        # it once 2 aquariums are detected.
 
         # Radio buttons for aquarium selection
         radio_container = ttk.Frame(self.aquarium_selector_frame)

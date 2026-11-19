@@ -324,7 +324,6 @@ class ParquetIOManager:
         source_video_path: Path | str,
         target_video_path: Path | str,
         *,
-        project_data: dict[str, Any],
         project_path: Path | str | None = None,
         set_active_zone_video_fn: Callable,
         scan_input_paths_fn: Callable,

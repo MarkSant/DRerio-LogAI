@@ -361,9 +361,12 @@ class SequentialProcessingCoordinator(BaseCoordinator):
             on_video_completed=lambda idx, total, exp_id, success: on_sequential_complete(
                 {"success": success}
             ),
-            on_error=lambda exc, msg: log.warning(
+            # ProcessingWorker calls on_error(exception, experiment_id): name the
+            # video, or the warning cannot say which one failed (#726).
+            on_error=lambda exc, exp_id: log.warning(
                 "processing_coordinator.sequential.aq_error",
                 aquarium=aq_id,
+                video=exp_id,
                 error=str(exc),
             ),
             on_completed=lambda success, msg, data: on_sequential_complete(

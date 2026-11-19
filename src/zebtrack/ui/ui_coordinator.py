@@ -243,12 +243,8 @@ class UICoordinator:
                     "ui_coordinator.zones_updated.canvas_updated", has_zones=zone_data is not None
                 )
 
-            # 2. Validate zones (if validation manager is available)
-            # Validation is handled during creation/editing or processing start.
-            # No separate validate_zones method exists or is needed here.
-            # if self.validation_manager and zone_data:
-            #     self._safe_ui_call(lambda: self.validation_manager.validate_zones())
-            #     log.debug("ui_coordinator.zones_updated.zones_validated")
+            # 2. Zones are not validated here: validation happens during
+            # creation/editing and at processing start.
 
             # 3. Refresh project views if needed
             video_selector_manager = self.video_selector_manager

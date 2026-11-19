@@ -53,8 +53,6 @@ _FORBID_REASON = (
 ALLOWED_UNREAD: dict[str, str] = {
     "live_analysis.auto_stop_on_limit": _FORBID_REASON,
     "live_analysis.show_countdown": _FORBID_REASON,
-    "detection_zones.max_aquarium_area_ratio": _FORBID_REASON
-    + "; AquariumDetector.detect_multiple_aquariums ignores its own max_area_ratio too",
     "ui_features.use_wizard_for_project_creation": _FORBID_REASON
     + "; the docs still present it as a switch",
     "performance.max_parallel_videos": _FORBID_REASON + "; CLAUDE.md and the FAQ document it",

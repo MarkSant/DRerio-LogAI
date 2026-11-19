@@ -116,7 +116,6 @@ src/zebtrack/core/conditions/artifact.py::variable::AnalysisWindowArtifact.schem
 src/zebtrack/core/conditions/evaluator.py::variable::WindowEvent.confirmed_frame
 src/zebtrack/core/video/processing_worker.py::variable::ProcessingContext.determine_intervals_func
 src/zebtrack/core/video/processing_worker.py::variable::ProcessingContext.retry_strategy
-src/zebtrack/settings.py::variable::DetectionZonesSettings.max_aquarium_area_ratio
 src/zebtrack/settings.py::variable::LiveAnalysisSettings.auto_stop_on_limit
 src/zebtrack/settings.py::variable::LiveAnalysisSettings.show_countdown
 src/zebtrack/settings.py::variable::PerformanceSettings.enable_parallel_analysis
@@ -170,10 +169,7 @@ src/zebtrack/utils/hardware_benchmark.py::variable::BenchmarkResult.scenario
 src/zebtrack/ui/components/project_views/report_generator_actions.py::variable::delete_unified_reports_dir.on_rm_error.exc_info
 
 [certain] 100% confidence and real (2026-11-19): ignored parameters and one unreachable 'return True'; not fixed by the guard PR, deleting is the maintainer's decision
-src/zebtrack/core/services/detector_service.py::variable::DetectorService.get_parameter_definitions.config_name
-src/zebtrack/core/state_manager.py::variable::StateManager._call_observer_with_timeout.timeout_seconds
 src/zebtrack/ui/components/roi_template_manager.py::unreachable_code::ROITemplateManager._validate_template_file.<unreachable after return>
-src/zebtrack/ui/wizard/models.py::variable::MultiAquariumData.build_combined_regex_pattern.separator
 
 [baseline] baseline of 2026-11-19, not reviewed one by one: candidate dead code at 60% confidence (write-only attributes, unused payload classes, methods no caller names). Deleting is the maintainer's decision (register A2-08)
 src/zebtrack/analysis/analysis_service.py::attribute::AnalysisService.metrics_cache

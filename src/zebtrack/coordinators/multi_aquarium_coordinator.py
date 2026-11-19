@@ -48,6 +48,30 @@ def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, defa
     return getattr(payload, key, default)
 
 
+#: ``detection_zones`` defaults, used when the injected settings lack a usable value.
+_DEFAULT_MIN_AQUARIUM_AREA_RATIO = 0.10
+_DEFAULT_MAX_AQUARIUM_AREA_RATIO = 0.98
+
+
+def _aquarium_area_bounds(settings_obj: Any) -> tuple[float, float]:
+    """``(min, max)`` area ratio of one aquarium, from ``settings.detection_zones``.
+
+    A missing section or a non-numeric value falls back to the field's default,
+    so a partial settings object (tests, an old snapshot) still detects.
+    """
+    zones = getattr(settings_obj, "detection_zones", None)
+
+    def _ratio(value: Any, default: float) -> float:
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            return default
+        return float(value)
+
+    return (
+        _ratio(getattr(zones, "min_aquarium_area_ratio", None), _DEFAULT_MIN_AQUARIUM_AREA_RATIO),
+        _ratio(getattr(zones, "max_aquarium_area_ratio", None), _DEFAULT_MAX_AQUARIUM_AREA_RATIO),
+    )
+
+
 class MultiAquariumCoordinator(BaseCoordinator):
     """Coordinator for multi-aquarium detection, zones, and processing modes.
 
@@ -271,11 +295,17 @@ class MultiAquariumCoordinator(BaseCoordinator):
                 # The arena policy applies to TWO aquariums exactly as it does to
                 # one. Until these three arguments were forwarded, a two-aquarium
                 # project ran at the detector's hardcoded 0.05 and could never
-                # preserve a real outline, however it was configured.
+                # preserve a real outline, however it was configured. The area
+                # bounds come from ``detection_zones`` for the same reason: the
+                # detector used to ignore ``max_area_ratio`` and nothing read
+                # ``max_aquarium_area_ratio`` (#726, A7-01).
+                min_area_ratio, max_area_ratio = _aquarium_area_bounds(self.settings)
                 polygons = detector.detect_multiple_aquariums(
                     video_path=video_path,
                     expected_count=count or 2,
                     stabilization_frames=stabilization_frames,
+                    min_area_ratio=min_area_ratio,
+                    max_area_ratio=max_area_ratio,
                     confidence_threshold=getattr(
                         getattr(self.settings, "yolo_model", None),
                         "confidence_threshold",

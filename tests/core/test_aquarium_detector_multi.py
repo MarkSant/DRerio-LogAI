@@ -339,6 +339,67 @@ class TestMultiAquariumArenaShape:
         assert len(polygons[1]) == 4, "the broken one degrades to its box"
 
 
+def _boxes_result(*boxes_xyxy):
+    """A YOLO result whose aquarium detections are exactly ``boxes_xyxy``."""
+    boxes = []
+    for box_xyxy in boxes_xyxy:
+        box = MagicMock()
+        box.conf = 0.9
+        box.xyxy = [np.array(box_xyxy, dtype=np.float32)]
+        box.cls = 0
+        boxes.append(box)
+    result = MagicMock()
+    result.boxes = boxes
+    result.masks = None
+    return result
+
+
+class TestMultiAquariumAreaBounds:
+    """``max_area_ratio`` is honoured (#726): it used to be documented and ignored.
+
+    ``LEFT_BOX``/``RIGHT_BOX`` each cover ~17.4% of the 1280x720 frame.
+    """
+
+    _CONTOUR = "zebtrack.core.detection.aquarium_detector.ContourBasedMultiAquariumDetector"
+
+    def _detect(self, result, tmp_path, **kwargs):
+        detector = _yolo_detector_over(result, mode="det", tmp_path=tmp_path)
+        with (
+            patch(
+                "zebtrack.core.detection.aquarium_detector.VideoFileSource",
+                return_value=_fake_source(),
+            ),
+            patch(self._CONTOUR) as contour,
+        ):
+            contour.return_value.detect_multiple_aquariums.return_value = ["contour-fallback"]
+            return detector.detect_multiple_aquariums(
+                "video.mp4", expected_count=2, stabilization_frames=2, **kwargs
+            )
+
+    def test_a_ceiling_below_the_tanks_rejects_them(self, tmp_path):
+        polygons = self._detect(_multi_seg_result(with_masks=False), tmp_path, max_area_ratio=0.15)
+
+        assert polygons == ["contour-fallback"], "both 17% boxes exceed a 15% ceiling"
+
+    def test_a_ceiling_above_the_tanks_keeps_them(self, tmp_path):
+        polygons = self._detect(_multi_seg_result(with_masks=False), tmp_path, max_area_ratio=0.18)
+
+        assert len(polygons) == 2
+        assert all(len(p) == 4 for p in polygons)
+
+    def test_the_two_tank_cap_survives_a_larger_ceiling(self, tmp_path):
+        """0.98 is sized for ONE tank; each of two can never exceed half the frame."""
+        big = (0, 0, 960, 576)  # 60% of the frame
+        polygons = self._detect(_boxes_result(big, big), tmp_path, max_area_ratio=0.98)
+
+        assert polygons == ["contour-fallback"]
+
+    def test_min_area_ratio_still_applies(self, tmp_path):
+        polygons = self._detect(_multi_seg_result(with_masks=False), tmp_path, min_area_ratio=0.2)
+
+        assert polygons == ["contour-fallback"]
+
+
 class TestPolygonOutput:
     """Tests for polygon output format validation."""
 

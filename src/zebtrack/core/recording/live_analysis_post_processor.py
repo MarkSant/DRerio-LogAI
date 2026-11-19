@@ -507,7 +507,6 @@ class LiveAnalysisPostProcessorMixin:
             },
             base_name=self._experiment_id,
             aquarium_configs=multi_zone_data.aquariums,
-            settings_obj=self.settings,
         )
 
         if not report_paths:
