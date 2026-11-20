@@ -88,6 +88,9 @@ class UnavailableReason(StrEnum):
     LAYOUT_UNRESOLVED = "layout_unresolved"
     #: The protocol needs one animal and the trajectory has more.
     MULTI_ANIMAL = "multi_animal"
+    #: The video is analysed per aquarium (multi-aquarium path); every protocol
+    #: so far assumes one arena per video. Decided by the analysis hook.
+    MULTI_AQUARIUM = "multi_aquarium"
     #: Nothing left to measure (empty trajectory or empty window).
     NO_TRAJECTORY = "no_trajectory"
     #: ``compute_metrics`` raised (status ``error``).

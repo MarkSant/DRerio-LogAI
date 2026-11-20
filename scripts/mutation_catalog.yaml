@@ -6659,13 +6659,25 @@ _load_registry()"
         replace: "inputs=protocol_inputs_for(None, profile.protocol),"
       - id: protocol-warnings-copied
         description: "avisos do protocolo vao para uma copia e nao chegam ao documento"
-        find: "warnings=validation_warnings,\n        )\n        report[PROTOCOL_METRICS_KEY]"
-        replace: "warnings=list(validation_warnings),\n        )\n        report[PROTOCOL_METRICS_KEY]"
+        find: "warnings=validation_warnings,\n            )\n            result = compute_protocol_metrics(context)"
+        replace: "warnings=list(validation_warnings),\n            )\n            result = compute_protocol_metrics(context)"
       - id: no-roi-report-lacks-key
         description: "relatorio sem ROIs perde a chave protocol_metrics"
         find: "self._attach_protocol_metrics(report, r_analyzer=None, **protocol_args)"
         replace: "None"
+      - id: multi-aquarium-dispatches
+        description: "protocolo nao generico roda num aquario de video multi-aquario"
+        find: "if aquarium_id is not None:"
+        replace: "if False:"
+      - id: context-failure-raises
+        description: "falha ao montar o contexto do protocolo derruba o relatorio inteiro"
+        find: "# its protocol metrics are missing.\n        except Exception as exc:"
+        replace: "# its protocol metrics are missing.\n        except KeyError as exc:"
+      - id: dto-drops-aquarium
+        description: "o DTO deixa de repassar o aquario e o multi-aquario chega ao protocolo"
+        find: "protocol_inputs=protocol_inputs,\n            aquarium_id=aquarium_id,\n        )"
+        replace: "protocol_inputs=protocol_inputs,\n            aquarium_id=None,\n        )"
       - id: dto-drops-inputs
         description: "o DTO deixa de repassar as entradas por video"
-        find: "window=window,\n            protocol_inputs=protocol_inputs,\n        )"
-        replace: "window=window,\n            protocol_inputs=None,\n        )"
+        find: "protocol_inputs=protocol_inputs,\n            aquarium_id=aquarium_id,\n        )"
+        replace: "protocol_inputs=None,\n            aquarium_id=aquarium_id,\n        )"

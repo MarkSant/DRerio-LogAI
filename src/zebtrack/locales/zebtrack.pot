@@ -13560,3 +13560,10 @@ msgstr ""
 #, python-brace-format
 msgid "Invalid Barnes value {name}={value} for this video; it is ignored."
 msgstr ""
+
+#: src/zebtrack/analysis/analysis_service.py:718
+#, python-brace-format
+msgid ""
+"The {protocol} protocol analyses one arena per video; its metrics are not "
+"computed for aquarium {aquarium} of a multi-aquarium video."
+msgstr ""

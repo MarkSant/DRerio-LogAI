@@ -31,6 +31,7 @@ def test_the_persisted_tokens_are_frozen():
         "no_rois",
         "layout_unresolved",
         "multi_animal",
+        "multi_aquarium",
         "no_trajectory",
         "exception",
     ]

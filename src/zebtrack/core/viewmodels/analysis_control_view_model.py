@@ -490,6 +490,11 @@ class AnalysisControlViewModel:
                     smoothing_polyorder=params["smoothing_polyorder"],
                     sharp_turn_threshold=resolve_sharp_turn_threshold(params, self.settings),
                     video_path=video_path,
+                    # The project's behavioural config (#695): without it the
+                    # analysis falls back to the settings defaults, which carry
+                    # no experiment profile, and a Barnes project's protocol
+                    # metrics would silently read {"status": "none"} (ADR-014).
+                    behavioral_config=params.get("behavioral_config"),
                     mask_sidecar_path=resolve_mask_sidecar(parquet_path),
                     window=window,
                     protocol_inputs=protocol_inputs_of_entry(

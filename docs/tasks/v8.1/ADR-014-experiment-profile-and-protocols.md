@@ -50,7 +50,7 @@ a rat; a Barnes maze always holds a rodent.
    (a Barnes trial type, a manual strategy correction), read and written only through
    `protocol_inputs_of_entry` / `set_protocol_input`. Every single-arena analysis
    entry point passes it as `run_full_analysis(protocol_inputs=...)`; a live session
-   carries it in its analysis params under the same key.
+   reads it from its registered video entry, looked up by path.
 
 ## Consequences
 
@@ -60,8 +60,13 @@ a rat; a Barnes maze always holds a rodent.
 - New report keys, tidy columns and sheet names are English (ADR-012). Barnes ROI
   names (`toca`, `quadrante_alvo`, `buraco_±NN`, `buraco_oposto`) stay Portuguese:
   they are lab-facing data, and `toca` was already the preset's contract.
-- Multi-aquarium analysis paths do not pass `protocol_inputs`: no current protocol
-  supports more than one arena per video.
+- Multi-aquarium analysis paths do not pass `protocol_inputs`; they pass `aquarium_id`,
+  and the hook reports any non-generic protocol as `unavailable` / `multi_aquarium`
+  without calling it: no current protocol supports more than one arena per video.
+- The whole non-generic branch of the hook (context construction included) is guarded:
+  a failure becomes status `error` plus a warning, never an exception in the report.
+- A live session reads its per-video inputs from its registered video entry (by path);
+  an unregistered session uses the protocol's project-level defaults.
 - The interface vocabulary per animal model is a separate front
   (`ui/terminology.py`); persisted `aquarium_*` keys never change.
 

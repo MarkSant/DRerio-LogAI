@@ -55,11 +55,25 @@ analysers already restricted to the window.
 | `none` | generic project | none: the dict is exactly `{"status": "none"}` |
 | `ok` | computed | `protocol`, `version`, `reason=None`, protocol keys |
 | `unavailable` | asked for, cannot compute | `protocol`, `version` (may be `None`), `reason` |
-| `error` | `compute_metrics` raised or returned garbage | `protocol`, `version=None`, `reason="exception"`, `error` |
+| `error` | building the context or `compute_metrics` raised, or the result was garbage | `protocol`, `version=None`, `reason="exception"`, `error` |
 
 `reason` tokens (`UnavailableReason`): `unknown_protocol`, `unregistered`, `no_rois`,
-`layout_unresolved`, `multi_animal`, `no_trajectory`, `exception`. Build them with
-`unavailable_metrics(protocol, reason, version=..., status=..., error=...)`.
+`layout_unresolved`, `multi_animal`, `multi_aquarium`, `no_trajectory`, `exception`. Build them
+with `unavailable_metrics(protocol, reason, version=..., status=..., error=...)`.
+
+The hook decides two cases before any protocol code runs, so no front can get them wrong:
+
+- **Multi-aquarium.** The multi-aquarium paths pass `aquarium_id` (and never `protocol_inputs`):
+  `ReportGenerationCoordinator._process_single_aquarium_in_multi` and
+  `_process_one_aquarium_summary`, and `AnalysisService.run_multi_aquarium_analysis` (batch and
+  live multi-aquarium). With `aquarium_id` set, a non-generic profile gets
+  `{"status": "unavailable", "protocol": ..., "version": None, "reason": "multi_aquarium"}`
+  plus a warning naming the aquarium (1-based); the spec is never called. A generic profile still
+  gets `{"status": "none"}`. Every protocol so far assumes one arena per video.
+- **Guarded branch.** Everything after the generic short-circuit (building the
+  `ProtocolContext` included) runs inside one `try`: any exception becomes status `error`,
+  reason `exception`, the message in `error`, and a translated warning. A protocol can never
+  raise into a report whose generic metrics are complete.
 
 ### 2.2 `ProtocolSpec`
 
@@ -114,10 +128,15 @@ the unified report). Never mix in `ZoneData` coordinates.
   single-arena summary (`_process_standard_summary_video`), the pre-recorded pipeline
   (`AnalysisPipelineRunnerMixin._video_protocol_inputs`), "Generate summaries"
   (`AnalysisControlViewModel`) and the live post-analysis.
-- **Live:** a session has no video entry; `LiveAnalysisPostProcessorMixin` reads
-  `protocol_inputs_of_entry(self._analysis_params)`, i.e. the session's analysis params carry
-  `{"protocol_inputs": {"barnes": {...}}}` under the same key.
-- Multi-aquarium paths pass nothing: no protocol supports more than one arena per video.
+- **Live:** `LiveAnalysisPostProcessorMixin._live_protocol_inputs` looks the session video up
+  with `find_video_entry(path=...)` (path pass only, never the stem fallback) and reads that
+  entry's inputs. A session that is not registered (ad-hoc live, or a project that registers the
+  video after this analysis) has none: every protocol uses its project-level defaults (Barnes:
+  `BarnesParams.default_trial_type`), with a structlog warning
+  `live_post_analysis.protocol_inputs.no_entry` only when the profile is non-generic. The
+  session's analysis params are NOT a source of protocol inputs.
+- **Multi-aquarium paths** carry no per-video protocol inputs; they pass `aquarium_id` instead
+  and the hook reports any non-generic protocol as `multi_aquarium` (§2.1).
 
 ## 3. Barnes conventions (done in stage 0)
 
@@ -305,7 +324,8 @@ registration of `BARNES_SPEC` in `registry._builtin_specs()`.
   `toca` or any decoy name of `expected_roi_names(n_holes)`, warning names the missing ones) →
   `layout_unresolved`; `count_subjects(trajectory) > 1` → `multi_animal`; nothing to measure
   (empty trajectory, or empty window) → `no_trajectory`. `quadrante_alvo` is optional: without it
-  the quadrant metrics are `None` with a warning.
+  the quadrant metrics are `None` with a warning. Multi-aquarium runs never reach this code: the
+  hook answers `multi_aquarium` itself (§2.1).
 - **Layout rebuild:** hole centres = ROI polygon centroids; ring ellipse = `cv2.fitEllipse` of the
   hole centres; centre disk = the ring ellipse scaled by `center_radius_ratio` about its centre.
 - **t0** (`t_start_s`, absolute on the `timestamp` clock): `window.start.t_s` when the window
@@ -390,7 +410,13 @@ Keys in order: `contract.METRICS_KEYS` (30 keys); visit entries: `contract.VISIT
 }
 ```
 
-(JSON shows `visits_by_distance` keys as strings; in Python they are `int`.)
+**`visits_by_distance` key forms.** In memory (the report dict the hook returns, which every
+reporter receives) the keys are `int` (`0` … `n/2`). After a JSON round-trip (any report, artefact
+or manifest serialised with `json`) they are `str` (`"0"` … `"10"`), as shown above. A consumer
+resolving `tidy_column_source(column)` (`visits_by_distance.7`) MUST accept both: look the last
+segment up as `int(segment)` first, then as the string `segment`, and treat a missing key as
+`0` visits only when `status == "ok"` (otherwise the value is empty). No other metrics key is
+int-keyed.
 
 ## 8. Front `barnes-reports` — outputs
 
@@ -420,8 +446,9 @@ Keys in order: `contract.METRICS_KEYS` (30 keys); visit entries: `contract.VISIT
   when it is not `None` (the spec is registered by `barnes-metrics`; handle `None`), and the
   Calibration step shows one "Table diameter (cm)" field that writes `aquarium_width_cm`,
   `aquarium_height_cm` and `protocol_params.barnes.table_diameter_cm` with the same value.
-- Live ad-hoc dialog: for Barnes, a trial-type selector whose value travels in the session's
-  analysis params as `{"protocol_inputs": {"barnes": {"trial_type": ...}}}`.
+- Live ad-hoc dialog: there is no video entry, so a Barnes trial type is set as the session's
+  default, `protocol_params.barnes.default_trial_type`, inside the `behavioral_analysis` dict the
+  dialog already returns (§2.4: the session params are not a source of protocol inputs).
 - Built-in template `resources/wizard_templates/barnes_maze.json`.
 - Per-animal defaults (speed ceiling, freezing, thigmotaxis) in `analysis/behavioral_policy.py`;
   `zebrafish` keeps today's numbers.
@@ -448,10 +475,12 @@ Keys in order: `contract.METRICS_KEYS` (30 keys); visit entries: `contract.VISIT
   shows as a survivor): update that block's `find`/`replace` to the new text, never delete it.
 - **Dead-code guard.** `tests/quality/test_no_dead_code.py` runs vulture over `src/` (tests do not
   count as callers). The stage-0 contract published ahead of its callers sits in the
-  `[contract-ahead]` section of `tests/quality/vulture_whitelist.txt`; when your front starts
-  calling one of those names the guard reports the entry as stale: delete it in your branch. A
-  new definition of yours that only tests use fails the guard: call it from production code or
-  delete it; never add an entry without asking the hub.
+  `[contract-ahead]` section of `tests/quality/vulture_whitelist.txt` (temporary exception
+  accepted by the user on 2026-11-19). Each stage-1 front deletes its own `[contract-ahead]`
+  lines **in the same commit that first calls them from production code** (the guard reports
+  them as stale from that commit on). The section must be **empty before the final PR to
+  `main`**; the hub checks it at stage 4. A new definition of yours that only tests use fails the
+  guard: call it from production code or delete it; never add an entry without asking the hub.
 - **Hub only:** `CHANGELOG.md`, `docs/testing/TEST_MAP.md`, `docs/testing/COVERAGE_BASELINE.md`,
   `.copilot-impact-map.yaml`, `docs/reference/system_integration.md`, `docs/wiki/`,
   `docs/tasks/active/ROLLING_TASK_LOG.md`, this file. List what you need there in your report.

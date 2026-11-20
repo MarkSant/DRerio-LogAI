@@ -16298,6 +16298,16 @@ msgstr ""
 "Valor do Barnes inválido {name}={value} para este vídeo; ele é ignorado."
 
 
+#: src/zebtrack/analysis/analysis_service.py:718
+#, python-brace-format
+msgid ""
+"The {protocol} protocol analyses one arena per video; its metrics are not "
+"computed for aquarium {aquarium} of a multi-aquarium video."
+msgstr ""
+"O protocolo {protocol} analisa uma arena por vídeo; suas métricas não são "
+"calculadas para o aquário {aquarium} de um vídeo com vários aquários."
+
+
 #~ msgid "Detector parameters updated."
 #~ msgstr "Parâmetros do detector atualizados."
 

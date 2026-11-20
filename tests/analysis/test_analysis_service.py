@@ -1055,3 +1055,128 @@ class TestProtocolMetricsHook:
 
         assert seen == [{"trial_type": "training"}]
         assert result.report["protocol_metrics"]["status"] == "ok"
+
+
+class _UnreadableCoordinate(float):
+    """A coordinate the generic analysis does arithmetic with but ``float()`` refuses."""
+
+    def __float__(self) -> float:
+        raise ValueError("unreadable arena vertex")
+
+
+class TestProtocolHookGuards:
+    """Hub review of stage 0: the non-generic branch never raises, multi-aquarium is refused."""
+
+    @staticmethod
+    def _install(monkeypatch, compute):
+        from zebtrack.analysis.protocols import registry
+        from zebtrack.analysis.protocols.base import ProtocolSpec
+        from zebtrack.core.services.experiment_profile import ProtocolId
+
+        spec = ProtocolSpec(
+            protocol=ProtocolId.BARNES, display_name=lambda: "Barnes", compute_metrics=compute
+        )
+        monkeypatch.setattr(registry, "_registry", registry._build_registry((spec,)))
+
+    @staticmethod
+    def _must_not_run(context):
+        raise AssertionError("the protocol was dispatched")
+
+    def test_a_malformed_arena_degrades_to_an_error_instead_of_raising(
+        self, settings_obj: Settings, monkeypatch
+    ):
+        self._install(monkeypatch, self._must_not_run)
+        arena = [(0.0, 0.0), (_UnreadableCoordinate(400.0), 0.0), (400.0, 400.0), (0.0, 400.0)]
+        service = AnalysisService(settings_obj=settings_obj)
+
+        report, *_rest = service.run_full_analysis(
+            trajectory_df=_walk(),
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=400,
+            arena_polygon_px=arena,
+            rois=[],
+            fps=10.0,
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=1.0,
+            behavioral_config={"protocol": "barnes"},
+        )
+
+        assert report["protocol_metrics"] == {
+            "status": "error",
+            "protocol": "barnes",
+            "version": None,
+            "reason": "exception",
+            "error": "unreadable arena vertex",
+        }
+        assert any("unreadable arena vertex" in w for w in report["validacao"]["avisos"])
+        # The generic metrics are intact.
+        assert report["comportamento_geral"]["distancia_total_cm"] > 0
+
+    @pytest.mark.parametrize("with_rois", [False, True])
+    def test_a_multi_aquarium_run_never_reaches_the_protocol(
+        self, settings_obj: Settings, monkeypatch, with_rois
+    ):
+        self._install(monkeypatch, self._must_not_run)
+
+        report = _run(
+            settings_obj,
+            _walk(),
+            fps=10.0,
+            rois=_rois() if with_rois else None,
+            behavioral_config={"protocol": "barnes"},
+            aquarium_id=1,
+        )
+
+        assert report["protocol_metrics"] == {
+            "status": "unavailable",
+            "protocol": "barnes",
+            "version": None,
+            "reason": "multi_aquarium",
+        }
+        (warning,) = [w for w in report["validacao"]["avisos"] if "aquarium 2" in w]
+        assert "barnes" in warning
+
+    def test_a_generic_multi_aquarium_run_is_status_none(self, settings_obj: Settings):
+        report = _run(settings_obj, _walk(), fps=10.0, aquarium_id=0)
+
+        assert report["protocol_metrics"] == {"status": "none"}
+        assert report["validacao"]["avisos"] == []
+
+    def test_the_dto_forwards_the_aquarium(self, settings_obj: Settings, monkeypatch):
+        self._install(monkeypatch, self._must_not_run)
+        service = AnalysisService(settings_obj=settings_obj)
+
+        result = service.run_full_analysis_as_dto(
+            trajectory_df=_walk(),
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=400,
+            arena_polygon_px=_ARENA,
+            rois=[],
+            fps=10.0,
+            metadata={"experiment_id": "x"},
+            roi_colors={},
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=1.0,
+            behavioral_config={"protocol": "barnes"},
+            aquarium_id=0,
+        )
+
+        assert result.report["protocol_metrics"]["reason"] == "multi_aquarium"
+
+    def test_run_multi_aquarium_analysis_tags_every_aquarium(self, settings_obj: Settings):
+        from unittest.mock import MagicMock, patch
+
+        service = AnalysisService(settings_obj=settings_obj)
+        aquarium = MagicMock(
+            polygon=_ARENA, roi_polygons=[], roi_names=[], roi_colors=[], group="G", day="1"
+        )
+        aquarium.subject_id = "S"
+
+        with patch.object(service, "run_full_analysis_as_dto") as run:
+            service.run_multi_aquarium_analysis(
+                {0: (_walk(), aquarium), 1: (_walk(), aquarium)}, fps=10.0
+            )
+
+        assert sorted(c.kwargs["aquarium_id"] for c in run.call_args_list) == [0, 1]

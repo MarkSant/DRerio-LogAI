@@ -458,6 +458,9 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             frame_crop_box=frame_crop_for_viz,
             behavioral_config=params.get("behavioral_config"),
             window=window,
+            # Multi-aquarium: no per-video protocol inputs; the hook reports a
+            # non-generic protocol as unavailable (ADR-014).
+            aquarium_id=aq_id,
         )
 
         report_base = self._build_aquarium_report_base(aq_metadata, aq_id)
@@ -849,6 +852,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             behavioral_config=behavioral_config,
             settings_obj=settings,
             window=window,
+            aquarium_id=aq_id,
         )
 
         os.makedirs(aq_results_dir, exist_ok=True)

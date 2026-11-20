@@ -1140,3 +1140,54 @@ class TestProtocolInputsPlumbing:
         assert status == "completed"
         inputs = context.call_args.kwargs["protocol_inputs"]
         assert {name: dict(block) for name, block in inputs.items()} == _BARNES_INPUTS
+
+
+class TestMultiAquariumCarriesItsAquarium:
+    """ADR-014: multi-aquarium paths pass ``aquarium_id`` (and no per-video inputs)."""
+
+    def test_multi_aquarium_report_tags_the_aquarium(self, coordinator):
+        coordinator._read_trajectory = MagicMock(return_value=_ten_fps_trajectory())
+        coordinator._build_aquarium_report_base = MagicMock(return_value="base")
+        coordinator._export_individual_outputs = MagicMock()
+        coordinator._prepare_background_image = MagicMock(return_value=None)
+        coordinator.analysis_service = MagicMock()
+        out_info = {"results_dir": "dir", "parquet_files": {"trajectory": "traj.parquet"}}
+
+        with patch("os.path.exists", return_value=True):
+            coordinator._process_single_aquarium_in_multi(
+                "path", "exp_id", {}, 1, out_info, None, {}, 30.0, 100, 100, {}
+            )
+
+        kwargs = coordinator.analysis_service.run_full_analysis_as_dto.call_args.kwargs
+        assert kwargs["aquarium_id"] == 1
+        assert "protocol_inputs" not in kwargs
+
+    def test_multi_aquarium_summary_tags_the_aquarium(self, coordinator, tmp_path):
+        traj_p = tmp_path / "traj.parquet"
+        traj_p.write_text("data")
+        aquarium = MagicMock(id=0, polygon=[], roi_polygons=[], roi_names=[], roi_colors=[])
+        coordinator.project_manager.project_data = {"calibration": {}}
+        coordinator._read_trajectory = MagicMock(return_value=_ten_fps_trajectory())
+        coordinator._prepare_summary_geometry = MagicMock(
+            return_value=(10.0, 10.0, [], 100, [], {}, None)
+        )
+        out_info = {"results_dir": str(tmp_path), "parquet_files": {"trajectory": str(traj_p)}}
+        entry: dict[str, Any] = {"multi_aquarium_outputs": {"0": {"parquet_files": {}}}}
+
+        with (
+            patch("zebtrack.analysis.reporters.ReporterContext") as context,
+            patch("zebtrack.analysis.reporters.ParquetSummaryReporter"),
+        ):
+            coordinator._process_one_aquarium_summary(
+                entry,
+                "exp1",
+                "v.mp4",
+                0,
+                out_info,
+                MagicMock(aquariums=[aquarium]),
+                coordinator.settings,
+                [],
+            )
+
+        assert context.call_args.kwargs["aquarium_id"] == 0
+        assert "protocol_inputs" not in context.call_args.kwargs
