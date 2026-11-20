@@ -11,6 +11,7 @@ from zebtrack.analysis.analysis_service import (
     resolve_sharp_turn_threshold,
 )
 from zebtrack.analysis.analysis_window_service import resolve_analysis_window
+from zebtrack.analysis.protocols import protocol_inputs_of_entry
 from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -491,6 +492,9 @@ class AnalysisControlViewModel:
                     video_path=video_path,
                     mask_sidecar_path=resolve_mask_sidecar(parquet_path),
                     window=window,
+                    protocol_inputs=protocol_inputs_of_entry(
+                        entry if isinstance(entry, dict) else None
+                    ),
                 )
 
                 # Generate Reports

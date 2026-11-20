@@ -2192,16 +2192,18 @@ modules:
           smoothing_polyorder=smoothing_polyorder,
                       window=window,
                       behavioral_config=behavioral_config,
+                      protocol_inputs=protocol_inputs,
                   )
 
-              def _resolve_analysis_window(
+              def _video_protocol_inputs(
         replace: |-
           smoothing_polyorder=smoothing_polyorder,
                       window=None,
                       behavioral_config=behavioral_config,
+                      protocol_inputs=protocol_inputs,
                   )
 
-              def _resolve_analysis_window(
+              def _video_protocol_inputs(
 
   live_post_analysis_window:
     source: src/zebtrack/core/recording/live_analysis_post_processor.py
@@ -6492,3 +6494,178 @@ _load_registry()"
         description: "#727: zonas ilegiveis derrubam a abertura do dialogo do bloco"
         find: "self._project_has_polygon = bool(zone_data and getattr(zone_data, \"polygon\", None))\n        except Exception as exc:"
         replace: "self._project_has_polygon = bool(zone_data and getattr(zone_data, \"polygon\", None))\n        except KeyError as exc:"
+
+  # --- Barnes v8.1 stage 0 (ADR-014): experiment profile, protocol layer, Barnes contract ---
+  experiment_profile:
+    source: src/zebtrack/core/services/experiment_profile.py
+    tests:
+      - tests/core/services/test_experiment_profile.py
+    mutations:
+      - id: unknown-protocol-passes-as-generic
+        description: "protocolo desconhecido passa a ser tratado como generico, sem aviso no relatorio"
+        find: "return self.protocol is ProtocolId.GENERIC and self.declared_protocol is None"
+        replace: "return self.protocol is ProtocolId.GENERIC"
+      - id: none-value-counts-as-declared
+        description: "chave com valor None deixa de cair para o projeto"
+        find: "if key in source and source[key] is not None:"
+        replace: "if key in source:"
+      - id: legacy-block-ignored
+        description: "bloco legado behavioral_analysis deixa de ser lido"
+        find: "if _PROJECT_BLOCK_KEY in project_data:"
+        replace: "if True:"
+      - id: unknown-model-becomes-zebrafish
+        description: "modelo animal desconhecido vira zebrafish em vez de other"
+        find: "animal_model = AnimalModel.OTHER"
+        replace: "animal_model = AnimalModel.ZEBRAFISH"
+      - id: forced-model-not-applied
+        description: "Barnes deixa de forcar o modelo roedor"
+        find: "if forced is not None and animal_model is not forced:"
+        replace: "if False:"
+      - id: forced-model-always-warns
+        description: "correcao do modelo avisa mesmo quando nada foi declarado"
+        find: "if model_found:\n            logger.warning("
+        replace: "if True:\n            logger.warning("
+      - id: own-params-ignored
+        description: "parametros do proprio protocolo deixam de ser lidos"
+        find: "if isinstance(own, Mapping):"
+        replace: "if False:"
+
+  protocols_base:
+    source: src/zebtrack/analysis/protocols/base.py
+    tests:
+      - tests/analysis/protocols/test_protocol_base.py
+    mutations:
+      - id: generic-status-not-none
+        description: "relatorio generico deixa de ser exatamente status none"
+        find: 'return {"status": ProtocolStatus.NONE.value}'
+        replace: 'return {"status": ProtocolStatus.OK.value}'
+      - id: error-message-dropped
+        description: "mensagem de erro do protocolo some do relatorio"
+        find: "if error is not None:"
+        replace: "if False:"
+      - id: inputs-for-reads-wrong-block
+        description: "entradas por video de outro protocolo chegam ao protocolo errado"
+        find: "block = protocol_inputs.get(protocol.value)"
+        replace: 'block = protocol_inputs.get("generic")'
+      - id: set-input-wipes-other-protocols
+        description: "gravar uma entrada apaga as entradas dos outros protocolos"
+        find: "if not isinstance(blocks, MutableMapping):\n        blocks = {}"
+        replace: "if True:\n        blocks = {}"
+      - id: clear-keeps-empty-block
+        description: "limpar a ultima entrada deixa um bloco vazio no projeto"
+        find: "if not block:"
+        replace: "if False:"
+
+  protocols_registry:
+    source: src/zebtrack/analysis/protocols/registry.py
+    tests:
+      - tests/analysis/protocols/test_protocol_registry.py
+    mutations:
+      - id: generic-dispatches
+        description: "projeto generico passa a despachar para um protocolo"
+        find: "if profile.is_generic:"
+        replace: "if False:"
+      - id: unknown-reported-as-unregistered
+        description: "protocolo desconhecido e relatado como nao registrado"
+        find: "if profile.declared_protocol is not None:"
+        replace: "if False:"
+      - id: malformed-result-accepted
+        description: "resultado sem status/protocol/version entra no relatorio"
+        find: "if not isinstance(result, dict) or any(key not in result for key in _REQUIRED_RESULT_KEYS):"
+        replace: "if not isinstance(result, dict):"
+      - id: duplicate-registration-allowed
+        description: "protocolo registrado duas vezes deixa de ser recusado"
+        find: "if spec.protocol in registry:"
+        replace: "if False:"
+      - id: registry-rebuilt-every-call
+        description: "registro reconstruido a cada consulta, ignorando o instalado"
+        find: "if _registry is None:"
+        replace: "if True:"
+
+  barnes_contract:
+    source: src/zebtrack/analysis/protocols/barnes/contract.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_contract.py
+    mutations:
+      - id: opposite-hole-negative
+        description: "buraco oposto passa a ter deslocamento negativo"
+        find: "if delta > half:"
+        replace: "if delta >= half:"
+      - id: negative-opposite-name-accepted
+        description: "deslocamento -n/2 ganha o nome do oposto"
+        find: "if offset < 0:"
+        replace: "if False:"
+      - id: quadrant-after-target
+        description: "quadrante deixa de vir antes dos buracos (stable_roi passa a ser dele)"
+        find: "names = [QUADRANT_ROI, TARGET_ROI]"
+        replace: "names = [TARGET_ROI, QUADRANT_ROI]"
+      - id: zero-offset-hole-name-accepted
+        description: "buraco_+00 passa a ser aceito como ROI de Barnes"
+        find: "if offset == 0 or abs(offset) > half"
+        replace: "if abs(offset) > half"
+      - id: probe-score-uncapped
+        description: "score do probe perde o teto do protocolo"
+        find: "return min(abs(offset) + 1, cap)"
+        replace: "return abs(offset) + 1"
+      - id: quadrant-fit-unchecked
+        description: "quadrante maior que a mesa deixa de ser recusado"
+        find: "if 2 * self.quadrant_half_holes + 1 > self.n_holes:"
+        replace: "if False:"
+      - id: cross-field-failure-not-dropped
+        description: "falha entre campos deixa de descartar e avisar os campos culpados"
+        find: 'bad = {"quadrant_half_holes", "n_holes"} & set(data)'
+        replace: "bad = set()"
+      - id: default-trial-is-probe
+        description: "ensaio sem declaracao vira probe"
+        find: "default_trial_type: TrialType = TrialType.TRAINING"
+        replace: "default_trial_type: TrialType = TrialType.PROBE"
+      - id: bad-trial-type-not-dropped
+        description: "tipo de ensaio invalido derruba a leitura das entradas do video"
+        find: 'for name in ("trial_type", "strategy_override"):'
+        replace: 'for name in ("strategy_override",):'
+      - id: layout-offsets-unchecked
+        description: "layout com deslocamentos incoerentes com a toca e aceito"
+        find: "if hole.offset != expected:"
+        replace: "if False:"
+      - id: broken-cache-raises
+        description: "cache de layout invalido derruba a leitura em vez de ser ignorado"
+        find: "except (KeyError, TypeError, ValueError) as exc:"
+        replace: "except KeyError as exc:"
+      - id: tidy-visits-skip-target
+        description: "coluna de visitas a toca (d00) some do relatorio"
+        find: "distances = range(max_offset(n_holes) + 1)"
+        replace: "distances = range(1, max_offset(n_holes) + 1)"
+      - id: tidy-source-keeps-zero-padding
+        description: "coluna barnes_visits_dNN aponta para chave com zero a esquerda"
+        find: 'return f"visits_by_distance.{int(match.group(1))}"'
+        replace: 'return f"visits_by_distance.{match.group(1)}"'
+
+  analysis_service_protocol_hook:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_service.py
+    mutations:
+      - id: generic-report-not-none
+        description: "relatorio generico deixa de trazer protocol_metrics status none"
+        find: "report[PROTOCOL_METRICS_KEY] = none_metrics()"
+        replace: 'report[PROTOCOL_METRICS_KEY] = {"status": "ok"}'
+      - id: profile-warnings-dropped
+        description: "avisos de perfil invalido somem do relatorio"
+        find: "validation_warnings.extend(profile.warnings)"
+        replace: "validation_warnings.extend(())"
+      - id: video-inputs-not-forwarded
+        description: "entradas por video nao chegam ao protocolo"
+        find: "inputs=protocol_inputs_for(protocol_inputs, profile.protocol),"
+        replace: "inputs=protocol_inputs_for(None, profile.protocol),"
+      - id: protocol-warnings-copied
+        description: "avisos do protocolo vao para uma copia e nao chegam ao documento"
+        find: "warnings=validation_warnings,\n        )\n        report[PROTOCOL_METRICS_KEY]"
+        replace: "warnings=list(validation_warnings),\n        )\n        report[PROTOCOL_METRICS_KEY]"
+      - id: no-roi-report-lacks-key
+        description: "relatorio sem ROIs perde a chave protocol_metrics"
+        find: "self._attach_protocol_metrics(report, r_analyzer=None, **protocol_args)"
+        replace: "None"
+      - id: dto-drops-inputs
+        description: "o DTO deixa de repassar as entradas por video"
+        find: "window=window,\n            protocol_inputs=protocol_inputs,\n        )"
+        replace: "window=window,\n            protocol_inputs=None,\n        )"

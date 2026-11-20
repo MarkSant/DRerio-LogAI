@@ -27,6 +27,7 @@ from zebtrack.analysis.analysis_window_service import (
     WindowResolution,
     resolve_analysis_window,
 )
+from zebtrack.analysis.protocols import protocol_inputs_of_entry
 from zebtrack.analysis.roi import ROI
 from zebtrack.analysis.roi_builder import build_roi_from_polygon, build_rois_from_zone_polygons
 from zebtrack.analysis.time_base import (
@@ -585,6 +586,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             # df and ROIs are in the arena's local space; the masks must be too.
             mask_sidecar_path=self._masks_in_report_space(traj_path, (off_x, off_y)),
             window=window,
+            protocol_inputs=protocol_inputs_of_entry(entry),
         )
 
         report_paths = self._export_individual_outputs(analysis_result, str(results_path), exp_id)
@@ -940,6 +942,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 behavioral_config=behavioral_config,
                 settings_obj=settings,
                 window=window,
+                protocol_inputs=protocol_inputs_of_entry(video),
             )
 
             os.makedirs(res_dir, exist_ok=True)

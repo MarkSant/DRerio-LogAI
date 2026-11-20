@@ -16219,6 +16219,85 @@ msgstr "metadados da gravação"
 msgid "recorded video"
 msgstr "vídeo gravado"
 
+#: src/zebtrack/core/services/experiment_profile.py:195
+#, python-brace-format
+msgid ""
+"Unknown animal model {value} in the project configuration; it is treated as "
+"'other'."
+msgstr ""
+"Modelo animal desconhecido {value} na configuração do projeto; ele é tratado"
+" como 'other'."
+
+#: src/zebtrack/core/services/experiment_profile.py:211
+#, python-brace-format
+msgid ""
+"Unknown protocol {value} in the project configuration; no protocol-specific "
+"metric is computed for it."
+msgstr ""
+"Protocolo desconhecido {value} na configuração do projeto; nenhuma métrica "
+"específica de protocolo é calculada para ele."
+
+#: src/zebtrack/core/services/experiment_profile.py:227
+#, python-brace-format
+msgid ""
+"The {protocol} protocol requires the animal model '{forced}'; the declared "
+"'{declared}' was replaced."
+msgstr ""
+"O protocolo {protocol} exige o modelo animal '{forced}'; o '{declared}' "
+"declarado foi substituído."
+
+#: src/zebtrack/core/services/experiment_profile.py:247
+#, python-brace-format
+msgid ""
+"The parameters of the {protocol} protocol are not a mapping; its defaults "
+"are used."
+msgstr ""
+"Os parâmetros do protocolo {protocol} não são um mapeamento; os valores "
+"padrão são usados."
+
+#: src/zebtrack/core/services/experiment_profile.py:258
+msgid ""
+"The protocol parameters are not a mapping; every protocol uses its defaults."
+msgstr ""
+"Os parâmetros de protocolo não são um mapeamento; todos os protocolos usam "
+"seus valores padrão."
+
+#: src/zebtrack/analysis/protocols/registry.py:104
+#, python-brace-format
+msgid ""
+"The {protocol} protocol is not available in this version; its metrics were "
+"not computed."
+msgstr ""
+"O protocolo {protocol} não está disponível nesta versão; suas métricas não "
+"foram calculadas."
+
+#: src/zebtrack/analysis/protocols/registry.py:118
+#, python-brace-format
+msgid "The {protocol} protocol metrics could not be computed: {error}"
+msgstr ""
+"As métricas do protocolo {protocol} não puderam ser calculadas: {error}"
+
+#: src/zebtrack/analysis/protocols/registry.py:137
+#, python-brace-format
+msgid ""
+"The {protocol} protocol returned malformed metrics; they were left out of "
+"the report."
+msgstr ""
+"O protocolo {protocol} retornou métricas malformadas; elas foram deixadas "
+"fora do relatório."
+
+#: src/zebtrack/analysis/protocols/barnes/contract.py:387
+#, python-brace-format
+msgid "Invalid Barnes parameter {name}={value}; its default is used."
+msgstr "Parâmetro do Barnes inválido {name}={value}; o valor padrão é usado."
+
+#: src/zebtrack/analysis/protocols/barnes/contract.py:429
+#, python-brace-format
+msgid "Invalid Barnes value {name}={value} for this video; it is ignored."
+msgstr ""
+"Valor do Barnes inválido {name}={value} para este vídeo; ele é ignorado."
+
+
 #~ msgid "Detector parameters updated."
 #~ msgstr "Parâmetros do detector atualizados."
 

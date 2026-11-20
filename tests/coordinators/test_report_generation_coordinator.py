@@ -1070,3 +1070,73 @@ class TestOneCoordinateSpace:
 
         masks = resolve.call_args.kwargs["mask_source"]
         assert wkb.loads(masks["mask_wkb"].iloc[0]).bounds == (26.0, 26.0, 34.0, 34.0)
+
+
+# ---------------------------------------------------------------------------
+# ADR-014: per-video protocol inputs reach the analysis
+# ---------------------------------------------------------------------------
+
+_BARNES_INPUTS = {"barnes": {"trial_type": "probe"}}
+
+
+class TestProtocolInputsPlumbing:
+    @patch("os.path.exists", return_value=True)
+    @patch("os.makedirs")
+    def test_standard_report_passes_the_entry_inputs(
+        self, _mkdirs, _exists, coordinator, mock_project_manager
+    ):
+        _wire_standard_report(coordinator, mock_project_manager, _ten_fps_trajectory())
+        coordinator.analysis_service = MagicMock()
+
+        coordinator._generate_standard_report(
+            "video.mp4", "exp1", {"protocol_inputs": _BARNES_INPUTS}, {}
+        )
+
+        kwargs = coordinator.analysis_service.run_full_analysis_as_dto.call_args.kwargs
+        inputs = kwargs["protocol_inputs"]
+        assert {name: dict(block) for name, block in inputs.items()} == _BARNES_INPUTS
+
+    @patch("os.path.exists", return_value=True)
+    @patch("os.makedirs")
+    def test_standard_report_without_inputs_passes_an_empty_mapping(
+        self, _mkdirs, _exists, coordinator, mock_project_manager
+    ):
+        _wire_standard_report(coordinator, mock_project_manager, _ten_fps_trajectory())
+        coordinator.analysis_service = MagicMock()
+
+        coordinator._generate_standard_report("video.mp4", "exp1", {}, {})
+
+        kwargs = coordinator.analysis_service.run_full_analysis_as_dto.call_args.kwargs
+        assert dict(kwargs["protocol_inputs"]) == {}
+
+    def test_standard_summary_passes_the_entry_inputs(self, coordinator, tmp_path):
+        traj_p = tmp_path / "3_CoordMovimento_exp1.parquet"
+        traj_p.write_text("data")
+        pm = coordinator.project_manager
+        pm.project_data = {"calibration": {}}
+        pm.resolve_results_directory.return_value = str(tmp_path)
+        pm.get_metadata_for_experiment.return_value = {"experiment_id": "exp1"}
+        coordinator._read_trajectory = MagicMock(return_value=_ten_fps_trajectory())
+        coordinator._resolve_summary_zone_data = MagicMock(
+            return_value=MagicMock(polygon=[], roi_polygons=[], roi_names=[], roi_colors=[])
+        )
+        coordinator._prepare_summary_geometry = MagicMock(
+            return_value=(10.0, 10.0, [], 100, [], {}, None)
+        )
+        video: dict[str, Any] = {
+            "parquet_files": {"trajectory": str(traj_p)},
+            "protocol_inputs": _BARNES_INPUTS,
+        }
+
+        with (
+            patch("zebtrack.analysis.reporters.ReporterContext") as context,
+            patch("zebtrack.analysis.reporters.ParquetSummaryReporter"),
+            patch(_RESOLVE, return_value=None),
+        ):
+            status, *_ = coordinator._process_standard_summary_video(
+                video, "exp1", "v.mp4", coordinator.settings, []
+            )
+
+        assert status == "completed"
+        inputs = context.call_args.kwargs["protocol_inputs"]
+        assert {name: dict(block) for name, block in inputs.items()} == _BARNES_INPUTS

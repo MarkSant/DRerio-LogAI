@@ -13498,3 +13498,65 @@ msgstr ""
 #: src/zebtrack/utils/report_files.py:117
 msgid "recorded video"
 msgstr ""
+
+#: src/zebtrack/core/services/experiment_profile.py:195
+#, python-brace-format
+msgid ""
+"Unknown animal model {value} in the project configuration; it is treated as "
+"'other'."
+msgstr ""
+
+#: src/zebtrack/core/services/experiment_profile.py:211
+#, python-brace-format
+msgid ""
+"Unknown protocol {value} in the project configuration; no protocol-specific "
+"metric is computed for it."
+msgstr ""
+
+#: src/zebtrack/core/services/experiment_profile.py:227
+#, python-brace-format
+msgid ""
+"The {protocol} protocol requires the animal model '{forced}'; the declared "
+"'{declared}' was replaced."
+msgstr ""
+
+#: src/zebtrack/core/services/experiment_profile.py:247
+#, python-brace-format
+msgid ""
+"The parameters of the {protocol} protocol are not a mapping; its defaults "
+"are used."
+msgstr ""
+
+#: src/zebtrack/core/services/experiment_profile.py:258
+msgid ""
+"The protocol parameters are not a mapping; every protocol uses its defaults."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/registry.py:104
+#, python-brace-format
+msgid ""
+"The {protocol} protocol is not available in this version; its metrics were "
+"not computed."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/registry.py:118
+#, python-brace-format
+msgid "The {protocol} protocol metrics could not be computed: {error}"
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/registry.py:137
+#, python-brace-format
+msgid ""
+"The {protocol} protocol returned malformed metrics; they were left out of "
+"the report."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/contract.py:387
+#, python-brace-format
+msgid "Invalid Barnes parameter {name}={value}; its default is used."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/contract.py:429
+#, python-brace-format
+msgid "Invalid Barnes value {name}={value} for this video; it is ignored."
+msgstr ""

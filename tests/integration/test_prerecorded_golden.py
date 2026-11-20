@@ -82,6 +82,8 @@ EXPECTED_V8_CHANGES: dict[str, tuple[object, object]] = {
     "latency_present_at_start/Direita": (ABSENT, False),
     "latency_present_at_start/Esquerda": (ABSENT, True),
     "analysis_window/status": (ABSENT, "none"),
+    # ADR-014: always present; a generic project carries exactly {"status": "none"}.
+    "protocol_metrics/status": (ABSENT, "none"),
     # Recording length from the time base, next to the row count.
     "validacao/estatisticas/duration_s": (ABSENT, 12.0),
     # #632: the first row has no velocity. It used to enter the 90th-percentile

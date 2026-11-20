@@ -10,7 +10,7 @@ Phase 3: Massively expanded to include video processing orchestration (~500 line
 Now handles batch processing, single video processing, and all coordination logic.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -27,13 +27,21 @@ from zebtrack.analysis.behavioral_policy import (
 )
 from zebtrack.analysis.metrics_cache import MetricsCache
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
+from zebtrack.analysis.protocols import (
+    PROTOCOL_METRICS_KEY,
+    ProtocolContext,
+    compute_protocol_metrics,
+    none_metrics,
+    protocol_inputs_for,
+)
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
-from zebtrack.analysis.time_base import resolve_time_base
+from zebtrack.analysis.time_base import TimeBase, resolve_time_base
 from zebtrack.analysis.track_significance import min_track_duration_from, screen_subjects
 from zebtrack.analysis.trajectory_validator import (
     TrajectoryQualityValidator,
     count_unique_frames,
 )
+from zebtrack.core.services.experiment_profile import resolve_experiment_profile
 from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig, resolve_roi_rule
 from zebtrack.i18n import _
 
@@ -289,6 +297,7 @@ class AnalysisService:
         behavioral_config: dict[str, Any] | None = None,
         mask_sidecar_path: str | Path | pd.DataFrame | None = None,
         window: WindowResolution | None = None,
+        protocol_inputs: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None, list, dict]:
         """
         Run a complete analysis pipeline on the given trajectory data.
@@ -330,6 +339,13 @@ class AnalysisService:
                 not start follows its ``on_start_not_met`` (whole recording or
                 empty metrics); its warnings join ``validation_warnings`` here,
                 before any report is generated.
+            protocol_inputs: This video's per-protocol inputs, i.e.
+                :func:`zebtrack.analysis.protocols.protocol_inputs_of_entry` of its
+                video entry (``None`` when the video has no entry). The protocol is
+                read from ``behavioral_config`` through
+                :func:`zebtrack.core.services.experiment_profile.resolve_experiment_profile`;
+                its metrics land in ``report["protocol_metrics"]``, which is always
+                present (``{"status": "none"}`` for a generic project, ADR-014).
 
         Returns:
             A tuple containing:
@@ -579,10 +595,25 @@ class AnalysisService:
                     _("Geotaxis was requested but could not be computed: {error}").format(error=e)
                 )
 
+        protocol_args: dict[str, Any] = {
+            "trajectory_df": trajectory_df,
+            "rois": rois,
+            "arena_polygon_px": arena_polygon_px,
+            "pixelcm_x": pixelcm_x,
+            "pixelcm_y": pixelcm_y,
+            "window": window,
+            "time_base": time_base,
+            "behavioral_config": behavioral_config,
+            "protocol_inputs": protocol_inputs,
+            "b_analyzer": b_analyzer,
+            "validation_warnings": validation_warnings,
+        }
+
         # 3. If ROIs are provided, perform ROI analysis and append to the report
         # (the analyser was built above, from the resolved rule: the debounce
         # comes from the config and backdates, so filtering costs no bias).
         if r_analyzer is None:
+            self._attach_protocol_metrics(report, r_analyzer=None, **protocol_args)
             return report, b_analyzer, None, validation_warnings, validation_stats
 
         # A degradação de ``seg_overlap`` precisa entrar na lista ANTES de
@@ -626,7 +657,55 @@ class AnalysisService:
         }
         report["log_eventos"] = r_analyzer.get_event_log().to_dict("records")
 
+        self._attach_protocol_metrics(report, r_analyzer=r_analyzer, **protocol_args)
         return report, b_analyzer, r_analyzer, validation_warnings, validation_stats
+
+    @staticmethod
+    def _attach_protocol_metrics(
+        report: dict[str, Any],
+        *,
+        trajectory_df: pd.DataFrame,
+        rois: Sequence[ROI],
+        arena_polygon_px: Sequence[Sequence[float]],
+        pixelcm_x: float,
+        pixelcm_y: float,
+        window: WindowResolution | None,
+        time_base: TimeBase,
+        behavioral_config: Mapping[str, Any],
+        protocol_inputs: Mapping[str, Any] | None,
+        b_analyzer: ConcreteBehavioralAnalyzer,
+        r_analyzer: ROIAnalyzer | None,
+        validation_warnings: list[str],
+    ) -> None:
+        """Write ``report["protocol_metrics"]`` (ADR-014); the key is always present.
+
+        Runs last, after every generic metric, so a protocol reads analysers that
+        are already restricted to the window. A generic profile short-circuits to
+        ``{"status": "none"}`` without building anything: a legacy project's report
+        differs from v8.0 only by that one key. The profile's degradation warnings
+        join ``validation_warnings`` here, before any report is generated.
+        """
+        profile = resolve_experiment_profile(behavioral_config=behavioral_config)
+        validation_warnings.extend(profile.warnings)
+        if profile.is_generic:
+            report[PROTOCOL_METRICS_KEY] = none_metrics()
+            return
+        context = ProtocolContext(
+            profile=profile,
+            trajectory=trajectory_df,
+            rois=tuple(rois),
+            arena_polygon_px=tuple((float(p[0]), float(p[1])) for p in arena_polygon_px),
+            pixelcm_x=float(pixelcm_x),
+            pixelcm_y=float(pixelcm_y),
+            window=window,
+            time_base=time_base,
+            behavioral_config=behavioral_config,
+            inputs=protocol_inputs_for(protocol_inputs, profile.protocol),
+            behavioral_analyzer=b_analyzer,
+            roi_analyzer=r_analyzer,
+            warnings=validation_warnings,
+        )
+        report[PROTOCOL_METRICS_KEY] = compute_protocol_metrics(context)
 
     @staticmethod
     def _apply_window(
@@ -679,6 +758,7 @@ class AnalysisService:
         behavioral_config: dict[str, Any] | None = None,
         mask_sidecar_path: str | Path | pd.DataFrame | None = None,
         window: WindowResolution | None = None,
+        protocol_inputs: Mapping[str, Any] | None = None,
     ) -> AnalysisResult:
         """Run complete analysis and return results as DTO (RECOMMENDED).
 
@@ -704,6 +784,8 @@ class AnalysisService:
             calibration: Optional Calibration object
             sharp_turn_threshold: Sharp turn detection threshold (deg/s)
             window: Analysis window (see :meth:`run_full_analysis`).
+            protocol_inputs: Per-protocol inputs of this video (see
+                :meth:`run_full_analysis`).
 
         Returns:
             AnalysisResult DTO with all analysis data
@@ -747,6 +829,7 @@ class AnalysisService:
             behavioral_config=behavioral_config,
             mask_sidecar_path=mask_sidecar_path,
             window=window,
+            protocol_inputs=protocol_inputs,
         )
 
         # Wrap in DTO

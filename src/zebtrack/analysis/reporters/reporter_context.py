@@ -9,7 +9,7 @@ reporter classes.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -102,6 +102,8 @@ class ReporterContext:
         analysis: AnalysisResult | None = None,
         # Analysis window (ADR-011), from resolve_analysis_window
         window: WindowResolution | None = None,
+        # Per-protocol inputs of this video (ADR-014), from protocol_inputs_of_entry
+        protocol_inputs: Mapping[str, Any] | None = None,
     ):
         """Create ReporterContext.
 
@@ -130,6 +132,8 @@ class ReporterContext:
             behavioral_config: Behavioural config dict (optional)
             analysis: AnalysisResult DTO (RECOMMENDED)
             window: Analysis window to apply (``None`` = whole recording)
+            protocol_inputs: Per-protocol inputs of this video, forwarded to
+                ``AnalysisService.run_full_analysis`` (``None`` = none)
         """
         # Modern path: delegate to from_analysis
         if analysis is not None:
@@ -188,6 +192,7 @@ class ReporterContext:
             smoothing_polyorder=smoothing_polyorder,
             behavioral_config=behavioral_config,
             window=window,
+            protocol_inputs=protocol_inputs,
         )
 
         # Analysis parameters

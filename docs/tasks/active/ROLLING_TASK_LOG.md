@@ -6,6 +6,35 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-19] Labirinto de Barnes de ponta a ponta (#633) + perfil do experimento
+
+__ID:__ TASK-088
+__Agent:__ Claude Code (Opus 5.5) — hub + sub-sessões em worktrees
+__Status:__ In progress 🚧 (estágio 0 entregue para revisão do hub)
+__Branch:__ integração `claude/barnes-maze-arena-automation-68f138` (a partir de `main`, 45293944);
+cada sessão trabalha na sua própria branch, mesclada pelo hub com aprovação do usuário.
+__Description:__
+Métricas do protocolo de Barnes do laboratório (latência de encontro × entrada, erros primários e
+totais, estratégia de busca, probe), assistente de arena com os 20 buracos e o quadrante-alvo,
+e o "perfil do experimento" (modelo animal + protocolo) que tira o app da suposição
+zebrafish-em-aquário. Plano: [`docs/tasks/v8.1/barnes/PLAN.md`](../v8.1/barnes/PLAN.md);
+contratos: [`CONTRACTS.md`](../v8.1/barnes/CONTRACTS.md); decisão:
+[ADR-014](../v8.1/ADR-014-experiment-profile-and-protocols.md).
+
+Frentes (uma sessão cada):
+
+- [x] Estágio 0 — `barnes-contracts`: perfil do experimento, camada de protocolos, contrato do
+  Barnes, gancho `report["protocol_metrics"]` e `protocol_inputs` nos caminhos de análise.
+- [ ] Estágio 1 — `exp-profile` (wizard/widget), `barnes-arena` (assistente de arena),
+  `barnes-entry` (encontro × entrada no motor de condições), `barnes-metrics` (métricas).
+- [ ] Estágio 2 — `barnes-reports` (relatórios individual/parcial/unificado),
+  `barnes-validation` (comparação com as planilhas do laboratório).
+- [ ] Estágio 3 — `animal-terms` (vocabulário da interface por modelo animal).
+- [ ] Estágio 4 — integração no hub: gates completos, vídeo real, PR para `main`.
+
+Pendências do usuário: aprovar cada mescla; exportar as planilhas do laboratório; confirmar a
+fórmula do score do probe (`min(d+1, 10)` com 20 buracos).
+
 ### [2026-11-14] Campanha de cobertura (`plugins/`, `utils/`) e auditoria de pontas soltas
 
 __ID:__ TASK-087

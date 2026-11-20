@@ -19,6 +19,7 @@ import pandas as pd
 import structlog
 
 from zebtrack.analysis.analysis_service import resolve_sharp_turn_threshold
+from zebtrack.analysis.protocols import protocol_inputs_of_entry
 from zebtrack.core.services.live_calibration_scale import resolve_live_pixel_per_cm
 from zebtrack.core.services.roi_rule_resolver import resolve_roi_rule
 from zebtrack.i18n import _
@@ -756,6 +757,10 @@ class LiveAnalysisPostProcessorMixin:
                     behavioral_config=params["behavioral_config"],
                     video_path=str(video_path),
                     window=window,
+                    # A live session has no video entry yet: its analysis
+                    # params carry the per-protocol inputs under the same
+                    # key a video entry uses (ADR-014).
+                    protocol_inputs=protocol_inputs_of_entry(self._analysis_params),
                 )
 
                 # Clock warnings (no ledger, partial ledger) go into the report.

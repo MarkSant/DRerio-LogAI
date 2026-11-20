@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import os
 import threading
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -37,6 +37,7 @@ from zebtrack.analysis.analysis_window_service import (
     resolve_analysis_window,
 )
 from zebtrack.analysis.behavioral_policy import resolve_behavioral_config
+from zebtrack.analysis.protocols import protocol_inputs_of_entry
 from zebtrack.analysis.reporters import (
     ExcelReporter,
     ParquetSummaryReporter,
@@ -400,6 +401,7 @@ class AnalysisPipelineRunnerMixin:
         smoothing_polyorder: int,
         window: WindowResolution | None = None,
         behavioral_config: dict | None = None,
+        protocol_inputs: Mapping[str, Any] | None = None,
     ) -> ReporterContext:
         """Create ReporterContext instance with all required parameters.
 
@@ -428,7 +430,19 @@ class AnalysisPipelineRunnerMixin:
             smoothing_polyorder=smoothing_polyorder,
             window=window,
             behavioral_config=behavioral_config,
+            protocol_inputs=protocol_inputs,
         )
+
+    def _video_protocol_inputs(self, video_path: Path | str) -> Mapping[str, Any]:
+        """Per-protocol inputs of this video's project entry (ADR-014).
+
+        Empty without a project or an entry (single video): every protocol then
+        falls back to its project-level defaults.
+        """
+        project_data = getattr(self.project_manager, "project_data", None) or {}
+        finder = getattr(self.project_manager, "find_video_entry", None)
+        entry = finder(path=str(video_path)) if callable(finder) and project_data else None
+        return protocol_inputs_of_entry(entry if isinstance(entry, dict) else None)
 
     def _resolve_analysis_window(
         self,
@@ -863,6 +877,7 @@ class AnalysisPipelineRunnerMixin:
             smoothing_polyorder=smoothing_polyorder,
             window=window,
             behavioral_config=self._resolve_report_behavioral_config(single_video_config),
+            protocol_inputs=self._video_protocol_inputs(video_path),
         )
 
         if self.cancel_event.is_set():
