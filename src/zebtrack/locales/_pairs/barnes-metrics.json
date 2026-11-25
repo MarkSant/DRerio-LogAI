@@ -7,5 +7,7 @@
   "The Barnes ROI {roi} is missing; the time in the target quadrant was not computed.": "A ROI de Barnes {roi} está ausente; o tempo no quadrante-alvo não foi calculado.",
   "The Barnes metrics need one animal per video; this trajectory has {count}.": "As métricas de Barnes precisam de um animal por vídeo; esta trajetória tem {count}.",
   "The Barnes metrics were not computed: hole ROIs missing or empty: {names}.": "As métricas de Barnes não foram calculadas: ROIs de buracos ausentes ou vazias: {names}.",
-  "Barnes maze": "Labirinto de Barnes"
+  "Barnes maze": "Labirinto de Barnes",
+  "Several ROIs share the Barnes name(s) {names}; the Barnes metrics use the first ROI of each name.": "Várias ROIs compartilham o(s) nome(s) de Barnes {names}; as métricas de Barnes usam a primeira ROI de cada nome.",
+  "{count} possible hole visit(s) were left out of the Barnes metrics: the slowdown filter (visit_max_speed_cm_s) could not measure the speed around them (tracking gaps).": "{count} possível(is) visita(s) a buracos ficou(aram) fora das métricas de Barnes: o filtro de desaceleração (visit_max_speed_cm_s) não conseguiu medir a velocidade em torno dela(s) (lacunas de rastreamento)."
 }

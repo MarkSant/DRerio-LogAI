@@ -100,10 +100,13 @@ class LayoutResolution:
         missing: Required ROI names (``toca`` and every decoy) that are absent or
             have no area. Empty with ``layout=None`` means the holes exist but do
             not form a ring (degenerate geometry).
+        duplicates: Barnes names drawn more than once, in stored order. The first
+            ROI of each name is used; the caller warns about the others.
     """
 
     layout: ResolvedLayout | None
     missing: tuple[str, ...] = ()
+    duplicates: tuple[str, ...] = ()
 
 
 def points_in_scaled_ellipse(
@@ -167,18 +170,23 @@ def resolve_layout(
 ) -> LayoutResolution:
     """Rebuild the layout of ``n_holes`` holes from the report's ROIs. Never raises.
 
-    The first ROI of each Barnes name wins (stored order); a later duplicate is
-    logged and ignored. ROIs whose name is not a Barnes name of this layout are
-    ignored (the user's own ROIs may coexist). ``quadrante_alvo`` is optional.
+    The first ROI of each Barnes name wins (stored order); later duplicates are
+    ignored and reported in ``LayoutResolution.duplicates``. ROIs whose name is not
+    a Barnes name of this layout are ignored (the user's own ROIs may coexist).
+    ``quadrante_alvo`` is optional.
     """
     by_name: dict[str, ROI] = {}
+    duplicates: list[str] = []
     for roi in rois:
         if parse_barnes_roi_name(roi.name, n_holes) is None:
             continue
         if roi.name in by_name:
             logger.warning("barnes.layout.duplicate_roi", roi=roi.name)
+            if roi.name not in duplicates:
+                duplicates.append(roi.name)
             continue
         by_name[roi.name] = roi
+    repeated = tuple(duplicates)
 
     holes: list[LayoutHole] = []
     missing: list[str] = []
@@ -195,7 +203,7 @@ def resolve_layout(
         )
     if missing:
         logger.warning("barnes.layout.missing_rois", missing=missing, n_holes=n_holes)
-        return LayoutResolution(layout=None, missing=tuple(missing))
+        return LayoutResolution(layout=None, missing=tuple(missing), duplicates=repeated)
 
     holes.sort(key=lambda hole: hole.offset % n_holes)
     centers = np.array(
@@ -205,7 +213,7 @@ def resolve_layout(
     ring = _fit_ellipse(centers)
     if ring is None:
         logger.warning("barnes.layout.degenerate_ring", n_holes=n_holes)
-        return LayoutResolution(layout=None)
+        return LayoutResolution(layout=None, duplicates=repeated)
 
     arena = np.asarray(arena_polygon_px, dtype=float).reshape(-1, 2)
     table = _fit_ellipse(arena) if len(arena) >= _MIN_FIT_POINTS else None
@@ -232,5 +240,6 @@ def resolve_layout(
         logger.warning("barnes.layout.empty_quadrant", roi=QUADRANT_ROI)
         quadrant = None
     return LayoutResolution(
-        layout=ResolvedLayout(layout=layout, holes=tuple(holes), quadrant=quadrant)
+        layout=ResolvedLayout(layout=layout, holes=tuple(holes), quadrant=quadrant),
+        duplicates=repeated,
     )

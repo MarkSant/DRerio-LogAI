@@ -16374,6 +16374,26 @@ msgstr ""
 msgid "Barnes maze"
 msgstr "Labirinto de Barnes"
 
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:237
+#, python-brace-format
+msgid ""
+"Several ROIs share the Barnes name(s) {names}; the Barnes metrics use the "
+"first ROI of each name."
+msgstr ""
+"Várias ROIs compartilham o(s) nome(s) de Barnes {names}; as métricas de "
+"Barnes usam a primeira ROI de cada nome."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:293
+#, python-brace-format
+msgid ""
+"{count} possible hole visit(s) were left out of the Barnes metrics: the "
+"slowdown filter (visit_max_speed_cm_s) could not measure the speed around "
+"them (tracking gaps)."
+msgstr ""
+"{count} possível(is) visita(s) a buracos ficou(aram) fora das métricas de "
+"Barnes: o filtro de desaceleração (visit_max_speed_cm_s) não conseguiu medir"
+" a velocidade em torno dela(s) (lacunas de rastreamento)."
+
 #~ msgid "Detector parameters updated."
 #~ msgstr "Parâmetros do detector atualizados."
 

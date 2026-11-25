@@ -92,7 +92,11 @@ def _spec_has_kind(node: Any, kind: str) -> bool:
 def _entry(
     context: ProtocolContext, trial_type: TrialType, t0: float, params: BarnesParams
 ) -> tuple[float | None, bool | None, EntrySource]:
-    """``(entry_latency_s, entry_censored, entry_source)``."""
+    """``(entry_latency_s, entry_censored, entry_source)``.
+
+    An entry the window found AFTER ``t0 + max_trial_s`` is past the protocol
+    ceiling: censored at ``max_trial_s``, exactly like no entry at all.
+    """
     if trial_type is TrialType.PROBE:
         return None, None, EntrySource.NOT_APPLICABLE
     window = context.window
@@ -101,7 +105,10 @@ def _entry(
         and window.stop is not None
         and window.stop.reason == STOP_REASON_BURROW_ENTRY
     ):
-        return float(window.stop.t_s) - t0, False, EntrySource.WINDOW
+        latency = float(window.stop.t_s) - t0
+        if latency > params.max_trial_s:
+            return params.max_trial_s, True, EntrySource.CENSORED
+        return latency, False, EntrySource.WINDOW
     if window is not None and _spec_has_kind(window.spec, _BURROW_ENTRY_NODE_KIND):
         return params.max_trial_s, True, EntrySource.CENSORED
     context.warnings.append(
@@ -114,11 +121,19 @@ def _entry(
 
 
 def _quadrant_time(
-    context: ProtocolContext, layout: ResolvedLayout, trial_s: float
+    context: ProtocolContext, layout: ResolvedLayout, t0: float, trial_end: float
 ) -> tuple[float | None, float | None]:
-    """``(target_quadrant_time_s, target_quadrant_time_pct)`` with the report's rule."""
+    """``(target_quadrant_time_s, target_quadrant_time_pct)`` over the TRIAL.
+
+    The report's ROI analyser (its rule and debounce) measured over
+    ``[t0, trial_end]`` — the same span as the percentage's denominator, so the
+    percentage stays within 0-100 even when the window (or the recording, without
+    one) outlasts ``max_trial_s``.
+    """
     times: Mapping[str, Mapping[str, float]] = (
-        context.roi_analyzer.get_time_spent_in_rois() if context.roi_analyzer is not None else {}
+        context.roi_analyzer.get_time_spent_in_rois(t0, trial_end)
+        if context.roi_analyzer is not None
+        else {}
     )
     entry = times.get(QUADRANT_ROI) if layout.quadrant is not None else None
     if entry is None:
@@ -129,7 +144,7 @@ def _quadrant_time(
         )
         return None, None
     seconds = float(entry["seconds"])
-    return seconds, seconds / trial_s * 100.0
+    return seconds, seconds / (trial_end - t0) * 100.0
 
 
 def _visit_rows(
@@ -217,6 +232,13 @@ def compute_barnes_metrics(context: ProtocolContext) -> dict[str, Any]:
         return _unavailable(UnavailableReason.NO_ROIS)
 
     resolution = resolve_layout(context.rois, context.arena_polygon_px, params.n_holes)
+    if resolution.duplicates:
+        context.warnings.append(
+            _(
+                "Several ROIs share the Barnes name(s) {names}; the Barnes metrics use the "
+                "first ROI of each name."
+            ).format(names=", ".join(resolution.duplicates))
+        )
     layout = resolution.layout
     if layout is None:
         if resolution.missing:
@@ -263,7 +285,17 @@ def compute_barnes_metrics(context: ProtocolContext) -> dict[str, Any]:
         )
 
     trial_type = inputs.trial_type or params.default_trial_type
-    visits = visits_in_trial(detect_hole_visits(samples, layout.holes, params), t0, trial_end)
+    detection = detect_hole_visits(samples, layout.holes, params)
+    visits = visits_in_trial(detection.visits, t0, trial_end)
+    unmeasured = visits_in_trial(detection.unmeasured, t0, trial_end)
+    if unmeasured:
+        context.warnings.append(
+            _(
+                "{count} possible hole visit(s) were left out of the Barnes metrics: the "
+                "slowdown filter (visit_max_speed_cm_s) could not measure the speed around "
+                "them (tracking gaps)."
+            ).format(count=len(unmeasured))
+        )
 
     encounter = next((visit for visit in visits if visit.offset == 0), None)
     encounter_t = None if encounter is None else encounter.t_enter_s
@@ -295,7 +327,7 @@ def compute_barnes_metrics(context: ProtocolContext) -> dict[str, Any]:
             gap_threshold_s=gap_threshold_s,
         )
 
-    quadrant_s, quadrant_pct = _quadrant_time(context, layout, trial_end - t0)
+    quadrant_s, quadrant_pct = _quadrant_time(context, layout, t0, trial_end)
 
     visits_by_distance = {d: 0 for d in range(max_offset(params.n_holes) + 1)}
     for visit in visits:

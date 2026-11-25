@@ -13,6 +13,7 @@ from zebtrack.analysis.protocols.barnes.contract import BarnesParams
 from zebtrack.analysis.protocols.barnes.layout import resolve_layout
 from zebtrack.analysis.protocols.barnes.visits import (
     HoleVisit,
+    VisitDetection,
     detect_hole_visits,
     path_length_cm,
     subject_samples,
@@ -30,9 +31,13 @@ def _samples(script: RatScript, *, gap: float = math.inf, pixelcm: float = 1.0, 
     )
 
 
-def _visits(script: RatScript, **params) -> list[HoleVisit]:
+def _detect(script: RatScript, **params) -> VisitDetection:
     assert LAYOUT is not None
     return detect_hole_visits(_samples(script), LAYOUT.holes, BarnesParams(**params))
+
+
+def _visits(script: RatScript, **params) -> list[HoleVisit]:
+    return _detect(script, **params).visits
 
 
 def _from_center() -> RatScript:
@@ -62,7 +67,24 @@ def test_one_sample_per_timestamp_keeps_the_best_detection():
     # t=0: higher confidence; t=0.1: confidence tie -> larger box; t=0.2: NaN bbox
     assert samples.x1.tolist() == [10.0, 20.0, 30.0]
     assert samples.cx.tolist() == [12.0, 25.0, 32.0]
-    assert samples.missing_before.tolist() == [0, 0, 1]
+    # Steps 1 and 2 -> median 1.5: no frame is called missing on 3 samples.
+    assert samples.missing_before.tolist() == [0, 0, 0]
+
+
+def test_missing_frames_use_the_median_frame_step():
+    regular = RatScript((0.0, 0.0)).stay(0.4).vanish(0.1).stay(0.1).frame()
+    interval_10 = regular.assign(frame=[0, 10, 20, 21, 31, 51])
+
+    def missing(df: pd.DataFrame) -> list[int]:
+        found = subject_samples(df, pixelcm_x=1.0, pixelcm_y=1.0, gap_threshold_s=math.inf)
+        return found.missing_before.tolist()
+
+    # Frames 0..4 then 6: one processed frame without a detection before the last.
+    assert missing(regular) == [0, 0, 0, 0, 0, 1]
+    # A 10-frame analysis interval with ONE odd adjacent pair (20, 21): the median
+    # step stays 10, so only the 20-frame jump hides one processed frame. The
+    # smallest step (1) would have called nine frames missing at every interval.
+    assert missing(interval_10) == [0, 0, 0, 0, 0, 1]
 
 
 def test_recorded_centres_win_over_the_bbox_centre():
@@ -175,7 +197,26 @@ def test_the_slowdown_filter_drops_a_run_over_a_hole():
 
     assert len(_visits(run)) == 1
     assert _visits(run, visit_max_speed_cm_s=20.0) == []
+    # Too fast is a judgement, not a measurement failure: nothing to report.
+    assert _detect(run, visit_max_speed_cm_s=20.0).unmeasured == []
     assert len(_visits(poke, visit_max_speed_cm_s=20.0)) == 1
+
+
+def test_a_candidate_without_any_measurable_speed_is_reported_not_lost():
+    assert LAYOUT is not None
+    script = RatScript(TABLE.ring_xy(5.5)).move(TABLE.hole_xy(6), 0.3).stay(0.6)
+    script.move(TABLE.center, 1.0)
+    # Every step is longer than the gap threshold: no speed anywhere.
+    samples = _samples(script, gap=0.05)
+
+    filtered = detect_hole_visits(samples, LAYOUT.holes, BarnesParams(visit_max_speed_cm_s=20.0))
+    unfiltered = detect_hole_visits(samples, LAYOUT.holes, BarnesParams())
+
+    assert filtered.visits == []
+    assert [(v.roi, v.offset) for v in filtered.unmeasured] == [("buraco_+06", 6)]
+    # The reported candidate is exactly the visit the filter-less detection finds.
+    assert filtered.unmeasured == unfiltered.visits
+    assert unfiltered.unmeasured == []
 
 
 def test_a_visit_open_at_the_end_has_no_exit():

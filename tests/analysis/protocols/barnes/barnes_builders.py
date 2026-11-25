@@ -216,12 +216,20 @@ V1_SPEC: Mapping[str, Any] = {
 
 
 class FakeRoiAnalyzer:
-    """``get_time_spent_in_rois`` as the report's analyser answers it."""
+    """``get_time_spent_in_rois`` as the report's analyser answers it.
+
+    Records the span each call asked for, so a test can check the metrics measure
+    the quadrant over the trial and not over the whole window.
+    """
 
     def __init__(self, seconds: Mapping[str, float]) -> None:
         self._seconds = dict(seconds)
+        self.spans: list[tuple[float | None, float | None]] = []
 
-    def get_time_spent_in_rois(self) -> dict[str, dict[str, float]]:
+    def get_time_spent_in_rois(
+        self, t0: float | None = None, t_end: float | None = None
+    ) -> dict[str, dict[str, float]]:
+        self.spans.append((t0, t_end))
         return {name: {"seconds": s, "percentage": 0.0} for name, s in self._seconds.items()}
 
 

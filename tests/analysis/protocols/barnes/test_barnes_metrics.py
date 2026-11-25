@@ -18,6 +18,7 @@ from tests.analysis.protocols.barnes.barnes_builders import (
     V1_SPEC,
     V2_SPEC,
     BarnesTable,
+    FakeRoiAnalyzer,
     RatScript,
     make_context,
     window,
@@ -272,6 +273,31 @@ def test_the_trial_ends_at_max_trial_s():
     assert result["encounter_censored"] is True
 
 
+def test_an_entry_after_the_ceiling_is_censored():
+    script = rat(4, 5, 0)
+
+    result, _warnings = run(script, window=entry_at(script), params={"max_trial_s": 3.0})
+
+    assert script.t - 1.0 > 3.0
+    assert result["entry_latency_s"] == 3.0
+    assert result["entry_censored"] is True
+    assert result["entry_source"] == "censored"
+    assert result["entry_path_length_cm"] is None
+    assert offsets(result) == [4, 5]
+    assert result["total_errors"] == 2
+
+
+def test_an_entry_exactly_at_the_ceiling_is_measured():
+    script = rat(0, dwell_s=4.0)
+
+    result, _warnings = run(script, window=entry_at(script, 4.0), params={"max_trial_s": 3.0})
+
+    assert result["entry_latency_s"] == pytest.approx(3.0)
+    assert result["entry_censored"] is False
+    assert result["entry_source"] == "window"
+    assert result["entry_path_length_cm"] == pytest.approx(150.0)
+
+
 def test_a_visit_open_at_start_starts_at_start():
     script = RatScript(TABLE.hole_xy(2)).stay(1.5).move(TABLE.center, 1.0).poke(TABLE.hole_xy(0))
 
@@ -392,6 +418,54 @@ def test_the_video_trial_type_overrides_the_project_default():
 # --- quadrant ------------------------------------------------------------------
 
 
+def test_the_quadrant_is_measured_over_the_trial_not_the_window():
+    script = rat(4, 5, 0)
+    context = make_context(
+        script.frame(),
+        TABLE.rois(),
+        window=window(1.0, script.t, reason="delay", spec=V2_SPEC),
+        params={"max_trial_s": 3.0},
+        quadrant_s=1.5,
+    )
+
+    result = compute_barnes_metrics(context)
+
+    analyser = context.roi_analyzer
+    assert isinstance(analyser, FakeRoiAnalyzer)
+    assert analyser.spans == [(1.0, 4.0)]
+    assert result["target_quadrant_time_s"] == 1.5
+    assert result["target_quadrant_time_pct"] == pytest.approx(50.0)
+
+
+def test_quadrant_share_of_a_recording_longer_than_the_trial_stays_a_share():
+    """Real ROI analyser, no window, 300 s in the quadrant: 240 s, 100 %."""
+    from zebtrack.analysis.analysis_service import AnalysisService
+    from zebtrack.settings import load_settings
+
+    in_quadrant = TABLE.ring_xy(0, radius=100.0)
+    script = RatScript(in_quadrant).stay(300.0)
+
+    report, *_rest = AnalysisService(settings_obj=load_settings()).run_full_analysis(
+        trajectory_df=script.frame(),
+        pixelcm_x=1.0,
+        pixelcm_y=1.0,
+        video_height_px=428,
+        arena_polygon_px=TABLE.arena(),
+        rois=TABLE.rois(),
+        fps=10.0,
+        freezing_vel_threshold=1.0,
+        freezing_min_duration=1.0,
+        behavioral_config={"protocol": "barnes"},
+    )
+
+    metrics = report["protocol_metrics"]
+    whole = report["analise_roi"]["tempo_gasto_por_roi"]["quadrante_alvo"]["seconds"]
+    assert whole == pytest.approx(300.0, abs=0.2)
+    assert metrics["start_source"] == "recording"
+    assert metrics["target_quadrant_time_s"] == pytest.approx(240.0, abs=0.2)
+    assert 99.0 <= metrics["target_quadrant_time_pct"] <= 100.0
+
+
 def test_without_the_quadrant_roi_the_quadrant_metrics_are_none():
     script = rat(0)
 
@@ -421,6 +495,37 @@ def test_no_rois_is_refused():
 
     assert result == _unavailable("no_rois")
     assert warnings == ["This video has no ROIs; the Barnes metrics need the hole ROIs."]
+
+
+def test_duplicate_barnes_names_are_warned():
+    from zebtrack.analysis.roi import ROI
+
+    stray = ROI("toca", TABLE.rois()[1].geometry.buffer(0.0), "px")
+
+    result, warnings = run(rat(0), [*TABLE.rois(), stray], window=entry_at(rat(0)))
+
+    assert result["status"] == "ok"
+    assert warnings == [
+        "Several ROIs share the Barnes name(s) toca; the Barnes metrics use the first ROI "
+        "of each name."
+    ]
+
+
+def test_visits_the_slowdown_filter_cannot_judge_are_warned():
+    script = rat(3, 0)
+
+    result, warnings = run(
+        script,
+        window=entry_at(script),
+        params={"visit_max_speed_cm_s": 20.0},
+        gap_threshold_s=0.05,
+    )
+
+    assert result["visit_sequence"] == []
+    assert warnings == [
+        "2 possible hole visit(s) were left out of the Barnes metrics: the slowdown filter "
+        "(visit_max_speed_cm_s) could not measure the speed around them (tracking gaps)."
+    ]
 
 
 def test_missing_holes_are_named():

@@ -13616,3 +13616,18 @@ msgstr ""
 #: src/zebtrack/analysis/protocols/barnes/spec.py:26
 msgid "Barnes maze"
 msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:237
+#, python-brace-format
+msgid ""
+"Several ROIs share the Barnes name(s) {names}; the Barnes metrics use the "
+"first ROI of each name."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:293
+#, python-brace-format
+msgid ""
+"{count} possible hole visit(s) were left out of the Barnes metrics: the "
+"slowdown filter (visit_max_speed_cm_s) could not measure the speed around "
+"them (tracking gaps)."
+msgstr ""

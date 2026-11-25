@@ -6712,6 +6712,10 @@ _load_registry()"
         description: "quadrante sem area e aceito como quadrante"
         find: "if quadrant is not None and not _usable(quadrant):"
         replace: "if False:"
+      - id: duplicates-not-reported
+        description: "nomes de Barnes repetidos deixam de ser relatados"
+        find: "                duplicates.append(roi.name)"
+        replace: "                pass"
   barnes_visits:
     source: src/zebtrack/analysis/protocols/barnes/visits.py
     tests:
@@ -6743,7 +6747,7 @@ _load_registry()"
         replace: "if True:"
       - id: missing-frames-ignored
         description: "quadros sem deteccao deixam de contar como descobertos"
-        find: "debounce.step(float(t[i - 1] + k * spacing), False, False)"
+        find: "debounce.step(float(t[i - 1] + k * spacing), False, False, False)"
         replace: "continue"
       - id: open-visit-not-clamped
         description: "visita aberta no START comeca antes de t0"
@@ -6761,10 +6765,10 @@ _load_registry()"
         description: "no mesmo instante fica a deteccao de MENOR confianca"
         find: "ascending=[True, False, False]"
         replace: "ascending=[True, True, False]"
-      - id: frame-step-median
-        description: "passo de quadro pela mediana: um quadro perdido some"
-        find: "step = float(positive.min() if by_frame else np.median(positive))"
-        replace: "step = float(np.median(positive))"
+      - id: frame-step-minimum
+        description: "passo de quadro pelo menor intervalo: um par atipico inventa quadros perdidos"
+        find: "step = float(np.median(positive))"
+        replace: "step = float(positive.min())"
       - id: path-counts-gap-jumps
         description: "caminho soma o salto atraves de uma lacuna longa"
         find: "return float(steps[dt <= gap_threshold_s].sum())"
@@ -6777,6 +6781,14 @@ _load_registry()"
         description: "centro gravado (x_center_px) ignorado em favor do centro da bbox"
         find: "cx = np.where(recorded, recorded_x, (x1 + x2) / 2.0)"
         replace: "cx = (x1 + x2) / 2.0"
+      - id: unmeasured-candidates-lost
+        description: "candidato sem velocidade medivel some em silencio no filtro de desaceleracao"
+        find: "elif not self._measured:"
+        replace: "elif False:"
+      - id: nan-speed-counts-as-measured
+        description: "velocidade NaN conta como medida e o candidato some sem aviso"
+        find: "measured = covered & np.isfinite(samples.speed_cm_s)"
+        replace: "measured = covered"
   barnes_strategy:
     source: src/zebtrack/analysis/protocols/barnes/strategy.py
     tests:
@@ -6841,8 +6853,8 @@ _load_registry()"
         replace: "if False:\n        return None, None, EntrySource.NOT_APPLICABLE"
       - id: quadrant-pct-not-percent
         description: "porcentagem no quadrante-alvo sai como fracao"
-        find: "return seconds, seconds / trial_s * 100.0"
-        replace: "return seconds, seconds / trial_s"
+        find: "return seconds, seconds / (trial_end - t0) * 100.0"
+        replace: "return seconds, seconds / (trial_end - t0)"
       - id: target-revisit-perseverative
         description: "revisita ao alvo conta como perseveracao"
         find: "repeat = not is_target and visit.offset in seen"
@@ -6903,6 +6915,26 @@ _load_registry()"
         description: "sem encontro a latencia deixa de ser max_trial_s"
         find: "(params.max_trial_s if encounter_t is None else encounter_t - t0)"
         replace: "(None if encounter_t is None else encounter_t - t0)"
+      - id: late-entry-not-censored
+        description: "entrada depois de max_trial_s sai como latencia medida"
+        find: "if latency > params.max_trial_s:"
+        replace: "if False:"
+      - id: entry-at-ceiling-censored
+        description: "entrada exatamente no teto passa a ser censurada"
+        find: "if latency > params.max_trial_s:"
+        replace: "if latency >= params.max_trial_s:"
+      - id: quadrant-over-the-window
+        description: "tempo no quadrante medido na janela inteira, nao no ensaio"
+        find: "context.roi_analyzer.get_time_spent_in_rois(t0, trial_end)"
+        replace: "context.roi_analyzer.get_time_spent_in_rois()"
+      - id: duplicate-names-silent
+        description: "ROIs de Barnes com nome repetido nao geram aviso"
+        find: "if resolution.duplicates:"
+        replace: "if False:"
+      - id: unmeasured-visits-silent
+        description: "visitas descartadas sem velocidade medivel nao geram aviso"
+        find: "if unmeasured:"
+        replace: "if False:"
   barnes_spec:
     source: src/zebtrack/analysis/protocols/barnes/spec.py
     tests:

@@ -31,6 +31,7 @@ from zebtrack.analysis.protocols.barnes.layout import LayoutHole
 __all__ = [
     "HoleVisit",
     "SubjectSamples",
+    "VisitDetection",
     "detect_hole_visits",
     "path_length_cm",
     "subject_samples",
@@ -93,9 +94,10 @@ def _numeric(frame: pd.DataFrame, column: str) -> np.ndarray:
 def _missing_frames(frames: np.ndarray | None, times: np.ndarray) -> np.ndarray:
     """Processed frames without a detection before each sample.
 
-    From the ``frame`` numbers when every sample has one (the step is their smallest
-    positive difference: the analysis interval), else from the timestamps and their
-    median positive interval (a variable frame rate jitters the smallest one).
+    From the ``frame`` numbers when every sample has one, else from the timestamps.
+    The step (the analysis interval) is the MEDIAN positive difference: one odd
+    adjacent pair (two frames one apart in a 10-frame interval) must not turn every
+    regular interval into nine missing frames.
     """
     missing = np.zeros(len(times), dtype=int)
     if len(times) < 2:
@@ -105,7 +107,7 @@ def _missing_frames(frames: np.ndarray | None, times: np.ndarray) -> np.ndarray:
     positive = diffs[diffs > 0]
     if len(positive) == 0:
         return missing
-    step = float(positive.min() if by_frame else np.median(positive))
+    step = float(np.median(positive))
     missing[1:] = np.maximum(np.rint(diffs / step).astype(int) - 1, 0)
     return missing
 
@@ -211,12 +213,15 @@ class _Debounce:
         "_enter",
         "_exit",
         "_inside",
+        "_measured",
         "_need_slow",
         "_run",
+        "_run_measured",
         "_run_slow",
         "_run_t",
         "_slow",
         "_start",
+        "unmeasured",
         "visits",
     )
 
@@ -228,11 +233,16 @@ class _Debounce:
         self._run = 0
         self._run_t = 0.0
         self._run_slow = False
+        self._run_measured = False
         self._start = 0.0
         self._slow = False
+        self._measured = False
         self.visits: list[tuple[float, float | None]] = []
+        #: Candidates the slowdown filter dropped with NO measurable speed on any
+        #: covered frame (tracking gaps around the hole): reported, never silent.
+        self.unmeasured: list[tuple[float, float | None]] = []
 
-    def step(self, t: float, covered: bool, slow: bool) -> None:
+    def step(self, t: float, covered: bool, slow: bool, measured: bool) -> None:
         if not self._inside:
             if not covered:
                 self._run = 0
@@ -240,17 +250,21 @@ class _Debounce:
             if self._run == 0:
                 self._run_t = t
                 self._run_slow = False
+                self._run_measured = False
             self._run += 1
             self._run_slow = self._run_slow or slow
+            self._run_measured = self._run_measured or measured
             if self._run >= self._enter:
                 self._inside = True
                 self._start = self._run_t
                 self._slow = self._run_slow
+                self._measured = self._run_measured
                 self._run = 0
             return
         if covered:
             self._run = 0
             self._slow = self._slow or slow
+            self._measured = self._measured or measured
             return
         if self._run == 0:
             self._run_t = t
@@ -265,20 +279,44 @@ class _Debounce:
     def _close(self, t_exit: float | None) -> None:
         if self._slow or not self._need_slow:
             self.visits.append((self._start, t_exit))
+        elif not self._measured:
+            self.unmeasured.append((self._start, t_exit))
         self._inside = False
         self._run = 0
 
 
+@dataclass(frozen=True, slots=True)
+class VisitDetection:
+    """Outcome of :func:`detect_hole_visits` over the whole recording.
+
+    Attributes:
+        visits: Every visit, sorted by start then offset.
+        unmeasured: Candidate visits the slowdown filter (``visit_max_speed_cm_s``)
+            dropped because no covered frame had a measurable speed (every speed
+            ``NaN``: tracking gaps around the hole). They are NOT visits; the caller
+            warns about them instead of losing them silently. Always empty with the
+            filter off.
+    """
+
+    visits: list[HoleVisit]
+    unmeasured: list[HoleVisit]
+
+
+def _sort_visits(visits: list[HoleVisit]) -> list[HoleVisit]:
+    return sorted(visits, key=lambda visit: (visit.t_enter_s, visit.offset))
+
+
 def _visits_of_hole(
     samples: SubjectSamples, hole: LayoutHole, params: BarnesParams
-) -> list[HoleVisit]:
+) -> VisitDetection:
     covered = _hole_cover(samples, hole) >= params.visit_min_cover
     if not covered.any():
-        return []
+        return VisitDetection([], [])
     max_speed = params.visit_max_speed_cm_s
     need_slow = max_speed is not None
     with np.errstate(invalid="ignore"):
         slow = samples.speed_cm_s < max_speed if max_speed is not None else covered
+    measured = covered & np.isfinite(samples.speed_cm_s)
     debounce = _Debounce(params.visit_enter_frames, params.visit_exit_frames, need_slow)
     t = samples.t_s
     for i in range(len(samples)):
@@ -287,22 +325,27 @@ def _visits_of_hole(
             # Past ``visit_exit_frames`` uncovered frames the state no longer changes.
             spacing = (t[i] - t[i - 1]) / (gap + 1)
             for k in range(1, min(gap, params.visit_exit_frames) + 1):
-                debounce.step(float(t[i - 1] + k * spacing), False, False)
-        debounce.step(float(t[i]), bool(covered[i]), bool(covered[i] and slow[i]))
+                debounce.step(float(t[i - 1] + k * spacing), False, False, False)
+        debounce.step(
+            float(t[i]), bool(covered[i]), bool(covered[i] and slow[i]), bool(measured[i])
+        )
     debounce.finish()
-    return [
-        HoleVisit(roi=hole.roi.name, offset=hole.offset, t_enter_s=start, t_exit_s=end)
-        for start, end in debounce.visits
-    ]
+
+    def as_visits(edges: list[tuple[float, float | None]]) -> list[HoleVisit]:
+        return [HoleVisit(hole.roi.name, hole.offset, start, end) for start, end in edges]
+
+    return VisitDetection(as_visits(debounce.visits), as_visits(debounce.unmeasured))
 
 
 def detect_hole_visits(
     samples: SubjectSamples, holes: Sequence[LayoutHole], params: BarnesParams
-) -> list[HoleVisit]:
-    """Every visit to every hole over the whole recording, sorted by start then offset."""
-    visits = [visit for hole in holes for visit in _visits_of_hole(samples, hole, params)]
-    visits.sort(key=lambda visit: (visit.t_enter_s, visit.offset))
-    return visits
+) -> VisitDetection:
+    """Every visit to every hole over the whole recording (see :class:`VisitDetection`)."""
+    per_hole = [_visits_of_hole(samples, hole, params) for hole in holes]
+    return VisitDetection(
+        visits=_sort_visits([visit for found in per_hole for visit in found.visits]),
+        unmeasured=_sort_visits([visit for found in per_hole for visit in found.unmeasured]),
+    )
 
 
 def visits_in_trial(visits: Sequence[HoleVisit], t0: float, trial_end: float) -> list[HoleVisit]:

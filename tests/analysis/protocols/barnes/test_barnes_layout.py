@@ -145,8 +145,11 @@ def test_the_first_roi_of_a_name_wins_and_foreign_rois_are_ignored():
     decoy_toca = ROI("toca", Point(0.0, 0.0).buffer(10.0), "px")
     foreign = ROI("start_box", Point(*table.center).buffer(30.0), "px")
 
-    resolved = _resolve(table, [*table.rois(), decoy_toca, foreign]).layout
+    resolution = _resolve(table, [*table.rois(), decoy_toca, foreign, decoy_toca])
+    resolved = resolution.layout
 
+    assert resolution.duplicates == ("toca",)
+    assert _resolve(table).duplicates == ()
     assert resolved is not None
     target = resolved.layout.target
     assert target.center_px == pytest.approx(table.hole_xy(0), abs=1e-6)
