@@ -136,9 +136,7 @@ def _fit_ellipse(points: np.ndarray) -> BarnesEllipse | None:
     with their mean distance as radius.
     """
     if len(points) >= _MIN_FIT_POINTS:
-        # typings/cv2.pyi (the repo's cv2 stub) does not list fitEllipse yet.
-        fitted = cv2.fitEllipse(points.astype(np.float32))  # type: ignore[attr-defined]
-        (cx, cy), (width, height), angle = fitted
+        (cx, cy), (width, height), angle = cv2.fitEllipse(points.astype(np.float32))
         values = (cx, cy, width, height, angle)
         if all(math.isfinite(v) for v in values) and min(width, height) / 2.0 >= _MIN_SEMI_AXIS_PX:
             return BarnesEllipse(

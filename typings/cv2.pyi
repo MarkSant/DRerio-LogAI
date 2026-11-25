@@ -31,6 +31,8 @@ boundingRect: Any
 warpPerspective: Any
 threshold: Any
 GaussianBlur: Any
+fitEllipse: Any
+ellipse2Poly: Any
 adaptiveThreshold: Any
 morphologyEx: Any
 convexHull: Any

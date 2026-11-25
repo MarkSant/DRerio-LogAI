@@ -192,7 +192,7 @@ def test_center_disk_scales_the_ring():
 def test_scaled_ellipse_test_agrees_with_opencv_drawing(angle):
     ellipse = BarnesEllipse((200.0, 150.0), (120.0, 60.0), angle)
     boundary = np.asarray(
-        cv2.ellipse2Poly((200, 150), (120, 60), int(angle), 0, 360, 5),  # type: ignore[attr-defined]
+        cv2.ellipse2Poly((200, 150), (120, 60), int(angle), 0, 360, 5),
         dtype=np.float64,
     )
     center = np.array(ellipse.center_px)
