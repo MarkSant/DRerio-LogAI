@@ -13567,3 +13567,52 @@ msgid ""
 "The {protocol} protocol analyses one arena per video; its metrics are not "
 "computed for aquarium {aquarium} of a multi-aquarium video."
 msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:108
+msgid ""
+"The analysis window of this Barnes trial cannot detect the burrow entry (it "
+"has no burrow_entry stop); the entry latency was not measured."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:216
+msgid "This video has no ROIs; the Barnes metrics need the hole ROIs."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:253
+msgid ""
+"The Barnes trial has no detection to measure; the Barnes metrics were not "
+"computed."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:259
+msgid ""
+"The analysis window has no START; the Barnes trial is timed from the first "
+"detection."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:230
+msgid "The Barnes metrics were not computed: the hole ROIs do not form a ring."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:126
+#, python-brace-format
+msgid ""
+"The Barnes ROI {roi} is missing; the time in the target quadrant was not "
+"computed."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:237
+#, python-brace-format
+msgid ""
+"The Barnes metrics need one animal per video; this trajectory has {count}."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:224
+#, python-brace-format
+msgid ""
+"The Barnes metrics were not computed: hole ROIs missing or empty: {names}."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/spec.py:26
+msgid "Barnes maze"
+msgstr ""

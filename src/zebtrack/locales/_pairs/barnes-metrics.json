@@ -1,0 +1,11 @@
+{
+  "The analysis window of this Barnes trial cannot detect the burrow entry (it has no burrow_entry stop); the entry latency was not measured.": "A janela de análise deste ensaio de Barnes não consegue detectar a entrada na toca (ela não tem parada burrow_entry); a latência de entrada não foi medida.",
+  "This video has no ROIs; the Barnes metrics need the hole ROIs.": "Este vídeo não tem ROIs; as métricas de Barnes precisam das ROIs dos buracos.",
+  "The Barnes trial has no detection to measure; the Barnes metrics were not computed.": "O ensaio de Barnes não tem detecção para medir; as métricas de Barnes não foram calculadas.",
+  "The analysis window has no START; the Barnes trial is timed from the first detection.": "A janela de análise não tem INÍCIO; o ensaio de Barnes é cronometrado a partir da primeira detecção.",
+  "The Barnes metrics were not computed: the hole ROIs do not form a ring.": "As métricas de Barnes não foram calculadas: as ROIs dos buracos não formam um anel.",
+  "The Barnes ROI {roi} is missing; the time in the target quadrant was not computed.": "A ROI de Barnes {roi} está ausente; o tempo no quadrante-alvo não foi calculado.",
+  "The Barnes metrics need one animal per video; this trajectory has {count}.": "As métricas de Barnes precisam de um animal por vídeo; esta trajetória tem {count}.",
+  "The Barnes metrics were not computed: hole ROIs missing or empty: {names}.": "As métricas de Barnes não foram calculadas: ROIs de buracos ausentes ou vazias: {names}.",
+  "Barnes maze": "Labirinto de Barnes"
+}

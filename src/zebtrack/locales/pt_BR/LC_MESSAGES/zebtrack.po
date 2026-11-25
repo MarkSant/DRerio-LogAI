@@ -16308,6 +16308,72 @@ msgstr ""
 "calculadas para o aquário {aquarium} de um vídeo com vários aquários."
 
 
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:108
+msgid ""
+"The analysis window of this Barnes trial cannot detect the burrow entry (it "
+"has no burrow_entry stop); the entry latency was not measured."
+msgstr ""
+"A janela de análise deste ensaio de Barnes não consegue detectar a entrada "
+"na toca (ela não tem parada burrow_entry); a latência de entrada não foi "
+"medida."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:216
+msgid "This video has no ROIs; the Barnes metrics need the hole ROIs."
+msgstr ""
+"Este vídeo não tem ROIs; as métricas de Barnes precisam das ROIs dos "
+"buracos."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:253
+msgid ""
+"The Barnes trial has no detection to measure; the Barnes metrics were not "
+"computed."
+msgstr ""
+"O ensaio de Barnes não tem detecção para medir; as métricas de Barnes não "
+"foram calculadas."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:259
+msgid ""
+"The analysis window has no START; the Barnes trial is timed from the first "
+"detection."
+msgstr ""
+"A janela de análise não tem INÍCIO; o ensaio de Barnes é cronometrado a "
+"partir da primeira detecção."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:230
+msgid "The Barnes metrics were not computed: the hole ROIs do not form a ring."
+msgstr ""
+"As métricas de Barnes não foram calculadas: as ROIs dos buracos não formam "
+"um anel."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:126
+#, python-brace-format
+msgid ""
+"The Barnes ROI {roi} is missing; the time in the target quadrant was not "
+"computed."
+msgstr ""
+"A ROI de Barnes {roi} está ausente; o tempo no quadrante-alvo não foi "
+"calculado."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:237
+#, python-brace-format
+msgid ""
+"The Barnes metrics need one animal per video; this trajectory has {count}."
+msgstr ""
+"As métricas de Barnes precisam de um animal por vídeo; esta trajetória tem "
+"{count}."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:224
+#, python-brace-format
+msgid ""
+"The Barnes metrics were not computed: hole ROIs missing or empty: {names}."
+msgstr ""
+"As métricas de Barnes não foram calculadas: ROIs de buracos ausentes ou "
+"vazias: {names}."
+
+#: src/zebtrack/analysis/protocols/barnes/spec.py:26
+msgid "Barnes maze"
+msgstr "Labirinto de Barnes"
+
 #~ msgid "Detector parameters updated."
 #~ msgstr "Parâmetros do detector atualizados."
 
