@@ -25,7 +25,7 @@ def _resolve(table: BarnesTable, rois=None):
 
 
 def test_full_layout_is_rebuilt_from_names_and_centroids():
-    table = BarnesTable()
+    table = BarnesTable(n_holes=20)
     resolution = _resolve(table)
 
     resolved = resolution.layout
@@ -54,7 +54,7 @@ def test_full_layout_is_rebuilt_from_names_and_centroids():
 
 
 def test_rebuild_agrees_with_the_assistant_metadata_cache():
-    table = BarnesTable()
+    table = BarnesTable(n_holes=20)
     """The cache the assistant writes (another origin) describes the same holes."""
     target_abs = 7
     holes = tuple(
@@ -86,7 +86,7 @@ def test_rebuild_agrees_with_the_assistant_metadata_cache():
 
 
 def test_layout_without_a_table_polygon_uses_the_ring():
-    table = BarnesTable()
+    table = BarnesTable(n_holes=20)
     resolved = resolve_layout(table.rois(), (), 20).layout
 
     assert resolved is not None
@@ -104,7 +104,7 @@ def test_layout_without_a_table_polygon_uses_the_ring():
     ],
 )
 def test_missing_or_misnamed_holes_leave_the_layout_unresolved(omit, rename, missing):
-    table = BarnesTable()
+    table = BarnesTable(n_holes=20)
     resolution = _resolve(table, table.rois(omit=omit, rename=rename))
 
     assert resolution.layout is None
@@ -112,7 +112,7 @@ def test_missing_or_misnamed_holes_leave_the_layout_unresolved(omit, rename, mis
 
 
 def test_a_hole_roi_without_area_counts_as_missing():
-    table = BarnesTable()
+    table = BarnesTable(n_holes=20)
     rois = [
         ROI(r.name, Polygon() if r.name == "buraco_+05" else r.geometry, "px") for r in table.rois()
     ]
@@ -124,7 +124,7 @@ def test_a_hole_roi_without_area_counts_as_missing():
 
 
 def test_the_quadrant_is_optional():
-    table = BarnesTable()
+    table = BarnesTable(n_holes=20)
     without = _resolve(table, table.rois(quadrant=False)).layout
     empty = _resolve(
         table,
@@ -141,7 +141,7 @@ def test_the_quadrant_is_optional():
 
 
 def test_the_first_roi_of_a_name_wins_and_foreign_rois_are_ignored():
-    table = BarnesTable()
+    table = BarnesTable(n_holes=20)
     decoy_toca = ROI("toca", Point(0.0, 0.0).buffer(10.0), "px")
     foreign = ROI("start_box", Point(*table.center).buffer(30.0), "px")
 
@@ -179,7 +179,7 @@ def test_small_tables_rebuild_a_ring_through_their_holes(n_holes):
 
 
 def test_center_disk_scales_the_ring():
-    table = BarnesTable()
+    table = BarnesTable(n_holes=20)
     resolved = _resolve(table).layout
     assert resolved is not None
     cx, cy = table.center

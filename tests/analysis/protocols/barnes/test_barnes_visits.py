@@ -20,7 +20,7 @@ from zebtrack.analysis.protocols.barnes.visits import (
     visits_in_trial,
 )
 
-TABLE = BarnesTable()
+TABLE = BarnesTable(n_holes=20)
 LAYOUT = resolve_layout(TABLE.rois(), TABLE.arena(), 20).layout
 assert LAYOUT is not None
 
@@ -33,7 +33,9 @@ def _samples(script: RatScript, *, gap: float = math.inf, pixelcm: float = 1.0, 
 
 def _detect(script: RatScript, **params) -> VisitDetection:
     assert LAYOUT is not None
-    return detect_hole_visits(_samples(script), LAYOUT.holes, BarnesParams(**params))
+    return detect_hole_visits(
+        _samples(script), LAYOUT.holes, BarnesParams(n_holes=TABLE.n_holes, **params)
+    )
 
 
 def _visits(script: RatScript, **params) -> list[HoleVisit]:
@@ -209,8 +211,10 @@ def test_a_candidate_without_any_measurable_speed_is_reported_not_lost():
     # Every step is longer than the gap threshold: no speed anywhere.
     samples = _samples(script, gap=0.05)
 
-    filtered = detect_hole_visits(samples, LAYOUT.holes, BarnesParams(visit_max_speed_cm_s=20.0))
-    unfiltered = detect_hole_visits(samples, LAYOUT.holes, BarnesParams())
+    filtered = detect_hole_visits(
+        samples, LAYOUT.holes, BarnesParams(n_holes=20, visit_max_speed_cm_s=20.0)
+    )
+    unfiltered = detect_hole_visits(samples, LAYOUT.holes, BarnesParams(n_holes=20))
 
     assert filtered.visits == []
     assert [(v.roi, v.offset) for v in filtered.unmeasured] == [("buraco_+06", 6)]

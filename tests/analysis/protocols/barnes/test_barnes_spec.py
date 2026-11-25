@@ -21,11 +21,14 @@ def test_the_spec_declares_what_the_contract_says():
 
 
 def test_tidy_columns_follow_the_project_hole_count():
-    assert BARNES_SPEC.tidy_columns({}) == barnes_tidy_columns(20)
+    # Default: the lab's 18-hole table, d00 (target) .. d09 (opposite).
+    assert BARNES_SPEC.tidy_columns({}) == barnes_tidy_columns(18)
+    assert BARNES_SPEC.tidy_columns({})[-1] == "barnes_visits_d09"
+    assert BARNES_SPEC.tidy_columns({"n_holes": 20}) == barnes_tidy_columns(20)
     assert BARNES_SPEC.tidy_columns({"n_holes": 12}) == barnes_tidy_columns(12)
     assert BARNES_SPEC.tidy_columns({"n_holes": 12})[-1] == "barnes_visits_d06"
     # A bad value falls back to the default instead of raising.
-    assert BARNES_SPEC.tidy_columns({"n_holes": "x"}) == barnes_tidy_columns(20)
+    assert BARNES_SPEC.tidy_columns({"n_holes": "x"}) == barnes_tidy_columns(18)
 
 
 def test_display_name_is_translated_at_call_time():

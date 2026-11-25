@@ -13631,3 +13631,16 @@ msgid ""
 "slowdown filter (visit_max_speed_cm_s) could not measure the speed around "
 "them (tracking gaps)."
 msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:208
+msgid ""
+"The Barnes metrics were not computed: no decoy hole ROI (buraco_+01, "
+"buraco_-01, ...) was found."
+msgstr ""
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:220
+#, python-brace-format
+msgid ""
+"The Barnes ROIs of this video describe a table of {effective} holes, but the"
+" project declares {declared}; the Barnes metrics use {effective} holes."
+msgstr ""

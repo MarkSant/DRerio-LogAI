@@ -29,7 +29,7 @@ from zebtrack.analysis.protocols.barnes.contract import METRICS_KEYS, VISIT_FIEL
 from zebtrack.analysis.protocols.barnes.metrics import compute_barnes_metrics
 from zebtrack.analysis.protocols.registry import compute_protocol_metrics
 
-TABLE = BarnesTable()
+TABLE = BarnesTable(n_holes=20)
 
 
 def rat(*offsets: int, dwell_s: float = 0.6) -> RatScript:
@@ -46,6 +46,7 @@ def entry_at(script: RatScript, t: float | None = None) -> WindowResolution:
 def run(script: RatScript | pd.DataFrame, rois=None, **kwargs) -> tuple[dict[str, Any], list]:
     warnings: list[str] = []
     trajectory = script if isinstance(script, pd.DataFrame) else script.frame()
+    kwargs.setdefault("table", TABLE)
     context = make_context(
         trajectory, TABLE.rois() if rois is None else rois, warnings=warnings, **kwargs
     )
@@ -423,6 +424,7 @@ def test_the_quadrant_is_measured_over_the_trial_not_the_window():
     context = make_context(
         script.frame(),
         TABLE.rois(),
+        table=TABLE,
         window=window(1.0, script.t, reason="delay", spec=V2_SPEC),
         params={"max_trial_s": 3.0},
         quadrant_s=1.5,
@@ -455,7 +457,7 @@ def test_quadrant_share_of_a_recording_longer_than_the_trial_stays_a_share():
         fps=10.0,
         freezing_vel_threshold=1.0,
         freezing_min_duration=1.0,
-        behavioral_config={"protocol": "barnes"},
+        behavioral_config={"protocol": "barnes", "protocol_params": {"barnes": {"n_holes": 20}}},
     )
 
     metrics = report["protocol_metrics"]
@@ -611,13 +613,122 @@ def test_bad_params_and_inputs_warn_and_fall_back():
     )
 
     assert result["status"] == "ok"
+    # The bad n_holes falls back to the default (18); the 20-hole names win.
     assert result["n_holes"] == 20
     assert result["trial_type"] == "training"
     assert result["strategy_source"] == "auto"
-    assert len(warnings) == 3
+    assert len(warnings) == 4
     assert "n_holes" in warnings[0]
     assert "trial_type" in warnings[1]
     assert "strategy_override" in warnings[2]
+    assert "20 holes" in warnings[3]
+
+
+# --- hole count: the lab's 18-hole table and mismatches --------------------------
+
+TABLE_18 = BarnesTable(n_holes=18)
+
+
+def rat_18(*offsets: int) -> RatScript:
+    script = RatScript(TABLE_18.center).stay(1.0)
+    for offset in offsets:
+        script.poke(TABLE_18.hole_xy(offset), travel_s=1.0, dwell_s=0.6)
+    return script
+
+
+def run_18(script: RatScript, **kwargs) -> tuple[dict[str, Any], list]:
+    kwargs.setdefault("table", TABLE_18)
+    return run(script, TABLE_18.rois(), **kwargs)
+
+
+def test_eighteen_hole_probe_opposite_scores_ten():
+    script = rat_18(9)
+
+    result, warnings = run_18(
+        script, window=window(1.0, script.t, reason="delay"), inputs={"trial_type": "probe"}
+    )
+
+    assert result["n_holes"] == 18
+    assert result["visit_sequence"][0]["roi"] == "buraco_oposto"
+    assert result["probe_first_hole_offset"] == 9
+    assert result["probe_first_hole_score"] == 10
+    assert list(result["visits_by_distance"]) == list(range(10))
+    assert result["visits_by_distance"][9] == 1
+    assert warnings == []
+
+
+def test_eighteen_hole_serial_search_wraps_past_the_opposite_hole():
+    script = rat_18(7, 8, 9, -8, -7)
+
+    result, _warnings = run_18(script, window=window(1.0, script.t, reason="delay", spec=V2_SPEC))
+
+    assert offsets(result) == [7, 8, 9, -8, -7]
+    # 9 -> -8 is one hole on an 18-hole table (it would be 17 the long way round).
+    assert result["strategy_features"]["adjacent_transition_fraction"] == 1.0
+    assert result["strategy_features"]["n_transitions"] == 4
+    assert result["strategy"] == "serial"
+    assert result["visits_by_distance"] == {
+        0: 0,
+        1: 0,
+        2: 0,
+        3: 0,
+        4: 0,
+        5: 0,
+        6: 0,
+        7: 2,
+        8: 2,
+        9: 1,
+    }
+
+
+def test_twenty_hole_names_in_an_eighteen_hole_project_use_twenty():
+    script = rat(10, 0)
+
+    result, warnings = run(
+        script,
+        window=window(1.0, script.t, reason="delay", spec=V2_SPEC),
+        params={"n_holes": 18},
+    )
+
+    assert result["n_holes"] == 20
+    assert offsets(result) == [10, 0]
+    assert list(result["visits_by_distance"]) == list(range(11))
+    assert result["visits_by_distance"][10] == 1
+    assert warnings == [
+        "The Barnes ROIs of this video describe a table of 20 holes, but the project "
+        "declares 18; the Barnes metrics use 20 holes."
+    ]
+
+
+def test_eighteen_hole_names_in_a_twenty_hole_project_use_eighteen():
+    script = rat_18(9, 0)
+
+    result, warnings = run_18(
+        script,
+        window=window(1.0, script.t, reason="delay", spec=V2_SPEC),
+        params={"n_holes": 20},
+        inputs={"trial_type": "probe"},
+    )
+
+    assert result["n_holes"] == 18
+    assert result["probe_first_hole_score"] == 10
+    assert list(result["visits_by_distance"]) == list(range(10))
+    assert warnings == [
+        "The Barnes ROIs of this video describe a table of 18 holes, but the project "
+        "declares 20; the Barnes metrics use 18 holes."
+    ]
+
+
+def test_without_any_decoy_name_there_is_no_table():
+    rois = [roi for roi in TABLE.rois() if roi.name in ("toca", "quadrante_alvo")]
+
+    result, warnings = run(rat(0), rois, window=entry_at(rat(0)))
+
+    assert result == _unavailable("layout_unresolved")
+    assert warnings == [
+        "The Barnes metrics were not computed: no decoy hole ROI (buraco_+01, buraco_-01, "
+        "...) was found."
+    ]
 
 
 # --- serialisation and dispatch ---------------------------------------------------
@@ -642,7 +753,7 @@ def test_metrics_survive_a_json_round_trip():
 
 def test_the_registry_dispatches_barnes_to_these_metrics():
     script = rat(0)
-    context = make_context(script.frame(), TABLE.rois(), window=entry_at(script))
+    context = make_context(script.frame(), TABLE.rois(), table=TABLE, window=entry_at(script))
 
     assert compute_protocol_metrics(context)["strategy"] == "direct"
 
@@ -665,7 +776,7 @@ def test_full_analysis_reports_the_barnes_metrics_with_the_report_rule():
         fps=10.0,
         freezing_vel_threshold=1.0,
         freezing_min_duration=1.0,
-        behavioral_config={"protocol": "barnes"},
+        behavioral_config={"protocol": "barnes", "protocol_params": {"barnes": {"n_holes": 20}}},
         window=entry_at(script),
         protocol_inputs={"barnes": {"strategy_override": "serial"}},
     )

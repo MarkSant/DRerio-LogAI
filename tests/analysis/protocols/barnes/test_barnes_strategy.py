@@ -19,7 +19,7 @@ from zebtrack.analysis.protocols.barnes.strategy import (
     strategy_features,
 )
 
-PARAMS = BarnesParams()
+PARAMS = BarnesParams(n_holes=20)
 
 
 @pytest.mark.parametrize(
@@ -27,6 +27,11 @@ PARAMS = BarnesParams()
 )
 def test_circular_step_goes_the_short_way(a, b, step):
     assert circular_step(a, b, 20) == step
+
+
+@pytest.mark.parametrize(("a", "b", "step"), [(9, -8, 1), (-8, 9, 1), (8, -8, 2), (9, 0, 9)])
+def test_circular_step_wraps_round_an_eighteen_hole_table(a, b, step):
+    assert circular_step(a, b, 18) == step
 
 
 def test_center_crossings_count_only_entries_from_outside():
@@ -62,7 +67,7 @@ def test_features_measure_adjacent_transitions():
 
 
 def test_the_adjacent_step_is_a_parameter():
-    params = BarnesParams(strategy_adjacent_max_step=1)
+    params = BarnesParams(n_holes=20, strategy_adjacent_max_step=1)
 
     features = strategy_features(
         [5, 4, 2], errors_before_target=2, center_crossings=0, params=params
@@ -104,6 +109,7 @@ def test_classifier_thresholds(features, found, expected):
 
 def test_thresholds_are_read_from_the_params():
     params = BarnesParams(
+        n_holes=20,
         strategy_direct_max_errors=1,
         strategy_serial_min_adjacent_fraction=0.5,
         strategy_serial_max_center_crossings=3,

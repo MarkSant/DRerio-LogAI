@@ -43,7 +43,8 @@ class BarnesTable:
 
     def __init__(
         self,
-        n_holes: int = 20,
+        *,
+        n_holes: int,
         center: tuple[float, float] = (320.0, 214.0),
         ring_radius: float = 150.0,
         hole_radius: float = 10.0,
@@ -237,7 +238,7 @@ def make_context(
     trajectory: pd.DataFrame,
     rois: list[ROI],
     *,
-    table: BarnesTable | None = None,
+    table: BarnesTable,
     window: WindowResolution | None = None,
     inputs: Mapping[str, Any] | None = None,
     params: Mapping[str, Any] | None = None,
@@ -246,15 +247,19 @@ def make_context(
     pixelcm: float = 1.0,
     warnings: list[str] | None = None,
 ) -> ProtocolContext:
-    behavioral_config: dict[str, Any] = {"protocol": "barnes"}
-    if params is not None:
-        behavioral_config["protocol_params"] = {"barnes": dict(params)}
+    # The project's n_holes is the table's unless a test declares another one: no
+    # test leans on the BarnesParams default.
+    barnes_params = {"n_holes": table.n_holes, **dict(params or {})}
+    behavioral_config: dict[str, Any] = {
+        "protocol": "barnes",
+        "protocol_params": {"barnes": barnes_params},
+    }
     seconds = {} if quadrant_s is None else {QUADRANT_ROI: quadrant_s}
     return ProtocolContext(
         profile=resolve_experiment_profile(behavioral_config=behavioral_config),
         trajectory=trajectory,
         rois=tuple(rois),
-        arena_polygon_px=(table or BarnesTable()).arena(),
+        arena_polygon_px=table.arena(),
         pixelcm_x=pixelcm,
         pixelcm_y=pixelcm,
         window=window,

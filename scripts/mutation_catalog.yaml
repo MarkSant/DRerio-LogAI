@@ -6935,6 +6935,18 @@ _load_registry()"
         description: "visitas descartadas sem velocidade medivel nao geram aviso"
         find: "if unmeasured:"
         replace: "if False:"
+      - id: declared-hole-count-wins
+        description: "a contagem declarada no projeto vence a desenhada nas ROIs"
+        find: "    return params.model_copy(update={\"n_holes\": effective})"
+        replace: "    return params"
+      - id: hole-count-mismatch-silent
+        description: "contagem de buracos diferente da do projeto nao gera aviso"
+        find: "    if effective == params.n_holes:\n        return params"
+        replace: "    if True:\n        return params"
+      - id: no-table-measured
+        description: "ROIs sem nenhum buraco falso deixam de ser recusadas"
+        find: "    if effective_params is None:\n        return _unavailable(UnavailableReason.LAYOUT_UNRESOLVED)"
+        replace: "    if False:\n        return _unavailable(UnavailableReason.LAYOUT_UNRESOLVED)"
   barnes_spec:
     source: src/zebtrack/analysis/protocols/barnes/spec.py
     tests:
@@ -6953,3 +6965,24 @@ _load_registry()"
         description: "o Barnes deixa de ser registrado"
         find: "return (BARNES_SPEC,)"
         replace: "return ()"
+  barnes_contract_hole_count:
+    source: src/zebtrack/analysis/protocols/barnes/contract.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_contract.py
+    mutations:
+      - id: default-twenty-holes
+        description: "padrao volta a 20 buracos (a mesa atual do laboratorio tem 18)"
+        find: "n_holes: int = Field(default=18, ge=_MIN_HOLES, le=_MAX_HOLES)"
+        replace: "n_holes: int = Field(default=20, ge=_MIN_HOLES, le=_MAX_HOLES)"
+      - id: opposite-ignored
+        description: "buraco_oposto deixa de tornar a mesa par"
+        find: "n_holes = 2 * k + 2 if OPPOSITE_HOLE_ROI in names else 2 * k + 1"
+        replace: "n_holes = 2 * k + 1"
+      - id: smallest-offset
+        description: "contagem pelo MENOR deslocamento presente"
+        find: "k = max(offsets, default=0)"
+        replace: "k = min(offsets, default=0)"
+      - id: count-range-unchecked
+        description: "contagem fora de 3..99 passa"
+        find: "if not _MIN_HOLES <= n_holes <= _MAX_HOLES:"
+        replace: "if False:"

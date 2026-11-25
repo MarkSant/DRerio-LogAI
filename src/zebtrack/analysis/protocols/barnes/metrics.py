@@ -35,6 +35,7 @@ from zebtrack.analysis.protocols.barnes.contract import (
     EntrySource,
     StartSource,
     TrialType,
+    infer_n_holes,
     max_offset,
     parse_barnes_params,
     parse_barnes_video_inputs,
@@ -193,6 +194,37 @@ def _probe(
     return first.offset, probe_score(first.offset, params.probe_score_cap), first_error, attempts
 
 
+def _effective_params(context: ProtocolContext, params: BarnesParams) -> BarnesParams | None:
+    """``params`` with ``n_holes`` set to the count the ROI names describe.
+
+    The project's ``n_holes`` records ITS table (and fixes the tidy columns), but a
+    video's layout is what was drawn on it: offsets, distances, strategy steps and
+    the ``visits_by_distance`` keys follow the names (CONTRACTS §3.2). A mismatch is
+    warned. ``None`` (warned) when the names describe no Barnes table at all.
+    """
+    effective = infer_n_holes(roi.name for roi in context.rois)
+    if effective is None:
+        context.warnings.append(
+            _(
+                "The Barnes metrics were not computed: no decoy hole ROI (buraco_+01, "
+                "buraco_-01, ...) was found."
+            )
+        )
+        return None
+    if effective == params.n_holes:
+        return params
+    logger.warning(
+        "barnes.metrics.hole_count_mismatch", declared=params.n_holes, effective=effective
+    )
+    context.warnings.append(
+        _(
+            "The Barnes ROIs of this video describe a table of {effective} holes, but the "
+            "project declares {declared}; the Barnes metrics use {effective} holes."
+        ).format(effective=effective, declared=params.n_holes)
+    )
+    return params.model_copy(update={"n_holes": effective})
+
+
 def _trial_bounds(
     context: ProtocolContext, samples: SubjectSamples, params: BarnesParams
 ) -> tuple[float, StartSource, float] | None:
@@ -231,6 +263,10 @@ def compute_barnes_metrics(context: ProtocolContext) -> dict[str, Any]:
         context.warnings.append(_("This video has no ROIs; the Barnes metrics need the hole ROIs."))
         return _unavailable(UnavailableReason.NO_ROIS)
 
+    effective_params = _effective_params(context, params)
+    if effective_params is None:
+        return _unavailable(UnavailableReason.LAYOUT_UNRESOLVED)
+    params = effective_params
     resolution = resolve_layout(context.rois, context.arena_polygon_px, params.n_holes)
     if resolution.duplicates:
         context.warnings.append(

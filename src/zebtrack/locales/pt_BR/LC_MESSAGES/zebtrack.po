@@ -16394,6 +16394,24 @@ msgstr ""
 "Barnes: o filtro de desaceleração (visit_max_speed_cm_s) não conseguiu medir"
 " a velocidade em torno dela(s) (lacunas de rastreamento)."
 
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:208
+msgid ""
+"The Barnes metrics were not computed: no decoy hole ROI (buraco_+01, "
+"buraco_-01, ...) was found."
+msgstr ""
+"As métricas de Barnes não foram calculadas: nenhuma ROI de buraco falso "
+"(buraco_+01, buraco_-01, ...) foi encontrada."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:220
+#, python-brace-format
+msgid ""
+"The Barnes ROIs of this video describe a table of {effective} holes, but the"
+" project declares {declared}; the Barnes metrics use {effective} holes."
+msgstr ""
+"As ROIs de Barnes deste vídeo descrevem uma mesa de {effective} buracos, mas"
+" o projeto declara {declared}; as métricas de Barnes usam {effective} "
+"buracos."
+
 #~ msgid "Detector parameters updated."
 #~ msgstr "Parâmetros do detector atualizados."
 
