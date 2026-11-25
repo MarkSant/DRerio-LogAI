@@ -6681,3 +6681,130 @@ _load_registry()"
         description: "o DTO deixa de repassar as entradas por video"
         find: "protocol_inputs=protocol_inputs,\n            aquarium_id=aquarium_id,\n        )"
         replace: "protocol_inputs=None,\n            aquarium_id=aquarium_id,\n        )"
+
+  # --- Barnes v8.1 barnes-arena (#633): arena assistant geometry, dialog, write path ---
+  barnes_geometry:
+    source: src/zebtrack/core/detection/barnes_geometry.py
+    tests:
+      - tests/core/detection/test_barnes_geometry.py
+    mutations:
+      - id: ring-counter-clockwise
+        description: "o anel passa a girar no sentido anti-horario e os offsets se invertem"
+        find: "cx + ux * math.cos(theta) - uy * math.sin(theta),"
+        replace: "cx + ux * math.cos(theta) + uy * math.sin(theta),"
+      - id: rho-halved
+        description: "clique fora da mesa passa a ser aceito como toca"
+        find: "return math.atan2(v, u), math.hypot(u, v)"
+        replace: "return math.atan2(v, u), math.hypot(u, v) * 0.5"
+      - id: snap-window-collapses
+        description: "janela de busca do snap encolhe e nenhum buraco e ajustado"
+        find: "SNAP_SEARCH_FRACTION = 0.4"
+        replace: "SNAP_SEARCH_FRACTION = 0.04"
+      - id: ring-never-refitted
+        description: "o anel nao e reajustado pelos buracos e o buraco ausente fica deslocado"
+        find: "if len(found) < MIN_HOLES_TO_REFIT:"
+        replace: "if True:"
+      - id: quadrant-one-hole-short
+        description: "quadrante alvo perde um buraco no lado anti-horario"
+        find: "t_start = midpoint(-half_holes, -half_holes - 1)"
+        replace: "t_start = midpoint(-half_holes, -half_holes + 1)"
+      - id: hole-rois-may-overlap
+        description: "o teto do raio passa de meio espacamento e ROIs vizinhas se sobrepoem"
+        find: "HOLE_ROI_SPACING_CAP = 0.45"
+        replace: "HOLE_ROI_SPACING_CAP = 0.6"
+      - id: abs-origin-not-wrapped
+        description: "origem do abs_index deixa de ser o buraco mais a direita no sentido horario"
+        find: "angles = [math.atan2(y - cy, x - cx) % (2.0 * math.pi) for x, y in centers]"
+        replace: "angles = [math.atan2(y - cy, x - cx) for x, y in centers]"
+      - id: collinear-rim-accepted
+        description: "pontos colineares na borda viram uma mesa"
+        find: "if misfit > MAX_RIM_MISFIT:"
+        replace: "if False:"
+      - id: background-min-not-median
+        description: "fundo vira o minimo dos quadros e o rato que anda fica no fundo"
+        find: "background = np.median(stack, axis=0).astype(np.uint8)"
+        replace: "background = np.min(stack, axis=0).astype(np.uint8)"
+
+  barnes_layout_dialog:
+    source: src/zebtrack/ui/dialogs/barnes_layout_dialog.py
+    tests:
+      - tests/ui/dialogs/test_barnes_layout_dialog.py
+    mutations:
+      - id: click-not-unscaled
+        description: "clique no canvas nao volta para pixels crus do video"
+        find: "return (float(canvas_x) / self._scale, float(canvas_y) / self._scale)"
+        replace: "return (float(canvas_x) * self._scale, float(canvas_y) * self._scale)"
+      - id: suspicious-not-confirmed
+        description: "layout com buraco nao encontrado e aplicado sem perguntar"
+        find: "if geometry.layout_quality(layout).suspicious and not messagebox.askyesno("
+        replace: "if False and not messagebox.askyesno("
+      - id: trial-type-without-entry
+        description: "quadro sem video no projeto ainda envia tipo de sessao"
+        find: "return self.trial_type_var.get() if self._inputs.trial_type_editable else None"
+        replace: "return self.trial_type_var.get()"
+      - id: rotation-inverted
+        description: "seta de 1 buraco move a toca para o lado oposto"
+        find: "self._model = self._model.rotated(holes * self._model.step)"
+        replace: "self._model = self._model.rotated(-holes * self._model.step)"
+      - id: queue-trial-type-dropped
+        description: "tipo de sessao escolhido para os outros videos se perde"
+        find: "paths=list(choice.paths), trial_type=choice.trial_type, total=len(choice.paths)"
+        replace: "paths=list(choice.paths), trial_type=None, total=len(choice.paths)"
+      - id: early-click-never-snapped
+        description: "clique feito antes do fundo carregar nunca e ajustado"
+        find: "if self._click is not None and not self._manual and self._table is not None:"
+        replace: "if False:"
+
+  multi_aquarium_coordinator_barnes:
+    source: src/zebtrack/coordinators/multi_aquarium_coordinator.py
+    tests:
+      - tests/coordinators/test_multi_aquarium_coordinator.py
+    mutations:
+      - id: old-barnes-rois-kept
+        description: "ROIs Barnes antigas nao sao substituidas e ficam duplicadas"
+        find: "if is_barnes(str(name)):"
+        replace: "if False:"
+      - id: persisted-per-roi
+        description: "projeto e parquet sao gravados a cada ROI em vez de uma vez"
+        find: "roi_points, roi_name, roi_color, video_path=video_path, persist=False"
+        replace: "roi_points, roi_name, roi_color, video_path=video_path, persist=True"
+      - id: trial-type-hardcoded
+        description: "tipo de sessao do video vira sempre treino"
+        find: 'set_protocol_input(entry, ProtocolId.BARNES, "trial_type", trial_type)'
+        replace: 'set_protocol_input(entry, ProtocolId.BARNES, "trial_type", "training")'
+      - id: arena-written-to-active-video
+        description: "arena vai para o video ativo e nao para o caminho pedido"
+        find: "zone_data.polygon = [(int(x), int(y)) for x, y in points]\n\n        self.project_manager.save_zone_data(zone_data, video_path, persist=persist)"
+        replace: "zone_data.polygon = [(int(x), int(y)) for x, y in points]\n\n        self.project_manager.save_zone_data(zone_data, None, persist=persist)"
+
+  event_dispatcher_barnes:
+    source: src/zebtrack/ui/components/event_dispatcher.py
+    tests:
+      - tests/ui/components/test_event_dispatcher.py
+    mutations:
+      - id: assistant-for-every-project
+        description: "botao do assistente Barnes aparece em projeto generico"
+        find: "return resolve_experiment_profile(project_data).protocol is ProtocolId.BARNES"
+        replace: "return resolve_experiment_profile(project_data).protocol is not ProtocolId.BARNES"
+      - id: table-detection-multi
+        description: "deteccao da mesa pede dois aquarios"
+        find: "                expected_count=1,"
+        replace: "                expected_count=2,"
+      - id: live-offers-other-videos
+        description: "projeto ao vivo oferece aplicar a outros videos"
+        find: "        if not is_live:\n            for video in"
+        replace: "        if True:\n            for video in"
+      - id: snapshot-offers-detection
+        description: "instantaneo ao vivo oferece deteccao por video"
+        find: "can_detect_table=not (is_live or is_snapshot),"
+        replace: "can_detect_table=True,"
+
+  zone_controls_barnes:
+    source: src/zebtrack/ui/components/zone_controls.py
+    tests:
+      - tests/ui/components/test_zone_controls_widget.py
+    mutations:
+      - id: button-packed-last
+        description: "botao do assistente vai para depois de Concluir e Salvar"
+        find: "                        before=self.conclude_video_btn,\n"
+        replace: ""

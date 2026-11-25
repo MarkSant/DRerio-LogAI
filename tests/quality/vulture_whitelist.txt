@@ -113,7 +113,6 @@ src/zebtrack/analysis/protocols/barnes/contract.py::variable::SearchStrategy.DIR
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::SearchStrategy.RANDOM
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::SearchStrategy.SERIAL
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::StartSource.WINDOW
-src/zebtrack/analysis/protocols/barnes/contract.py::variable::TrialType.PROBE
 src/zebtrack/analysis/protocols/base.py::variable::GenericReportSection.GEOTAXIS
 src/zebtrack/analysis/protocols/base.py::variable::GenericReportSection.THIGMOTAXIS
 src/zebtrack/analysis/protocols/base.py::variable::ProtocolStatus.OK
@@ -188,16 +187,12 @@ src/zebtrack/ui/components/project_views/report_generator_actions.py::variable::
 src/zebtrack/ui/components/roi_template_manager.py::unreachable_code::ROITemplateManager._validate_template_file.<unreachable after return>
 
 [contract-ahead] Barnes v8.1 stage-0 contract (docs/tasks/v8.1/barnes/CONTRACTS.md) published BEFORE the stage-1 fronts that call it; each entry goes stale -- and must be deleted -- when its front lands, so this section only empties (TASK-088)
-src/zebtrack/analysis/protocols/barnes/contract.py::method::BarnesLayout.from_metadata
-src/zebtrack/analysis/protocols/barnes/contract.py::method::BarnesLayout.to_metadata
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.center_radius_ratio
-src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.default_trial_type
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.entry_absent_s
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.entry_hold_s
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.entry_max_visible_fraction
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.entry_min_cover
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.entry_min_reference_frames
-src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.hole_roi_dilation
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.max_trial_s
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.probe_score_cap
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.strategy_adjacent_max_step
@@ -210,7 +205,6 @@ src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.visit
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.visit_max_speed_cm_s
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.visit_min_cover
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesVideoInputs.strategy_override
-src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesVideoInputs.trial_type
 src/zebtrack/analysis/protocols/base.py::variable::ProtocolSpec.suppressed_report_sections
 src/zebtrack/analysis/protocols/base.py::variable::ProtocolSpec.tidy_columns
 src/zebtrack/analysis/protocols/base.py::variable::ProtocolSpec.window_preset

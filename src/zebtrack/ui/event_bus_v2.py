@@ -106,6 +106,9 @@ class UIEvents(Enum):
     ZONE_PASTE_ZONES = auto()
     ZONE_DELETE_ZONES = auto()
     ZONE_CONCLUDE_VIDEO = auto()  # Raw string "zone.conclude_video"
+    # Barnes arena assistant (#633): open the dialog; write one video's layout.
+    ZONE_BARNES_ASSISTANT_OPEN = auto()
+    ZONE_BARNES_LAYOUT_APPLY = auto()
 
     # ── Multi-Aquarium ────────────────────────────────────────────────
     ZONE_MULTI_AUTO_DETECT_SUCCESS = auto()
@@ -217,6 +220,35 @@ class UIEvents(Enum):
     ZONE_DISPLAY_CLEARED = auto()
 
 
+@dataclass(frozen=True)
+class BarnesLayoutApplyPayload:
+    """``ZONE_BARNES_LAYOUT_APPLY``: the Barnes arena assistant's write for ONE video.
+
+    Published by ``BarnesLayoutDialog`` and handled by
+    ``MultiAquariumCoordinator._on_barnes_layout_apply``, which writes the arena
+    with ``set_main_arena_polygon``, the ROIs with ``add_roi_polygon`` (CONTRACTS
+    §4) and the trial type with ``set_protocol_input``. Every coordinate is a raw
+    pixel of that video's frame. Declared here rather than in ``ui/payloads.py``
+    only because that module is outside the barnes-arena front's file set.
+
+    Attributes:
+        video_path: The video (or live reference snapshot) the zones belong to;
+            a video is identified by its PATH, never by its stem.
+        arena_polygon: The table ellipse as 64 vertices.
+        rois: ``(name, polygon)`` pairs in ``expected_roi_names`` order.
+        layout_metadata: ``BarnesLayout.to_metadata()``, cached under
+            ``ZoneData.metadata["barnes_layout"]``.
+        trial_type: ``training`` / ``probe``; ``None`` leaves the video's
+            declaration untouched.
+    """
+
+    video_path: str
+    arena_polygon: tuple[tuple[float, float], ...]
+    rois: tuple[tuple[str, tuple[tuple[float, float], ...]], ...]
+    layout_metadata: dict[str, Any]
+    trial_type: str | None = None
+
+
 _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     # Recording
     UIEvents.RECORDING_START: payloads.RecordingStartPayload,
@@ -280,6 +312,8 @@ _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
     UIEvents.ZONE_PASTE_ZONES: payloads.VideoPathPayload,
     UIEvents.ZONE_DELETE_ZONES: payloads.VideoPathPayload,
     UIEvents.ZONE_CONCLUDE_VIDEO: payloads.EmptyPayload,
+    UIEvents.ZONE_BARNES_ASSISTANT_OPEN: payloads.EmptyPayload,
+    UIEvents.ZONE_BARNES_LAYOUT_APPLY: BarnesLayoutApplyPayload,
     # Multi-Aquarium
     UIEvents.ZONE_MULTI_AUTO_DETECT_SUCCESS: payloads.ZoneMultiAutoDetectSuccessPayload,
     UIEvents.ZONE_AQUARIUM_SELECTED: payloads.ZoneAquariumSelectedPayload,

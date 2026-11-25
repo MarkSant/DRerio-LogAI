@@ -916,3 +916,250 @@ class TestAquariumAssignmentDialogGroups:
         # Before the fix the payload had no such field and the dialog got [],
         # falling back to its hardcoded "Controle"/"Tratamento" placeholders.
         assert kwargs["available_groups"] == ["Grupo_A", "Grupo_B"]
+
+
+# ---------------------------------------------------------------------------
+# Barnes arena assistant (#633)
+# ---------------------------------------------------------------------------
+
+
+class _BarnesPM:
+    """The ProjectManager surface the Barnes handlers read."""
+
+    def __init__(
+        self,
+        *,
+        protocol: str = "barnes",
+        project_type: str = "batch",
+        active: str | None = None,
+        videos: list[dict] | None = None,
+        zones: dict | None = None,
+    ) -> None:
+        self.project_data: dict[str, Any] = {
+            "project_type": project_type,
+            "behavioral_config": {
+                "protocol": protocol,
+                "protocol_params": {"barnes": {"n_holes": 18}},
+            },
+        }
+        self._active = active
+        self._videos = videos or []
+        self._zones = zones or {}
+
+    def get_project_type(self):
+        return self.project_data["project_type"]
+
+    def get_active_zone_video(self):
+        return self._active
+
+    def get_last_zone_video(self, exclude=None):
+        return self._active
+
+    def get_all_videos(self):
+        return self._videos
+
+    def find_video_entry(self, *, path=None, experiment_id=None):
+        return next((v for v in self._videos if v["path"] == path), None)
+
+    def get_zone_data(self, video_path=None, *, fallback_to_global=True):
+        from zebtrack.core.detection import ZoneData
+
+        return self._zones.get(video_path, ZoneData())
+
+
+def _barnes_gui(pm, *, frame=True, bus=None):
+    from PIL import Image
+
+    image = Image.new("RGB", (64, 48)) if frame else None
+    return SimpleNamespace(
+        event_bus=bus,
+        root=MagicMock(),
+        zone_controls=MagicMock(),
+        dialog_manager=MagicMock(),
+        canvas_manager=SimpleNamespace(_raw_bg_image=image),
+        _original_image=None,
+        controller=SimpleNamespace(project_manager=pm),
+    )
+
+
+class TestBarnesAssistant:
+    def test_the_button_follows_the_profile(self):
+        pm = _BarnesPM()
+        gui = _barnes_gui(pm)
+        dispatcher = EventDispatcher(cast(Any, gui))
+
+        dispatcher.refresh_barnes_assistant_visibility()
+        gui.zone_controls.set_barnes_assistant_visible.assert_called_with(True)
+
+        pm.project_data["behavioral_config"]["protocol"] = "generic"
+        dispatcher.refresh_barnes_assistant_visibility()
+        gui.zone_controls.set_barnes_assistant_visible.assert_called_with(False)
+
+    def test_no_project_hides_the_button(self):
+        gui = _barnes_gui(SimpleNamespace(project_data=None))
+        EventDispatcher(cast(Any, gui)).refresh_barnes_assistant_visibility()
+        gui.zone_controls.set_barnes_assistant_visible.assert_called_once_with(False)
+
+    def test_no_zone_controls_is_harmless(self):
+        gui = _barnes_gui(_BarnesPM())
+        gui.zone_controls = None
+        EventDispatcher(cast(Any, gui)).refresh_barnes_assistant_visibility()
+
+    def test_the_zone_events_are_wired(self):
+        bus = MagicMock()
+        gui = _barnes_gui(_BarnesPM(), bus=bus)
+        dispatcher = EventDispatcher(cast(Any, gui))
+
+        dispatcher.subscribe_zone_component_events()
+
+        handlers: dict[Any, list[Any]] = {}
+        for call in bus.subscribe.call_args_list:
+            handlers.setdefault(call.args[0], []).append(call.args[1])
+        assert dispatcher._open_barnes_assistant in handlers[UIEvents.ZONE_BARNES_ASSISTANT_OPEN]
+        gui.zone_controls.set_barnes_assistant_visible.assert_called_once_with(True)
+
+        gui.root.after.side_effect = lambda _delay, callback: callback()
+        for event in (UIEvents.PROJECT_OPENED, UIEvents.UI_UPDATE_ZONE_LIST):
+            for handler in handlers[event]:
+                handler(None)
+        assert gui.zone_controls.set_barnes_assistant_visible.call_count >= 3
+
+    def test_a_generic_project_gets_a_warning_not_a_dialog(self, monkeypatch):
+        import zebtrack.ui.dialogs.barnes_layout_dialog as dialog_module
+
+        opened = MagicMock()
+        monkeypatch.setattr(dialog_module, "BarnesLayoutDialog", opened)
+        gui = _barnes_gui(_BarnesPM(protocol="generic", active="v.mp4"), bus=MagicMock())
+
+        EventDispatcher(cast(Any, gui))._open_barnes_assistant(None)
+
+        opened.assert_not_called()
+        gui.dialog_manager.show_warning.assert_called_once()
+        gui.zone_controls.set_barnes_assistant_visible.assert_called_with(False)
+
+    def test_no_frame_on_the_zones_tab_gets_a_warning(self, monkeypatch):
+        import zebtrack.ui.dialogs.barnes_layout_dialog as dialog_module
+
+        opened = MagicMock()
+        monkeypatch.setattr(dialog_module, "BarnesLayoutDialog", opened)
+        gui = _barnes_gui(_BarnesPM(active="v.mp4"), frame=False, bus=MagicMock())
+
+        EventDispatcher(cast(Any, gui))._open_barnes_assistant(None)
+
+        opened.assert_not_called()
+        assert "Zones tab" in gui.dialog_manager.show_warning.call_args.args[1]
+
+    def test_the_dialog_gets_the_videos_state(self, monkeypatch, tmp_path):
+        import zebtrack.ui.dialogs.barnes_layout_dialog as dialog_module
+        from zebtrack.analysis.protocols.barnes.contract import BarnesEllipse
+        from zebtrack.core.detection import ZoneData
+        from zebtrack.core.detection import barnes_geometry as geometry
+
+        day1 = tmp_path / "Dia_1" / "trial.mp4"
+        day2 = tmp_path / "Dia_2" / "trial.mp4"
+        for path in (day1, day2):
+            path.parent.mkdir()
+            path.write_bytes(b"x")
+        missing = str(tmp_path / "gone.mp4")
+        table = BarnesEllipse(center_px=(320.0, 240.0), semi_axes_px=(200.0, 170.0), angle_deg=0.0)
+        layout, _model = geometry.layout_from_click(table, (480.0, 240.0), 18)
+        videos: list[dict[str, Any]] = [
+            {
+                "path": str(day1),
+                "metadata": {"group": "G1", "day": 1, "subject": "rat_3"},
+                "protocol_inputs": {"barnes": {"trial_type": "probe"}},
+            },
+            {"path": str(day2), "metadata": {"group": "G1", "day": 2}},
+            {"path": missing},
+        ]
+        zones = {
+            str(day1): ZoneData(
+                polygon=[(0, 0), (10, 0), (10, 10), (0, 10)],
+                metadata={"barnes_layout": layout.to_metadata()},
+            )
+        }
+        opened = MagicMock()
+        monkeypatch.setattr(dialog_module, "BarnesLayoutDialog", opened)
+        bus = MagicMock()
+        gui = _barnes_gui(_BarnesPM(active=str(day1), videos=videos, zones=zones), bus=bus)
+        dispatcher = EventDispatcher(cast(Any, gui))
+
+        dispatcher._open_barnes_assistant(None)
+
+        args = opened.call_args.args
+        assert args[0] is gui.root and args[1] is bus
+        inputs = args[2]
+        assert inputs.video_path == str(day1)
+        assert inputs.params.n_holes == 18
+        assert inputs.cached_layout == layout
+        assert inputs.initial_table is None
+        assert inputs.trial_type == "probe"
+        assert inputs.trial_type_editable is True
+        assert inputs.background_source == str(day1)
+        assert inputs.can_detect_table is True
+        assert [v.path for v in inputs.other_videos] == [str(day2)]
+        assert inputs.other_videos[0].label == "G1 / 2 / trial.mp4"
+        assert opened.call_args.kwargs["detect_table"] == dispatcher._barnes_detect_table
+
+    def test_an_existing_arena_seeds_the_table(self, monkeypatch, tmp_path):
+        import zebtrack.ui.dialogs.barnes_layout_dialog as dialog_module
+        from zebtrack.core.detection import ZoneData
+
+        video = str(tmp_path / "v.mp4")
+        zones = {video: ZoneData(polygon=[(100, 50), (500, 50), (500, 400), (100, 400)])}
+        opened = MagicMock()
+        monkeypatch.setattr(dialog_module, "BarnesLayoutDialog", opened)
+        gui = _barnes_gui(_BarnesPM(active=video, zones=zones), bus=MagicMock())
+
+        EventDispatcher(cast(Any, gui))._open_barnes_assistant(None)
+
+        inputs = opened.call_args.args[2]
+        assert inputs.cached_layout is None
+        assert inputs.initial_table.center_px == pytest.approx((300.0, 225.0))
+        assert inputs.trial_type_editable is False  # no project entry for that path
+        assert inputs.background_source is None  # the file does not exist
+
+    def test_a_live_project_edits_the_reference_snapshot(self, monkeypatch, tmp_path):
+        import zebtrack.ui.dialogs.barnes_layout_dialog as dialog_module
+
+        snapshot = tmp_path / "reference_frame.png"
+        snapshot.write_bytes(b"png")
+        other = tmp_path / "session.mp4"
+        other.write_bytes(b"x")
+        opened = MagicMock()
+        monkeypatch.setattr(dialog_module, "BarnesLayoutDialog", opened)
+        pm = _BarnesPM(project_type="live", active=str(snapshot), videos=[{"path": str(other)}])
+        gui = _barnes_gui(pm, bus=MagicMock())
+
+        EventDispatcher(cast(Any, gui))._open_barnes_assistant(None)
+
+        inputs = opened.call_args.args[2]
+        assert inputs.video_path == str(snapshot)
+        assert inputs.can_detect_table is False
+        assert inputs.other_videos == ()
+        assert inputs.background_source == str(snapshot)
+
+    def test_table_detection_reuses_the_zones_tab_detection(self):
+        from zebtrack.core.detection import ZoneData
+
+        bus = MagicMock()
+        pm = _BarnesPM(active="v.mp4", zones={"v.mp4": ZoneData(polygon=[(1, 2), (3, 4)])})
+        gui = _barnes_gui(pm, bus=bus)
+        gui.zone_controls.stabilization_frames_var.get.return_value = "7"
+        dispatcher = EventDispatcher(cast(Any, gui))
+
+        assert dispatcher._barnes_detect_table("v.mp4") == [(1.0, 2.0), (3.0, 4.0)]
+
+        event, payload = bus.publish.call_args.args
+        assert event is UIEvents.ZONE_AUTO_DETECT
+        assert payload.video_path == "v.mp4"
+        assert payload.stabilization_frames == 7
+        assert payload.expected_count == 1
+
+    def test_failed_table_detection_returns_none(self):
+        gui = _barnes_gui(_BarnesPM(active="v.mp4"), bus=MagicMock())
+        gui.zone_controls.stabilization_frames_var.get.return_value = "oops"
+        dispatcher = EventDispatcher(cast(Any, gui))
+
+        assert dispatcher._barnes_detect_table("v.mp4") is None
+        assert gui.event_bus.publish.call_args.args[1].stabilization_frames == 10
