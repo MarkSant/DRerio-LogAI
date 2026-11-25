@@ -1212,7 +1212,10 @@ class EventDispatcher:
 
         Goes through ``ZONE_AUTO_DETECT`` (one arena), i.e. the same
         ``MultiAquariumCoordinator.run_aquarium_detection`` the "Detect" button
-        reaches; that path saves the outline as the video's arena.
+        reaches; that path saves the outline as the video's arena. The detection
+        reports nothing back, so the arena is compared before and after: an
+        UNCHANGED outline means nothing was detected (a stale arena is never
+        presented as a detection).
         """
         gui = self._require_gui()
         project_manager = self._barnes_project_manager()
@@ -1224,6 +1227,12 @@ class EventDispatcher:
             frames = max(1, int(frames_var.get())) if frames_var is not None else 10
         except (TypeError, ValueError):
             frames = 10
+
+        def arena() -> list[tuple[float, float]]:
+            polygon = project_manager.get_zone_data(video_path, fallback_to_global=False).polygon
+            return [(float(p[0]), float(p[1])) for p in polygon]
+
+        before = arena()
         self.publish_event(
             UIEvents.ZONE_AUTO_DETECT,
             payloads.ZoneAutoDetectPayload(
@@ -1232,9 +1241,11 @@ class EventDispatcher:
                 expected_count=1,
             ),
         )
-        polygon = project_manager.get_zone_data(video_path, fallback_to_global=False).polygon
-        points = [(float(p[0]), float(p[1])) for p in polygon]
-        return points or None
+        after = arena()
+        if not after or after == before:
+            self.log.info("event_dispatcher.barnes_assistant.table_not_detected")
+            return None
+        return after
 
     def _open_barnes_assistant(self, _data: payloads.EventPayload) -> None:
         """Handle ``ZONE_BARNES_ASSISTANT_OPEN``: open the assistant on the shown frame."""

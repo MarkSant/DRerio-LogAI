@@ -55,6 +55,7 @@ from zebtrack.core.exceptions import ZebTrackError
 
 __all__ = [
     "ARENA_VERTICES",
+    "HOLE_COUNT_CANDIDATES",
     "HOLE_ROI_VERTICES",
     "QUADRANT_MAX_STEP_DEG",
     "BarnesGeometryError",
@@ -63,6 +64,7 @@ __all__ = [
     "RingModel",
     "assemble_layout",
     "build_barnes_rois",
+    "detect_hole_count",
     "ellipse_from_points",
     "ellipse_from_polygon",
     "ellipse_param",
@@ -78,6 +80,7 @@ __all__ = [
     "ring_model_of_layout",
     "snap_hole",
     "snap_layout",
+    "table_fits_frame",
 ]
 
 log = structlog.get_logger()
@@ -96,6 +99,12 @@ HOLE_ROI_SPACING_CAP = 0.45
 #: means the layout is wrong, not that the hole is tiny.
 MIN_HOLE_ROI_RADIUS_PX = 1.0
 
+#: Hole counts the assistant tries on every video (CONTRACTS §3.2 note): the lab's
+#: current table has 18 holes, the 2020 protocol photos show 20.
+HOLE_COUNT_CANDIDATES: tuple[int, ...] = (18, 20)
+#: How far (fraction of the frame size) the table may reach past the frame's
+#: edges and still count as framed (the lab's table touches the top edge).
+FRAME_MARGIN_FRACTION = 0.05
 #: Default background sample size (frames).
 DEFAULT_BACKGROUND_SAMPLES = 30
 #: Search window of the snap, as a fraction of the hole's adjacent spacing.
@@ -586,6 +595,69 @@ def assemble_layout(
         ring=model.ring,
         holes=tuple(holes),
         source=source,
+    )
+
+
+def _count_score(layout: BarnesLayout) -> tuple[int, float]:
+    quality = layout_quality(layout)
+    residual = quality.mean_residual_px
+    return quality.snapped, -(residual if residual is not None else math.inf)
+
+
+def detect_hole_count(
+    table: BarnesEllipse,
+    click: Point,
+    background: np.ndarray,
+    candidates: Sequence[int] = HOLE_COUNT_CANDIDATES,
+) -> tuple[int, dict[int, tuple[BarnesLayout, RingModel]]]:
+    """How many holes the table has: place every candidate count, keep the best snap.
+
+    Best = most holes snapped, then the smallest mean residual. A wrong count
+    leaves holes unsnapped (20 predictions on an 18-hole table snap 17 of them)
+    or snaps them far from an evenly spaced ring.
+
+    Returns:
+        ``(best_count, {count: (layout, model)})`` for every candidate that could
+        be placed.
+
+    Raises:
+        BarnesGeometryError: no candidate could be placed (the click is outside
+            the table, or on its centre).
+    """
+    placed: dict[int, tuple[BarnesLayout, RingModel]] = {}
+    last_error: BarnesGeometryError | None = None
+    for count in sorted(set(candidates)):
+        try:
+            placed[count] = layout_from_click(table, click, count, background)
+        except BarnesGeometryError as exc:
+            last_error = exc
+    if not placed:
+        raise last_error or BarnesGeometryError("no hole count to try")
+    best = max(placed, key=lambda count: _count_score(placed[count][0]))
+    log.info(
+        "barnes_geometry.hole_count.detected",
+        best=best,
+        scores={count: _count_score(layout) for count, (layout, _model) in placed.items()},
+    )
+    return best, placed
+
+
+def table_fits_frame(
+    table: BarnesEllipse, frame_shape: Sequence[int], margin: float = FRAME_MARGIN_FRACTION
+) -> bool:
+    """``True`` when ``table`` lies inside a frame of ``frame_shape`` (``(height, width)``).
+
+    The table may reach ``margin`` of the frame size past an edge (a table that
+    touches the image border is still framed); beyond that, a layout drawn on
+    another video was framed differently and must not be reused.
+    """
+    height, width = float(frame_shape[0]), float(frame_shape[1])
+    xs, ys = zip(*ellipse_polygon(table, ARENA_VERTICES), strict=True)
+    return (
+        min(xs) >= -margin * width
+        and max(xs) <= (1.0 + margin) * width
+        and min(ys) >= -margin * height
+        and max(ys) <= (1.0 + margin) * height
     )
 
 

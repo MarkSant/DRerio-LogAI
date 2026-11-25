@@ -240,6 +240,11 @@ class BarnesLayoutApplyPayload:
             ``ZoneData.metadata["barnes_layout"]``.
         trial_type: ``training`` / ``probe``; ``None`` leaves the video's
             declaration untouched.
+        project_n_holes: The project's ``protocol_params.barnes.n_holes`` to set
+            first (the user confirmed the table's detected count); ``None`` = keep.
+        on_result: Called with ``True`` / ``False`` once the write succeeded or
+            was rolled back. The bus swallows handler exceptions, so this is how
+            the publisher learns the real outcome.
     """
 
     video_path: str
@@ -247,6 +252,8 @@ class BarnesLayoutApplyPayload:
     rois: tuple[tuple[str, tuple[tuple[float, float], ...]], ...]
     layout_metadata: dict[str, Any]
     trial_type: str | None = None
+    project_n_holes: int | None = None
+    on_result: Callable[[bool], None] | None = None
 
 
 _PAYLOAD_TYPES: dict[UIEvents, type[Any]] = {
