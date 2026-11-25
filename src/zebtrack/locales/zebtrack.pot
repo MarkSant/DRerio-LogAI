@@ -13567,3 +13567,105 @@ msgid ""
 "The {protocol} protocol analyses one arena per video; its metrics are not "
 "computed for aquarium {aquarium} of a multi-aquarium video."
 msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:163
+msgid "Subject is mostly over ROI"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:164
+msgid "Subject looks small (fraction of its size)"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:165
+msgid "Subject vanished, last seen over ROI"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:166
+msgid "Subject enters the burrow ROI (not a touch)"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:322
+msgid "The subject's size and the burrow entry can only be used in Stop."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:349
+#, python-brace-format
+msgid "The number must be less than {limit}."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:728
+#, python-brace-format
+msgid "at least {percent}% of the subject is over ROI '{roi}'"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:733
+#, python-brace-format
+msgid ""
+"the subject looks at most {percent}% of its usual size (median since the "
+"start, after {frames} detected frames)"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:740
+#, python-brace-format
+msgid "the subject is not visible and was last seen over ROI '{roi}'"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:757
+#, python-brace-format
+msgid "{frames} frame(s)"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:801
+#, python-brace-format
+msgid ""
+"the subject enters ROI '{roi}' (not just a touch): {percent}% of it over the"
+" ROI and at most {size}% of its usual size for {hold}, or not visible for "
+"{absent} s after it was last seen there"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:859
+#, python-brace-format
+msgid "{roi} (≥ {percent}% of the box)"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:865
+#, python-brace-format
+msgid "≤ {percent}% of its usual size"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1027
+msgid ""
+"This window is the Barnes preset v1: it stops on the first TOUCH of the "
+"escape hole. The v2 preset stops on the ENTRY (four paws in), so the time "
+"between the encounter and the entry is analysed. Nothing changes until you "
+"update and Save."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1224
+msgid "Update to Barnes preset v2…"
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1742
+msgid ""
+"Fraction of the subject's box that must lie over the ROI (0 to 1; blank = "
+"0.5)."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1745
+msgid ""
+"Largest box size, as a fraction of the subject's usual size since the start "
+"(between 0 and 1, e.g. 0.35)."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1749
+msgid ""
+"Fraction of the last box seen that had to be over the ROI (0 to 1; blank = "
+"0.5)."
+msgstr ""
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1752
+msgid ""
+"Fires when the subject goes INTO the ROI, not when it only touches it: "
+"mostly over it and small for 0.5 s, or gone for 3 s after it was last seen "
+"there. Back-dated to when that began."
+msgstr ""

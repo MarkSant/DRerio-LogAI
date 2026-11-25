@@ -16308,6 +16308,127 @@ msgstr ""
 "calculadas para o aquário {aquarium} de um vídeo com vários aquários."
 
 
+#: src/zebtrack/ui/components/analysis_window_panel.py:163
+msgid "Subject is mostly over ROI"
+msgstr "Sujeito está em sua maior parte sobre a ROI"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:164
+msgid "Subject looks small (fraction of its size)"
+msgstr "Sujeito parece pequeno (fração do seu tamanho)"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:165
+msgid "Subject vanished, last seen over ROI"
+msgstr "Sujeito sumiu, visto por último sobre a ROI"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:166
+msgid "Subject enters the burrow ROI (not a touch)"
+msgstr "Sujeito entra na ROI da toca (não só toca nela)"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:322
+msgid "The subject's size and the burrow entry can only be used in Stop."
+msgstr "O tamanho do sujeito e a entrada na toca só podem ser usados em Fim."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:349
+#, python-brace-format
+msgid "The number must be less than {limit}."
+msgstr "O número deve ser menor que {limit}."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:728
+#, python-brace-format
+msgid "at least {percent}% of the subject is over ROI '{roi}'"
+msgstr "pelo menos {percent}% do sujeito está sobre a ROI '{roi}'"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:733
+#, python-brace-format
+msgid ""
+"the subject looks at most {percent}% of its usual size (median since the "
+"start, after {frames} detected frames)"
+msgstr ""
+"o sujeito parece ter no máximo {percent}% do seu tamanho habitual (mediana "
+"desde o início, após {frames} frames detectados)"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:740
+#, python-brace-format
+msgid "the subject is not visible and was last seen over ROI '{roi}'"
+msgstr "o sujeito não está visível e foi visto por último sobre a ROI '{roi}'"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:757
+#, python-brace-format
+msgid "{frames} frame(s)"
+msgstr "{frames} frame(s)"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:801
+#, python-brace-format
+msgid ""
+"the subject enters ROI '{roi}' (not just a touch): {percent}% of it over the"
+" ROI and at most {size}% of its usual size for {hold}, or not visible for "
+"{absent} s after it was last seen there"
+msgstr ""
+"o sujeito entra na ROI '{roi}' (não só toca nela): {percent}% dele sobre a "
+"ROI e no máximo {size}% do seu tamanho habitual por {hold}, ou invisível por"
+" {absent} s depois de ser visto por último ali"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:859
+#, python-brace-format
+msgid "{roi} (≥ {percent}% of the box)"
+msgstr "{roi} (≥ {percent}% da caixa)"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:865
+#, python-brace-format
+msgid "≤ {percent}% of its usual size"
+msgstr "≤ {percent}% do seu tamanho habitual"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1027
+msgid ""
+"This window is the Barnes preset v1: it stops on the first TOUCH of the "
+"escape hole. The v2 preset stops on the ENTRY (four paws in), so the time "
+"between the encounter and the entry is analysed. Nothing changes until you "
+"update and Save."
+msgstr ""
+"Esta janela é a predefinição Barnes v1: ela para no primeiro TOQUE no buraco"
+" de fuga. A predefinição v2 para na ENTRADA (quatro patas dentro), de modo "
+"que o tempo entre o encontro e a entrada é analisado. Nada muda até você "
+"atualizar e Salvar."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1224
+msgid "Update to Barnes preset v2…"
+msgstr "Atualizar para a predefinição Barnes v2…"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1742
+msgid ""
+"Fraction of the subject's box that must lie over the ROI (0 to 1; blank = "
+"0.5)."
+msgstr ""
+"Fração da caixa do sujeito que precisa estar sobre a ROI (0 a 1; em branco ="
+" 0,5)."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1745
+msgid ""
+"Largest box size, as a fraction of the subject's usual size since the start "
+"(between 0 and 1, e.g. 0.35)."
+msgstr ""
+"Maior tamanho da caixa, como fração do tamanho habitual do sujeito desde o "
+"início (entre 0 e 1, p. ex. 0,35)."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1749
+msgid ""
+"Fraction of the last box seen that had to be over the ROI (0 to 1; blank = "
+"0.5)."
+msgstr ""
+"Fração da última caixa vista que precisava estar sobre a ROI (0 a 1; em "
+"branco = 0,5)."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1752
+msgid ""
+"Fires when the subject goes INTO the ROI, not when it only touches it: "
+"mostly over it and small for 0.5 s, or gone for 3 s after it was last seen "
+"there. Back-dated to when that began."
+msgstr ""
+"Dispara quando o sujeito ENTRA na ROI, não quando só toca nela: em sua maior"
+" parte sobre ela e pequeno por 0,5 s, ou sumido por 3 s depois de ser visto "
+"por último ali. Datado retroativamente para quando isso começou."
+
+
 #~ msgid "Detector parameters updated."
 #~ msgstr "Parâmetros do detector atualizados."
 

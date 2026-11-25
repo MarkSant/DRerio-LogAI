@@ -23,6 +23,15 @@ Clock (ADR-011, § Clocks)
     two decimation cadences, so counting frames is not a reliable measure of
     time; a ``Hold(frames=...)`` is accepted but warned about.
 
+Subject geometry
+    A spec with a burrow-entry node (``BurrowEntry``, ``SubjectOverRoi``,
+    ``SubjectVisibleFraction``, ``LastSeenIn``) needs the subject box's area and
+    its cover of each ROI. The pipeline hands :meth:`ConditionRuntime.step` the
+    SAME subject detections that decide ``subject_rois`` plus the ROI polygons
+    in the detector's frame space; the runtime turns them into geometry through
+    :mod:`zebtrack.core.conditions.subject_geometry`, the helper the offline
+    builder uses. Other specs skip the geometry entirely.
+
 External events
     Stamped by their producer (the Arduino reader thread right after
     ``readline()``, the Tk thread at the button click) with ``perf_counter`` and
@@ -36,24 +45,31 @@ from __future__ import annotations
 
 import queue
 import time
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal
 
+import numpy as np
 import structlog
 from pydantic import ValidationError
+from shapely.geometry import Polygon
+from shapely.geometry.base import BaseGeometry
 
 from zebtrack.core.conditions import (
     AnalysisWindowArtifact,
     ArtifactExternalEvent,
+    BurrowEntry,
     ConditionEvaluator,
     External,
     ExternalEvent,
     FrameObservation,
+    LastSeenIn,
     OnlineWindow,
     Persist,
+    SubjectOverRoi,
+    SubjectVisibleFraction,
     WindowEvent,
     WindowResult,
     WindowSpec,
@@ -62,6 +78,11 @@ from zebtrack.core.conditions import (
     write_artifact,
 )
 from zebtrack.core.conditions.model import _normalize_class_name
+from zebtrack.core.conditions.subject_geometry import (
+    observe_subject,
+    pick_subject_bbox,
+    prepare_rois,
+)
 from zebtrack.i18n import _
 
 __all__ = [
@@ -73,8 +94,15 @@ __all__ = [
     "parse_window_spec",
     "role_names_from_role_map",
     "spec_listens_to",
+    "spec_needs_subject_geometry",
     "window_phase_message",
 ]
+
+#: ``(roi name, polygon)``; the polygon is a shapely geometry or its vertices
+#: (``[[x, y], ...]``, as the detector stores ``scaled_roi_polygons``).
+RoiShape = tuple[str, Any]
+
+_GEOMETRY_NODES = (SubjectOverRoi, SubjectVisibleFraction, LastSeenIn, BurrowEntry)
 
 log = structlog.get_logger()
 
@@ -152,6 +180,32 @@ def spec_listens_to(spec: WindowSpec | None, source: ExternalSource) -> bool:
             if isinstance(node, External) and node.source == source:
                 return True
     return False
+
+
+def spec_needs_subject_geometry(spec: WindowSpec | None) -> bool:
+    """Whether any START/STOP node reads the subject box's area or ROI cover."""
+    if spec is None:
+        return False
+    for root in (spec.start, spec.stop):
+        if root is None:
+            continue
+        for node in iter_nodes(root):
+            if isinstance(node, _GEOMETRY_NODES):
+                return True
+    return False
+
+
+def _roi_geometry(polygon: Any) -> BaseGeometry | None:
+    """A shapely geometry from a geometry or a vertex list; ``None`` when unusable."""
+    if isinstance(polygon, BaseGeometry):
+        return polygon
+    try:
+        vertices = np.asarray(polygon, dtype=np.float64)
+    except (TypeError, ValueError):
+        return None
+    if vertices.ndim != 2 or vertices.shape[0] < 3 or vertices.shape[1] != 2:
+        return None
+    return Polygon(vertices)
 
 
 def _uses_frame_holds(spec: WindowSpec) -> bool:
@@ -286,6 +340,11 @@ class ConditionRuntime:
             "arduino": spec_listens_to(spec, "arduino"),
             "manual": spec_listens_to(spec, "manual"),
         }
+        self._needs_geometry = spec_needs_subject_geometry(spec)
+        # ROI polygons prepared once per distinct set (the detector re-scales
+        # them only when the zones change).
+        self._roi_key: tuple[tuple[str, bytes], ...] | None = None
+        self._roi_shapes: tuple[tuple[str, BaseGeometry], ...] = ()
         if _uses_frame_holds(spec):
             log.warning(
                 "condition_runtime.frame_hold_in_live",
@@ -331,6 +390,11 @@ class ConditionRuntime:
         return self._listens.get(source, False)
 
     @property
+    def needs_subject_geometry(self) -> bool:
+        """Whether :meth:`step` uses ``subject_boxes``/``rois`` (else they are ignored)."""
+        return self._needs_geometry
+
+    @property
     def external_events(self) -> tuple[ExternalEvent, ...]:
         """Every external event offered so far, on the capture clock, in time order."""
         origin = self._origin
@@ -370,9 +434,23 @@ class ConditionRuntime:
         classes: Mapping[str, tuple[float, ...]],
         subject_rois: Iterable[str],
         t_wall: float | None = None,
+        subject_boxes: Sequence[Sequence[float]] = (),
+        rois: Sequence[RoiShape] = (),
     ) -> RuntimeUpdate:
-        """Feed one analysed frame, dated by its CAPTURE instant."""
+        """Feed one analysed frame, dated by its CAPTURE instant.
+
+        Args:
+            subject_boxes: The frame's subject detections, ``(x1, y1, x2, y2,
+                confidence, ...)`` — the ones that decided ``subject_rois``.
+            rois: ``(name, polygon)`` in the same pixel space as the boxes.
+                Both are read only when :attr:`needs_subject_geometry`.
+        """
         origin = self._resolve_origin(t_capture_perf)
+        area: float | None = None
+        cover: Mapping[str, float] = {}
+        if self._needs_geometry:
+            geometry = observe_subject(pick_subject_bbox(subject_boxes), self._prepared(rois))
+            area, cover = geometry.area_px, geometry.cover
         observation = FrameObservation(
             frame=int(frame),
             t_s=float(t_capture_perf) - origin,
@@ -380,6 +458,8 @@ class ConditionRuntime:
             subject_rois=frozenset(subject_rois),
             external=self._deliver_external(float(t_capture_perf), origin),
             t_wall=t_wall,
+            subject_area_px=area,
+            subject_cover=dict(cover),
         )
         events = tuple(self._evaluator.step(observation))
         return self._update(events, from_finish=False)
@@ -428,6 +508,23 @@ class ConditionRuntime:
         return path
 
     # -- internals -----------------------------------------------------------
+    def _prepared(self, rois: Sequence[RoiShape]) -> tuple[tuple[str, BaseGeometry], ...]:
+        """``rois`` as prepared shapely geometries, rebuilt only when they change."""
+        shapes: list[tuple[str, BaseGeometry]] = []
+        for name, polygon in rois:
+            geometry = _roi_geometry(polygon)
+            if geometry is not None:
+                shapes.append((str(name), geometry))
+        key = tuple((name, geometry.wkb) for name, geometry in shapes)
+        if key != self._roi_key:
+            self._roi_key = key
+            self._roi_shapes = prepare_rois(shapes)
+            log.info(
+                "condition_runtime.subject_geometry.rois",
+                rois=[name for name, _shape in self._roi_shapes],
+            )
+        return self._roi_shapes
+
     def _resolve_origin(self, t_capture_perf: float) -> float:
         if self._origin is not None:
             return self._origin

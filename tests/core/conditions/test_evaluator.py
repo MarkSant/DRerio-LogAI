@@ -18,7 +18,7 @@ from __future__ import annotations
 import itertools
 import random
 from collections.abc import Iterable, Mapping
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
 from hypothesis import HealthCheck, given, settings
@@ -28,6 +28,7 @@ from zebtrack.core.conditions import (
     AllOf,
     AllOfLevel,
     AnyOfLevel,
+    BurrowEntry,
     ClassPresence,
     ClassTarget,
     ConditionEvaluator,
@@ -39,11 +40,14 @@ from zebtrack.core.conditions import (
     FrameObservation,
     FrameReached,
     Hold,
+    LastSeenIn,
     Not,
     Persist,
     RoiEdge,
     RoiInside,
     Sequence,
+    SubjectOverRoi,
+    SubjectVisibleFraction,
     TimeReached,
     WindowEvent,
     WindowResult,
@@ -941,3 +945,343 @@ class TestUnknownNodes:
 
         with pytest.raises(TypeError, match=r"^Unknown level node: _AlienLevel$"):
             ConditionEvaluator(spec, role_names={})
+
+
+# ---------------------------------------------------------------------------
+# Burrow entry (#633): subject-geometry levels and the BurrowEntry trigger
+# ---------------------------------------------------------------------------
+
+#: The rat's usual size in these streams (px²).
+FULL = 100.0
+
+
+def _geo(
+    frame: int, t: float, area: float | None, cover: Mapping[str, float] | None = None
+) -> FrameObservation:
+    """An observation with (``area``) or without (``None``) the subject's box."""
+    return FrameObservation(
+        frame=frame,
+        t_s=t,
+        classes={"rat": (0.9,)} if area is not None else {},
+        subject_area_px=area,
+        subject_cover=dict(cover or {}),
+    )
+
+
+def _stop_when(stop: object, start: object | None = None) -> WindowSpec:
+    """STOP = ``stop``; START = frame 0 unless given (so the size reference starts there)."""
+    return WindowSpec(
+        start=start if start is not None else FrameReached(frame=0),  # type: ignore[arg-type]
+        stop=stop,  # type: ignore[arg-type]
+    )
+
+
+def _stop_frame(spec: WindowSpec, stream: list[FrameObservation]) -> tuple[int, str] | None:
+    _, result = _run(spec, stream)
+    if result.stop is None or result.stop.reason == "end_of_stream":
+        return None
+    return result.stop.frame, result.stop.reason
+
+
+def _level_stop(level: object, stream: list[FrameObservation]) -> int | None:
+    spec = _stop_when(Persist(level=level, hold=Hold(frames=1)))  # type: ignore[arg-type]
+    found = _stop_frame(spec, stream)
+    return None if found is None else found[0]
+
+
+class TestSubjectOverRoi:
+    def test_true_from_the_first_frame_with_enough_cover(self) -> None:
+        covers = [0.0, 0.2, 0.49, 0.5, 0.9]
+        stream = [_geo(i, float(i), FULL, {"toca": c}) for i, c in enumerate(covers)]
+
+        assert _level_stop(SubjectOverRoi(roi="toca"), stream) == 3
+
+    def test_cover_a_hair_below_the_threshold_still_counts(self) -> None:
+        stream = [_geo(0, 0.0, FULL), _geo(1, 1.0, FULL, {"toca": 0.5 - 1e-12})]
+
+        assert _level_stop(SubjectOverRoi(roi="toca"), stream) == 1
+
+    def test_min_cover_is_honoured(self) -> None:
+        stream = [_geo(i, float(i), FULL, {"toca": c}) for i, c in enumerate([0, 0.5, 0.8])]
+
+        assert _level_stop(SubjectOverRoi(roi="toca", min_cover=0.75), stream) == 2
+
+    def test_other_roi_and_missing_subject_are_false(self) -> None:
+        stream = [
+            _geo(0, 0.0, FULL),
+            _geo(1, 1.0, FULL, {"other": 1.0}),
+            _geo(2, 2.0, None, {"toca": 1.0}),  # a stale cover without a box
+        ]
+
+        assert _level_stop(SubjectOverRoi(roi="toca"), stream) is None
+
+    def test_usable_in_start(self) -> None:
+        stream = [_geo(i, float(i), FULL, {"toca": 0.6 if i >= 2 else 0}) for i in range(4)]
+
+        _, result = _run(_start_when(SubjectOverRoi(roi="toca"), Hold(frames=1)), stream)
+
+        assert result.start is not None and result.start.frame == 2
+
+
+class TestSubjectVisibleFraction:
+    def test_needs_the_reference_frames_since_start(self) -> None:
+        # START at 0; frames 0-2 are the only reference before frame 3.
+        areas = [FULL, FULL, FULL, 20.0, 20.0]
+        stream = [_geo(i, float(i), a) for i, a in enumerate(areas)]
+        level = SubjectVisibleFraction(max_fraction=0.35, min_reference_frames=4)
+
+        assert _level_stop(level, stream) == 4
+
+    def test_fires_once_the_reference_is_complete(self) -> None:
+        areas = [FULL, FULL, FULL, 20.0]
+        stream = [_geo(i, float(i), a) for i, a in enumerate(areas)]
+        level = SubjectVisibleFraction(max_fraction=0.35, min_reference_frames=3)
+
+        assert _level_stop(level, stream) == 3
+
+    def test_the_frame_joins_the_reference_after_its_test(self) -> None:
+        """median(100) = 100 -> 30 <= 35; median(100, 30) = 65 would refuse it."""
+        stream = [_geo(0, 0.0, FULL), _geo(1, 1.0, 30.0)]
+        level = SubjectVisibleFraction(max_fraction=0.35, min_reference_frames=1)
+
+        assert _level_stop(level, stream) == 1
+
+    def test_the_bound_is_inclusive(self) -> None:
+        stream = [_geo(0, 0.0, FULL), _geo(1, 1.0, 35.0)]
+        level = SubjectVisibleFraction(max_fraction=0.35, min_reference_frames=1)
+
+        assert _level_stop(level, stream) == 1
+
+    def test_just_above_the_bound_is_false(self) -> None:
+        stream = [_geo(0, 0.0, FULL), _geo(1, 1.0, 35.5)]
+        level = SubjectVisibleFraction(max_fraction=0.35, min_reference_frames=1)
+
+        assert _level_stop(level, stream) is None
+
+    def test_frames_before_start_are_not_in_the_reference(self) -> None:
+        """Tiny boxes before START would make the reference tiny; they are excluded."""
+        stream = [_geo(i, float(i), 1.0) for i in range(5)]
+        stream += [_geo(5, 5.0, FULL), _geo(6, 6.0, 30.0)]
+        spec = _stop_when(
+            Persist(
+                level=SubjectVisibleFraction(max_fraction=0.35, min_reference_frames=1),
+                hold=Hold(frames=1),
+            ),
+            start=FrameReached(frame=5),
+        )
+
+        assert _stop_frame(spec, stream) == (6, "persist")
+
+    def test_frames_without_the_subject_do_not_count(self) -> None:
+        stream = [_geo(0, 0.0, FULL), _geo(1, 1.0, None), _geo(2, 2.0, None), _geo(3, 3.0, 20.0)]
+        level = SubjectVisibleFraction(max_fraction=0.35, min_reference_frames=2)
+
+        assert _level_stop(level, stream) is None
+
+    def test_missing_subject_is_false(self) -> None:
+        stream = [_geo(0, 0.0, FULL), _geo(1, 1.0, None)]
+        level = SubjectVisibleFraction(max_fraction=0.35, min_reference_frames=1)
+
+        assert _level_stop(level, stream) is None
+
+    def test_the_reference_is_a_median_not_a_mean(self) -> None:
+        """One huge box (the experimenter's hand merged in) does not move the median."""
+        areas = [FULL, FULL, 10_000.0, 30.0]
+        stream = [_geo(i, float(i), a) for i, a in enumerate(areas)]
+        level = SubjectVisibleFraction(max_fraction=0.35, min_reference_frames=3)
+
+        assert _level_stop(level, stream) == 3
+
+
+class TestLastSeenIn:
+    def test_true_while_absent_after_a_detection_over_the_roi(self) -> None:
+        stream = [
+            _geo(0, 0.0, FULL),
+            _geo(1, 1.0, FULL, {"toca": 0.8}),
+            _geo(2, 2.0, None),
+            _geo(3, 3.0, None),
+        ]
+        spec = _stop_when(Persist(level=LastSeenIn(roi="toca"), hold=Hold(frames=2)))
+
+        assert _stop_frame(spec, stream) == (2, "persist")
+
+    def test_false_when_the_last_detection_was_elsewhere(self) -> None:
+        stream = [
+            _geo(0, 0.0, FULL, {"toca": 0.8}),
+            _geo(1, 1.0, FULL, {"toca": 0.1}),
+            _geo(2, 2.0, None),
+        ]
+
+        assert _level_stop(LastSeenIn(roi="toca"), stream) is None
+
+    def test_min_cover_of_the_last_detection(self) -> None:
+        stream = [_geo(0, 0.0, FULL), _geo(1, 1.0, FULL, {"toca": 0.6}), _geo(2, 2.0, None)]
+
+        assert _level_stop(LastSeenIn(roi="toca", min_cover=0.7), stream) is None
+        assert _level_stop(LastSeenIn(roi="toca", min_cover=0.6), stream) == 2
+
+    def test_false_on_a_frame_with_the_subject(self) -> None:
+        stream = [_geo(0, 0.0, FULL, {"toca": 1.0}), _geo(1, 1.0, FULL, {"toca": 1.0})]
+
+        assert _level_stop(LastSeenIn(roi="toca"), stream) is None
+
+    def test_false_when_never_seen(self) -> None:
+        stream = [_geo(0, 0.0, None), _geo(1, 1.0, None)]
+
+        assert _level_stop(LastSeenIn(roi="toca"), stream) is None
+
+
+def _entry(**kwargs: object) -> BurrowEntry:
+    params: dict[str, object] = {"roi": "toca", "min_reference_frames": 3}
+    params.update(kwargs)
+    return BurrowEntry(**params)  # type: ignore[arg-type]
+
+
+def _trial(script: Iterable[tuple[float | None, float]], dt: float = 0.1) -> list[FrameObservation]:
+    """``(area, cover of toca)`` per frame; START at frame 0."""
+    return [
+        _geo(i, round(i * dt, 6), area, {"toca": cover} if cover else {})
+        for i, (area, cover) in enumerate(script)
+    ]
+
+
+class TestBurrowEntry:
+    def test_over_the_hole_and_small_is_back_dated(self) -> None:
+        """(a): small over toca from frame 6; 0.5 s held at frame 11; STOP at 6."""
+        script: list[Any] = [(FULL, 0.0)] * 4 + [(FULL, 0.6)] * 2
+        script += [(30.0, 0.9)] * 6
+        events, result = _run(_stop_when(_entry()), _trial(script))
+
+        assert result.stop is not None
+        assert (result.stop.frame, result.stop.reason) == (6, "burrow_entry")
+        assert result.stop.confirmed_frame == 11
+        assert result.censored is False
+        assert [e.kind for e in events] == ["start", "stop"]
+
+    def test_a_nose_poke_is_not_an_entry(self) -> None:
+        """Small box (head down) but mostly off the hole: (a) stays false."""
+        script: list[Any] = [(FULL, 0.0)] * 4 + [(30.0, 0.3)] * 10
+
+        assert _stop_frame(_stop_when(_entry()), _trial(script)) is None
+
+    def test_full_size_over_the_hole_is_not_an_entry(self) -> None:
+        script: list[Any] = [(FULL, 0.0)] * 4 + [(FULL, 1.0)] * 10
+
+        assert _stop_frame(_stop_when(_entry()), _trial(script)) is None
+
+    def test_a_short_dip_resets_the_hold(self) -> None:
+        script: list[Any] = [(FULL, 0.0)] * 20 + [(30.0, 0.9)] * 3
+        script += [(FULL, 0.9)] + [(30.0, 0.9)] * 6
+        _, result = _run(_stop_when(_entry()), _trial(script))
+
+        assert result.stop is not None and result.stop.frame == 24
+
+    def test_small_frames_join_the_reference_and_can_outvote_it(self) -> None:
+        """Documented risk: every frame after START joins the median, small ones too.
+
+        With only 4 full-size frames before a long small phase, the median sinks
+        to the small size after a few frames and (a) never holds 0.5 s. Real
+        trials have many full-size frames before the entry; ``min_reference_frames``
+        (10 by default) bounds the risk, it does not remove it.
+        """
+        script: list[Any] = [(FULL, 0.0)] * 4 + [(30.0, 0.9)] * 3
+        script += [(FULL, 0.9)] + [(30.0, 0.9)] * 6
+
+        assert _stop_frame(_stop_when(_entry()), _trial(script)) is None
+
+    def test_vanishing_over_the_hole_is_back_dated_to_the_first_absent_frame(self) -> None:
+        """(b): last seen over toca at frame 5, gone from 6; 3 s later at frame 36."""
+        script: list[Any] = [(FULL, 0.0)] * 4 + [(FULL, 0.8)] * 2
+        script += [(None, 0.0)] * 32
+        _, result = _run(_stop_when(_entry()), _trial(script))
+
+        assert result.stop is not None
+        assert (result.stop.frame, result.stop.reason) == (6, "burrow_entry")
+        assert result.stop.confirmed_frame == 36
+
+    def test_reappearing_before_absent_s_resets_the_absence(self) -> None:
+        script: list[Any] = [(FULL, 0.0)] * 4 + [(FULL, 0.8)]
+        script += [(None, 0.0)] * 20 + [(FULL, 0.1)] + [(None, 0.0)] * 40
+
+        assert _stop_frame(_stop_when(_entry()), _trial(script)) is None
+
+    def test_vanishing_elsewhere_is_not_an_entry(self) -> None:
+        script: list[Any] = [(FULL, 0.0)] * 6 + [(None, 0.0)] * 40
+
+        assert _stop_frame(_stop_when(_entry()), _trial(script)) is None
+
+    def test_absent_s_is_honoured(self) -> None:
+        script: list[Any] = [(FULL, 0.0)] * 4 + [(FULL, 0.8)]
+        script += [(None, 0.0)] * 12
+        _, result = _run(_stop_when(_entry(absent_s=1.0)), _trial(script))
+
+        assert result.stop is not None
+        assert (result.stop.frame, result.stop.confirmed_frame) == (5, 15)
+
+    def test_hold_in_frames(self) -> None:
+        script: list[Any] = [(FULL, 0.0)] * 4 + [(30.0, 0.9)] * 2
+        _, result = _run(_stop_when(_entry(hold=Hold(frames=2))), _trial(script))
+
+        assert result.stop is not None
+        assert (result.stop.frame, result.stop.confirmed_frame) == (4, 5)
+
+    def test_reference_frames_gate_the_size_test(self) -> None:
+        """Small over the hole right after START: no reference yet, so no entry."""
+        script: list[Any] = [(FULL, 0.0)] + [(30.0, 0.9)] * 10
+
+        spec = _stop_when(_entry(min_reference_frames=5))
+        assert _stop_frame(spec, _trial(script)) is None
+
+    def test_a_gap_resets_the_run(self) -> None:
+        stream = _trial([(FULL, 0.0)] * 20 + [(30.0, 0.9)] * 3)
+        stream += [_geo(23 + i, 4.0 + 0.1 * i, 30.0, {"toca": 0.9}) for i in range(6)]
+        _, result = _run(_stop_when(_entry(max_gap_s=0.5)), stream)
+
+        assert result.stop is not None and result.stop.frame == 23
+
+    def test_tail_inflated_box_delays_the_entry_to_the_vanishing(self) -> None:
+        """Documented limitation (#651): a visible tail inflates the box.
+
+        The rat is in the hole from frame 6, but the tail keeps a box of 50 % of
+        its usual size (> 35 %) — still 60 % over toca — so (a) never holds. The
+        entry is found only when the tail disappears too: (b), back-dated to
+        that frame (16), a full second after the real entry.
+        """
+        script: list[Any] = [(FULL, 0.0)] * 6 + [(50.0, 0.6)] * 10
+        script += [(None, 0.0)] * 31
+        _, result = _run(_stop_when(_entry()), _trial(script))
+
+        assert result.stop is not None
+        assert (result.stop.frame, result.stop.reason) == (16, "burrow_entry")
+
+    def test_tail_inflated_box_mostly_off_the_hole_misses_the_entry(self) -> None:
+        """…and if the last box seen was < ``min_cover`` over toca, (b) misses it too.
+
+        No entry is recognised: the trial ends censored (end of stream here, the
+        ceiling in the preset). A pose weight is the planned fix.
+        """
+        script: list[Any] = [(FULL, 0.0)] * 6 + [(50.0, 0.4)] * 10
+        script += [(None, 0.0)] * 31
+        _, result = _run(_stop_when(_entry()), _trial(script))
+
+        assert result.stop is not None and result.stop.reason == "end_of_stream"
+        assert result.censored is True
+
+    def test_first_of_keeps_the_ceiling_when_no_entry(self) -> None:
+        ceiling = Delay(after="start", seconds=1.0)
+        spec = _stop_when(FirstOf(children=(EndOfStream(), _entry(), ceiling)))
+        _, result = _run(spec, _trial([(FULL, 0.0)] * 20))
+
+        assert result.stop is not None
+        assert (result.stop.frame, result.stop.reason) == (10, "delay")
+
+    def test_the_size_reference_is_not_kept_without_a_size_node(self) -> None:
+        evaluator = ConditionEvaluator(
+            _stop_when(Persist(level=SubjectOverRoi(roi="toca"), hold=Hold(frames=1))),
+            role_names=ROLES,
+        )
+        for observation in _trial([(FULL, 0.0)] * 5):
+            evaluator.step(observation)
+
+        assert evaluator._ctx.subject_size is None
+        assert evaluator._ctx.last_detected is not None

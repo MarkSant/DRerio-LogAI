@@ -192,13 +192,7 @@ src/zebtrack/analysis/protocols/barnes/contract.py::method::BarnesLayout.from_me
 src/zebtrack/analysis/protocols/barnes/contract.py::method::BarnesLayout.to_metadata
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.center_radius_ratio
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.default_trial_type
-src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.entry_absent_s
-src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.entry_hold_s
-src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.entry_max_visible_fraction
-src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.entry_min_cover
-src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.entry_min_reference_frames
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.hole_roi_dilation
-src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.max_trial_s
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.probe_score_cap
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.strategy_adjacent_max_step
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.strategy_direct_max_errors

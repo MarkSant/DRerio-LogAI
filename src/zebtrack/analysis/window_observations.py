@@ -14,6 +14,10 @@ files a recording leaves behind:
   the report uses (:func:`resolve_roi_rule` + :class:`ROIAnalyzer`, debounce
   included), so a window that says "rat inside ``toca``" and the report's
   latency to ``toca`` cannot disagree on when that happened;
+- the trajectory's bounding boxes give the subject's geometry (box area and the
+  fraction of the box over each ROI) through
+  :mod:`zebtrack.core.conditions.subject_geometry` — the same helper the live
+  runtime uses — for the burrow-entry nodes (#633);
 - the artifact's ``external_events`` (recorded live) are delivered with the
   first observation at or after their instant.
 
@@ -43,12 +47,20 @@ from zebtrack.analysis.track_significance import (
 )
 from zebtrack.core.conditions.evaluator import ExternalEvent, FrameObservation
 from zebtrack.core.conditions.model import (
+    BurrowEntry,
     ClassPresence,
+    LastSeenIn,
     RoiEdge,
     RoiInside,
+    SubjectOverRoi,
     WindowSpec,
     _normalize_class_name,
     iter_nodes,
+)
+from zebtrack.core.conditions.subject_geometry import (
+    SubjectGeometry,
+    observe_subjects,
+    pick_subject_bbox,
 )
 from zebtrack.i18n import _
 from zebtrack.io.object_sidecar import CLOCK_PTS, HEARTBEAT_CLASS_ID
@@ -65,6 +77,7 @@ __all__ = [
     "no_object_sidecar_warning",
     "role_names_from_metadata",
     "screen_window_subjects",
+    "subject_geometry_by_frame",
     "subject_rois_by_frame",
 ]
 
@@ -249,6 +262,49 @@ def _rois_by_frame(
     return result
 
 
+_BBOX_COLUMNS = ("x1", "y1", "x2", "y2")
+
+
+def subject_geometry_by_frame(
+    trajectory_df: pd.DataFrame | None, rois: Sequence[ROI]
+) -> dict[int, SubjectGeometry]:
+    """Subject box area and per-ROI cover on each trajectory frame.
+
+    One box per frame, chosen by :func:`pick_subject_bbox` (highest confidence,
+    then larger area) — the rule the live runtime applies to the detector's
+    boxes. Frames without a usable box are absent (the subject was not seen).
+    The trajectory's ``x1..y2`` are raw video pixels, the space of ``rois``.
+    """
+    if trajectory_df is None or trajectory_df.empty or "frame" not in trajectory_df.columns:
+        return {}
+    if not all(column in trajectory_df.columns for column in _BBOX_COLUMNS):
+        log.warning(
+            "window_observations.subject_geometry.no_bbox",
+            hint="the trajectory has no x1..y2 columns: burrow-entry nodes cannot fire",
+        )
+        return {}
+    frames = pd.to_numeric(trajectory_df["frame"], errors="coerce")
+    corners = [pd.to_numeric(trajectory_df[c], errors="coerce") for c in _BBOX_COLUMNS]
+    confidence = (
+        pd.to_numeric(trajectory_df["confidence"], errors="coerce").fillna(0.0)
+        if "confidence" in trajectory_df.columns
+        else pd.Series(0.0, index=trajectory_df.index)
+    )
+    boxes: dict[int, list[tuple[float, float, float, float, float]]] = {}
+    for frame, x1, y1, x2, y2, score in zip(frames, *corners, confidence, strict=True):
+        if pd.isna(frame):
+            continue
+        boxes.setdefault(int(frame), []).append(
+            (float(x1), float(y1), float(x2), float(y2), float(score))
+        )
+    ordered = sorted(boxes)
+    chosen = [pick_subject_bbox(boxes[frame]) for frame in ordered]
+    geometry = observe_subjects(chosen, [(roi.name, roi.geometry) for roi in rois])
+    return {
+        frame: row for frame, row in zip(ordered, geometry, strict=True) if row.area_px is not None
+    }
+
+
 def _filter_aquarium(objects_df: pd.DataFrame, aquarium_id: int | None) -> pd.DataFrame:
     """Rows of one aquarium; a null ``aquarium_id`` applies to every aquarium."""
     if aquarium_id is None or "aquarium_id" not in objects_df.columns:
@@ -351,6 +407,7 @@ def build_window_observations(
         if trajectory_df is None
         else _rois_by_frame(trajectory_df, rois, roi_rule, pixelcm, mask_source)
     )
+    geometry_by_frame = subject_geometry_by_frame(trajectory_df, rois)
 
     if objects_df is not None and not objects_df.empty:
         metadata = objects_df.attrs.get("objects_metadata")
@@ -386,13 +443,14 @@ def build_window_observations(
 
     external = _attach_external(frames, times, external_events)
     observations = tuple(
-        FrameObservation(
-            frame=int(frame),
-            t_s=float(t_s),
+        _observation(
+            int(frame),
+            float(t_s),
             classes=classes.get(int(frame), {}),
             subject_rois=rois_by_frame.get(int(frame), frozenset()),
             external=external.get(int(frame), ()),
             aquarium_id=aquarium_id,
+            geometry=geometry_by_frame.get(int(frame)),
         )
         for frame, t_s in zip(frames, times, strict=True)
         if math.isfinite(float(t_s))
@@ -411,6 +469,28 @@ def build_window_observations(
         clock=stream_clock,
         subject_names=known_subjects,
         warnings=tuple(warnings),
+    )
+
+
+def _observation(
+    frame: int,
+    t_s: float,
+    *,
+    classes: Mapping[str, tuple[float, ...]],
+    subject_rois: frozenset[str],
+    external: tuple[ExternalEvent, ...],
+    aquarium_id: int | None,
+    geometry: SubjectGeometry | None,
+) -> FrameObservation:
+    return FrameObservation(
+        frame=frame,
+        t_s=t_s,
+        classes=classes,
+        subject_rois=subject_rois,
+        external=external,
+        aquarium_id=aquarium_id,
+        subject_area_px=None if geometry is None else geometry.area_px,
+        subject_cover={} if geometry is None else dict(geometry.cover),
     )
 
 
@@ -490,6 +570,9 @@ def missing_inputs(
                     missing.append("role:context")
                 elif target.class_name is not None and target.class_name not in known_subjects:
                     missing.append(f"class:{target.class_name}")
-            elif isinstance(node, RoiInside | RoiEdge) and node.roi not in known_rois:
+            elif (
+                isinstance(node, RoiInside | RoiEdge | SubjectOverRoi | LastSeenIn | BurrowEntry)
+                and node.roi not in known_rois
+            ):
                 missing.append(f"roi:{node.roi}")
     return sorted(set(missing))

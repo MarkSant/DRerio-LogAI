@@ -1112,8 +1112,14 @@ modules:
         replace: 'if False:'
       - id: zero-ceiling-accepted
         description: "teto zero passa a ser aceito e toda janela fecha no primeiro quadro"
-        find: 'if not max_s > 0:'
-        replace: 'if False:'
+        find: |-
+          if not max_s > 0:
+                  raise ValueError(f"max_s must be positive, got {max_s!r}")
+              if burrow_roi is not None and not burrow_roi.strip():
+        replace: |-
+          if False:
+                  raise ValueError(f"max_s must be positive, got {max_s!r}")
+              if burrow_roi is not None and not burrow_roi.strip():
       - id: legacy-stop-only-marks
         description: "codigo 0 do gatilho legado deixa de encerrar a sessao e so marca o FIM"
         find: 'on_stop="end_session",'
@@ -1194,8 +1200,8 @@ modules:
         replace: 'if node.hold.frames == 0:'
       - id: roi-inside-not-referenced
         description: "#650: ROI citada por 'dentro/fora' deixa de ser conferida e o editor nao avisa"
-        find: 'if isinstance(node, RoiEdge | RoiInside) and node.roi not in names:'
-        replace: 'if isinstance(node, RoiEdge) and node.roi not in names:'
+        find: 'isinstance(node, RoiEdge | RoiInside | SubjectOverRoi | LastSeenIn | BurrowEntry)'
+        replace: 'isinstance(node, RoiEdge | SubjectOverRoi | LastSeenIn | BurrowEntry)'
       - id: missing-roi-ignores-case
         description: "#650: 'Toca' passa a satisfazer 'toca', mas o avaliador compara exato e a linha nunca dispara"
         find: 'known = set(available)'
@@ -6681,3 +6687,200 @@ _load_registry()"
         description: "o DTO deixa de repassar as entradas por video"
         find: "protocol_inputs=protocol_inputs,\n            aquarium_id=aquarium_id,\n        )"
         replace: "protocol_inputs=None,\n            aquarium_id=aquarium_id,\n        )"
+
+  # --- Barnes v8.1 barnes-entry ---
+  barnes_entry_subject_geometry:
+    source: src/zebtrack/core/conditions/subject_geometry.py
+    tests:
+      - tests/core/conditions/test_subject_geometry.py
+    mutations:
+      - id: tie-takes-smaller-box
+        description: "#633: empate de confianca passa a escolher a caixa MENOR"
+        find: "key = (confidence, (box[2] - box[0]) * (box[3] - box[1]))"
+        replace: "key = (confidence, -(box[2] - box[0]) * (box[3] - box[1]))"
+      - id: confidence-ignored
+        description: "#633: a confianca deixa de escolher o sujeito (so a area decide)"
+        find: "confidence = float(item[4]) if len(item) > 4 else 0.0"
+        replace: "confidence = 0.0"
+      - id: flat-box-accepted
+        description: "#633: caixa sem largura vira um sujeito de area zero (entrada falsa)"
+        find: "if right <= left or bottom <= top:"
+        replace: "if right < left or bottom < top:"
+      - id: cover-over-roi-area
+        description: "#633: a cobertura passa a dividir pela area da ROI, nao da caixa"
+        find: "columns.append((name, np.clip(overlap / areas, 0.0, 1.0)))"
+        replace: "columns.append((name, np.clip(overlap / shapely.area(geometry), 0.0, 1.0)))"
+      - id: edge-contact-is-cover
+        description: "#633: encostar na borda da ROI vira cobertura"
+        find: "if fraction > _MIN_COVER:"
+        replace: "if fraction >= 0.0:"
+
+  barnes_entry_evaluator:
+    source: src/zebtrack/core/conditions/evaluator.py
+    tests:
+      - tests/core/conditions/test_evaluator.py
+    mutations:
+      - id: cover-threshold-strict
+        description: "#633: cobertura exatamente no limiar deixa de contar"
+        find: "return cover.get(roi, 0.0) >= min_cover - _COVER_EPS"
+        replace: "return cover.get(roi, 0.0) > min_cover"
+      - id: over-roi-without-box
+        description: "#633: cobertura velha de um quadro sem sujeito conta como sobre a toca"
+        find: "return obs.subject_area_px is not None and _covers(obs.subject_cover, roi, min_cover)"
+        replace: "return _covers(obs.subject_cover, roi, min_cover)"
+      - id: reference-one-frame-short
+        description: "#633: o tamanho habitual e julgado com um quadro de referencia a menos"
+        find: "if len(reference) < min_reference_frames:"
+        replace: "if len(reference) < min_reference_frames - 1:"
+      - id: size-bound-exclusive
+        description: "#633: tamanho exatamente no limite deixa de contar como pequeno"
+        find: "return median is not None and obs.subject_area_px <= max_fraction * median"
+        replace: "return median is not None and obs.subject_area_px < max_fraction * median"
+      - id: frame-joins-before-test
+        description: "#633: o quadro entra na referencia ANTES de ser testado"
+        find: "        events = self._advance(obs, ctx)\n"
+        replace: "        self._observe_subject(obs, ctx)\n        events = self._advance(obs, ctx)\n"
+      - id: reference-before-start
+        description: "#633: quadros antes do START entram no tamanho habitual"
+        find: "if not self._tracks_subject_size or ctx.start is None:"
+        replace: "if not self._tracks_subject_size:"
+      - id: last-seen-while-visible
+        description: "#633: 'sumiu na toca' vale mesmo com o rato visivel"
+        find: "if obs.subject_area_px is not None or last is None:"
+        replace: "if last is None:"
+      - id: entry-reason-persist
+        description: "#633: a entrada sai com motivo persist e as metricas nao a reconhecem"
+        find: 'return _Fire(first.frame, first.t_s, "burrow_entry")'
+        replace: 'return _Fire(first.frame, first.t_s, "persist")'
+      - id: absence-uses-entry-hold
+        description: "#633: o sumico usa o hold de 0,5 s em vez de absent_s"
+        find: "hold=Hold(seconds=node.absent_s),"
+        replace: "hold=node.hold,"
+      - id: reference-always-kept
+        description: "#633: a referencia de tamanho e mantida mesmo sem no que a leia"
+        find: "self._tracks_subject_size = spec.stop is not None and any("
+        replace: "self._tracks_subject_size = True or any("
+
+  barnes_entry_model:
+    source: src/zebtrack/core/conditions/model.py
+    tests:
+      - tests/core/conditions/test_model.py
+    mutations:
+      - id: size-level-allowed-in-start
+        description: "#633: SubjectVisibleFraction passa a ser aceito no START"
+        find: "if isinstance(node, BurrowEntry | SubjectVisibleFraction):"
+        replace: "if isinstance(node, BurrowEntry):"
+      - id: entry-default-fraction
+        description: "#633: fracao visivel padrao da entrada deixa de ser 0,35"
+        find: "max_visible_fraction: float = Field(default=0.35, gt=0.0, lt=1.0)"
+        replace: "max_visible_fraction: float = Field(default=0.5, gt=0.0, lt=1.0)"
+      - id: entry-default-hold
+        description: "#633: hold padrao da entrada deixa de ser 0,5 s"
+        find: "hold: Hold = Field(default_factory=lambda: Hold(seconds=0.5))"
+        replace: "hold: Hold = Field(default_factory=lambda: Hold(seconds=1.0))"
+      - id: fraction-one-accepted
+        description: "#633: fracao visivel 1 (qualquer tamanho) passa a ser aceita"
+        find: "max_fraction: float = Field(gt=0.0, lt=1.0)"
+        replace: "max_fraction: float = Field(gt=0.0, le=1.0)"
+
+  barnes_entry_presets:
+    source: src/zebtrack/core/conditions/presets.py
+    tests:
+      - tests/core/conditions/test_presets.py
+    mutations:
+      - id: v2-ceiling-before-entry
+        description: "#633: no mesmo quadro o teto vence a entrada e o ensaio sai censurado"
+        find: 'stop=FirstOf(children=(EndOfStream(), entry, Delay(after="start", seconds=max_s))),'
+        replace: 'stop=FirstOf(children=(EndOfStream(), Delay(after="start", seconds=max_s), entry)),'
+      - id: v2-hold-ignored
+        description: "#633: entry_hold_s do projeto deixa de chegar ao preset"
+        find: "hold=Hold(seconds=entry_hold_s),"
+        replace: "hold=Hold(seconds=0.5),"
+      - id: v2-reference-ignored
+        description: "#633: entry_min_reference_frames deixa de chegar ao preset"
+        find: "min_reference_frames=entry_min_reference_frames,"
+        replace: "min_reference_frames=10,"
+      - id: v1-match-ignores-edits
+        description: "#633: uma janela v1 editada e reconhecida como v1 e oferecida para troca"
+        find: "return arguments if rebuilt == spec else None"
+        replace: "return arguments"
+
+  barnes_entry_runtime:
+    source: src/zebtrack/core/recording/condition_runtime.py
+    tests:
+      - tests/core/recording/test_condition_runtime.py
+    mutations:
+      - id: live-geometry-never-computed
+        description: "#633: ao vivo a geometria do sujeito nunca chega ao motor"
+        find: "if self._needs_geometry:"
+        replace: "if False:"
+      - id: live-rois-rebuilt-every-frame
+        description: "#633: poligonos das ROIs reconstruidos a cada quadro do loop ao vivo"
+        find: "if key != self._roi_key:"
+        replace: "if True:"
+      - id: live-first-box-is-subject
+        description: "#633: ao vivo a primeira caixa vira o sujeito, nao a mais confiante"
+        find: "geometry = observe_subject(pick_subject_bbox(subject_boxes), self._prepared(rois))"
+        replace: "geometry = observe_subject(pick_subject_bbox(subject_boxes[:1]), self._prepared(rois))"
+      - id: needs-geometry-only-entry
+        description: "#633: so BurrowEntry liga a geometria; os niveis sozinhos ficam cegos"
+        find: "if isinstance(node, _GEOMETRY_NODES):"
+        replace: "if isinstance(node, BurrowEntry):"
+
+  barnes_entry_pipeline_feed:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_condition_runtime.py
+    mutations:
+      - id: mock-runtime-needs-geometry
+        description: "#633: um runtime sem o atributo (duble) passa a pedir geometria"
+        find: 'if getattr(runtime, "needs_subject_geometry", False) is not True:'
+        replace: 'if not getattr(runtime, "needs_subject_geometry", False):'
+      - id: other-aquariums-animal-counts
+        description: "#633: o rato do outro aquario entra na geometria deste"
+        find: "if aquarium_of_track_id(det[5]) == aquarium_id:"
+        replace: "if True:"
+
+  barnes_entry_window_observations:
+    source: src/zebtrack/analysis/window_observations.py
+    tests:
+      - tests/analysis/test_window_observations.py
+    mutations:
+      - id: offline-first-row-is-subject
+        description: "#633: offline a primeira linha do quadro vira o sujeito"
+        find: "chosen = [pick_subject_bbox(boxes[frame]) for frame in ordered]"
+        replace: "chosen = [pick_subject_bbox(boxes[frame][:1]) for frame in ordered]"
+      - id: offline-area-dropped
+        description: "#633: a area do sujeito nao chega as observacoes offline"
+        find: "subject_area_px=None if geometry is None else geometry.area_px,"
+        replace: "subject_area_px=None,"
+      - id: entry-roi-not-checked
+        description: "#633: ROI da entrada ausente no projeto deixa de ser reportada"
+        find: "isinstance(node, RoiInside | RoiEdge | SubjectOverRoi | LastSeenIn | BurrowEntry)"
+        replace: "isinstance(node, RoiInside | RoiEdge | SubjectOverRoi | LastSeenIn)"
+
+  barnes_entry_panel:
+    source: src/zebtrack/ui/components/analysis_window_panel.py
+    tests:
+      - tests/ui/components/test_analysis_window_panel.py
+    mutations:
+      - id: burrow-line-roi-ignored
+        description: "#633: a ROI escolhida na linha da toca e ignorada"
+        find: 'data["roi"] = row.target.strip()'
+        replace: 'data["roi"] = data["roi"]'
+      - id: burrow-line-loses-params
+        description: "#633: a linha da toca perde os parametros guardados e muda o hash"
+        find: 'return ConditionRow(kind="burrow_entry", target=node.roi, node=node)'
+        replace: 'return ConditionRow(kind="burrow_entry", target=node.roi, node=None)'
+      - id: v2-offered-outside-barnes
+        description: "#633: a troca para v2 e oferecida num projeto que nao e Barnes"
+        find: "if arguments is None or not is_barnes_project(project_data):"
+        replace: "if arguments is None:"
+      - id: preset-button-stays-v1
+        description: "#633: o botao de preset num projeto Barnes continua dando a v1"
+        find: "if not self._session_only and is_barnes_project(project_data):"
+        replace: "if False:"
+      - id: burrow-line-allowed-in-start
+        description: "#633: a linha de entrada na toca passa a ser aceita no Inicio"
+        find: '{"delay_after_start", "end_of_video", "subject_small", "burrow_entry"}'
+        replace: '{"delay_after_start", "end_of_video", "subject_small"}'

@@ -16,12 +16,19 @@ import pytest
 from pydantic import ValidationError
 
 from zebtrack.core.conditions import (
+    AllOfLevel,
+    BurrowEntry,
+    ClassPresence,
+    ClassTarget,
     ConditionEvaluator,
     Delay,
+    EndOfStream,
     External,
     ExternalEvent,
     FirstOf,
     FrameObservation,
+    FrameReached,
+    Hold,
     Persist,
     RoiEdge,
     WindowSpec,
@@ -33,6 +40,8 @@ from zebtrack.core.conditions.presets import (
     LEGACY_TRIGGER_START_CODE,
     LEGACY_TRIGGER_STOP_CODE,
     barnes_maze_preset,
+    barnes_maze_preset_v1_arguments,
+    barnes_maze_preset_v2,
     external_trigger_preset,
 )
 
@@ -266,3 +275,157 @@ class TestExternalTriggerPreset:
             )
 
         assert [(event.kind, event.frame) for event in events] == [("start", 1), ("stop", 4)]
+
+
+# ---------------------------------------------------------------------------
+# Barnes preset v2 (#633): stop on the burrow ENTRY
+# ---------------------------------------------------------------------------
+
+
+class TestBarnesMazePresetV2:
+    def test_start_is_identical_to_v1(self) -> None:
+        assert barnes_maze_preset_v2(k_frames=7).start == barnes_maze_preset(k_frames=7).start
+
+    def test_stop_is_end_of_stream_then_entry_then_ceiling(self) -> None:
+        preset = barnes_maze_preset_v2()
+
+        assert preset.stop == FirstOf(
+            children=(
+                EndOfStream(),
+                BurrowEntry(roi=BARNES_BURROW_ROI),
+                Delay(after="start", seconds=240.0),
+            )
+        )
+        assert (preset.on_start_not_met, preset.on_stop) == ("whole_recording", "mark")
+
+    def test_every_keyword_reaches_the_spec(self) -> None:
+        preset = barnes_maze_preset_v2(
+            k_frames=4,
+            max_s=120.0,
+            burrow_roi="Toca",
+            entry_min_cover=0.6,
+            entry_max_visible_fraction=0.3,
+            entry_hold_s=0.8,
+            entry_absent_s=2.5,
+            entry_min_reference_frames=15,
+        )
+
+        assert isinstance(preset.start, Persist) and preset.start.hold == Hold(frames=4)
+        assert isinstance(preset.stop, FirstOf)
+        _end, entry, ceiling = preset.stop.children
+        assert entry == BurrowEntry(
+            roi="Toca",
+            min_cover=0.6,
+            max_visible_fraction=0.3,
+            hold=Hold(seconds=0.8),
+            absent_s=2.5,
+            min_reference_frames=15,
+        )
+        assert ceiling == Delay(after="start", seconds=120.0)
+
+    def test_v1_keeps_its_hash(self) -> None:
+        """v2 is a new function; the v1 the projects stored is unchanged."""
+        assert spec_hash(barnes_maze_preset(k_frames=3, absent_s=2.0, burrow_roi=None)) == (
+            spec_hash(_fixture())
+        )
+        assert spec_hash(barnes_maze_preset_v2()) != spec_hash(barnes_maze_preset())
+
+    @pytest.mark.parametrize("max_s", [0.0, -1.0])
+    def test_non_positive_ceiling_is_refused(self, max_s: float) -> None:
+        with pytest.raises(ValueError, match="max_s must be positive"):
+            barnes_maze_preset_v2(max_s=max_s)
+
+    @pytest.mark.parametrize("roi", ["", "   "])
+    def test_blank_burrow_is_refused(self, roi: str) -> None:
+        with pytest.raises(ValueError, match="burrow_roi must be a ROI name"):
+            barnes_maze_preset_v2(burrow_roi=roi)
+
+    def test_out_of_range_entry_parameter_is_refused(self) -> None:
+        with pytest.raises(ValidationError):
+            barnes_maze_preset_v2(entry_max_visible_fraction=1.0)
+
+    def test_arguments_are_keyword_only(self) -> None:
+        with pytest.raises(TypeError):
+            barnes_maze_preset_v2(5)  # type: ignore[misc]
+
+
+class TestBarnesV1Arguments:
+    @pytest.mark.parametrize(
+        "arguments",
+        [
+            {"k_frames": 5, "absent_s": 3.0, "max_s": 240.0, "burrow_roi": "toca"},
+            {"k_frames": 3, "absent_s": 2.0, "max_s": 240.0, "burrow_roi": None},
+            {"k_frames": 9, "absent_s": 1.5, "max_s": 60.0, "burrow_roi": "Toca"},
+        ],
+    )
+    def test_recognises_every_v1_preset(self, arguments: dict) -> None:
+        assert barnes_maze_preset_v1_arguments(barnes_maze_preset(**arguments)) == arguments
+
+    def test_recognises_the_acceptance_fixture(self) -> None:
+        assert barnes_maze_preset_v1_arguments(_fixture()) == {
+            "k_frames": 3,
+            "absent_s": 2.0,
+            "max_s": 240.0,
+            "burrow_roi": None,
+        }
+
+    def test_v2_none_and_other_specs_are_not_v1(self) -> None:
+        assert barnes_maze_preset_v1_arguments(None) is None
+        assert barnes_maze_preset_v1_arguments(barnes_maze_preset_v2()) is None
+        assert barnes_maze_preset_v1_arguments(external_trigger_preset()) is None
+        assert barnes_maze_preset_v1_arguments(WindowSpec()) is None
+
+    def test_an_edited_v1_is_not_recognised(self) -> None:
+        preset = barnes_maze_preset()
+        assert isinstance(preset.stop, FirstOf)
+        edited = preset.model_copy(
+            update={"stop": FirstOf(children=(EndOfStream(), *preset.stop.children))}
+        )
+        swapped = preset.model_copy(update={"on_stop": "end_session"})
+
+        assert barnes_maze_preset_v1_arguments(edited) is None
+        assert barnes_maze_preset_v1_arguments(swapped) is None
+
+    def test_wrong_shapes_are_not_v1(self) -> None:
+        start = barnes_maze_preset().start
+        no_ceiling = WindowSpec(
+            start=start,
+            stop=FirstOf(
+                children=(
+                    EndOfStream(),
+                    Persist(level=AllOfLevel(children=(_absent_rat(),)), hold=Hold(seconds=3)),
+                    RoiEdge(roi="toca", edge="enter"),
+                )
+            ),
+        )
+        frame_absence = WindowSpec(
+            start=start,
+            stop=FirstOf(
+                children=(
+                    EndOfStream(),
+                    Persist(level=_absent_rat(), hold=Hold(frames=3)),
+                    Delay(after="start", seconds=240.0),
+                )
+            ),
+        )
+        frame_start = barnes_maze_preset().model_copy(
+            update={"start": Persist(level=_absent_rat(), hold=Hold(seconds=1.0))}
+        )
+        bad_burrow = WindowSpec(
+            start=start,
+            stop=FirstOf(
+                children=(
+                    EndOfStream(),
+                    Persist(level=_absent_rat(), hold=Hold(seconds=3.0)),
+                    FrameReached(frame=3),
+                    Delay(after="start", seconds=240.0),
+                )
+            ),
+        )
+
+        for spec in (no_ceiling, frame_absence, frame_start, bad_burrow):
+            assert barnes_maze_preset_v1_arguments(spec) is None
+
+
+def _absent_rat() -> ClassPresence:
+    return ClassPresence(target=ClassTarget.of_class("rat"), present=False)

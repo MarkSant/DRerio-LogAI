@@ -19,6 +19,7 @@ from zebtrack.core.conditions import (
     AllOf,
     AllOfLevel,
     AnyOfLevel,
+    BurrowEntry,
     ClassPresence,
     ClassTarget,
     Delay,
@@ -27,11 +28,14 @@ from zebtrack.core.conditions import (
     FirstOf,
     FrameReached,
     Hold,
+    LastSeenIn,
     Not,
     Persist,
     RoiEdge,
     RoiInside,
     Sequence,
+    SubjectOverRoi,
+    SubjectVisibleFraction,
     TimeReached,
     WindowSpec,
     iter_nodes,
@@ -418,3 +422,120 @@ class TestIterNodes:
         assert spec.start is not None
         externals = [n for n in iter_nodes(spec.start) if isinstance(n, External)]
         assert [(e.source, e.code) for e in externals] == [("arduino", 2)]
+
+
+# ---------------------------------------------------------------------------
+# Burrow-entry nodes (#633): JSON contract, ranges, START refusal
+# ---------------------------------------------------------------------------
+
+
+class TestBurrowEntryNodes:
+    def test_burrow_entry_defaults_are_the_contract(self) -> None:
+        dumped = BurrowEntry(roi="toca").model_dump(mode="json", by_alias=True)
+
+        assert dumped == {
+            "kind": "burrow_entry",
+            "roi": "toca",
+            "min_cover": 0.5,
+            "max_visible_fraction": 0.35,
+            "hold": {"seconds": 0.5, "frames": None},
+            "absent_s": 3.0,
+            "min_reference_frames": 10,
+            "max_gap_s": None,
+        }
+
+    def test_level_defaults_are_the_contract(self) -> None:
+        assert SubjectOverRoi(roi="toca").model_dump(mode="json") == {
+            "kind": "subject_over_roi",
+            "roi": "toca",
+            "min_cover": 0.5,
+        }
+        assert SubjectVisibleFraction(max_fraction=0.35).model_dump(mode="json") == {
+            "kind": "subject_visible_fraction",
+            "max_fraction": 0.35,
+            "min_reference_frames": 10,
+        }
+        assert LastSeenIn(roi="toca").model_dump(mode="json") == {
+            "kind": "last_seen_in",
+            "roi": "toca",
+            "min_cover": 0.5,
+        }
+
+    def test_spec_with_every_new_node_round_trips_through_json(self) -> None:
+        spec = WindowSpec(
+            start=Persist(
+                level=AllOfLevel(children=(SubjectOverRoi(roi="a"), LastSeenIn(roi="b"))),
+                hold=Hold(frames=2),
+            ),
+            stop=FirstOf(
+                children=(
+                    BurrowEntry(roi="toca", hold=Hold(frames=4), max_gap_s=1.5),
+                    Persist(
+                        level=SubjectVisibleFraction(max_fraction=0.2, min_reference_frames=3),
+                        hold=Hold(seconds=1.0),
+                    ),
+                )
+            ),
+        )
+
+        reloaded = WindowSpec.model_validate(json.loads(spec.model_dump_json(by_alias=True)))
+
+        assert reloaded == spec
+        assert spec_hash(reloaded) == spec_hash(spec)
+
+    @pytest.mark.parametrize(
+        ("factory", "error"),
+        [
+            (lambda: SubjectOverRoi(roi="toca", min_cover=0.0), "greater_than"),
+            (lambda: SubjectOverRoi(roi="toca", min_cover=1.01), "less_than_equal"),
+            (lambda: SubjectOverRoi(roi=""), "string_too_short"),
+            (lambda: LastSeenIn(roi="toca", min_cover=0.0), "greater_than"),
+            (lambda: SubjectVisibleFraction(max_fraction=0.0), "greater_than"),
+            (lambda: SubjectVisibleFraction(max_fraction=1.0), "less_than"),
+            (
+                lambda: SubjectVisibleFraction(max_fraction=0.3, min_reference_frames=0),
+                "greater_than_equal",
+            ),
+            (lambda: BurrowEntry(roi="toca", absent_s=0.0), "greater_than"),
+            (lambda: BurrowEntry(roi="toca", max_visible_fraction=1.0), "less_than"),
+            (lambda: BurrowEntry(roi="toca", min_cover=1.5), "less_than_equal"),
+            (lambda: BurrowEntry(roi="toca", min_reference_frames=0), "greater_than_equal"),
+            (lambda: BurrowEntry(roi="toca", max_gap_s=0.0), "greater_than"),
+            (lambda: BurrowEntry(roi=""), "string_too_short"),
+        ],
+    )
+    def test_ranges(self, factory: Any, error: str) -> None:
+        with pytest.raises(ValidationError) as caught:
+            factory()
+
+        assert error in _error_types(caught.value)
+
+    def test_the_bounds_themselves_are_accepted(self) -> None:
+        assert SubjectOverRoi(roi="toca", min_cover=1.0).min_cover == 1.0
+        assert BurrowEntry(roi="toca", min_reference_frames=1).min_reference_frames == 1
+
+    @pytest.mark.parametrize(
+        "node",
+        [
+            BurrowEntry(roi="toca"),
+            Persist(level=SubjectVisibleFraction(max_fraction=0.3), hold=Hold(frames=1)),
+            FirstOf(children=(FrameReached(frame=3), BurrowEntry(roi="toca"))),
+        ],
+    )
+    def test_size_nodes_are_refused_in_start(self, node: Any) -> None:
+        with pytest.raises(ValidationError) as caught:
+            WindowSpec(start=node)
+
+        assert _error_types(caught.value) == {"start_uses_subject_size"}
+
+    def test_cover_and_absence_levels_are_allowed_in_start(self) -> None:
+        level = AnyOfLevel(children=(SubjectOverRoi(roi="a"), LastSeenIn(roi="a")))
+
+        spec = WindowSpec(start=Persist(level=level, hold=Hold(frames=1)))
+
+        assert spec.start is not None
+
+    def test_burrow_entry_is_a_leaf_for_iter_nodes(self) -> None:
+        node = BurrowEntry(roi="toca")
+
+        assert list(iter_nodes(node)) == [node]
