@@ -13,6 +13,10 @@ from typing import Any
 
 import pytest
 
+from zebtrack.ui.components.behavioral_config_widget import (
+    animal_model_choices,
+    protocol_choices,
+)
 from zebtrack.ui.wizard.discovery_step import DiscoveryStep
 from zebtrack.ui.wizard.enums import (
     LEGACY_EXPLORATORY_PROJECT_TYPE,
@@ -22,6 +26,12 @@ from zebtrack.ui.wizard.enums import (
     derive_import_action,
 )
 from zebtrack.ui.wizard.file_selection_step import FileSelectionStep
+
+
+def _need(value):
+    """A widget the test just built must exist; narrows ``X | None`` for mypy."""
+    assert value is not None
+    return value
 
 
 @pytest.mark.gui
@@ -310,3 +320,226 @@ class TestEnums:
         # Invalid: Trajectory but no arena
         action = derive_import_action(False, False, True)
         assert action == ImportAction.FULL
+
+
+def _choose(combo, choices, token) -> None:
+    label = next(text for text, value in choices if value == token)
+    combo.set(label)
+    combo.event_generate("<<ComboboxSelected>>")
+
+
+def _with_window_preset(monkeypatch) -> dict[str, Any]:
+    """Make the Barnes spec carry a window preset (the spec is registered by another front).
+
+    Returns the stored (JSON) form the wizard is expected to propose.
+    """
+    from types import SimpleNamespace
+
+    from zebtrack.core.conditions.presets import barnes_maze_preset
+    from zebtrack.ui.wizard import templates
+
+    spec = SimpleNamespace(window_preset=lambda params: barnes_maze_preset())
+    monkeypatch.setattr(templates, "get_protocol", lambda protocol: spec)
+    return barnes_maze_preset().model_dump(mode="json", by_alias=True)
+
+
+@pytest.mark.gui
+class TestDiscoveryExperimentProfile:
+    """ADR-014: question 4 asks the animal model and the protocol once, at creation."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, wizard_dependencies):
+        self.root = wizard_dependencies["root"]
+
+    def _step(self, wizard_data: dict[str, Any] | None = None) -> tuple[DiscoveryStep, dict]:
+        data: dict[str, Any] = {} if wizard_data is None else wizard_data
+        step = DiscoveryStep(self.root, data)
+        step.build_ui()
+        return step, data
+
+    def test_the_combos_start_on_the_legacy_profile(self):
+        step, _data = self._step()
+
+        assert _need(step.animal_model_combo).get() == "Zebrafish (aquarium)"
+        assert _need(step.protocol_combo).get() == "Generic (no protocol)"
+        assert str(_need(step.animal_model_combo).cget("state")) == "readonly"
+
+    def test_the_labels_list_every_animal_model_and_protocol(self):
+        step, _data = self._step()
+
+        assert [str(v) for v in _need(step.animal_model_combo).cget("values")] == [
+            "Zebrafish (aquarium)",
+            "Rodent (rat or mouse)",
+            "Other species",
+        ]
+        assert [str(v) for v in _need(step.protocol_combo).cget("values")] == [
+            "Generic (no protocol)",
+            "Barnes maze (rodents)",
+        ]
+
+    def test_a_default_run_adds_only_the_legacy_profile(self):
+        step, _data = self._step()
+
+        block = step.get_data()["behavioral_analysis"]
+
+        assert block == {"animal_model": "zebrafish", "protocol": "generic"}
+
+    def test_choosing_barnes_locks_the_animal_model_to_rodent(self):
+        step, _data = self._step()
+
+        _choose(step.protocol_combo, protocol_choices(), "barnes")
+
+        assert _need(step.animal_model_combo).get() == "Rodent (rat or mouse)"
+        assert str(_need(step.animal_model_combo).cget("state")) == "disabled"
+        assert "rodents" in step.profile_hint_label.cget("text")
+
+    def test_barnes_output_forces_the_view_and_every_frame(self):
+        step, _data = self._step()
+        _choose(step.protocol_combo, protocol_choices(), "barnes")
+
+        data = step.get_data()
+
+        block = data["behavioral_analysis"]
+        assert block["animal_model"] == "rodent"
+        assert block["protocol"] == "barnes"
+        assert block["aquarium_perspective"] == "top_down"
+        assert block["geotaxis_enabled"] is False
+        assert data["analysis_interval_frames"] == 1
+
+    def test_barnes_sets_the_protocols_window_when_the_project_has_none(self, monkeypatch):
+        window = _with_window_preset(monkeypatch)
+        step, _data = self._step()
+        _choose(step.protocol_combo, protocol_choices(), "barnes")
+
+        assert step.get_data()["analysis_window"] == window
+
+    def test_barnes_does_not_overwrite_a_window_the_user_already_has(self, monkeypatch):
+        _with_window_preset(monkeypatch)
+        step, _data = self._step({"analysis_window": {"kind": "mine"}})
+        _choose(step.protocol_combo, protocol_choices(), "barnes")
+
+        assert "analysis_window" not in step.get_data()
+
+    def test_barnes_without_a_registered_preset_leaves_the_window_alone(self, monkeypatch):
+        from zebtrack.ui.wizard import templates
+
+        monkeypatch.setattr(templates, "get_protocol", lambda protocol: None)
+        step, _data = self._step()
+        _choose(step.protocol_combo, protocol_choices(), "barnes")
+
+        assert "analysis_window" not in step.get_data()
+
+    def test_the_rest_of_the_behavioural_block_is_kept(self):
+        step, _data = self._step(
+            {"behavioral_analysis": {"thigmotaxis_distance_cm": 3.0, "geotaxis_num_zones": 4}}
+        )
+        _choose(step.animal_model_combo, animal_model_choices(), "zebrafish")
+
+        block = step.get_data()["behavioral_analysis"]
+
+        assert block["thigmotaxis_distance_cm"] == 3.0
+        assert block["geotaxis_num_zones"] == 4
+
+    def test_changing_the_animal_drops_the_numbers_saved_for_the_previous_one(self):
+        step, _data = self._step(
+            {
+                "behavioral_analysis": {
+                    "animal_model": "zebrafish",
+                    "thigmotaxis_distance_cm": 3.0,
+                    "max_plausible_speed_cm_s": 40.0,
+                    "geotaxis_num_zones": 4,
+                }
+            }
+        )
+        _choose(step.animal_model_combo, animal_model_choices(), "rodent")
+
+        block = step.get_data()["behavioral_analysis"]
+
+        assert block["animal_model"] == "rodent"
+        assert "thigmotaxis_distance_cm" not in block
+        assert "max_plausible_speed_cm_s" not in block
+        assert block["geotaxis_num_zones"] == 4
+
+    def test_changing_the_protocol_drops_the_previous_protocols_parameters(self):
+        step, _data = self._step(
+            {
+                "behavioral_analysis": {
+                    "animal_model": "rodent",
+                    "protocol": "barnes",
+                    "protocol_params": {"barnes": {"table_diameter_cm": 150.0}},
+                }
+            }
+        )
+        _choose(step.protocol_combo, protocol_choices(), "generic")
+
+        assert "protocol_params" not in step.get_data()["behavioral_analysis"]
+
+    def test_an_unchanged_barnes_choice_keeps_its_parameters(self):
+        params = {"barnes": {"table_diameter_cm": 150.0}}
+        step, _data = self._step(
+            {
+                "behavioral_analysis": {
+                    "animal_model": "rodent",
+                    "protocol": "barnes",
+                    "protocol_params": params,
+                }
+            }
+        )
+        step.set_data({"behavioral_analysis": step.wizard_data["behavioral_analysis"]})
+
+        assert step.get_data()["behavioral_analysis"]["protocol_params"] == params
+
+    def test_leaving_barnes_undoes_what_barnes_forced(self, monkeypatch):
+        window = _with_window_preset(monkeypatch)
+        step, data = self._step(
+            {
+                "behavioral_analysis": {"animal_model": "rodent", "protocol": "barnes"},
+                "analysis_interval_frames": 1,
+                "analysis_window": window,
+            }
+        )
+        _choose(step.protocol_combo, protocol_choices(), "generic")
+
+        step.get_data()
+
+        assert "analysis_interval_frames" not in data
+        assert data["analysis_window"] is None
+
+    def test_leaving_barnes_keeps_a_window_the_user_customised(self, monkeypatch):
+        _with_window_preset(monkeypatch)
+        step, data = self._step(
+            {
+                "behavioral_analysis": {"animal_model": "rodent", "protocol": "barnes"},
+                "analysis_window": {"kind": "mine"},
+            }
+        )
+        _choose(step.protocol_combo, protocol_choices(), "generic")
+
+        step.get_data()
+
+        assert data["analysis_window"] == {"kind": "mine"}
+
+    def test_set_data_restores_the_combos_for_back_navigation(self):
+        step, _data = self._step()
+
+        step.set_data({"behavioral_analysis": {"animal_model": "other", "protocol": "generic"}})
+
+        assert _need(step.animal_model_combo).get() == "Other species"
+        assert str(_need(step.animal_model_combo).cget("state")) == "readonly"
+
+    def test_set_data_with_barnes_locks_the_animal_model(self):
+        step, _data = self._step()
+
+        step.set_data({"behavioral_analysis": {"protocol": "barnes"}})
+
+        assert _need(step.animal_model_combo).get() == "Rodent (rat or mouse)"
+        assert str(_need(step.animal_model_combo).cget("state")) == "disabled"
+
+    def test_the_profile_question_wraps_to_the_canvas_width(self):
+        step, _data = self._step()
+
+        step._apply_dynamic_wrapping(900)
+
+        labels = [w for w in step.q4_frame.winfo_children() if w.winfo_class() == "Label"]
+        assert labels
+        assert all(int(str(label.cget("wraplength"))) == 840 for label in labels)

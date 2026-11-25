@@ -4,11 +4,23 @@ Reusable widget for configuring thigmotaxis and geotaxis behavioral analysis par
 Used in Wizard CalibrationStep, SingleVideoConfigDialog, and LiveAnalysisDialog.
 """
 
+from collections.abc import Callable
 from tkinter import BooleanVar, DoubleVar, IntVar, StringVar, ttk
 from typing import Any
 
 import structlog
 
+from zebtrack.analysis.behavioral_policy import animal_behavior_defaults
+from zebtrack.core.services.experiment_profile import (
+    ANIMAL_MODEL_KEY,
+    PROTOCOL_KEY,
+    PROTOCOL_PARAMS_KEY,
+    AnimalModel,
+    ExperimentProfile,
+    ProtocolId,
+    forced_animal_model,
+    resolve_experiment_profile,
+)
 from zebtrack.i18n import _
 from zebtrack.settings import (
     DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S,
@@ -20,6 +32,36 @@ from zebtrack.ui.event_bus_v2 import EventBusV2
 from zebtrack.ui.wizard.models import AquariumPerspective, GeotaxisMode
 
 log = structlog.get_logger()
+
+#: ``protocol_params[<protocol>]`` key of the trial type a session defaults to
+#: (``BarnesParams.default_trial_type``). Persisted token: never translated.
+DEFAULT_TRIAL_TYPE_KEY = "default_trial_type"
+_TRIAL_TYPES = ("training", "probe")
+
+
+def animal_model_choices() -> list[tuple[str, str]]:
+    """``(label, token)`` for the animal-model combo. Labels resolve at call time."""
+    return [
+        (_("Zebrafish (aquarium)"), AnimalModel.ZEBRAFISH.value),
+        (_("Rodent (rat or mouse)"), AnimalModel.RODENT.value),
+        (_("Other species"), AnimalModel.OTHER.value),
+    ]
+
+
+def protocol_choices() -> list[tuple[str, str]]:
+    """``(label, token)`` for the protocol combo. Labels resolve at call time."""
+    return [
+        (_("Generic (no protocol)"), ProtocolId.GENERIC.value),
+        (_("Barnes maze (rodents)"), ProtocolId.BARNES.value),
+    ]
+
+
+def trial_type_choices() -> list[tuple[str, str]]:
+    """``(label, token)`` for the Barnes trial-type combo."""
+    return [
+        (_("Training trial"), _TRIAL_TYPES[0]),
+        (_("Probe trial"), _TRIAL_TYPES[1]),
+    ]
 
 
 class BehavioralConfigWidget(BaseWidget):
@@ -97,6 +139,20 @@ class BehavioralConfigWidget(BaseWidget):
             kwargs.pop("default_max_speed_cm_s", DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S),
             DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S,
         )
+        # Experiment profile (ADR-014). The combos are opt-in: the wizard asks the
+        # question in its Discovery step and the config editor edits global
+        # settings that have no profile, so only the ad-hoc dialogs show them.
+        self._show_profile = bool(kwargs.pop("show_profile", False))
+        self._show_trial_type = bool(kwargs.pop("show_trial_type", False))
+        self._on_profile_changed: Callable[[ExperimentProfile], None] | None = kwargs.pop(
+            "on_profile_changed", None
+        )
+        self.animal_model_var = StringVar(value=AnimalModel.ZEBRAFISH.value)
+        self.protocol_var = StringVar(value=ProtocolId.GENERIC.value)
+        self.trial_type_var = StringVar(value=_TRIAL_TYPES[0])
+        #: ``protocol_params[<protocol>]`` carried through untouched (a template or
+        #: project may hold thresholds this widget has no field for).
+        self._protocol_params: dict[str, Any] = {}
 
         # State variables - initialized before _build_ui
         self.perspective_var = StringVar(value=self._default_perspective)
@@ -123,6 +179,10 @@ class BehavioralConfigWidget(BaseWidget):
         self.num_zones_spinbox: ttk.Spinbox | None = None
         self.bottom_zones_spinbox: ttk.Spinbox | None = None
         self.max_speed_spinbox: ttk.Spinbox | None = None
+        self.animal_model_combo: ttk.Combobox | None = None
+        self.protocol_combo: ttk.Combobox | None = None
+        self.trial_type_combo: ttk.Combobox | None = None
+        self._trial_type_row: ttk.Frame | None = None
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
@@ -139,6 +199,10 @@ class BehavioralConfigWidget(BaseWidget):
         )
         title_label.pack(fill="x", pady=(0, 10))
 
+        # Experiment profile (animal model + protocol), only where the caller asks
+        if self._show_profile:
+            self._build_profile_section()
+
         # Aquarium Perspective Section
         self._build_perspective_section()
 
@@ -153,6 +217,62 @@ class BehavioralConfigWidget(BaseWidget):
 
         # Initial state update
         self._on_perspective_changed()
+        self._enforce_profile_locks()
+
+    def _build_profile_section(self) -> None:
+        """Build the experiment-profile section: animal model and protocol combos."""
+        profile_frame = ttk.LabelFrame(self, text=_("Experiment Profile"), padding=5)
+        profile_frame.pack(fill="x", pady=(0, 10))
+
+        animal_row = ttk.Frame(profile_frame)
+        animal_row.pack(fill="x", pady=(0, 3))
+        ttk.Label(animal_row, text=_("Animal model:"), width=14).pack(side="left", padx=(0, 5))
+        self.animal_model_combo = ttk.Combobox(
+            animal_row,
+            values=[label for label, _token in animal_model_choices()],
+            state="readonly",
+            width=25,
+        )
+        self.animal_model_combo.pack(side="left")
+        self.animal_model_combo.bind("<<ComboboxSelected>>", self._on_animal_model_selected)
+
+        protocol_row = ttk.Frame(profile_frame)
+        protocol_row.pack(fill="x", pady=(0, 3))
+        ttk.Label(protocol_row, text=_("Protocol:"), width=14).pack(side="left", padx=(0, 5))
+        self.protocol_combo = ttk.Combobox(
+            protocol_row,
+            values=[label for label, _token in protocol_choices()],
+            state="readonly",
+            width=25,
+        )
+        self.protocol_combo.pack(side="left")
+        self.protocol_combo.bind("<<ComboboxSelected>>", self._on_protocol_selected)
+
+        if self._show_trial_type:
+            self._trial_type_row = ttk.Frame(profile_frame)
+            ttk.Label(self._trial_type_row, text=_("Trial type:"), width=14).pack(
+                side="left", padx=(0, 5)
+            )
+            self.trial_type_combo = ttk.Combobox(
+                self._trial_type_row,
+                values=[label for label, _token in trial_type_choices()],
+                state="readonly",
+                width=25,
+            )
+            self.trial_type_combo.pack(side="left")
+            self.trial_type_combo.bind("<<ComboboxSelected>>", self._on_trial_type_selected)
+
+        ttk.Label(
+            profile_frame,
+            text=_(
+                "The Barnes maze is run with rodents: choosing it sets the animal model, the "
+                "top-down view and the analysis interval for you."
+            ),
+            wraplength=500,
+            foreground="gray",
+        ).pack(fill="x", pady=(3, 0))
+
+        self._refresh_profile_combos()
 
     def _build_perspective_section(self) -> None:
         """Build the aquarium perspective selection section."""
@@ -403,6 +523,136 @@ class BehavioralConfigWidget(BaseWidget):
 
         self._update_geotaxis_visibility()
 
+    # Experiment profile
+
+    @staticmethod
+    def _label_of(choices: list[tuple[str, str]], token: str) -> str:
+        return next((label for label, value in choices if value == token), token)
+
+    @staticmethod
+    def _token_of(choices: list[tuple[str, str]], label: str, fallback: str) -> str:
+        return next((value for text, value in choices if text == label), fallback)
+
+    def current_profile(self) -> ExperimentProfile:
+        """The profile the combos currently describe, through the single resolver."""
+        return resolve_experiment_profile(
+            behavioral_config={
+                ANIMAL_MODEL_KEY: self.animal_model_var.get(),
+                PROTOCOL_KEY: self.protocol_var.get(),
+            }
+        )
+
+    def _on_animal_model_selected(self, event=None) -> None:
+        """The user picked another animal model: its behavioural defaults apply."""
+        if not self.animal_model_combo:
+            return
+        token = self._token_of(
+            animal_model_choices(), self.animal_model_combo.get(), AnimalModel.ZEBRAFISH.value
+        )
+        self._apply_profile(token, self.protocol_var.get())
+
+    def _on_protocol_selected(self, event=None) -> None:
+        """The user picked another protocol: its parameters start over."""
+        if not self.protocol_combo:
+            return
+        token = self._token_of(
+            protocol_choices(), self.protocol_combo.get(), ProtocolId.GENERIC.value
+        )
+        if token != self.protocol_var.get():
+            self._protocol_params = {}
+        self._apply_profile(self.animal_model_var.get(), token)
+
+    def _on_trial_type_selected(self, event=None) -> None:
+        if not self.trial_type_combo:
+            return
+        self.trial_type_var.set(
+            self._token_of(trial_type_choices(), self.trial_type_combo.get(), _TRIAL_TYPES[0])
+        )
+
+    def _apply_profile(self, animal_token: str, protocol_token: str) -> None:
+        """Make ``(animal model, protocol)`` the widget's profile and propagate it.
+
+        The protocol may force the animal model (Barnes => rodent) and, through
+        :meth:`_enforce_profile_locks`, the perspective. When the animal model
+        ends up different from what it was, the speed ceiling and the wall band
+        are reset to that animal's defaults. Only a user action calls this:
+        :meth:`set_values` restores a saved profile without touching the fields.
+        """
+        before = self.animal_model_var.get()
+        profile = resolve_experiment_profile(
+            behavioral_config={ANIMAL_MODEL_KEY: animal_token, PROTOCOL_KEY: protocol_token}
+        )
+        self.animal_model_var.set(profile.animal_model.value)
+        self.protocol_var.set(profile.protocol.value)
+        if profile.animal_model.value != before:
+            self._reset_animal_defaults(profile.animal_model)
+        self._refresh_profile_combos()
+        self._enforce_profile_locks()
+        if self._on_profile_changed is not None:
+            self._on_profile_changed(profile)
+
+    def _reset_animal_defaults(self, animal_model: AnimalModel) -> None:
+        """Put the animal's speed ceiling and wall band in their fields."""
+        defaults = animal_behavior_defaults(animal_model)
+        if defaults is None:
+            self.max_speed_var.set(self._default_max_speed_cm_s)
+            self.thigmotaxis_distance_var.set(self._default_thigmotaxis_cm)
+        else:
+            self.max_speed_var.set(defaults.max_plausible_speed_cm_s)
+            self.thigmotaxis_distance_var.set(defaults.thigmotaxis_distance_cm)
+
+    def _refresh_profile_combos(self) -> None:
+        """Show the combos' labels for the current tokens (no-op when hidden)."""
+        if self.animal_model_combo:
+            self.animal_model_combo.set(
+                self._label_of(animal_model_choices(), self.animal_model_var.get())
+            )
+        if self.protocol_combo:
+            self.protocol_combo.set(self._label_of(protocol_choices(), self.protocol_var.get()))
+        if self.trial_type_combo:
+            self.trial_type_combo.set(
+                self._label_of(trial_type_choices(), self.trial_type_var.get())
+            )
+        if self._trial_type_row is not None:
+            if self.protocol_var.get() == ProtocolId.BARNES.value:
+                self._trial_type_row.pack(fill="x", pady=(0, 3))
+            else:
+                self._trial_type_row.pack_forget()
+
+    def _enforce_profile_locks(self) -> None:
+        """Lock what the protocol decides: the animal model and the perspective.
+
+        Runs whether or not the combos are shown, so a wizard that asked the
+        question in Discovery still gets a top-down view for a Barnes project.
+        """
+        protocol = ProtocolId(self.protocol_var.get())
+        forced = forced_animal_model(protocol)
+        if forced is not None:
+            self.animal_model_var.set(forced.value)
+        if self.animal_model_combo:
+            self.animal_model_combo.configure(
+                state="disabled" if forced is not None else "readonly"
+            )
+        if forced is not None:
+            self.perspective_var.set(AquariumPerspective.TOP_DOWN.value)
+            if self.perspective_combo:
+                self.perspective_combo.set(
+                    self._perspective_reverse.get(AquariumPerspective.TOP_DOWN.value, "")
+                )
+        if self.perspective_combo:
+            self.perspective_combo.configure(state="disabled" if forced is not None else "readonly")
+        self._on_perspective_changed()
+
+    def set_protocol_param(self, name: str, value: Any) -> None:
+        """Set one parameter of the effective protocol (``protocol_params[<protocol>]``)."""
+        self._protocol_params[name] = value
+
+    def get_protocol_params(self) -> dict[str, Any]:
+        """A copy of the effective protocol's parameters (``{}`` for generic)."""
+        if self.protocol_var.get() == ProtocolId.GENERIC.value:
+            return {}
+        return dict(self._protocol_params)
+
     def _on_geotaxis_toggled(self, event=None) -> None:
         """Handle geotaxis enable/disable toggle."""
         self._update_geotaxis_visibility()
@@ -455,7 +705,22 @@ class BehavioralConfigWidget(BaseWidget):
             "geotaxis_num_zones": self.geotaxis_num_zones_var.get(),
             "geotaxis_bottom_zones": self.geotaxis_bottom_zones_var.get(),
             "max_plausible_speed_cm_s": self.max_speed_var.get(),
+            **self._profile_values(),
         }
+
+    def _profile_values(self) -> dict[str, Any]:
+        """The experiment-profile keys of :meth:`get_values` (writers build the dict)."""
+        values: dict[str, Any] = {
+            ANIMAL_MODEL_KEY: self.animal_model_var.get(),
+            PROTOCOL_KEY: self.protocol_var.get(),
+        }
+        protocol = self.protocol_var.get()
+        params = self.get_protocol_params()
+        if protocol == ProtocolId.BARNES.value and self._show_trial_type:
+            params[DEFAULT_TRIAL_TYPE_KEY] = self.trial_type_var.get()
+        if params:
+            values[PROTOCOL_PARAMS_KEY] = {protocol: params}
+        return values
 
     def set_values(self, config: dict) -> None:
         """
@@ -471,7 +736,10 @@ class BehavioralConfigWidget(BaseWidget):
                 - geotaxis_num_zones: int
                 - geotaxis_bottom_zones: int (1 or 2)
                 - max_plausible_speed_cm_s: float
+                - animal_model / protocol / protocol_params: the experiment profile
+                  (ADR-014), restored through ``resolve_experiment_profile``
         """
+        self._restore_profile(config)
         if "aquarium_perspective" in config:
             perspective = config["aquarium_perspective"]
             self.perspective_var.set(perspective)
@@ -500,8 +768,29 @@ class BehavioralConfigWidget(BaseWidget):
         if config.get("max_plausible_speed_cm_s") is not None:
             self.max_speed_var.set(config["max_plausible_speed_cm_s"])
 
-        # Update UI state
+        # Update UI state (and re-impose what the protocol decides over the above)
         self._on_perspective_changed()
+        self._enforce_profile_locks()
+
+    def _restore_profile(self, config: dict) -> None:
+        """Take the profile out of ``config`` when it declares one.
+
+        A configuration that mentions none of the profile keys (a legacy project,
+        a partial update) leaves the combos alone. Unlike a user pick, restoring
+        never resets the speed ceiling or the wall band: the saved values win.
+        """
+        if not any(key in config for key in (ANIMAL_MODEL_KEY, PROTOCOL_KEY, PROTOCOL_PARAMS_KEY)):
+            return
+        profile = resolve_experiment_profile(behavioral_config=config)
+        self.animal_model_var.set(profile.animal_model.value)
+        self.protocol_var.set(profile.protocol.value)
+        self._protocol_params = dict(profile.protocol_params)
+        trial_type = self._protocol_params.get(DEFAULT_TRIAL_TYPE_KEY)
+        if trial_type in _TRIAL_TYPES:
+            self.trial_type_var.set(trial_type)
+        self._refresh_profile_combos()
+        if self._on_profile_changed is not None:
+            self._on_profile_changed(profile)
 
     def reset_to_defaults(self) -> None:
         """Reset all values to defaults."""
@@ -517,6 +806,8 @@ class BehavioralConfigWidget(BaseWidget):
                 "geotaxis_num_zones": self._default_num_zones,
                 "geotaxis_bottom_zones": self._default_bottom_zones,
                 "max_plausible_speed_cm_s": self._default_max_speed_cm_s,
+                ANIMAL_MODEL_KEY: AnimalModel.ZEBRAFISH.value,
+                PROTOCOL_KEY: ProtocolId.GENERIC.value,
             }
         )
 

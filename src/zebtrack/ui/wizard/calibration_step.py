@@ -19,11 +19,14 @@ from tkinter import (
 )
 from typing import TYPE_CHECKING, Any
 
+from zebtrack.analysis.protocols.barnes.contract import parse_barnes_params
+from zebtrack.core.services.experiment_profile import ExperimentProfile, ProtocolId
 from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.i18n import _
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
+from zebtrack.ui.wizard.models import BARNES_ANALYSIS_INTERVAL_FRAMES
 from zebtrack.ui.wizard.templates import format_template_banner
 from zebtrack.ui.wizard.tooltip import ToolTip
 
@@ -79,6 +82,14 @@ class CalibrationStep(WizardStep):
 
         # Behavioral analysis widget reference
         self.behavioral_config_widget: BehavioralConfigWidget | None = None
+
+        # Barnes protocol (ADR-014): one "Table diameter" replaces width and height.
+        self.table_diameter_var = DoubleVar(value=parse_barnes_params(None)[0].table_diameter_cm)
+        self._barnes_active = False
+        self._width_row: Frame | None = None
+        self._height_row: Frame | None = None
+        self._table_row: Frame | None = None
+        self._analysis_entry: Entry | None = None
 
     def build_ui(self):
         """Build calibration UI - horizontal 2-column layout for better space usage."""
@@ -185,6 +196,7 @@ class CalibrationStep(WizardStep):
         # Width
         width_row = Frame(dimensions_frame)
         width_row.pack(fill="x", pady=3)
+        self._width_row = width_row
 
         Label(width_row, text=_("Width (cm):"), width=30, anchor="w").pack(side="left")
         width_entry = Entry(width_row, textvariable=self.aquarium_width_var, width=10)
@@ -216,6 +228,7 @@ class CalibrationStep(WizardStep):
         # Height
         height_row = Frame(dimensions_frame)
         height_row.pack(fill="x", pady=3)
+        self._height_row = height_row
 
         Label(height_row, text=_("Height (cm):"), width=30, anchor="w").pack(side="left")
         height_entry = Entry(height_row, textvariable=self.aquarium_height_var, width=10)
@@ -247,6 +260,25 @@ class CalibrationStep(WizardStep):
             ),
         )
 
+        # Barnes maze: a round table has ONE size. Built hidden; shown (instead of
+        # width and height) once the profile's protocol is Barnes.
+        self._table_row = Frame(dimensions_frame)
+        Label(self._table_row, text=_("Table diameter (cm):"), width=30, anchor="w").pack(
+            side="left"
+        )
+        table_entry = Entry(self._table_row, textvariable=self.table_diameter_var, width=10)
+        table_entry.pack(side="left", padx=(5, 0))
+        ToolTip(
+            table_entry,
+            _(
+                "📏 Table Diameter\n\n"
+                "The REAL diameter of the Barnes table, edge to edge, in centimetres.\n\n"
+                "It converts pixels into centimetres for the whole project (distances, "
+                "speeds, paths). The lab's table measures 184 cm.\n\n"
+                "💡 Tip: measure the table itself, not the visible area of the video."
+            ),
+        )
+
         # Advanced processing settings (shown for both live and pre-recorded
         # projects so the intervals live in a single place in the wizard).
         advanced_frame = LabelFrame(
@@ -266,6 +298,7 @@ class CalibrationStep(WizardStep):
         )
         analysis_entry = Entry(analysis_row, textvariable=self.analysis_interval_var, width=10)
         analysis_entry.pack(side="left", padx=(5, 0))
+        self._analysis_entry = analysis_entry
         ToolTip(
             analysis_entry,
             _(
@@ -322,6 +355,10 @@ class CalibrationStep(WizardStep):
             default_geotaxis_mode=def_geotaxis_mode,
             default_max_speed_cm_s=settings.behavioral_analysis.max_plausible_speed_cm_s,
             event_bus=self.event_bus,
+            # The Discovery step already asked animal model and protocol; the widget
+            # only carries them (and locks the view for Barnes), it does not re-ask.
+            show_profile=False,
+            on_profile_changed=self._sync_profile_ui,
         )
         self.behavioral_config_widget.pack(fill="x", expand=True)
 
@@ -347,6 +384,40 @@ class CalibrationStep(WizardStep):
         )
         help_text.pack()
         self._update_template_banner()
+        self._sync_profile_ui(self.behavioral_config_widget.current_profile())
+
+    def _sync_profile_ui(self, profile: ExperimentProfile) -> None:
+        """Show what the experiment profile's protocol decides for this step.
+
+        Barnes: one "Table diameter" field replaces width and height (the table is
+        round), seeded from the project's declared diameter (else the protocol's
+        default), and the analysis interval is pinned to one frame. Any other
+        protocol shows the usual fields.
+        """
+        barnes = profile.protocol is ProtocolId.BARNES
+        if self._width_row is None or self._height_row is None or self._table_row is None:
+            return
+        if barnes:
+            self._width_row.pack_forget()
+            self._height_row.pack_forget()
+            if not self._table_row.winfo_manager():
+                self._table_row.pack(fill="x", pady=3)
+            params, _warnings = parse_barnes_params(profile.protocol_params)
+            if "table_diameter_cm" in profile.protocol_params or not self._barnes_active:
+                self.table_diameter_var.set(params.table_diameter_cm)
+            self.analysis_interval_var.set(BARNES_ANALYSIS_INTERVAL_FRAMES)
+        else:
+            self._table_row.pack_forget()
+            if not self._width_row.winfo_manager():
+                self._width_row.pack(fill="x", pady=3)
+                self._height_row.pack(fill="x", pady=3)
+        if self._analysis_entry is not None:
+            self._analysis_entry.configure(state="disabled" if barnes else "normal")
+        self._barnes_active = barnes
+
+    def _is_barnes(self) -> bool:
+        widget = self.behavioral_config_widget
+        return widget is not None and widget.current_profile().protocol is ProtocolId.BARNES
 
     def validate(self) -> tuple[bool, str]:
         """
@@ -359,6 +430,8 @@ class CalibrationStep(WizardStep):
         try:
             # Get current data and use WizardService for validation
             data = self.get_data()
+            if self._is_barnes() and not 0 < float(data["aquarium_width_cm"]):
+                return (False, _("The table diameter must be greater than zero."))
             is_valid, error_msg = WizardService.validate_basic_calibration(data)
 
             return (is_valid, error_msg)
@@ -386,6 +459,16 @@ class CalibrationStep(WizardStep):
             "analysis_interval_frames": self.analysis_interval_var.get(),
             "display_interval_frames": self.display_interval_var.get(),
         }
+
+        # Barnes: the table diameter is the one field; the persisted keys stay the
+        # same (ADR-012), and the diameter is also kept as a protocol parameter.
+        if self._is_barnes():
+            diameter = float(self.table_diameter_var.get())
+            data["aquarium_width_cm"] = diameter
+            data["aquarium_height_cm"] = diameter
+            data["analysis_interval_frames"] = BARNES_ANALYSIS_INTERVAL_FRAMES
+            if self.behavioral_config_widget:
+                self.behavioral_config_widget.set_protocol_param("table_diameter_cm", diameter)
 
         # Add behavioral analysis configuration
         if self.behavioral_config_widget:

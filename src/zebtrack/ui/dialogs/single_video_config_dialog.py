@@ -17,9 +17,12 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 import structlog
 
+from zebtrack.analysis.behavioral_policy import freezing_defaults
+from zebtrack.core.services.experiment_profile import ExperimentProfile, ProtocolId
 from zebtrack.i18n import _
 from zebtrack.settings import DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
+from zebtrack.ui.wizard.models import BARNES_ANALYSIS_INTERVAL_FRAMES
 from zebtrack.ui.wizard.tooltip import create_help_label
 
 if TYPE_CHECKING:
@@ -112,6 +115,9 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self.sharp_turn_var = StringVar(value=sharp_turn_default)
         self.freeze_thresh_var = StringVar(value=freeze_thresh_default)
         self.freeze_dur_var = StringVar(value=freeze_dur_default)
+        # What the freezing fields hold for the zebrafish baseline: the experiment
+        # profile's animal model swaps them for its own numbers and back.
+        self._freezing_baseline = (float(freeze_thresh_default), float(freeze_dur_default))
         self.smoothing_window_var = StringVar(value=smoothing_window_default)
         self.smoothing_polyorder_var = StringVar(value=smoothing_polyorder_default)
 
@@ -516,10 +522,23 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             default_geotaxis_mode=def_geotaxis_mode,
             default_max_speed_cm_s=def_max_speed,
             event_bus=self.event_bus,
+            # Ad-hoc run: no wizard asked, so the profile is chosen here, and the
+            # trial type is the session default (there is no video entry to hold it).
+            show_profile=True,
+            show_trial_type=True,
+            on_profile_changed=self._on_profile_changed,
         )
         self.behavioral_config_widget.pack(fill="x", expand=True)
 
         return main_frame
+
+    def _on_profile_changed(self, profile: ExperimentProfile) -> None:
+        """Follow the experiment profile: the animal's freezing numbers, Barnes interval."""
+        velocity, duration = freezing_defaults(profile.animal_model, *self._freezing_baseline)
+        self.freeze_thresh_var.set(str(velocity))
+        self.freeze_dur_var.set(str(duration))
+        if profile.protocol is ProtocolId.BARNES:
+            self.analysis_interval_var.set(str(BARNES_ANALYSIS_INTERVAL_FRAMES))
 
     def _browse_video(self):
         """Open file dialog to select a video file."""

@@ -172,7 +172,6 @@ src/zebtrack/ui/payloads.py::variable::UpdateProcessingModePayload.single_subjec
 src/zebtrack/ui/payloads.py::variable::VideoReconfigureSubjectsPayload.current_entries
 src/zebtrack/ui/payloads.py::variable::ZoneDisplayClearedPayload.deleted_video_path
 src/zebtrack/ui/wizard/models.py::variable::BehavioralAnalysisData.geotaxis_distance_cm
-src/zebtrack/ui/wizard/models.py::variable::BehavioralAnalysisData.thigmotaxis_distance_cm
 src/zebtrack/ui/wizard/models.py::variable::ModelSelectionData.detector_name
 src/zebtrack/utils/hardware_benchmark.py::variable::BenchmarkRecommendation.decode_backend
 src/zebtrack/utils/hardware_benchmark.py::variable::BenchmarkRecommendation.recommended_batch_size
@@ -204,16 +203,13 @@ src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.strat
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.strategy_direct_max_errors
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.strategy_serial_max_center_crossings
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.strategy_serial_min_adjacent_fraction
-src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.table_diameter_cm
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.visit_enter_frames
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.visit_exit_frames
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.visit_max_speed_cm_s
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.visit_min_cover
 src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesVideoInputs.strategy_override
-src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesVideoInputs.trial_type
 src/zebtrack/analysis/protocols/base.py::variable::ProtocolSpec.suppressed_report_sections
 src/zebtrack/analysis/protocols/base.py::variable::ProtocolSpec.tidy_columns
-src/zebtrack/analysis/protocols/base.py::variable::ProtocolSpec.window_preset
 src/zebtrack/analysis/protocols/base.py::variable::ProtocolSpec.zone_assistant
 
 [baseline] baseline of 2026-11-19, not reviewed one by one: candidate dead code at 60% confidence (write-only attributes, unused payload classes, methods no caller names). Deleting is the maintainer's decision (register A2-08)

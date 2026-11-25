@@ -12,6 +12,10 @@ from zebtrack.settings import (
     TrajectorySmoothingSettings,
     VideoProcessingSettings,
 )
+from zebtrack.ui.components.behavioral_config_widget import (
+    animal_model_choices,
+    protocol_choices,
+)
 from zebtrack.ui.dialogs.single_video_config_dialog import SingleVideoConfigDialog
 
 
@@ -142,3 +146,51 @@ class TestSingleVideoConfigPersistence:
             assert dialog.result["video_path"] == "c:/video.mp4"
             assert dialog.result["behavioral_analysis"]["aquarium_perspective"] == "lateral"
             assert dialog.result["behavioral_analysis"]["geotaxis_num_zones"] == 4
+
+
+@pytest.mark.gui
+class TestSingleVideoConfigExperimentProfile:
+    """ADR-014: the ad-hoc single-video run resolves the same profile as a project."""
+
+    @pytest.fixture
+    def dialog(self, tkinter_root, test_settings):
+        with patch.object(SingleVideoConfigDialog, "wait_window"):
+            built = SingleVideoConfigDialog(tkinter_root, settings_obj=test_settings)
+            tkinter_root.update_idletasks()
+            yield built
+
+    @staticmethod
+    def _pick(combo, choices, token) -> None:
+        label = next(text for text, value in choices if value == token)
+        combo.set(label)
+        combo.event_generate("<<ComboboxSelected>>")
+
+    def test_choosing_barnes_pins_the_analysis_interval_to_every_frame(self, dialog):
+        self._pick(dialog.behavioral_config_widget.protocol_combo, protocol_choices(), "barnes")
+
+        assert dialog.analysis_interval_var.get() == "1"
+
+    def test_choosing_a_rodent_swaps_in_the_rodent_freezing_numbers_and_back(self, dialog):
+        widget = dialog.behavioral_config_widget
+        baseline = (dialog.freeze_thresh_var.get(), dialog.freeze_dur_var.get())
+
+        self._pick(widget.animal_model_combo, animal_model_choices(), "rodent")
+        assert (float(dialog.freeze_thresh_var.get()), float(dialog.freeze_dur_var.get())) == (
+            2.0,
+            1.0,
+        )
+
+        self._pick(widget.animal_model_combo, animal_model_choices(), "zebrafish")
+        assert (dialog.freeze_thresh_var.get(), dialog.freeze_dur_var.get()) == baseline
+
+    def test_the_result_carries_the_profile(self, dialog):
+        widget = dialog.behavioral_config_widget
+        self._pick(widget.protocol_combo, protocol_choices(), "barnes")
+
+        dialog.apply()
+
+        block = dialog.result["behavioral_analysis"]
+        assert block["animal_model"] == "rodent"
+        assert block["protocol"] == "barnes"
+        assert block["protocol_params"] == {"barnes": {"default_trial_type": "training"}}
+        assert dialog.result["analysis_interval_frames"] == 1

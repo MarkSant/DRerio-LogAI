@@ -11,10 +11,14 @@ from types import SimpleNamespace
 import pytest
 
 from zebtrack.analysis.behavioral_policy import (
+    AnimalBehaviorDefaults,
+    animal_behavior_defaults,
+    freezing_defaults,
     geotaxis_applies,
     resolve_behavioral_config,
     resolve_max_plausible_speed,
 )
+from zebtrack.core.services.experiment_profile import AnimalModel
 
 
 class TestGeotaxisApplies:
@@ -146,3 +150,98 @@ class TestResolveBehavioralConfig:
         resolve_behavioral_config({"behavioral_config": block}, _settings_with())
 
         assert block == {"aquarium_perspective": "top"}
+
+
+class TestAnimalBehaviorDefaults:
+    """Per-animal defaults (ADR-014): zebrafish keeps today's numbers, rodent has its own."""
+
+    def test_the_zebrafish_baseline_and_other_have_no_override(self):
+        assert animal_behavior_defaults(AnimalModel.ZEBRAFISH) is None
+        assert animal_behavior_defaults(AnimalModel.OTHER) is None
+
+    def test_rodent_numbers_are_the_shipped_rodent_template_plus_provisional_freezing(self):
+        defaults = animal_behavior_defaults(AnimalModel.RODENT)
+
+        assert defaults == AnimalBehaviorDefaults(
+            max_plausible_speed_cm_s=100.0,
+            thigmotaxis_distance_cm=15.0,
+            freezing_velocity_threshold=2.0,
+            freezing_min_duration_s=1.0,
+        )
+
+    def test_rodent_template_declares_the_same_speed_and_wall_band(self):
+        import json
+
+        from zebtrack.ui.wizard.templates import RODENT_TOP_DOWN_TEMPLATE, builtin_templates_dir
+
+        template = json.loads(
+            (builtin_templates_dir() / RODENT_TOP_DOWN_TEMPLATE).read_text(encoding="utf-8")
+        )
+        defaults = animal_behavior_defaults(AnimalModel.RODENT)
+
+        assert defaults is not None
+        assert template["behavioral_analysis"]["max_plausible_speed_cm_s"] == (
+            defaults.max_plausible_speed_cm_s
+        )
+        assert template["behavioral_analysis"]["thigmotaxis_distance_cm"] == (
+            defaults.thigmotaxis_distance_cm
+        )
+
+    def test_freezing_defaults_return_the_baseline_for_zebrafish(self):
+        assert freezing_defaults(AnimalModel.ZEBRAFISH, 0.5, 1.0) == (0.5, 1.0)
+        assert freezing_defaults(AnimalModel.OTHER, 0.7, 2.0) == (0.7, 2.0)
+
+    def test_freezing_defaults_return_the_rodent_numbers_for_a_rodent(self):
+        assert freezing_defaults(AnimalModel.RODENT, 0.5, 1.0) == (2.0, 1.0)
+
+
+class TestAnimalModelInTheResolvers:
+    def test_a_rodent_without_its_own_ceiling_gets_the_rodent_one_before_settings(self):
+        config = {"animal_model": "rodent"}
+
+        assert resolve_max_plausible_speed(None, config, _settings(90.0)) == 100.0
+
+    def test_a_rodent_that_declares_a_ceiling_keeps_it(self):
+        config = {"animal_model": "rodent", "max_plausible_speed_cm_s": 130.0}
+
+        assert resolve_max_plausible_speed(None, config, _settings(90.0)) == 130.0
+
+    def test_an_explicit_argument_still_beats_the_animal(self):
+        assert resolve_max_plausible_speed(70.0, {"animal_model": "rodent"}, None) == 70.0
+
+    @pytest.mark.parametrize(
+        "config", [{}, {"animal_model": "zebrafish"}, {"animal_model": "other"}]
+    )
+    def test_zebrafish_other_and_undeclared_use_the_settings(self, config):
+        assert resolve_max_plausible_speed(None, config, _settings(90.0)) == 90.0
+
+    def test_barnes_implies_the_rodent_ceiling(self):
+        assert resolve_max_plausible_speed(None, {"protocol": "barnes"}, _settings(90.0)) == 100.0
+
+    def test_a_rodent_project_without_a_wall_band_gets_the_rodent_band(self):
+        project = {"behavioral_config": {"animal_model": "rodent"}}
+
+        config = resolve_behavioral_config(project, _settings_with())
+
+        assert config["thigmotaxis_distance_cm"] == 15.0
+
+    def test_a_rodent_project_that_declares_its_wall_band_keeps_it(self):
+        project = {"behavioral_config": {"animal_model": "rodent", "thigmotaxis_distance_cm": 4.0}}
+
+        config = resolve_behavioral_config(project, _settings_with())
+
+        assert config["thigmotaxis_distance_cm"] == 4.0
+
+    def test_a_legacy_project_resolves_exactly_as_before(self):
+        project = {"behavioral_config": {"aquarium_perspective": "top_down"}}
+
+        config = resolve_behavioral_config(project, _settings_with())
+
+        assert config["thigmotaxis_distance_cm"] == 1.5
+
+    def test_a_none_wall_band_counts_as_undeclared(self):
+        project = {"behavioral_config": {"animal_model": "rodent", "thigmotaxis_distance_cm": None}}
+
+        config = resolve_behavioral_config(project, _settings_with())
+
+        assert config["thigmotaxis_distance_cm"] == 15.0

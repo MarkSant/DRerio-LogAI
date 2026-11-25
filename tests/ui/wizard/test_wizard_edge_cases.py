@@ -11,8 +11,10 @@ from unittest.mock import Mock, patch
 import pytest
 from pydantic import ValidationError
 
+from zebtrack.core.services.experiment_profile import AnimalModel, ProtocolId
 from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.wizard.models import (
+    AquariumPerspective,
     BehavioralAnalysisData,
     CalibrationData,
     ExperimentalDesignData,
@@ -472,3 +474,80 @@ class TestRodentBehaviouralBounds:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestExperimentProfileFields:
+    """ADR-014: the profile keys are real fields, so ``extra="ignore"`` cannot drop them."""
+
+    def test_a_legacy_block_without_profile_keys_is_zebrafish_generic(self):
+        data = BehavioralAnalysisData.model_validate({"thigmotaxis_distance_cm": 2.0})
+
+        assert data.animal_model is AnimalModel.ZEBRAFISH
+        assert data.protocol is ProtocolId.GENERIC
+        assert data.protocol_params == {}
+
+    def test_the_profile_keys_survive_validation_and_dump(self):
+        data = BehavioralAnalysisData.model_validate(
+            {
+                "animal_model": "rodent",
+                "protocol": "barnes",
+                "protocol_params": {"barnes": {"table_diameter_cm": 150.0}},
+            }
+        )
+
+        dumped = data.model_dump(mode="json")
+        assert dumped["animal_model"] == "rodent"
+        assert dumped["protocol"] == "barnes"
+        assert dumped["protocol_params"] == {"barnes": {"table_diameter_cm": 150.0}}
+
+    def test_barnes_forces_rodent_and_the_top_down_view(self):
+        data = BehavioralAnalysisData.model_validate(
+            {
+                "animal_model": "zebrafish",
+                "protocol": "barnes",
+                "aquarium_perspective": "lateral",
+                "geotaxis_enabled": True,
+            }
+        )
+
+        assert data.animal_model is AnimalModel.RODENT
+        assert data.aquarium_perspective is AquariumPerspective.TOP_DOWN
+        assert data.geotaxis_enabled is False
+
+    def test_a_generic_rodent_keeps_the_view_it_declared(self):
+        data = BehavioralAnalysisData.model_validate(
+            {"animal_model": "rodent", "aquarium_perspective": "lateral"}
+        )
+
+        assert data.animal_model is AnimalModel.RODENT
+        assert data.aquarium_perspective is AquariumPerspective.LATERAL
+
+    def test_unknown_tokens_degrade_instead_of_failing_the_wizard(self):
+        data = BehavioralAnalysisData.model_validate(
+            {"animal_model": "dragon", "protocol": "stroop"}
+        )
+
+        assert data.animal_model is AnimalModel.OTHER
+        assert data.protocol is ProtocolId.GENERIC
+
+    def test_every_protocol_block_that_is_a_mapping_survives_and_others_are_dropped(self):
+        data = BehavioralAnalysisData.model_validate(
+            {
+                "protocol": "barnes",
+                "protocol_params": {"barnes": {"n_holes": 20}, "other": {"x": 1}, "junk": 3},
+            }
+        )
+
+        assert data.protocol_params == {"barnes": {"n_holes": 20}, "other": {"x": 1}}
+
+    def test_malformed_parameters_become_empty(self):
+        data = BehavioralAnalysisData.model_validate(
+            {"protocol": "barnes", "protocol_params": "not a mapping"}
+        )
+
+        assert data.protocol_params == {}
+
+    def test_an_already_built_model_is_accepted_as_is(self):
+        built = BehavioralAnalysisData(protocol=ProtocolId.BARNES)
+
+        assert BehavioralAnalysisData.model_validate(built).protocol is ProtocolId.BARNES
