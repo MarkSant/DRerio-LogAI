@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Final, Literal
@@ -64,6 +64,7 @@ __all__ = [
     "circular_offset",
     "expected_roi_names",
     "hole_roi_name",
+    "infer_n_holes",
     "max_offset",
     "parse_barnes_params",
     "parse_barnes_roi_name",
@@ -107,6 +108,10 @@ ASSISTANT_ID: Final = "barnes_layout"
 EXCEL_VISITS_SHEET: Final = "barnes_visits"
 
 _HOLE_NAME_RE = re.compile(r"^buraco_([+-])(\d{2})$")
+
+#: Range of ``BarnesParams.n_holes``.
+_MIN_HOLES: Final = 3
+_MAX_HOLES: Final = 99
 
 
 class TrialType(StrEnum):
@@ -257,12 +262,36 @@ def parse_barnes_roi_name(name: str, n_holes: int) -> BarnesRoiName | None:
     return BarnesRoiName(BarnesRoiKind.HOLE, offset)
 
 
+def infer_n_holes(roi_names: Iterable[str]) -> int | None:
+    """The hole count a set of ROI names describes; ``None`` when it describes none.
+
+    ``k`` is the largest ``|offset|`` of the ``buraco_±NN`` names present; the count
+    is ``2k + 2`` when ``buraco_oposto`` is present (even table) and ``2k + 1``
+    without it (odd table). ``toca``, ``quadrante_alvo`` and any other name do not
+    count. ``None`` without a ``buraco_±NN`` name, or when the count falls outside
+    the ``n_holes`` range (3..99). Whether every hole of that count is present is the
+    layout rebuild's question, not this one.
+    """
+    names = set(roi_names)
+    offsets = [
+        int(match.group(2))
+        for match in (_HOLE_NAME_RE.match(name) for name in names)
+        if match is not None
+    ]
+    # Without a buraco_+-NN name k is 0 and the count (1 or 2) fails the range check.
+    k = max(offsets, default=0)
+    n_holes = 2 * k + 2 if OPPOSITE_HOLE_ROI in names else 2 * k + 1
+    if not _MIN_HOLES <= n_holes <= _MAX_HOLES:
+        return None
+    return n_holes
+
+
 def probe_score(offset: int, cap: int) -> int:
     """Probe error score of the first hole visited: ``min(abs(offset) + 1, cap)``.
 
-    Target = 1, +1 per hole away. With the lab's 20 holes the opposite hole is 11
-    holes from "1", so the protocol's "opposite = 10" only holds with ``cap = 10``
-    (the default; still to be confirmed by the lab).
+    Target = 1, +1 per hole away. On the lab's current 18-hole table the opposite
+    hole (distance 9) scores exactly 10, the protocol's "opposite = 10". On a 20-hole
+    table it would be 11, so ``cap = 10`` (the default) keeps the protocol's scale.
     """
     if cap < 1:
         raise ValueError(f"cap must be at least 1, got {cap!r}")
@@ -284,8 +313,10 @@ class BarnesParams(BaseModel):
     model_config = ConfigDict(frozen=True, extra="ignore")
 
     # -- table and layout --------------------------------------------------
-    #: Holes around the rim (the lab's table: 20).
-    n_holes: int = Field(default=20, ge=3, le=99)
+    #: Holes around the rim of the PROJECT's table (the lab's current table: 18;
+    #: the 2020 protocol photos show 20). Fixes the tidy columns. The metrics use the
+    #: count the ROI names describe (:func:`infer_n_holes`) and warn when it differs.
+    n_holes: int = Field(default=18, ge=_MIN_HOLES, le=_MAX_HOLES)
     #: Table diameter, for px/cm (the lab's table: 184 cm).
     table_diameter_cm: float = Field(default=184.0, gt=0.0)
     #: Holes on EACH side of the target inside ``quadrante_alvo`` (2 → 5 holes).
@@ -692,7 +723,7 @@ def barnes_tidy_columns(n_holes: int) -> tuple[str, ...]:
     """Ordered tidy columns of a Barnes project (appended after ``window_*``).
 
     The scalar columns, then one ``barnes_visits_dNN`` column per hole distance
-    (``d00`` = target … ``d10`` = opposite for 20 holes). Constant within a
+    (``d00`` = target … ``d09`` = opposite for 18 holes). Constant within a
     project (``n_holes`` is a project parameter), so the unified report never sees
     a schema mismatch between two Barnes videos.
     """

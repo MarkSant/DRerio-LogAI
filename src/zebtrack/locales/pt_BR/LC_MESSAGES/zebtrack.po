@@ -16308,6 +16308,398 @@ msgstr ""
 "calculadas para o aquário {aquarium} de um vídeo com vários aquários."
 
 
+#: src/zebtrack/ui/components/zone_controls.py:446
+msgid "🕳 Barnes assistant…"
+msgstr "🕳 Assistente Barnes…"
+
+#: src/zebtrack/ui/components/event_dispatcher.py:1270
+#: src/zebtrack/ui/components/event_dispatcher.py:1281
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:211
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:919
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:941
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:799
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:807
+#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:981
+msgid "Barnes assistant"
+msgstr "Assistente Barnes"
+
+#: src/zebtrack/ui/components/event_dispatcher.py:1271
+msgid "The Barnes assistant is only available in a Barnes-maze project."
+msgstr ""
+"O assistente Barnes só está disponível em um projeto de labirinto de Barnes."
+
+#: src/zebtrack/ui/components/event_dispatcher.py:1282
+msgid "Load a video frame (or the camera snapshot) in the Zones tab first."
+msgstr ""
+"Carregue antes um quadro do vídeo (ou o instantâneo da câmera) na aba Zonas."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:968
+msgid "Apply to other videos"
+msgstr "Aplicar a outros vídeos"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:256
+msgid "1. Table"
+msgstr "1. Mesa"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:259
+msgid "Detect table (auto)"
+msgstr "Detectar mesa (auto)"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:265
+msgid "Click the rim (5+ points)"
+msgstr "Clicar na borda (5+ pontos)"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:268
+msgid "Fit ellipse"
+msgstr "Ajustar elipse"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:271
+msgid "2. Escape hole"
+msgstr "2. Toca"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:274
+msgid "Click the escape hole"
+msgstr "Clicar na toca"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:278
+msgid "3. Check and adjust"
+msgstr "3. Conferir e ajustar"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:283
+msgid "◀ 1 hole"
+msgstr "◀ 1 buraco"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:287
+msgid "1 hole ▶"
+msgstr "1 buraco ▶"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:291
+msgid "Undo hole drags"
+msgstr "Desfazer buracos arrastados"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:301
+msgid "4. Trial type of this video"
+msgstr "4. Tipo de sessão deste vídeo"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:305
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1000
+msgid "Training"
+msgstr "Treino"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:311
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1001
+msgid "Probe"
+msgstr "Teste (probe)"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:333
+msgid "Apply to other videos…"
+msgstr "Aplicar a outros vídeos…"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:490
+msgid "Working…"
+msgstr "Processando…"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:618
+msgid "The table was not detected: click its rim instead."
+msgstr "A mesa não foi detectada: clique na borda dela."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1002
+msgid "Keep each video's"
+msgstr "Manter o de cada vídeo"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:462
+#, python-brace-format
+msgid "{total} holes placed without snapping (no dark hole found)."
+msgstr ""
+"{total} buracos posicionados sem ajuste (nenhum buraco escuro encontrado)."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:466
+#, python-brace-format
+msgid ""
+"{snapped}/{total} holes snapped · mean residual {mean:.1f} px (max "
+"{maximum:.1f} px)"
+msgstr ""
+"{snapped}/{total} buracos ajustados · resíduo médio {mean:.1f} px (máx. "
+"{maximum:.1f} px)"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:492
+msgid ""
+"Click at least 5 points on the table's rim, then press “Fit ellipse” (or "
+"detect the table automatically)."
+msgstr ""
+"Clique em pelo menos 5 pontos na borda da mesa e depois em “Ajustar elipse” "
+"(ou detecte a mesa automaticamente)."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:626
+msgid "The detected outline is not usable: click the rim instead."
+msgstr "O contorno detectado não serve: clique na borda."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:800
+msgid "Some holes were not found or look misplaced. Apply this layout anyway?"
+msgstr ""
+"Alguns buracos não foram encontrados ou parecem fora do lugar. Aplicar este "
+"layout mesmo assim?"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:497
+msgid "Click the centre of the escape hole."
+msgstr "Clique no centro da toca."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:499
+msgid ""
+"Drag a hole to move it; “◀ 1 hole” / “1 hole ▶” move the escape hole. Red = "
+"escape hole, green = snapped, orange = not found, blue = moved."
+msgstr ""
+"Arraste um buraco para movê-lo; “◀ 1 buraco” / “1 buraco ▶” movem a toca. "
+"Vermelho = toca, verde = ajustado, laranja = não encontrado, azul = movido."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:917
+#, python-brace-format
+msgid "Could not read: {names}"
+msgstr "Não foi possível ler: {names}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:942
+#, python-brace-format
+msgid "Could not read {name}; it is skipped."
+msgstr "Não foi possível ler {name}; ele foi pulado."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:974
+msgid "Videos (same camera, same table):"
+msgstr "Vídeos (mesma câmera, mesma mesa):"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:984
+msgid "Same escape hole: copy the layout and re-snap it on each video"
+msgstr "Mesma toca: copiar o layout e reajustá-lo em cada vídeo"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:990
+msgid "Different escape hole: show each video and click its escape hole"
+msgstr "Toca diferente: mostrar cada vídeo e clicar na toca dele"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:998
+msgid "Trial type:"
+msgstr "Tipo de sessão:"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:319
+msgid ""
+"This frame has no project video: the project's default trial type applies."
+msgstr ""
+"Este quadro não tem vídeo no projeto: vale o tipo de sessão padrão do "
+"projeto."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:478
+#, python-brace-format
+msgid ""
+"Some holes were not found or sit far from an evenly spaced ring. Check the "
+"escape-hole click and the number of holes ({n})."
+msgstr ""
+"Alguns buracos não foram encontrados ou estão longe de um anel com "
+"espaçamento regular. Confira o clique na toca e o número de buracos ({n})."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:506
+#, python-brace-format
+msgid "Video {index} of {total}: {name}"
+msgstr "Vídeo {index} de {total}: {name}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:643
+#, python-brace-format
+msgid "Could not fit an ellipse to these points: {error}"
+msgstr "Não foi possível ajustar uma elipse a estes pontos: {error}"
+
+#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:982
+#, python-brace-format
+msgid "The Barnes zones could not be saved for {video}."
+msgstr "As zonas Barnes não puderam ser salvas para {video}."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:631
+msgid ""
+"The video's frames could not be read: holes are snapped on this single frame,"
+" where the rat or the experimenter may hide one."
+msgstr ""
+"Não foi possível ler os quadros do vídeo: os buracos são ajustados neste "
+"único quadro, onde o rato ou o experimentador podem esconder algum."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:695
+msgid ""
+"Table detected. The detection also saved this outline as the video's arena; "
+"Apply replaces it with the table ellipse. Now click the centre of the escape "
+"hole."
+msgstr ""
+"Mesa detectada. A detecção também salvou este contorno como a arena do vídeo;"
+" Aplicar o substitui pela elipse da mesa. Agora clique no centro da toca."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1183
+msgid ""
+"This video is framed differently: define its table again (detect it or click "
+"the rim)."
+msgstr ""
+"Este vídeo está enquadrado de outro jeito: defina a mesa de novo (detecte-a "
+"ou clique na borda)."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:961
+#, python-brace-format
+msgid ""
+"This table has {found} holes but the project is set to {expected}. Change the"
+" project's hole count to {found}? Every video of the project must use the "
+"same count: it fixes the report's columns."
+msgstr ""
+"Esta mesa tem {found} buracos, mas o projeto está configurado para "
+"{expected}. Mudar o número de buracos do projeto para {found}? Todos os "
+"vídeos do projeto precisam usar o mesmo número: ele define as colunas do "
+"relatório."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1114
+#, python-brace-format
+msgid "Layout applied to {count} video(s), this one included."
+msgstr "Layout aplicado a {count} vídeo(s), incluindo este."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:322
+msgid "Holes:"
+msgstr "Buracos:"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:505
+#, python-brace-format
+msgid "detected: {n}"
+msgstr "detectados: {n}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:507
+#, python-brace-format
+msgid "project: {n}"
+msgstr "projeto: {n}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:981
+#, python-brace-format
+msgid "The Barnes zones could not be saved for {video}; nothing was changed."
+msgstr ""
+"As zonas Barnes não puderam ser salvas para {video}; nada foi alterado."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1120
+#, python-brace-format
+msgid ""
+"Some holes were not found on these; you will click their escape hole one by "
+"one: {names}"
+msgstr ""
+"Alguns buracos não foram encontrados nestes; você vai clicar na toca de cada "
+"um: {names}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1127
+#, python-brace-format
+msgid "Framed differently, not written (open them on their own): {names}"
+msgstr ""
+"Enquadrados de outro jeito, não gravados (abra-os separadamente): {names}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1134
+#, python-brace-format
+msgid "Could not be saved: {names}"
+msgstr "Não puderam ser salvos: {names}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:790
+#, python-brace-format
+msgid "The holes could not be placed: {error}"
+msgstr "Não foi possível posicionar os buracos: {error}"
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:108
+msgid ""
+"The analysis window of this Barnes trial cannot detect the burrow entry (it "
+"has no burrow_entry stop); the entry latency was not measured."
+msgstr ""
+"A janela de análise deste ensaio de Barnes não consegue detectar a entrada "
+"na toca (ela não tem parada burrow_entry); a latência de entrada não foi "
+"medida."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:216
+msgid "This video has no ROIs; the Barnes metrics need the hole ROIs."
+msgstr ""
+"Este vídeo não tem ROIs; as métricas de Barnes precisam das ROIs dos "
+"buracos."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:253
+msgid ""
+"The Barnes trial has no detection to measure; the Barnes metrics were not "
+"computed."
+msgstr ""
+"O ensaio de Barnes não tem detecção para medir; as métricas de Barnes não "
+"foram calculadas."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:259
+msgid ""
+"The analysis window has no START; the Barnes trial is timed from the first "
+"detection."
+msgstr ""
+"A janela de análise não tem INÍCIO; o ensaio de Barnes é cronometrado a "
+"partir da primeira detecção."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:230
+msgid "The Barnes metrics were not computed: the hole ROIs do not form a ring."
+msgstr ""
+"As métricas de Barnes não foram calculadas: as ROIs dos buracos não formam "
+"um anel."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:126
+#, python-brace-format
+msgid ""
+"The Barnes ROI {roi} is missing; the time in the target quadrant was not "
+"computed."
+msgstr ""
+"A ROI de Barnes {roi} está ausente; o tempo no quadrante-alvo não foi "
+"calculado."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:237
+#, python-brace-format
+msgid ""
+"The Barnes metrics need one animal per video; this trajectory has {count}."
+msgstr ""
+"As métricas de Barnes precisam de um animal por vídeo; esta trajetória tem "
+"{count}."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:224
+#, python-brace-format
+msgid ""
+"The Barnes metrics were not computed: hole ROIs missing or empty: {names}."
+msgstr ""
+"As métricas de Barnes não foram calculadas: ROIs de buracos ausentes ou "
+"vazias: {names}."
+
+#: src/zebtrack/analysis/protocols/barnes/spec.py:26
+msgid "Barnes maze"
+msgstr "Labirinto de Barnes"
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:237
+#, python-brace-format
+msgid ""
+"Several ROIs share the Barnes name(s) {names}; the Barnes metrics use the "
+"first ROI of each name."
+msgstr ""
+"Várias ROIs compartilham o(s) nome(s) de Barnes {names}; as métricas de "
+"Barnes usam a primeira ROI de cada nome."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:293
+#, python-brace-format
+msgid ""
+"{count} possible hole visit(s) were left out of the Barnes metrics: the "
+"slowdown filter (visit_max_speed_cm_s) could not measure the speed around "
+"them (tracking gaps)."
+msgstr ""
+"{count} possível(is) visita(s) a buracos ficou(aram) fora das métricas de "
+"Barnes: o filtro de desaceleração (visit_max_speed_cm_s) não conseguiu medir"
+" a velocidade em torno dela(s) (lacunas de rastreamento)."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:208
+msgid ""
+"The Barnes metrics were not computed: no decoy hole ROI (buraco_+01, "
+"buraco_-01, ...) was found."
+msgstr ""
+"As métricas de Barnes não foram calculadas: nenhuma ROI de buraco falso "
+"(buraco_+01, buraco_-01, ...) foi encontrada."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:220
+#, python-brace-format
+msgid ""
+"The Barnes ROIs of this video describe a table of {effective} holes, but the"
+" project declares {declared}; the Barnes metrics use {effective} holes."
+msgstr ""
+"As ROIs de Barnes deste vídeo descrevem uma mesa de {effective} buracos, mas"
+" o projeto declara {declared}; as métricas de Barnes usam {effective} "
+"buracos."
+
 #: src/zebtrack/ui/components/behavioral_config_widget.py:45
 msgid "Zebrafish (aquarium)"
 msgstr "Peixe-zebra (aquário)"
@@ -16328,14 +16720,6 @@ msgstr "Genérico (sem protocolo)"
 msgid "Barnes maze (rodents)"
 msgstr "Labirinto de Barnes (roedores)"
 
-#: src/zebtrack/ui/components/behavioral_config_widget.py:62
-msgid "Training trial"
-msgstr "Tentativa de treino"
-
-#: src/zebtrack/ui/components/behavioral_config_widget.py:63
-msgid "Probe trial"
-msgstr "Tentativa de sonda (probe)"
-
 #: src/zebtrack/ui/components/behavioral_config_widget.py:224
 msgid "Experiment Profile"
 msgstr "Perfil do Experimento"
@@ -16347,10 +16731,6 @@ msgstr "Modelo animal:"
 #: src/zebtrack/ui/components/behavioral_config_widget.py:241
 msgid "Protocol:"
 msgstr "Protocolo:"
-
-#: src/zebtrack/ui/components/behavioral_config_widget.py:253
-msgid "Trial type:"
-msgstr "Tipo de tentativa:"
 
 #: src/zebtrack/ui/components/behavioral_config_widget.py:268
 msgid ""
@@ -16407,6 +16787,7 @@ msgstr ""
 "O perfil de experimento do modelo continha um valor que esta versão não "
 "reconhece; ele foi substituído pelo valor válido mais próximo. Confira o "
 "modelo animal e o protocolo na primeira etapa."
+
 
 #~ msgid "Detector parameters updated."
 #~ msgstr "Parâmetros do detector atualizados."

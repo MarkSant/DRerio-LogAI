@@ -258,7 +258,7 @@ class TestProfileRoundTrip:
         assert values["animal_model"] == "rodent"
         assert values["protocol"] == "barnes"
         assert values["max_plausible_speed_cm_s"] == 130.0
-        assert _need(profile_widget.trial_type_combo).get() == "Probe trial"
+        assert _need(profile_widget.trial_type_combo).get() == "Probe"
         assert values["protocol_params"] == {
             "barnes": {"default_trial_type": "probe", "max_trial_s": 120}
         }

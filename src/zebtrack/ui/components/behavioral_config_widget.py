@@ -59,8 +59,8 @@ def protocol_choices() -> list[tuple[str, str]]:
 def trial_type_choices() -> list[tuple[str, str]]:
     """``(label, token)`` for the Barnes trial-type combo."""
     return [
-        (_("Training trial"), _TRIAL_TYPES[0]),
-        (_("Probe trial"), _TRIAL_TYPES[1]),
+        (_("Training"), _TRIAL_TYPES[0]),
+        (_("Probe"), _TRIAL_TYPES[1]),
     ]
 
 
