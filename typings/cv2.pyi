@@ -31,6 +31,8 @@ boundingRect: Any
 warpPerspective: Any
 threshold: Any
 GaussianBlur: Any
+fitEllipse: Any
+ellipse2Poly: Any
 adaptiveThreshold: Any
 morphologyEx: Any
 convexHull: Any
@@ -77,7 +79,6 @@ setLogLevel: Any
 error: Any
 
 # Barnes arena assistant (barnes-arena, #633)
-fitEllipse: Any
 connectedComponentsWithStats: Any
 ellipse: Any
 COLOR_BGRA2GRAY: int

@@ -42,10 +42,12 @@ _registry: Mapping[ProtocolId, ProtocolSpec] | None = None
 def _builtin_specs() -> tuple[ProtocolSpec, ...]:
     """The protocols shipped with the app.
 
-    ``generic`` is not a spec: it is the absence of one. The Barnes spec is added
-    here by the ``barnes-metrics`` front (``analysis/protocols/barnes/spec.py``).
+    ``generic`` is not a spec: it is the absence of one. Imported here, not at
+    module level, so a generic analysis never imports a protocol's implementation.
     """
-    return ()
+    from zebtrack.analysis.protocols.barnes.spec import BARNES_SPEC
+
+    return (BARNES_SPEC,)
 
 
 def _build_registry(specs: tuple[ProtocolSpec, ...]) -> Mapping[ProtocolId, ProtocolSpec]:

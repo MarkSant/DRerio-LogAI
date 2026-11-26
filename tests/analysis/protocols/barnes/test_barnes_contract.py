@@ -38,6 +38,40 @@ def test_persisted_tokens_are_frozen():
 # --- offsets and names -------------------------------------------------------
 
 
+@pytest.mark.parametrize("n_holes", [3, 4, 5, 18, 19, 20, 21])
+def test_infer_n_holes_reads_a_full_layout(n_holes):
+    assert c.infer_n_holes(c.expected_roi_names(n_holes)) == n_holes
+
+
+@pytest.mark.parametrize(
+    ("names", "expected"),
+    [
+        # 2k + 2 with the opposite hole, 2k + 1 without it; k = largest |offset|.
+        (["buraco_-08", "buraco_oposto"], 18),
+        (["buraco_+08", "buraco_-03"], 17),
+        (["toca", "buraco_+09", "buraco_oposto", "quadrante_alvo"], 20),
+        # Other names never count, and order or repetition do not matter.
+        (["start_box", "buraco_+02", "buraco_+02", "Buraco_+09", "buraco_+9"], 5),
+        # No buraco_±NN name: no table described.
+        (["toca", "quadrante_alvo"], None),
+        (["toca", "buraco_oposto"], None),
+        ([], None),
+        # buraco_+00 is not a hole name.
+        (["buraco_+00", "buraco_oposto"], None),
+        # Beyond the n_holes range (3..99).
+        (["buraco_+49", "buraco_oposto"], None),
+        (["buraco_+49"], 99),
+        (["buraco_+01"], 3),
+    ],
+)
+def test_infer_n_holes_from_partial_names(names, expected):
+    assert c.infer_n_holes(names) == expected
+
+
+def test_probe_score_of_the_opposite_hole_is_ten_on_eighteen_holes():
+    assert c.probe_score(c.max_offset(18), c.BarnesParams().probe_score_cap) == 10
+
+
 def test_max_offset():
     assert c.max_offset(20) == 10
     assert c.max_offset(5) == 2
@@ -176,7 +210,8 @@ def test_probe_score_refuses_a_zero_cap():
 def test_params_defaults_are_the_protocol_values():
     params = c.BarnesParams()
 
-    assert params.n_holes == 20
+    # The lab's current table (2024 videos); the 2020 photos show 20.
+    assert params.n_holes == 18
     assert params.table_diameter_cm == 184.0
     assert params.quadrant_half_holes == 2
     assert params.hole_roi_dilation == 1.25

@@ -6882,3 +6882,307 @@ _load_registry()"
         description: "parametro do protocolo nao e gravado"
         find: "    own[key] = value"
         replace: "    own[key] = previous"
+  # --- Barnes v8.1 barnes-metrics (#633): layout, visits, strategy, metrics, spec ---
+  barnes_layout:
+    source: src/zebtrack/analysis/protocols/barnes/layout.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_layout.py
+    mutations:
+      - id: duplicate-roi-last-wins
+        description: "uma ROI repetida mais adiante substitui a primeira (ordem armazenada)"
+        find: "if roi.name in by_name:"
+        replace: "if False:"
+      - id: empty-hole-accepted
+        description: "ROI de buraco sem area conta como buraco valido"
+        find: "return geometry is not None and not geometry.is_empty and float(geometry.area) > 0.0"
+        replace: "return geometry is not None"
+      - id: coincident-centres-form-a-ring
+        description: "centros coincidentes passam a formar um anel de raio quase zero"
+        find: "if not math.isfinite(radius) or radius < _MIN_SEMI_AXIS_PX:"
+        replace: "if not math.isfinite(radius):"
+      - id: ellipse-rotation-sign
+        description: "teste do disco central gira a elipse para o lado errado"
+        find: "v = -dx * sin_t + dy * cos_t"
+        replace: "v = dx * sin_t + dy * cos_t"
+      - id: center-disk-not-scaled
+        description: "o disco central deixa de ser escalado no segundo semieixo"
+        find: "b = ellipse.semi_axes_px[1] * ratio"
+        replace: "b = ellipse.semi_axes_px[1]"
+      - id: empty-quadrant-kept
+        description: "quadrante sem area e aceito como quadrante"
+        find: "if quadrant is not None and not _usable(quadrant):"
+        replace: "if False:"
+      - id: duplicates-not-reported
+        description: "nomes de Barnes repetidos deixam de ser relatados"
+        find: "                duplicates.append(roi.name)"
+        replace: "                pass"
+  barnes_visits:
+    source: src/zebtrack/analysis/protocols/barnes/visits.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_visits.py
+    mutations:
+      - id: cover-wrong-denominator
+        description: "cobertura dividida por 4x a area do buraco: nenhum poke vira visita"
+        find: "shapely.intersection(boxes, hole.roi.geometry)) / hole.area_px"
+        replace: "shapely.intersection(boxes, hole.roi.geometry)) / (4 * hole.area_px)"
+      - id: enter-debounce-off
+        description: "um unico quadro coberto abre uma visita"
+        find: "if self._run >= self._enter:"
+        replace: "if self._run >= 1:"
+      - id: exit-debounce-off
+        description: "um unico quadro descoberto fecha a visita"
+        find: "if self._run >= self._exit:"
+        replace: "if self._run >= 1:"
+      - id: exit-not-back-dated
+        description: "saida datada no ultimo quadro da sequencia, nao no primeiro"
+        find: "self._close(self._run_t)"
+        replace: "self._close(t)"
+      - id: enter-not-back-dated
+        description: "entrada datada no quadro que confirma, nao no primeiro coberto"
+        find: "self._start = self._run_t"
+        replace: "self._start = t"
+      - id: slowdown-filter-ignored
+        description: "filtro de desaceleracao deixa de descartar uma corrida sobre o buraco"
+        find: "if self._slow or not self._need_slow:"
+        replace: "if True:"
+      - id: missing-frames-ignored
+        description: "quadros sem deteccao deixam de contar como descobertos"
+        find: "debounce.step(float(t[i - 1] + k * spacing), False, False, False)"
+        replace: "continue"
+      - id: open-visit-not-clamped
+        description: "visita aberta no START comeca antes de t0"
+        find: "start = max(visit.t_enter_s, t0)"
+        replace: "start = visit.t_enter_s"
+      - id: exit-after-trial-kept
+        description: "saida depois do fim do ensaio continua contada como saida"
+        find: "if end is not None and end > trial_end:"
+        replace: "if False:"
+      - id: closed-at-t0-kept
+        description: "visita que fecha exatamente em t0 continua contada"
+        find: "if visit.t_exit_s is not None and visit.t_exit_s <= t0:"
+        replace: "if visit.t_exit_s is not None and visit.t_exit_s < t0:"
+      - id: lowest-confidence-kept
+        description: "no mesmo instante fica a deteccao de MENOR confianca"
+        find: "ascending=[True, False, False]"
+        replace: "ascending=[True, True, False]"
+      - id: frame-step-minimum
+        description: "passo de quadro pelo menor intervalo: um par atipico inventa quadros perdidos"
+        find: "step = float(np.median(positive))"
+        replace: "step = float(positive.min())"
+      - id: path-counts-gap-jumps
+        description: "caminho soma o salto atraves de uma lacuna longa"
+        find: "return float(steps[dt <= gap_threshold_s].sum())"
+        replace: "return float(steps.sum())"
+      - id: speed-across-gaps
+        description: "velocidade calculada atraves de lacunas longas"
+        find: "valid = (dt > 0) & (dt <= gap_threshold_s)"
+        replace: "valid = dt > 0"
+      - id: recorded-centre-ignored
+        description: "centro gravado (x_center_px) ignorado em favor do centro da bbox"
+        find: "cx = np.where(recorded, recorded_x, (x1 + x2) / 2.0)"
+        replace: "cx = (x1 + x2) / 2.0"
+      - id: unmeasured-candidates-lost
+        description: "candidato sem velocidade medivel some em silencio no filtro de desaceleracao"
+        find: "elif not self._measured:"
+        replace: "elif False:"
+      - id: nan-speed-counts-as-measured
+        description: "velocidade NaN conta como medida e o candidato some sem aviso"
+        find: "measured = covered & np.isfinite(samples.speed_cm_s)"
+        replace: "measured = covered"
+  barnes_strategy:
+    source: src/zebtrack/analysis/protocols/barnes/strategy.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_strategy.py
+    mutations:
+      - id: step-not-circular
+        description: "passo entre buracos deixa de dar a volta pelo lado curto"
+        find: "return min(delta, n_holes - delta)"
+        replace: "return delta"
+      - id: crossing-counts-staying-inside
+        description: "permanecer no centro conta como travessia"
+        find: "flags[1:] & ~flags[:-1]"
+        replace: "flags[1:] & flags[:-1]"
+      - id: adjacent-step-strict
+        description: "passo igual ao limite deixa de ser adjacente"
+        find: "if circular_step(a, b, params.n_holes) <= params.strategy_adjacent_max_step"
+        replace: "if circular_step(a, b, params.n_holes) < params.strategy_adjacent_max_step"
+      - id: no-visit-gets-a-strategy
+        description: "ensaio sem visita recebe uma estrategia"
+        find: "if n_visits == 0:"
+        replace: "if False:"
+      - id: direct-errors-strict
+        description: "exatamente o maximo de erros deixa de ser direta"
+        find: "and features.errors_before_target <= params.strategy_direct_max_errors"
+        replace: "and features.errors_before_target < params.strategy_direct_max_errors"
+      - id: direct-allows-a-crossing
+        description: "estrategia direta aceita uma travessia do centro"
+        find: "and features.center_crossings == 0"
+        replace: "and features.center_crossings <= 1"
+      - id: serial-fraction-strict
+        description: "fracao adjacente igual ao limite deixa de ser serial"
+        find: "and features.adjacent_transition_fraction >= params.strategy_serial_min_adjacent_fraction"
+        replace: "and features.adjacent_transition_fraction > params.strategy_serial_min_adjacent_fraction"
+      - id: serial-crossings-strict
+        description: "travessias iguais ao limite deixam de ser seriais"
+        find: "and features.center_crossings <= params.strategy_serial_max_center_crossings"
+        replace: "and features.center_crossings < params.strategy_serial_max_center_crossings"
+      - id: manual-override-ignored
+        description: "correcao manual da estrategia e ignorada"
+        find: "if override is not None:"
+        replace: "if False:"
+  barnes_metrics:
+    source: src/zebtrack/analysis/protocols/barnes/metrics.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_metrics.py
+    mutations:
+      - id: entry-reason-ignored
+        description: "parada burrow_entry da janela nao vira latencia de entrada"
+        find: "and window.stop.reason == STOP_REASON_BURROW_ENTRY"
+        replace: "and window.stop.reason != STOP_REASON_BURROW_ENTRY"
+      - id: censored-entry-unavailable
+        description: "janela v2 sem entrada deixa de censurar em max_trial_s"
+        find: "if window is not None and _spec_has_kind(window.spec, _BURROW_ENTRY_NODE_KIND):"
+        replace: "if False:"
+      - id: spec-walk-skips-lists
+        description: "busca do no burrow_entry nao entra em listas (FirstOf)"
+        find: "return any(_spec_has_kind(item, kind) for item in node)"
+        replace: "return False"
+      - id: probe-measures-entry
+        description: "ensaio probe passa a medir entrada"
+        find: "if trial_type is TrialType.PROBE:\n        return None, None, EntrySource.NOT_APPLICABLE"
+        replace: "if False:\n        return None, None, EntrySource.NOT_APPLICABLE"
+      - id: quadrant-pct-not-percent
+        description: "porcentagem no quadrante-alvo sai como fracao"
+        find: "return seconds, seconds / (trial_end - t0) * 100.0"
+        replace: "return seconds, seconds / (trial_end - t0)"
+      - id: target-revisit-perseverative
+        description: "revisita ao alvo conta como perseveracao"
+        find: "repeat = not is_target and visit.offset in seen"
+        replace: "repeat = visit.offset in seen"
+      - id: encounter-visit-before-itself
+        description: "a propria visita de encontro marcada como antes do encontro"
+        find: "encounter_t is None or visit.t_enter_s < encounter_t,"
+        replace: "encounter_t is None or visit.t_enter_s <= encounter_t,"
+      - id: probe-target-is-an-error
+        description: "probe que vai direto ao alvo ganha latencia de primeiro erro"
+        find: "first_error = None if first.offset == 0 else first.t_enter_s - t0"
+        replace: "first_error = first.t_enter_s - t0"
+      - id: probe-attempts-zero-based
+        description: "tentativas ate o alvo contadas a partir de zero"
+        find: "(order for order, visit in enumerate(visits, start=1) if visit.offset == 0), None"
+        replace: "(order for order, visit in enumerate(visits, start=0) if visit.offset == 0), None"
+      - id: t0-ignores-window-start
+        description: "t0 vira a primeira deteccao mesmo com START da janela"
+        find: "t0, source = float(window.start.t_s), StartSource.WINDOW"
+        replace: "t0, source = float(samples.t_s[0]), StartSource.WINDOW"
+      - id: no-trial-ceiling
+        description: "ensaio deixa de terminar em t0 + max_trial_s"
+        find: "trial_end = min(stop_t, t0 + params.max_trial_s)"
+        replace: "trial_end = stop_t"
+      - id: empty-window-measured
+        description: "janela vazia mede a gravacao inteira"
+        find: "if len(samples) == 0 or (window is not None and window.is_empty):"
+        replace: "if len(samples) == 0:"
+      - id: two-animals-accepted
+        description: "trajetoria com dois animais e medida como um"
+        find: "if n_subjects > 1:"
+        replace: "if n_subjects > 2:"
+      - id: video-trial-type-ignored
+        description: "tipo de ensaio do video ignorado em favor do padrao do projeto"
+        find: "trial_type = inputs.trial_type or params.default_trial_type"
+        replace: "trial_type = params.default_trial_type"
+      - id: primary-errors-after-encounter
+        description: "erros primarios contam visitas depois do encontro"
+        find: "primary_errors = sum(1 for v in visits if v.offset != 0 and v.t_enter_s < primary_cutoff)"
+        replace: "primary_errors = sum(1 for v in visits if v.offset != 0)"
+      - id: perseverative-counts-all-decoys
+        description: "erros perseverativos contam todo buraco falso"
+        find: "if repeat and v.t_enter_s < total_cutoff"
+        replace: "if v.t_enter_s < total_cutoff"
+      - id: crossings-after-encounter
+        description: "travessias depois do encontro entram na estrategia"
+        find: "search_end = trial_end if encounter_t is None else encounter_t"
+        replace: "search_end = trial_end"
+      - id: search-past-target
+        description: "transicoes depois do alvo entram na estrategia"
+        find: "search = visits if encounter is None else visits[: visits.index(encounter) + 1]"
+        replace: "search = visits"
+      - id: histogram-not-counting
+        description: "histograma por distancia marca presenca em vez de contar"
+        find: "visits_by_distance[abs(visit.offset)] += 1"
+        replace: "visits_by_distance[abs(visit.offset)] = 1"
+      - id: encounter-not-censored
+        description: "sem encontro a latencia deixa de ser max_trial_s"
+        find: "(params.max_trial_s if encounter_t is None else encounter_t - t0)"
+        replace: "(None if encounter_t is None else encounter_t - t0)"
+      - id: late-entry-not-censored
+        description: "entrada depois de max_trial_s sai como latencia medida"
+        find: "if latency > params.max_trial_s:"
+        replace: "if False:"
+      - id: entry-at-ceiling-censored
+        description: "entrada exatamente no teto passa a ser censurada"
+        find: "if latency > params.max_trial_s:"
+        replace: "if latency >= params.max_trial_s:"
+      - id: quadrant-over-the-window
+        description: "tempo no quadrante medido na janela inteira, nao no ensaio"
+        find: "context.roi_analyzer.get_time_spent_in_rois(t0, trial_end)"
+        replace: "context.roi_analyzer.get_time_spent_in_rois()"
+      - id: duplicate-names-silent
+        description: "ROIs de Barnes com nome repetido nao geram aviso"
+        find: "if resolution.duplicates:"
+        replace: "if False:"
+      - id: unmeasured-visits-silent
+        description: "visitas descartadas sem velocidade medivel nao geram aviso"
+        find: "if unmeasured:"
+        replace: "if False:"
+      - id: declared-hole-count-wins
+        description: "a contagem declarada no projeto vence a desenhada nas ROIs"
+        find: "    return params.model_copy(update={\"n_holes\": effective})"
+        replace: "    return params"
+      - id: hole-count-mismatch-silent
+        description: "contagem de buracos diferente da do projeto nao gera aviso"
+        find: "    if effective == params.n_holes:\n        return params"
+        replace: "    if True:\n        return params"
+      - id: no-table-measured
+        description: "ROIs sem nenhum buraco falso deixam de ser recusadas"
+        find: "    if effective_params is None:\n        return _unavailable(UnavailableReason.LAYOUT_UNRESOLVED)"
+        replace: "    if False:\n        return _unavailable(UnavailableReason.LAYOUT_UNRESOLVED)"
+  barnes_spec:
+    source: src/zebtrack/analysis/protocols/barnes/spec.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_spec.py
+    mutations:
+      - id: tidy-columns-ignore-n-holes
+        description: "colunas tidy ignoram o numero de buracos do projeto"
+        find: "return barnes_tidy_columns(parse_barnes_params(raw_params)[0].n_holes)"
+        replace: "return barnes_tidy_columns(20)"
+  barnes_registry:
+    source: src/zebtrack/analysis/protocols/registry.py
+    tests:
+      - tests/analysis/protocols/test_protocol_registry.py
+    mutations:
+      - id: barnes-not-registered
+        description: "o Barnes deixa de ser registrado"
+        find: "return (BARNES_SPEC,)"
+        replace: "return ()"
+  barnes_contract_hole_count:
+    source: src/zebtrack/analysis/protocols/barnes/contract.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_contract.py
+    mutations:
+      - id: default-twenty-holes
+        description: "padrao volta a 20 buracos (a mesa atual do laboratorio tem 18)"
+        find: "n_holes: int = Field(default=18, ge=_MIN_HOLES, le=_MAX_HOLES)"
+        replace: "n_holes: int = Field(default=20, ge=_MIN_HOLES, le=_MAX_HOLES)"
+      - id: opposite-ignored
+        description: "buraco_oposto deixa de tornar a mesa par"
+        find: "n_holes = 2 * k + 2 if OPPOSITE_HOLE_ROI in names else 2 * k + 1"
+        replace: "n_holes = 2 * k + 1"
+      - id: smallest-offset
+        description: "contagem pelo MENOR deslocamento presente"
+        find: "k = max(offsets, default=0)"
+        replace: "k = min(offsets, default=0)"
+      - id: count-range-unchecked
+        description: "contagem fora de 3..99 passa"
+        find: "if not _MIN_HOLES <= n_holes <= _MAX_HOLES:"
+        replace: "if False:"
