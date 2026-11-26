@@ -587,5 +587,9 @@ msgstr "{strategy} (corrigida manualmente; resultado automático: {auto})"
 msgid "≥ {value:.2f} s (censored)"
 msgstr "≥ {value:.2f} s (censurada)"
 
+#: src/zebtrack/analysis/reporters/barnes_aggregates.py
+msgid "(no group)"
+msgstr "(sem grupo)"
+
 #~ msgid "Cumulative Distance (cm)"
 #~ msgstr "Distância acumulada (cm)"

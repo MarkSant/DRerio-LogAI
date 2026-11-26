@@ -368,3 +368,38 @@ def test_the_message_says_to_regenerate_and_differs_when_the_correction_is_remov
     assert "Regenerate" in saved
     assert "automatic" in removed
     assert saved != removed
+
+
+def test_a_failed_save_restores_the_exact_stored_token_even_a_malformed_one():
+    entry = {"path": "a.mp4", "protocol_inputs": {"barnes": {"strategy_override": "wandering"}}}
+    correction, _project = _correction([entry], fail_save=True)
+
+    assert correction.set_override("a.mp4", "serial") is False
+
+    assert entry["protocol_inputs"] == {"barnes": {"strategy_override": "wandering"}}
+
+
+def test_a_failed_save_leaves_no_empty_block_that_was_not_there():
+    bare = {"path": "a.mp4"}
+    other = {"path": "b.mp4", "protocol_inputs": {"other": {"k": 1}}}
+    correction, _project = _correction([bare, other], fail_save=True)
+
+    assert correction.set_override("a.mp4", "direct") is False
+    assert correction.set_override("b.mp4", "direct") is False
+
+    assert "protocol_inputs" not in bare
+    assert other["protocol_inputs"] == {"other": {"k": 1}}
+
+
+def test_a_failed_clear_puts_the_correction_back():
+    entry = {
+        "path": "a.mp4",
+        "protocol_inputs": {"barnes": {"trial_type": "probe", "strategy_override": "serial"}},
+    }
+    correction, _project = _correction([entry], fail_save=True)
+
+    assert correction.set_override("a.mp4", None) is False
+
+    assert entry["protocol_inputs"] == {
+        "barnes": {"trial_type": "probe", "strategy_override": "serial"}
+    }

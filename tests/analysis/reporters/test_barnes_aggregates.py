@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pandas as pd
 import pytest
 from docx import Document
+from matplotlib.patches import Rectangle
 from tests.analysis.reporters.barnes_report_builders import tidy_row
 
 from zebtrack.analysis.data_transformer import DataTransformer
@@ -347,3 +349,111 @@ def test_the_per_animal_table_reads_the_partial_reports_display_columns():
 
     assert [c.text for c in document.tables[0].rows[1].cells][4] == "3"
     assert render_barnes_per_animal(Document(), pd.DataFrame({"animal": ["x"]})) is False
+
+
+# --- robustness: null groups, undefined SEM --------------------------------------------
+
+
+def _null_group_frame() -> pd.DataFrame:
+    return _frame(
+        tidy_row("CTL", "Dia_1", "1", encounter=20.0),
+        {**tidy_row("x", "Dia_1", "2", encounter=40.0), "group_id": None},
+        {**tidy_row("x", "Dia_1", "3", encounter=60.0), "group_id": float("nan")},
+        {**_probe_row("4", probe_offset=1, probe_score=2, probe_attempts=2), "group_id": None},
+    )
+
+
+def test_a_null_group_is_its_own_bucket_in_every_aggregate_and_never_raises():
+    df = _null_group_frame()
+
+    curves = learning_curves(df)
+    strategies = strategy_distribution(df)
+    probes = probe_comparison(df)
+
+    assert list(dict.fromkeys(curves["group"])) == ["CTL", "(no group)"]
+    point = _curve(curves, "(no group)", "Dia_1", "encounter_latency_s")
+    assert point["n"] == 2
+    assert point["mean"] == pytest.approx(50.0)
+    assert _curve(curves, "CTL", "Dia_1", "encounter_latency_s")["n"] == 1
+    assert set(strategies["group"]) == {"CTL", "(no group)"}
+    assert set(probes["group"]) == {"(no group)"}
+    assert set(barnes_sheets(df)) == {
+        "barnes_learning_curves",
+        "barnes_strategy",
+        "barnes_probe",
+    }
+
+
+def test_the_word_section_and_figures_survive_a_null_group():
+    df = _null_group_frame()
+    document = Document()
+
+    render_barnes_aggregates(document, df)
+
+    assert "(no group)" in _text(document)
+    assert learning_curve_figure(learning_curves(df)) is not None
+    assert strategy_figure(strategy_distribution(df)) is not None
+    assert probe_figure(probe_comparison(df)) is not None
+
+
+def test_a_frame_without_null_groups_is_returned_untouched():
+    df = _frame(tidy_row("CTL", "Dia_1", "1"))
+
+    from zebtrack.analysis.reporters.barnes_aggregates import _label_groups
+
+    assert _label_groups(df, "group_id") is df
+    assert _label_groups(df, "no_such_column") is df
+
+
+def _error_bars(figure) -> list[int]:
+    from matplotlib.container import ErrorbarContainer
+
+    return [sum(isinstance(c, ErrorbarContainer) for c in ax.containers) for ax in figure.axes]
+
+
+def test_the_curve_draws_no_error_bar_where_the_sem_is_undefined():
+    one_trial = _frame(tidy_row("CTL", "Dia_1", "1"), tidy_row("CTL", "Dia_2", "1"))
+    two_trials = _frame(
+        tidy_row("CTL", "Dia_1", "1", encounter=20.0),
+        tidy_row("CTL", "Dia_1", "2", encounter=40.0),
+        tidy_row("CTL", "Dia_2", "1"),
+    )
+
+    undefined = learning_curve_figure(learning_curves(one_trial))
+    partly = learning_curve_figure(learning_curves(two_trials))
+
+    assert undefined is not None
+    assert partly is not None
+    assert _error_bars(undefined) == [0, 0, 0, 0]  # n=1 everywhere: no SEM, no bar
+    assert _error_bars(partly) == [1, 1, 1, 1]  # only the n=2 point has one
+
+
+def test_the_probe_figure_has_no_error_bar_for_a_single_probe_and_no_bar_for_no_data():
+    one = _frame(_probe_row("1", probe_offset=1, probe_score=2, probe_attempts=2))
+    figure = probe_figure(probe_comparison(one))
+
+    assert figure is not None
+    assert _error_bars(figure) == [0, 0]
+
+    two = _frame(
+        _probe_row("1", probe_offset=1, probe_score=2, probe_attempts=2),
+        _probe_row("2", probe_offset=3, probe_score=4, probe_attempts=3),
+    )
+    figure = probe_figure(probe_comparison(two))
+    assert figure is not None
+    assert _error_bars(figure) == [1, 1]
+
+    # a probe group with no value for the plotted metric draws no bar at all
+    empty = pd.DataFrame(
+        {
+            "group": ["A"],
+            "metric": ["first_hole_score"],
+            "n": [0],
+            "mean": [np.nan],
+            "sem": [np.nan],
+        }
+    )
+    figure = probe_figure(empty)
+    assert figure is not None
+    heights = [p.get_height() for p in figure.axes[0].patches if isinstance(p, Rectangle)]
+    assert all(np.isnan(h) for h in heights)

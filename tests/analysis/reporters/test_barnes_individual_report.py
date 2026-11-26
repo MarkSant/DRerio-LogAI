@@ -510,3 +510,14 @@ def test_a_visited_hole_is_filled_darker_the_more_it_was_visited():
         assert sum(thrice) < sum(once) < sum(never)  # darker with more visits
     finally:
         plt.close(fig)
+
+
+def test_a_missing_quadrant_share_is_na_never_zero_percent(tmp_path):
+    context = barnes_context(scripted_rat(3, 2, 0))
+    context.report["protocol_metrics"].update(
+        target_quadrant_time_s=5.0, target_quadrant_time_pct=None
+    )
+
+    rows = _barnes_rows(_word(context, tmp_path))
+
+    assert rows["Time in the target quadrant"] == "5.00 s (N/A)"

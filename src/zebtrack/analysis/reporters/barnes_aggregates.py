@@ -149,6 +149,24 @@ def _mean(values: pd.Series) -> float:
     return float(values.mean()) if len(values) else float("nan")
 
 
+def _label_groups(df: pd.DataFrame, group_col: str) -> pd.DataFrame:
+    """``df`` with a null group shown as an explicit "(no group)" bucket.
+
+    A trial whose group is null (an unassigned animal) must neither vanish nor kill
+    the whole report: ``groupby(dropna=False)`` would hand back ``nan`` keys that no
+    ordering lookup can match. The bucket is named, never dropped silently.
+    """
+    if group_col not in df.columns:
+        return df
+    missing = df[group_col].isna()
+    if not missing.any():
+        return df
+    log.warning("barnes_aggregates.null_group", rows=int(missing.sum()))
+    labelled = df.copy()
+    labelled[group_col] = labelled[group_col].astype(object).where(~missing, _("(no group)"))
+    return labelled
+
+
 def _ok_trials(df: pd.DataFrame, trial_type: str | None) -> pd.DataFrame:
     """The trials of ``trial_type`` whose Barnes metrics were computed."""
     internal = to_internal_columns(df)
@@ -199,7 +217,7 @@ def learning_curves(
     values as stored (a censored latency counts at the ceiling) and ``mean_observed``
     uses the uncensored trials only. An error count has ``n_censored == 0``.
     """
-    training = _ok_trials(df, "training")
+    training = _label_groups(_ok_trials(df, "training"), group_col)
     rows: list[dict[str, Any]] = []
     if group_col in training.columns:
         for group, day, block in _groups(training, group_col, day_col):
@@ -235,7 +253,7 @@ def strategy_distribution(
     of trials with a strategy in the block (a trial with no hole visited has none and
     is not in the denominator), ``fraction`` is ``n / n_trials``.
     """
-    training = _ok_trials(df, "training")
+    training = _label_groups(_ok_trials(df, "training"), group_col)
     rows: list[dict[str, Any]] = []
     if group_col in training.columns and "barnes_strategy" in training.columns:
         for group, day, block in _groups(training, group_col, day_col):
@@ -265,7 +283,7 @@ def probe_comparison(df: pd.DataFrame, *, group_col: str = "group_id") -> pd.Dat
     is ``None`` for a trial (no error before the target, target never reached) is not
     counted for that trial, so ``n`` can be smaller than the number of probes.
     """
-    probes = _ok_trials(df, "probe")
+    probes = _label_groups(_ok_trials(df, "probe"), group_col)
     rows: list[dict[str, Any]] = []
     if group_col in probes.columns:
         for group, block in probes.groupby(group_col, sort=False, dropna=False):
@@ -341,15 +359,19 @@ def learning_curve_figure(curves: pd.DataFrame) -> Figure | None:
             rows = rows.sort_values("day", key=lambda s: s.map(_day_key))
             x = [days.index(d) if d in days else 0 for d in rows["day"]]
             colour = f"C{index % 10}"
-            ax.errorbar(
-                x,
-                rows["mean"],
-                yerr=rows["sem"].fillna(0.0),
-                color=colour,
-                marker="o",
-                capsize=3,
-                label=str(group),
-            )
+            ax.plot(x, rows["mean"], color=colour, marker="o", label=str(group))
+            # An error bar only where the SEM is defined: with one trial it is not
+            # zero, it does not exist, and a zero-length bar would claim it is.
+            defined = rows["sem"].notna().to_numpy()
+            if defined.any():
+                ax.errorbar(
+                    [xi for xi, ok in zip(x, defined, strict=True) if ok],
+                    rows["mean"][defined],
+                    yerr=rows["sem"][defined],
+                    fmt="none",
+                    ecolor=colour,
+                    capsize=3,
+                )
             for xi, (_idx, row) in zip(x, rows.iterrows(), strict=True):
                 if row["n_censored"] > 0 and not math.isnan(row["mean"]):
                     ax.plot(xi, row["mean"], "o", mfc="white", mec=colour, ms=9, zorder=3)
@@ -430,13 +452,22 @@ def probe_figure(probe: pd.DataFrame) -> Figure | None:
     groups = list(dict.fromkeys(probe["group"]))
     for ax, key in zip(axes, ("first_hole_score", "target_quadrant_pct"), strict=True):
         rows = probe[probe["metric"] == key].set_index("group").reindex(groups)
+        # A group with no value has no bar (NaN height), not a zero-height one.
         ax.bar(
             range(len(groups)),
-            rows["mean"].fillna(0.0),
-            yerr=rows["sem"].fillna(0.0),
-            capsize=4,
+            rows["mean"],
             color=[f"C{i % 10}" for i in range(len(groups))],
         )
+        defined = rows["sem"].notna().to_numpy()
+        if defined.any():
+            ax.errorbar(
+                [i for i, ok in enumerate(defined) if ok],
+                rows["mean"][defined],
+                yerr=rows["sem"][defined],
+                fmt="none",
+                ecolor="black",
+                capsize=4,
+            )
         for index, group in enumerate(groups):
             n = rows.loc[group, "n"]
             ax.annotate(

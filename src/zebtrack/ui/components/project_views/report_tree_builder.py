@@ -836,6 +836,10 @@ def compute_project_status_counts(pm: Any) -> dict[str, int]:
     return counts
 
 
+#: "No override was stored" (distinct from a stored ``None``).
+_ABSENT: Any = object()
+
+
 class StrategyChoice(NamedTuple):
     """One entry of the "Search strategy" menu of a Barnes video."""
 
@@ -923,7 +927,12 @@ class BarnesStrategyCorrection:
         memory never disagrees with the one on disk.
         """
         from zebtrack.analysis.protocols.barnes.contract import SearchStrategy
-        from zebtrack.analysis.protocols.base import clear_protocol_input, set_protocol_input
+        from zebtrack.analysis.protocols.base import (
+            clear_protocol_input,
+            protocol_inputs_for,
+            protocol_inputs_of_entry,
+            set_protocol_input,
+        )
         from zebtrack.core.services.experiment_profile import ProtocolId
 
         entry = self._entry(video_path)
@@ -933,10 +942,14 @@ class BarnesStrategyCorrection:
             log.warning("report_tree.strategy_override.unknown_token", value=value)
             return False
 
-        previous = self._current(entry)
+        # The EXACT stored value (even a malformed token the parser would drop), or
+        # nothing at all: a failed save must leave the entry as it was found.
+        stored = protocol_inputs_for(protocol_inputs_of_entry(entry), ProtocolId.BARNES)
+        previous = stored.get("strategy_override", _ABSENT)
 
-        def write(token: str | None) -> None:
-            if token is None:
+        def write(token: Any) -> None:
+            if token is None or token is _ABSENT:
+                # Also removes the Barnes block when it ends up empty.
                 clear_protocol_input(entry, ProtocolId.BARNES, "strategy_override")
             else:
                 set_protocol_input(entry, ProtocolId.BARNES, "strategy_override", token)

@@ -560,3 +560,7 @@ msgstr ""
 #: src/zebtrack/analysis/reporters/barnes_section.py
 msgid "≥ {value:.2f} s (censored)"
 msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_aggregates.py
+msgid "(no group)"
+msgstr ""

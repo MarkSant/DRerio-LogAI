@@ -74,6 +74,12 @@ def _count(value: Any) -> str:
     return _NOT_AVAILABLE if value is None else str(int(value))
 
 
+def _quadrant_text(seconds: float, pct: float | None) -> str:
+    """Time in the target quadrant; a missing share is N/A, never 0 %."""
+    share = _NOT_AVAILABLE if pct is None else f"{float(pct):.1f} %"
+    return f"{float(seconds):.2f} s ({share})"
+
+
 def _seconds(value: float | None) -> str:
     return _NOT_AVAILABLE if value is None else f"{float(value):.2f} s"
 
@@ -178,9 +184,7 @@ def _metric_rows(metrics: Mapping[str, Any]) -> list[tuple[str, str]]:
     rows.append(
         (
             _("Time in the target quadrant"),
-            _NOT_AVAILABLE
-            if quadrant_s is None
-            else f"{float(quadrant_s):.2f} s ({float(quadrant_pct or 0.0):.1f} %)",
+            _NOT_AVAILABLE if quadrant_s is None else _quadrant_text(quadrant_s, quadrant_pct),
         )
     )
     rows.append((_("Search strategy"), _strategy_text(metrics)))

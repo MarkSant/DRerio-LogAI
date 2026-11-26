@@ -7740,6 +7740,10 @@ _load_registry()"
         replace: |-
           return "0.00 s"
               if censored:
+      - id: missing-quadrant-share-is-zero
+        description: "percentual do quadrante ausente vira 0.0 %"
+        find: 'share = _NOT_AVAILABLE if pct is None else f"{float(pct):.1f} %"'
+        replace: 'share = f"{float(pct or 0.0):.1f} %"'
 
   barnes_reports_excel_reporter:
     source: src/zebtrack/analysis/reporters/excel_reporter.py
@@ -7900,6 +7904,34 @@ _load_registry()"
         replace: |-
           frame = to_internal_columns(df)
               document.add_heading(_("Barnes Maze Results per Animal"), level=2)
+      - id: null-group-not-bucketed
+        description: "grupo nulo deixa de virar o balde (sem grupo)"
+        find: 'labelled[group_col] = labelled[group_col].astype(object).where(~missing, _("(no group)"))'
+        replace: 'labelled[group_col] = labelled[group_col]'
+      - id: curve-bar-drawn-where-sem-undefined
+        description: "a curva desenha barra de erro onde o EPM e indefinido"
+        find: |-
+          # zero, it does not exist, and a zero-length bar would claim it is.
+                      defined = rows["sem"].notna().to_numpy()
+        replace: |-
+          # zero, it does not exist, and a zero-length bar would claim it is.
+                      defined = np.ones(len(rows), dtype=bool)
+      - id: probe-bar-drawn-where-sem-undefined
+        description: "a figura de sonda desenha barra de erro onde o EPM e indefinido"
+        find: |-
+          defined = rows["sem"].notna().to_numpy()
+                  if defined.any():
+        replace: |-
+          defined = np.ones(len(rows), dtype=bool)
+                  if defined.any():
+      - id: probe-no-data-drawn-as-zero-bar
+        description: "grupo sem dado na sonda vira barra de altura zero"
+        find: |-
+          rows["mean"],
+                      color=[f"C{i % 10}" for i in range(len(groups))],
+        replace: |-
+          rows["mean"].fillna(0.0),
+                      color=[f"C{i % 10}" for i in range(len(groups))],
 
   barnes_reports_project_reporter:
     source: src/zebtrack/analysis/reporters/project_reporter.py
@@ -7992,6 +8024,14 @@ _load_registry()"
         description: "a correcao nao persiste o projeto"
         find: 'self.project_manager.save_project()'
         replace: 'pass'
+      - id: rollback-forgets-stored-token
+        description: "a restauracao nao usa o token exato que estava gravado"
+        find: 'previous = stored.get("strategy_override", _ABSENT)'
+        replace: 'previous = None'
+      - id: rollback-writes-absent-marker
+        description: "a restauracao grava o marcador de ausencia em vez de remover"
+        find: 'if token is None or token is _ABSENT:'
+        replace: 'if token is None:'
 
   barnes_reports_menu_manager:
     source: src/zebtrack/ui/components/menu_manager.py

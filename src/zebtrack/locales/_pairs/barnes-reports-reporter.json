@@ -66,5 +66,6 @@
   "{strategy} (automatic)": "{strategy} (automática)",
   "{strategy} (corrected)": "{strategy} (corrigida)",
   "{strategy} (manually corrected; automatic result: {auto})": "{strategy} (corrigida manualmente; resultado automático: {auto})",
-  "≥ {value:.2f} s (censored)": "≥ {value:.2f} s (censurada)"
+  "≥ {value:.2f} s (censored)": "≥ {value:.2f} s (censurada)",
+  "(no group)": "(sem grupo)"
 }
