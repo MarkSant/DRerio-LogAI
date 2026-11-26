@@ -1143,12 +1143,22 @@ class TestBarnesAssistant:
         from zebtrack.core.detection import ZoneData
 
         bus = MagicMock()
-        pm = _BarnesPM(active="v.mp4", zones={"v.mp4": ZoneData(polygon=[(1, 2), (3, 4)])})
+        pm = _BarnesPM(active="v.mp4", zones={"v.mp4": ZoneData(polygon=[(9, 9), (8, 8)])})
+
+        def detection_saves_an_arena(event, payload):
+            pm._zones["v.mp4"] = ZoneData(polygon=[(1, 2), (3, 4), (5, 6), (7, 8)])
+
+        bus.publish.side_effect = detection_saves_an_arena
         gui = _barnes_gui(pm, bus=bus)
         gui.zone_controls.stabilization_frames_var.get.return_value = "7"
         dispatcher = EventDispatcher(cast(Any, gui))
 
-        assert dispatcher._barnes_detect_table("v.mp4") == [(1.0, 2.0), (3.0, 4.0)]
+        assert dispatcher._barnes_detect_table("v.mp4") == [
+            (1.0, 2.0),
+            (3.0, 4.0),
+            (5.0, 6.0),
+            (7.0, 8.0),
+        ]
 
         event, payload = bus.publish.call_args.args
         assert event is UIEvents.ZONE_AUTO_DETECT
@@ -1163,3 +1173,12 @@ class TestBarnesAssistant:
 
         assert dispatcher._barnes_detect_table("v.mp4") is None
         assert gui.event_bus.publish.call_args.args[1].stabilization_frames == 10
+
+    def test_an_unchanged_arena_is_not_a_detection(self):
+        from zebtrack.core.detection import ZoneData
+
+        stale = ZoneData(polygon=[(1, 2), (3, 4), (5, 6), (7, 8)])
+        gui = _barnes_gui(_BarnesPM(active="v.mp4", zones={"v.mp4": stale}), bus=MagicMock())
+        gui.zone_controls.stabilization_frames_var.get.return_value = "7"
+
+        assert EventDispatcher(cast(Any, gui))._barnes_detect_table("v.mp4") is None

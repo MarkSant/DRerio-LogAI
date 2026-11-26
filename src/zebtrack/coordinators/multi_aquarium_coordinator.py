@@ -1028,11 +1028,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
                 for key in _BARNES_SNAPSHOT_KEYS
             },
             "entry": entry,
-            "entry_inputs": (
-                None
-                if entry is None
-                else ("protocol_inputs" in entry, copy.deepcopy(entry.get("protocol_inputs")))
-            ),
+            "entry_copy": None if entry is None else copy.deepcopy(dict(entry)),
         }
 
     def _barnes_restore(self, snapshot: dict[str, Any]) -> None:
@@ -1044,12 +1040,10 @@ class MultiAquariumCoordinator(BaseCoordinator):
             else:
                 project_data.pop(key, None)
         entry = snapshot["entry"]
-        if entry is not None and snapshot["entry_inputs"] is not None:
-            present, value = snapshot["entry_inputs"]
-            if present:
-                entry["protocol_inputs"] = value
-            else:
-                entry.pop("protocol_inputs", None)
+        if entry is not None:
+            # In place: the entry is referenced from the project's video lists.
+            entry.clear()
+            entry.update(snapshot["entry_copy"])
 
     def apply_barnes_layout(
         self,
@@ -1140,26 +1134,21 @@ class MultiAquariumCoordinator(BaseCoordinator):
             LAYOUT_METADATA_KEY,
             QUADRANT_ROI,
             TARGET_ROI,
-            parse_barnes_params,
             parse_barnes_roi_name,
         )
         from zebtrack.analysis.protocols.base import set_protocol_input
-        from zebtrack.core.services.experiment_profile import (
-            ProtocolId,
-            resolve_experiment_profile,
-            set_protocol_param,
-        )
+        from zebtrack.core.services.experiment_profile import ProtocolId, set_protocol_param
 
         project_data = self.project_manager.project_data
         if project_n_holes is not None:
             set_protocol_param(project_data, ProtocolId.BARNES, "n_holes", project_n_holes)
-        params, _warnings = parse_barnes_params(
-            resolve_experiment_profile(project_data).protocol_params
-        )
-        hole_counts = {layout.n_holes, params.n_holes}
 
         def is_barnes(name: str) -> bool:
-            return any(parse_barnes_roi_name(name, n) is not None for n in hole_counts)
+            # Any name an earlier layout may have written, whatever its count: a
+            # video re-done with 18 holes must not keep a 20-hole "buraco_+09" as
+            # if the user had drawn it. 98 and 99 (the largest even and odd
+            # n_holes) accept every name the contract can produce.
+            return any(parse_barnes_roi_name(name, n) is not None for n in (98, 99))
 
         zone_data = self.project_manager.get_zone_data(video_path, fallback_to_global=False)
         colors = list(zone_data.roi_colors)

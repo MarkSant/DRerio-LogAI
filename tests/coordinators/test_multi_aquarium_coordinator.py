@@ -687,13 +687,16 @@ def test_a_failed_multi_detection_tells_the_user(mock_detector_class, coordinato
 class _BarnesProjectManager:
     """Real ``ZoneManager`` storage behind the ProjectManager calls the coordinator makes."""
 
-    def __init__(self, videos: list[str], *, protocol: str = "barnes") -> None:
+    def __init__(self, videos: list[str], *, protocol: str = "barnes", n_holes: int = 20) -> None:
         from zebtrack.core.project.zone_manager import ZoneManager
 
         self.zone_manager = ZoneManager()
         self.project_data: dict[str, Any] = {
             "project_type": "batch",
-            "behavioral_config": {"protocol": protocol},
+            "behavioral_config": {
+                "protocol": protocol,
+                "protocol_params": {"barnes": {"n_holes": n_holes}},
+            },
             "videos": [{"path": path, "metadata": {}} for path in videos],
         }
         self.saves: list[tuple[str | None, bool]] = []
@@ -768,14 +771,18 @@ class TestBarnesLayoutApply:
         )
         assert coord.event_bus is None
 
-    def test_arena_and_rois_land_in_the_contract_order(self, barnes_coordinator):
+    @pytest.mark.parametrize("n_holes", [18, 20])
+    def test_arena_and_rois_land_in_the_contract_order(self, barnes_coordinator, n_holes):
         from zebtrack.analysis.protocols.barnes.contract import expected_roi_names
 
-        arena, rois, metadata = _barnes_write()
+        barnes_coordinator.project_manager.project_data["behavioral_config"]["protocol_params"][
+            "barnes"
+        ]["n_holes"] = n_holes
+        arena, rois, metadata = _barnes_write(n_holes=n_holes)
         assert barnes_coordinator.apply_barnes_layout(self.VIDEO, arena, rois, metadata)
 
         stored = barnes_coordinator.project_manager.stored(self.VIDEO)
-        assert list(stored.roi_names) == list(expected_roi_names(20))
+        assert list(stored.roi_names) == list(expected_roi_names(n_holes))
         assert [list(map(tuple, p)) for p in stored.roi_polygons] == [p for _n, p in rois]
         assert len(stored.roi_colors) == len(stored.roi_polygons)
         assert tuple(stored.roi_colors[1]) == (255, 0, 0)  # toca
@@ -972,3 +979,130 @@ def test_writers_default_to_the_active_video_and_persist(coordinator):
     coordinator.project_manager.save_zone_data.assert_called_once_with(
         zone_data, None, persist=True
     )
+
+
+class TestBarnesLayoutApplyIsAllOrNothing:
+    VIDEO = "C:/exp/Dia_1/rat_3/trial.mp4"
+
+    def _seed(self, coordinator):
+        from zebtrack.core.detection import ZoneData
+
+        pm = coordinator.project_manager
+        pm.save_zone_data(
+            ZoneData(
+                polygon=[(0, 0), (10, 0), (10, 10)],
+                roi_polygons=[[(5, 5), (6, 5), (6, 6)]],
+                roi_names=["door"],
+                roi_colors=[(9, 9, 9)],
+            ),
+            self.VIDEO,
+        )
+        pm.find_video_entry(path=self.VIDEO)["protocol_inputs"] = {
+            "barnes": {"trial_type": "training"}
+        }
+        pm.saves.clear()
+        import copy
+
+        return copy.deepcopy(pm.project_data)
+
+    def test_a_refused_contract_roi_rolls_everything_back(self, barnes_coordinator):
+        before = self._seed(barnes_coordinator)
+        real_add = barnes_coordinator.add_roi_polygon
+        calls = {"n": 0}
+
+        def refuse_the_fifth(*args, **kwargs):
+            calls["n"] += 1
+            return False if calls["n"] == 5 else real_add(*args, **kwargs)
+
+        arena, rois, metadata = _barnes_write()
+        with patch.object(barnes_coordinator, "add_roi_polygon", side_effect=refuse_the_fifth):
+            written = barnes_coordinator.apply_barnes_layout(
+                self.VIDEO, arena, rois, metadata, trial_type="probe", project_n_holes=18
+            )
+
+        assert written is False
+        assert barnes_coordinator.project_manager.project_data == before
+        assert all(persist is False for _video, persist in barnes_coordinator.project_manager.saves)
+
+    def test_an_exception_while_saving_rolls_everything_back(self, barnes_coordinator):
+        before = self._seed(barnes_coordinator)
+        pm = barnes_coordinator.project_manager
+        real_save = pm.save_zone_data
+
+        def disk_full(zone_data, video_path=None, *, persist=True):
+            if persist:
+                raise OSError("disk full")
+            real_save(zone_data, video_path, persist=persist)
+
+        pm.save_zone_data = disk_full
+        arena, rois, metadata = _barnes_write()
+
+        assert not barnes_coordinator.apply_barnes_layout(
+            self.VIDEO, arena, rois, metadata, trial_type="probe"
+        )
+        assert pm.project_data == before
+
+    def test_a_refused_arena_rolls_back(self, barnes_coordinator):
+        before = self._seed(barnes_coordinator)
+        arena, rois, metadata = _barnes_write()
+        with patch.object(barnes_coordinator, "set_main_arena_polygon", return_value=False):
+            assert not barnes_coordinator.apply_barnes_layout(self.VIDEO, arena, rois, metadata)
+        assert barnes_coordinator.project_manager.project_data == before
+
+    def test_the_confirmed_hole_count_reaches_the_project(self, barnes_coordinator):
+        from zebtrack.analysis.protocols.barnes.contract import expected_roi_names
+
+        arena, rois, metadata = _barnes_write(n_holes=18)
+        assert barnes_coordinator.apply_barnes_layout(
+            self.VIDEO, arena, rois, metadata, project_n_holes=18
+        )
+
+        config = barnes_coordinator.project_manager.project_data["behavioral_config"]
+        assert config["protocol_params"]["barnes"]["n_holes"] == 18
+        stored = barnes_coordinator.project_manager.stored(self.VIDEO)
+        assert list(stored.roi_names) == list(expected_roi_names(18))
+
+    def test_a_previous_layout_of_the_other_count_is_replaced(self, barnes_coordinator):
+        arena20, rois20, metadata20 = _barnes_write(n_holes=20)
+        barnes_coordinator.apply_barnes_layout(self.VIDEO, arena20, rois20, metadata20)
+        arena18, rois18, metadata18 = _barnes_write(n_holes=18)
+
+        assert barnes_coordinator.apply_barnes_layout(
+            self.VIDEO, arena18, rois18, metadata18, project_n_holes=18
+        )
+
+        names = list(barnes_coordinator.project_manager.stored(self.VIDEO).roi_names)
+        assert names == [name for name, _p in rois18]  # no 20-hole leftover such as +09
+
+    @pytest.mark.parametrize("written", [True, False])
+    def test_the_publisher_learns_the_real_outcome(self, barnes_coordinator, written):
+        from zebtrack.ui.event_bus_v2 import BarnesLayoutApplyPayload
+
+        arena, rois, metadata = _barnes_write()
+        answers: list[bool] = []
+        payload = BarnesLayoutApplyPayload(
+            video_path=self.VIDEO,
+            arena_polygon=tuple(arena) if written else (),
+            rois=tuple((name, tuple(points)) for name, points in rois),
+            layout_metadata=metadata,
+            on_result=answers.append,
+        )
+        with patch.object(barnes_coordinator, "_publish_event"):
+            barnes_coordinator._on_barnes_layout_apply(payload)
+        assert answers == [written]
+
+    def test_a_malformed_payload_answers_false_and_warns(self, barnes_coordinator):
+        from zebtrack.ui.event_bus_v2 import BarnesLayoutApplyPayload
+
+        answers: list[bool] = []
+        payload = BarnesLayoutApplyPayload(
+            video_path=self.VIDEO,
+            arena_polygon=(("x", "y"),),  # type: ignore[arg-type]
+            rois=(),
+            layout_metadata={},
+            on_result=answers.append,
+        )
+        with patch.object(barnes_coordinator, "_publish_event") as publish:
+            barnes_coordinator._on_barnes_layout_apply(payload)
+        assert answers == [False]
+        assert publish.call_args.args[0] is UIEvents.UI_SHOW_WARNING

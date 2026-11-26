@@ -448,7 +448,7 @@ def snapped_layout() -> tuple[SyntheticTable, BarnesLayout]:
 
 def test_rois_follow_the_contract_names_and_order(snapped_layout):
     _synth, layout = snapped_layout
-    arena, rois = g.build_barnes_rois(layout, BarnesParams())
+    arena, rois = g.build_barnes_rois(layout, BarnesParams(n_holes=20))
     assert [name for name, _ in rois] == list(expected_roi_names(20))
     assert rois[0][0] == QUADRANT_ROI and rois[1][0] == TARGET_ROI
     assert rois[-1][0] == OPPOSITE_HOLE_ROI
@@ -459,7 +459,7 @@ def test_rois_follow_the_contract_names_and_order(snapped_layout):
 
 def test_hole_rois_are_centred_circles_that_never_overlap(snapped_layout):
     _synth, layout = snapped_layout
-    _arena, rois = g.build_barnes_rois(layout, BarnesParams(hole_roi_dilation=3.0))
+    _arena, rois = g.build_barnes_rois(layout, BarnesParams(n_holes=20, hole_roi_dilation=3.0))
     holes = {name: Polygon(poly) for name, poly in rois if name != QUADRANT_ROI}
     assert all(len(poly.exterior.coords) - 1 == 32 for poly in holes.values())
     for hole in layout.holes:
@@ -473,10 +473,10 @@ def test_hole_rois_are_centred_circles_that_never_overlap(snapped_layout):
 
 def test_hole_roi_radius_is_the_dilated_hole_below_the_spacing_cap(snapped_layout):
     _synth, layout = snapped_layout
-    radii = g.hole_roi_radii(layout, BarnesParams(hole_roi_dilation=1.25))
+    radii = g.hole_roi_radii(layout, BarnesParams(n_holes=20, hole_roi_dilation=1.25))
     for hole in layout.holes:
         assert radii[hole.abs_index] == pytest.approx(hole.radius_px * 1.25)
-    capped = g.hole_roi_radii(layout, BarnesParams(hole_roi_dilation=3.0))
+    capped = g.hole_roi_radii(layout, BarnesParams(n_holes=20, hole_roi_dilation=3.0))
     spacing = min(
         _distance(layout.holes[i].center_px, layout.holes[(i + 1) % 20].center_px)
         for i in range(20)
@@ -490,7 +490,7 @@ def test_hole_roi_radius_is_the_dilated_hole_below_the_spacing_cap(snapped_layou
 
 def test_quadrant_spans_exactly_the_target_and_two_holes_each_side(snapped_layout):
     _synth, layout = snapped_layout
-    _arena, rois = g.build_barnes_rois(layout, BarnesParams())
+    _arena, rois = g.build_barnes_rois(layout, BarnesParams(n_holes=20))
     quadrant = Polygon(dict(rois)[QUADRANT_ROI])
     assert quadrant.is_valid
     inside = sorted(
@@ -510,7 +510,7 @@ def test_quadrant_spans_exactly_the_target_and_two_holes_each_side(snapped_layou
 
 def test_quadrant_width_follows_quadrant_half_holes(snapped_layout):
     _synth, layout = snapped_layout
-    _arena, rois = g.build_barnes_rois(layout, BarnesParams(quadrant_half_holes=1))
+    _arena, rois = g.build_barnes_rois(layout, BarnesParams(n_holes=20, quadrant_half_holes=1))
     quadrant = Polygon(dict(rois)[QUADRANT_ROI])
     inside = sorted(
         hole.offset for hole in layout.holes if quadrant.contains(ShapelyPoint(hole.center_px))
@@ -539,7 +539,7 @@ def test_rois_refuse_collapsed_holes():
     model = g.ring_from_click(table, synth.hole_center(0), 20)
     layout = g.assemble_layout(table, model, manual={1: synth.hole_center(0)})
     with pytest.raises(g.BarnesGeometryError, match="overlap"):
-        g.build_barnes_rois(layout, BarnesParams())
+        g.build_barnes_rois(layout, BarnesParams(n_holes=20))
 
 
 def test_quadrant_needs_the_ring_centre_inside_the_table(snapped_layout):
@@ -558,7 +558,7 @@ def test_quadrant_needs_the_ring_centre_inside_the_table(snapped_layout):
         source=layout.source,
     )
     with pytest.raises(g.BarnesGeometryError, match="outside the table"):
-        g.build_barnes_rois(moved, BarnesParams())
+        g.build_barnes_rois(moved, BarnesParams(n_holes=20))
 
 
 def test_the_ring_is_refitted_when_the_holes_are_not_concentric_with_the_table():
@@ -590,3 +590,52 @@ def test_an_implausible_refit_keeps_the_concentric_ring():
 def test_collinear_rim_points_are_not_an_ellipse():
     with pytest.raises(g.BarnesGeometryError, match="do not lie on an ellipse"):
         g.ellipse_from_points([(10.0 * x, 10.0) for x in range(6)])
+
+
+@pytest.mark.parametrize("table_holes", [18, 20])
+def test_the_hole_count_is_detected_on_the_background(table_holes):
+    synth = SyntheticTable(n_holes=table_holes, matrix=_affine(10.0, 1.0, 0.85))
+    best, placed = g.detect_hole_count(
+        synth.table_ellipse(), synth.hole_center(0), synth.image(), (18, 20)
+    )
+    assert best == table_holes
+    assert set(placed) == {18, 20}
+    layout, model = placed[best]
+    assert model.n_holes == table_holes
+    assert all(hole.snapped for hole in layout.holes)
+    wrong = placed[38 - table_holes][0]
+    assert g.layout_quality(wrong).suspicious is True
+
+
+def test_a_count_that_cannot_be_placed_is_skipped():
+    synth = SyntheticTable(n_holes=18)
+    best, placed = g.detect_hole_count(
+        synth.table_ellipse(), synth.hole_center(0), synth.image(), (2, 18)
+    )
+    assert best == 18 and set(placed) == {18}
+
+
+def test_hole_count_detection_needs_a_valid_click():
+    synth = SyntheticTable()
+    with pytest.raises(g.BarnesGeometryError):
+        g.detect_hole_count(synth.table_ellipse(), (1.0, 1.0), synth.image())
+
+
+def test_the_candidate_counts_are_the_labs_tables():
+    assert g.HOLE_COUNT_CANDIDATES == (18, 20)
+
+
+@pytest.mark.parametrize(
+    ("center", "fits"),
+    [
+        ((320.0, 240.0), True),
+        ((320.0, 205.0), True),  # touches the top edge, within the 5 % margin
+        ((320.0, 150.0), False),
+        ((560.0, 240.0), False),
+        ((80.0, 240.0), False),
+        ((320.0, 330.0), False),
+    ],
+)
+def test_a_table_must_sit_inside_the_frame(center, fits):
+    table = BarnesEllipse(center_px=center, semi_axes_px=(200.0, 220.0), angle_deg=0.0)
+    assert g.table_fits_frame(table, (480, 640)) is fits

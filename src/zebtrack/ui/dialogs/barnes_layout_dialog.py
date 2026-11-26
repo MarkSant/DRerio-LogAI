@@ -72,6 +72,9 @@ Runner = Callable[[Callable[[], Any], Callable[[Any], None]], None]
 MAX_CANVAS_WIDTH = 900
 MAX_CANVAS_HEIGHT = 620
 MAX_UPSCALE = 2.0
+#: Hole counts the spinbox accepts.
+MIN_HOLES = 5
+MAX_HOLES = 99
 #: How often the Tk thread looks for a worker's result (ms).
 RESULT_POLL_MS = 50
 #: A press closer than this (video px, at least) to a hole centre grabs the hole.
@@ -152,11 +155,22 @@ class OtherVideosChoice:
     trial_type: str | None
 
 
+#: Outcomes of a copy to another video.
+_OTHER_OK = "ok"
+_OTHER_REVIEW = "review"
+_OTHER_UNREADABLE = "unreadable"
+_OTHER_FRAMING = "framing"
+
+
 @dataclass
 class _QueueState:
     paths: list[str] = field(default_factory=list)
     trial_type: str | None = None
     total: int = 0
+
+
+def _names(paths: Sequence[str]) -> str:
+    return ", ".join(Path(p).name for p in paths)
 
 
 def _gray_to_image(gray: np.ndarray) -> Image.Image:
@@ -203,10 +217,23 @@ class BarnesLayoutDialog(tk.Toplevel):
         self._photo: ImageTk.PhotoImage | None = None
         self._scale = 1.0
         self.applied_paths: list[str] = []
+        #: Hole count of the layout on screen (detected, or the user's override).
+        self._n_holes = self._params.n_holes
+        self._detected_n: int | None = None
+        self._count_overridden = False
+        #: Shown under the instructions when snapping had to use a single frame.
+        self._background_note: str | None = None
+        #: Background size of the first video; other videos must match it to
+        #: reuse this table.
+        self._reference_shape: tuple[int, ...] | None = None
 
         self.trial_type_var = tk.StringVar(
             value=inputs.trial_type or self._params.default_trial_type.value
         )
+        cached = inputs.cached_layout
+        if cached is not None:
+            self._n_holes = cached.n_holes
+        self.n_holes_var = tk.StringVar(value=str(self._n_holes))
 
         self.title(_("Barnes assistant"))
         self.transient(parent.winfo_toplevel())
@@ -215,8 +242,7 @@ class BarnesLayoutDialog(tk.Toplevel):
         self._build()
         self._show_frame(self._frame)
 
-        cached = inputs.cached_layout
-        if cached is not None and cached.n_holes == self._params.n_holes:
+        if cached is not None:
             self._table = cached.table
             self._model = geometry.ring_model_of_layout(cached)
             self._layout = cached
@@ -291,6 +317,22 @@ class BarnesLayoutDialog(tk.Toplevel):
             adjust_box, text=_("Undo hole drags"), command=self.reset_adjustments
         )
         self.reset_button.pack(fill="x", pady=(4, 2))
+        count_row = ttk.Frame(adjust_box)
+        count_row.pack(fill="x", pady=(4, 0))
+        ttk.Label(count_row, text=_("Holes:")).pack(side="left")
+        self.n_holes_spinbox = ttk.Spinbox(
+            count_row,
+            from_=MIN_HOLES,
+            to=MAX_HOLES,
+            width=4,
+            textvariable=self.n_holes_var,
+            command=self.on_hole_count_changed,
+        )
+        self.n_holes_spinbox.pack(side="left", padx=4)
+        self.n_holes_spinbox.bind("<Return>", lambda _e: self.on_hole_count_changed())
+        self.n_holes_spinbox.bind("<FocusOut>", lambda _e: self.on_hole_count_changed())
+        self.count_label = ttk.Label(count_row, text="", foreground="gray")
+        self.count_label.pack(side="left")
         self.quality_label = ttk.Label(adjust_box, text="", wraplength=260, justify="left")
         self.quality_label.pack(fill="x", pady=(4, 0))
         self.warning_label = ttk.Label(
@@ -356,6 +398,12 @@ class BarnesLayoutDialog(tk.Toplevel):
         self.canvas.delete("all")
         self.canvas.create_image(0, 0, image=self._photo, anchor="nw", tags=("frame",))
 
+    def _layout_params(self) -> BarnesParams:
+        """The project's Barnes params with the hole count on screen."""
+        if self._n_holes == self._params.n_holes:
+            return self._params
+        return self._params.model_copy(update={"n_holes": self._n_holes})
+
     def _canvas_to_video(self, canvas_x: float, canvas_y: float) -> Point:
         """Canvas → raw frame pixels (the frame is drawn at the origin, uniformly scaled)."""
         return (float(canvas_x) / self._scale, float(canvas_y) / self._scale)
@@ -385,13 +433,13 @@ class BarnesLayoutDialog(tk.Toplevel):
         if layout is None:
             return
         try:
-            _arena, rois = geometry.build_barnes_rois(layout, self._params)
+            _arena, rois = geometry.build_barnes_rois(layout, self._layout_params())
         except geometry.BarnesGeometryError:
             rois = []
         quadrant = dict(rois).get(QUADRANT_ROI)
         if quadrant:
             self._draw_polygon(quadrant, _QUADRANT_COLOR, dash=(4, 3))
-        radii = geometry.hole_roi_radii(layout, self._params)
+        radii = geometry.hole_roi_radii(layout, self._layout_params())
         for hole in layout.holes:
             k = (hole.abs_index - layout.target_abs_index) % layout.n_holes
             if self._drag_k == k and self._drag_point is not None:
@@ -451,7 +499,16 @@ class BarnesLayoutDialog(tk.Toplevel):
     def _set_enabled(widget: ttk.Widget, enabled: bool) -> None:
         widget.state(["!disabled"] if enabled else ["disabled"])
 
+    def _refresh_count_label(self) -> None:
+        parts: list[str] = []
+        if self._detected_n is not None:
+            parts.append(_("detected: {n}").format(n=self._detected_n))
+        if self._n_holes != self._params.n_holes:
+            parts.append(_("project: {n}").format(n=self._params.n_holes))
+        self.count_label.configure(text=" · ".join(parts))
+
     def _refresh_quality(self) -> None:
+        self._refresh_count_label()
         layout = self._layout
         if layout is None:
             self.quality_label.configure(text="")
@@ -500,6 +557,8 @@ class BarnesLayoutDialog(tk.Toplevel):
                 "Drag a hole to move it; “◀ 1 hole” / “1 hole ▶” move the escape hole. "
                 "Red = escape hole, green = snapped, orange = not found, blue = moved."
             )
+        if self._background_note:
+            text = text + "\n" + self._background_note
         if self._queue.total:
             done = self._queue.total - len(self._queue.paths)
             text = (
@@ -569,10 +628,16 @@ class BarnesLayoutDialog(tk.Toplevel):
         if background is None:
             log.warning("barnes_layout_dialog.background_unavailable", video=self.video_path)
             background = np.asarray(self._frame.convert("L"))
+            self._background_note = _(
+                "The video's frames could not be read: holes are snapped on this single "
+                "frame, where the rat or the experimenter may hide one."
+            )
         self._set_background(background)
 
     def _set_background(self, background: np.ndarray) -> None:
         self._background = background
+        if self._reference_shape is None:
+            self._reference_shape = tuple(background.shape[:2])
         # Only a layout placed from a click BEFORE the background was ready is
         # re-placed: a cached layout keeps the holes the user dragged last time.
         if self._click is not None and not self._manual and self._table is not None:
@@ -626,6 +691,14 @@ class BarnesLayoutDialog(tk.Toplevel):
             self._refresh_status(_("The detected outline is not usable: click the rim instead."))
             return
         self.set_table(table)
+        self._refresh_status(
+            _(
+                "Table detected. The detection also saved this outline as the video's arena; "
+                "Apply replaces it with the table ellipse. Now click the centre of the escape hole."
+            )
+            if self._layout is None
+            else None
+        )
 
     def start_rim(self) -> None:
         """Step 1 (manual): collect rim clicks."""
@@ -680,14 +753,24 @@ class BarnesLayoutDialog(tk.Toplevel):
         if self._table is None:
             return
         try:
-            layout, model = geometry.layout_from_click(
-                self._table, click, self._params.n_holes, self._background
-            )
+            if self._background is not None and not self._count_overridden:
+                candidates = sorted({*geometry.HOLE_COUNT_CANDIDATES, self._params.n_holes})
+                best, placed = geometry.detect_hole_count(
+                    self._table, click, self._background, candidates
+                )
+                self._detected_n = best
+                self._n_holes = best
+                layout, model = placed[best]
+            else:
+                layout, model = geometry.layout_from_click(
+                    self._table, click, self._n_holes, self._background
+                )
         except geometry.BarnesGeometryError as exc:
             log.info("barnes_layout_dialog.click_refused", error=str(exc))
             self._refresh()
             self._refresh_status(str(exc))
             return
+        self.n_holes_var.set(str(self._n_holes))
         self._click = click
         self._layout = layout
         self._model = model
@@ -703,6 +786,31 @@ class BarnesLayoutDialog(tk.Toplevel):
             )
         except geometry.BarnesGeometryError as exc:
             log.warning("barnes_layout_dialog.relayout_failed", error=str(exc))
+            self._refresh()
+            self._refresh_status(_("The holes could not be placed: {error}").format(error=exc))
+            return
+        self._refresh()
+
+    def on_hole_count_changed(self) -> None:
+        """The user typed or spun a hole count: place the ring again with it."""
+        try:
+            count = int(self.n_holes_var.get())
+        except (TypeError, ValueError):
+            count = -1
+        if not MIN_HOLES <= count <= MAX_HOLES:
+            self.n_holes_var.set(str(self._n_holes))
+            return
+        if count == self._n_holes and self._count_overridden:
+            return
+        self._n_holes = count
+        self._count_overridden = True
+        self._manual = {}
+        click = self._click
+        if click is None and self._layout is not None:
+            click = self._layout.target.center_px
+        if click is not None and self._table is not None:
+            self._place_from_click(click)
+            return
         self._refresh()
 
     def rotate(self, holes: int) -> None:
@@ -774,15 +882,23 @@ class BarnesLayoutDialog(tk.Toplevel):
     # ------------------------------------------------------------------
 
     def _payload_for(
-        self, video_path: Path | str, layout: BarnesLayout, trial_type: str | None
+        self,
+        video_path: Path | str,
+        layout: BarnesLayout,
+        trial_type: str | None,
+        project_n_holes: int | None = None,
+        on_result: Callable[[bool], None] | None = None,
     ) -> BarnesLayoutApplyPayload:
-        arena, rois = geometry.build_barnes_rois(layout, self._params)
+        params = self._params.model_copy(update={"n_holes": layout.n_holes})
+        arena, rois = geometry.build_barnes_rois(layout, params)
         return BarnesLayoutApplyPayload(
             video_path=os.fspath(video_path),
             arena_polygon=tuple(arena),
             rois=tuple((name, tuple(points)) for name, points in rois),
             layout_metadata=layout.to_metadata(),
             trial_type=trial_type,
+            project_n_holes=project_n_holes,
+            on_result=on_result,
         )
 
     def _current_trial_type(self) -> str | None:
@@ -790,30 +906,92 @@ class BarnesLayoutDialog(tk.Toplevel):
             return self._queue.trial_type or self.trial_type_var.get()
         return self.trial_type_var.get() if self._inputs.trial_type_editable else None
 
-    def apply_layout(self) -> None:
-        """Step 6: write this video's zones (then go to the next queued video)."""
-        layout = self._layout
-        if layout is None or self._busy:
-            return
+    def _write(
+        self,
+        video_path: Path | str,
+        layout: BarnesLayout,
+        trial_type: str | None,
+        project_n_holes: int | None = None,
+    ) -> bool:
+        """Publish one video's write and return its REAL outcome.
+
+        ``MultiAquariumCoordinator`` answers through ``on_result``; no answer
+        (nobody subscribed, or the handler died inside the bus) is a failure.
+
+        Raises:
+            BarnesGeometryError: the ROIs cannot be built from ``layout``.
+        """
+        outcome: list[bool] = []
+        payload = self._payload_for(
+            video_path, layout, trial_type, project_n_holes, on_result=outcome.append
+        )
+        self._event_bus.publish(UIEvents.ZONE_BARNES_LAYOUT_APPLY, payload)
+        written = bool(outcome) and outcome[-1]
+        if written:
+            self.applied_paths.append(os.fspath(video_path))
+            if project_n_holes is not None:
+                self._params = self._params.model_copy(update={"n_holes": project_n_holes})
+        log.info(
+            "barnes_layout_dialog.write",
+            video=Path(video_path).name,
+            written=written,
+            answered=bool(outcome),
+            n_holes=layout.n_holes,
+            project_n_holes=project_n_holes,
+        )
+        return written
+
+    def _confirm_layout(self, layout: BarnesLayout) -> tuple[bool, int | None]:
+        """Ask what must be asked before writing ``layout``.
+
+        Returns:
+            ``(proceed, project_n_holes)``: ``project_n_holes`` is the count to
+            write into the project when the user accepted changing it.
+        """
         if geometry.layout_quality(layout).suspicious and not messagebox.askyesno(
             _("Barnes assistant"),
             _("Some holes were not found or look misplaced. Apply this layout anyway?"),
             parent=self,
         ):
-            return
+            return False, None
+        if layout.n_holes == self._params.n_holes:
+            return True, None
+        if messagebox.askyesno(
+            _("Barnes assistant"),
+            _(
+                "This table has {found} holes but the project is set to {expected}. "
+                "Change the project's hole count to {found}? Every video of the project "
+                "must use the same count: it fixes the report's columns."
+            ).format(found=layout.n_holes, expected=self._params.n_holes),
+            parent=self,
+        ):
+            return True, layout.n_holes
+        return False, None
+
+    def _write_current(self, layout: BarnesLayout, project_n_holes: int | None) -> bool:
         try:
-            payload = self._payload_for(self.video_path, layout, self._current_trial_type())
+            written = self._write(
+                self.video_path, layout, self._current_trial_type(), project_n_holes
+            )
         except geometry.BarnesGeometryError as exc:
-            messagebox.showerror(_("Barnes assistant"), str(exc), parent=self)
+            self._refresh_status(str(exc))
+            return False
+        if not written:
+            self._refresh_status(
+                _("The Barnes zones could not be saved for {video}; nothing was changed.").format(
+                    video=Path(self.video_path).name
+                )
+            )
+        return written
+
+    def apply_layout(self) -> None:
+        """Step 6: write this video's zones (then go to the next queued video)."""
+        layout = self._layout
+        if layout is None or self._busy:
             return
-        self._event_bus.publish(UIEvents.ZONE_BARNES_LAYOUT_APPLY, payload)
-        self.applied_paths.append(self.video_path)
-        log.info(
-            "barnes_layout_dialog.applied",
-            video=Path(self.video_path).name,
-            trial_type=payload.trial_type,
-            source=layout.source,
-        )
+        proceed, project_n_holes = self._confirm_layout(layout)
+        if not proceed or not self._write_current(layout, project_n_holes):
+            return
         if self._queue.paths:
             self._next_queued_video()
             return
@@ -837,43 +1015,63 @@ class BarnesLayoutDialog(tk.Toplevel):
         return dialog.result
 
     def apply_to_other_videos(self) -> None:
-        """Copy this layout to other videos (re-snapped) or ask for each escape hole."""
-        if self._layout is None or self._model is None or self._table is None or self._busy:
+        """Write this video AND the chosen others in one action.
+
+        Same escape hole: the layout is copied and re-snapped on each video; a
+        video framed differently, or whose copy looks wrong, is never written
+        silently -- it joins a per-video review where its escape hole is clicked.
+        Different escape hole: every chosen video is shown in turn.
+        """
+        layout = self._layout
+        if layout is None or self._model is None or self._table is None or self._busy:
             return
         choice = self.choose_other_videos()
         if choice is None or not choice.paths:
             return
+        proceed, project_n_holes = self._confirm_layout(layout)
+        if not proceed or not self._write_current(layout, project_n_holes):
+            return
         if choice.same_escape_hole:
             self._apply_same_escape_hole(choice)
         else:
-            self._queue = _QueueState(
-                paths=list(choice.paths), trial_type=choice.trial_type, total=len(choice.paths)
-            )
-            self._next_queued_video()
+            self._start_queue(list(choice.paths), choice.trial_type)
+
+    def _start_queue(self, paths: list[str], trial_type: str | None) -> None:
+        self._queue = _QueueState(paths=paths, trial_type=trial_type, total=len(paths))
+        self._next_queued_video()
 
     def _apply_same_escape_hole(self, choice: OtherVideosChoice) -> None:
         table = self._table
         model = self._model
+        reference = self._reference_shape
         if table is None or model is None:
             return
         loader = self._load_background
-        params = self._params
+        params = self._layout_params()
 
-        def work() -> list[tuple[str, BarnesLayout | None]]:
-            results: list[tuple[str, BarnesLayout | None]] = []
+        def work() -> list[tuple[str, BarnesLayout | None, str]]:
+            results: list[tuple[str, BarnesLayout | None, str]] = []
             for path in choice.paths:
                 background = loader(path)
                 if background is None:
-                    results.append((path, None))
+                    results.append((path, None, _OTHER_UNREADABLE))
+                    continue
+                if (
+                    reference is not None and tuple(background.shape[:2]) != reference
+                ) or not geometry.table_fits_frame(table, background.shape[:2]):
+                    results.append((path, None, _OTHER_FRAMING))
                     continue
                 refined, snaps = geometry.snap_layout(background, model, table)
                 layout = geometry.assemble_layout(table, refined, snaps)
                 try:
                     geometry.build_barnes_rois(layout, params)
                 except geometry.BarnesGeometryError:
-                    results.append((path, None))
+                    results.append((path, None, _OTHER_REVIEW))
                     continue
-                results.append((path, layout))
+                if geometry.layout_quality(layout).suspicious:
+                    results.append((path, None, _OTHER_REVIEW))
+                    continue
+                results.append((path, layout, _OTHER_OK))
             return results
 
         self._busy = True
@@ -881,43 +1079,64 @@ class BarnesLayoutDialog(tk.Toplevel):
         self._run_async(work, lambda results: self._on_others_ready(choice, results))
 
     def _on_others_ready(
-        self, choice: OtherVideosChoice, results: list[tuple[str, BarnesLayout | None]] | None
+        self,
+        choice: OtherVideosChoice,
+        results: list[tuple[str, BarnesLayout | None, str]] | None,
     ) -> None:
         self._busy = False
+        if results is None:
+            results = [(path, None, _OTHER_UNREADABLE) for path in choice.paths]
         written: list[str] = []
-        failed: list[str] = list(choice.paths) if results is None else []
-        suspicious: list[str] = []
-        for path, layout in results or []:
-            if layout is None:
-                failed.append(path)
-                continue
-            if geometry.layout_quality(layout).suspicious:
-                suspicious.append(path)
-            self._event_bus.publish(
-                UIEvents.ZONE_BARNES_LAYOUT_APPLY,
-                self._payload_for(path, layout, choice.trial_type),
-            )
-            written.append(path)
-        self.applied_paths.extend(written)
+        review: list[str] = []
+        unreadable: list[str] = []
+        framing: list[str] = []
+        not_saved: list[str] = []
+        for path, layout, status in results:
+            if status == _OTHER_UNREADABLE:
+                unreadable.append(path)
+            elif status == _OTHER_FRAMING:
+                framing.append(path)
+            elif status == _OTHER_REVIEW or layout is None:
+                review.append(path)
+            elif self._write(path, layout, choice.trial_type):
+                written.append(path)
+            else:
+                not_saved.append(path)
         log.info(
             "barnes_layout_dialog.others_applied",
             written=len(written),
-            failed=len(failed),
-            suspicious=len(suspicious),
+            review=len(review),
+            unreadable=len(unreadable),
+            framing=len(framing),
+            not_saved=len(not_saved),
         )
-        lines = [_("Layout applied to {count} video(s).").format(count=len(written))]
-        if suspicious:
+        lines = [
+            _("Layout applied to {count} video(s), this one included.").format(
+                count=len(written) + 1
+            )
+        ]
+        if review:
             lines.append(
-                _("Check these, some holes were not found: {names}").format(
-                    names=", ".join(Path(p).name for p in suspicious)
+                _(
+                    "Some holes were not found on these; you will click their escape hole "
+                    "one by one: {names}"
+                ).format(names=_names(review))
+            )
+        if framing:
+            lines.append(
+                _("Framed differently, not written (open them on their own): {names}").format(
+                    names=_names(framing)
                 )
             )
-        if failed:
-            lines.append(
-                _("Could not read: {names}").format(names=", ".join(Path(p).name for p in failed))
-            )
+        if unreadable:
+            lines.append(_("Could not read: {names}").format(names=_names(unreadable)))
+        if not_saved:
+            lines.append(_("Could not be saved: {names}").format(names=_names(not_saved)))
         messagebox.showinfo(_("Barnes assistant"), "\n".join(lines), parent=self)
-        self._refresh()
+        if review:
+            self._start_queue(review, choice.trial_type)
+            return
+        self.destroy()
 
     def _next_queued_video(self) -> None:
         path = self._queue.paths.pop(0)
@@ -936,6 +1155,8 @@ class BarnesLayoutDialog(tk.Toplevel):
 
     def _on_queued_background(self, background: np.ndarray | None) -> None:
         self._busy = False
+        self._detected_n = None
+        self._count_overridden = False
         if background is None:
             messagebox.showwarning(
                 _("Barnes assistant"),
@@ -949,6 +1170,22 @@ class BarnesLayoutDialog(tk.Toplevel):
             return
         self._show_frame(_gray_to_image(background))
         self._background = background
+        reference = self._reference_shape
+        if (
+            (reference is not None and tuple(background.shape[:2]) != reference)
+            or self._table is None
+            or not geometry.table_fits_frame(self._table, background.shape[:2])
+        ):
+            self._table = None
+            self.mode = AssistantMode.RIM
+            self._refresh()
+            self._refresh_status(
+                _(
+                    "This video is framed differently: define its table again "
+                    "(detect it or click the rim)."
+                )
+            )
+            return
         self._refresh()
 
 

@@ -13,6 +13,7 @@ from zebtrack.core.services.experiment_profile import (
     ProtocolId,
     forced_animal_model,
     resolve_experiment_profile,
+    set_protocol_param,
 )
 
 
@@ -223,3 +224,60 @@ def test_the_profile_is_immutable():
 
     with pytest.raises(AttributeError):
         profile.protocol = ProtocolId.BARNES  # type: ignore[misc]
+
+
+class TestSetProtocolParam:
+    def test_it_writes_where_the_resolver_reads(self):
+        project = {"behavioral_config": {"protocol": "barnes"}}
+        set_protocol_param(project, ProtocolId.BARNES, "n_holes", 18)
+
+        assert project["behavioral_config"]["protocol_params"] == {"barnes": {"n_holes": 18}}
+        assert resolve_experiment_profile(project).protocol_params == {"n_holes": 18}
+
+    def test_other_params_and_protocols_are_kept(self):
+        project = {
+            "behavioral_config": {
+                "protocol": "barnes",
+                "protocol_params": {"barnes": {"n_holes": 20, "max_trial_s": 120.0}, "x": {}},
+            }
+        }
+        set_protocol_param(project, ProtocolId.BARNES, "n_holes", 18)
+
+        params = project["behavioral_config"]["protocol_params"]
+        assert params == {"barnes": {"n_holes": 18, "max_trial_s": 120.0}, "x": {}}
+
+    def test_a_legacy_project_is_written_in_its_legacy_block(self):
+        project = {"behavioral_analysis": {"protocol": "barnes"}}
+        set_protocol_param(project, ProtocolId.BARNES, "n_holes", 18)
+
+        assert "behavioral_config" not in project
+        assert resolve_experiment_profile(project).protocol_params == {"n_holes": 18}
+
+    def test_behavioral_config_wins_over_the_legacy_block(self):
+        project = {"behavioral_config": {"protocol": "barnes"}, "behavioral_analysis": {}}
+        set_protocol_param(project, ProtocolId.BARNES, "n_holes", 18)
+
+        assert project["behavioral_analysis"] == {}
+        assert resolve_experiment_profile(project).protocol_params == {"n_holes": 18}
+
+    def test_a_project_without_blocks_gets_a_behavioral_config(self):
+        project: dict = {}
+        set_protocol_param(project, ProtocolId.BARNES, "n_holes", 18)
+        assert project == {"behavioral_config": {"protocol_params": {"barnes": {"n_holes": 18}}}}
+
+    @pytest.mark.parametrize(
+        "block",
+        [
+            "not a dict",
+            {"protocol_params": "not a dict"},
+            {"protocol_params": {"barnes": ["not", "a", "dict"]}},
+        ],
+    )
+    def test_malformed_blocks_are_replaced(self, block):
+        project = {"behavioral_config": block}
+        set_protocol_param(project, ProtocolId.BARNES, "n_holes", 18)
+        assert project["behavioral_config"]["protocol_params"]["barnes"] == {"n_holes": 18}
+
+    def test_the_generic_protocol_has_no_parameters(self):
+        with pytest.raises(ValueError):
+            set_protocol_param({}, ProtocolId.GENERIC, "n_holes", 18)

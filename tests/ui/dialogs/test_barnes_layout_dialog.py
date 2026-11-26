@@ -69,6 +69,20 @@ def boxes(monkeypatch):
     return state
 
 
+class AnsweringBus:
+    """The bus as the coordinator answers it: ``on_result(answer)`` for every write."""
+
+    def __init__(self, answer: bool = True) -> None:
+        self.answer = answer
+        self.events: list[tuple[Any, Any]] = []
+
+    def publish(self, event, payload=None) -> None:
+        self.events.append((event, payload))
+        on_result = getattr(payload, "on_result", None)
+        if callable(on_result):
+            on_result(self.answer)
+
+
 def _build(
     root,
     synth: SyntheticTable | None = None,
@@ -85,15 +99,16 @@ def _build(
     fields: dict[str, Any] = {
         "video_path": VIDEO,
         "frame": Image.fromarray(image).convert("RGB"),
-        "params": BarnesParams(),
+        "params": BarnesParams(n_holes=20),
         "background_source": VIDEO,
         "initial_table": synth.table_ellipse() if table else None,
         "can_detect_table": detect is not None,
     }
     fields.update(overrides)
+    event_bus: Any = bus if bus is not None else AnsweringBus()
     return BarnesLayoutDialog(
         root,
-        bus or MagicMock(),
+        event_bus,
         BarnesAssistantInputs(**fields),
         detect_table=detect,
         load_background=loader or (lambda _path: image),
@@ -102,11 +117,11 @@ def _build(
 
 
 def _published(bus) -> list[BarnesLayoutApplyPayload]:
-    return [
-        call.args[1]
-        for call in bus.publish.call_args_list
-        if call.args[0] is UIEvents.ZONE_BARNES_LAYOUT_APPLY
-    ]
+    if isinstance(bus, AnsweringBus):
+        pairs = bus.events
+    else:
+        pairs = [(call.args[0], call.args[1]) for call in bus.publish.call_args_list]
+    return [payload for event, payload in pairs if event is UIEvents.ZONE_BARNES_LAYOUT_APPLY]
 
 
 def _layout_of(dialog: BarnesLayoutDialog) -> BarnesLayout:
@@ -163,7 +178,9 @@ class TestOpening:
         assert dialog._canvas_to_video(100 * scale, 50 * scale) == pytest.approx((100.0, 50.0))
 
     def test_the_default_trial_type_is_the_projects(self, tkinter_root):
-        dialog = _build(tkinter_root, params=BarnesParams(default_trial_type=TrialType.PROBE))
+        dialog = _build(
+            tkinter_root, params=BarnesParams(n_holes=20, default_trial_type=TrialType.PROBE)
+        )
         assert dialog.trial_type_var.get() == "probe"
 
     def test_the_videos_trial_type_wins(self, tkinter_root):
@@ -192,12 +209,14 @@ class TestOpening:
         assert dialog._layout == hand_edited  # the background did not re-snap it
         assert _enabled(dialog.apply_button)
 
-    def test_a_cached_layout_for_another_hole_count_is_ignored(self, tkinter_root):
+    def test_a_cached_layout_keeps_its_own_hole_count(self, tkinter_root):
         synth = SyntheticTable(n_holes=18)
         cached, _ = geometry.layout_from_click(synth.table_ellipse(), synth.hole_center(0), 18)
         dialog = _build(tkinter_root, synth, cached_layout=cached)
-        assert dialog.mode is AssistantMode.TARGET
-        assert dialog._layout is None
+        assert dialog.mode is AssistantMode.ADJUST
+        assert dialog._layout == cached
+        assert dialog.n_holes_var.get() == "18"
+        assert dialog.count_label.cget("text") == "project: 20"
 
 
 class TestTable:
@@ -259,6 +278,7 @@ class TestTable:
         assert calls == [VIDEO]
         assert dialog.mode is AssistantMode.TARGET
         assert _table_of(dialog).center_px == pytest.approx((320.0, 240.0))
+        assert "saved this outline as the video's arena" in dialog.status_label.cget("text")
 
     @pytest.mark.parametrize(
         ("result", "message"),
@@ -423,7 +443,7 @@ class TestAdjust:
 class TestApply:
     def test_apply_publishes_the_contract_rois_and_closes(self, tkinter_root, boxes):
         synth = SyntheticTable()
-        bus = MagicMock()
+        bus = AnsweringBus()
         dialog = _build(tkinter_root, synth, bus=bus)
         dialog.handle_click(*synth.hole_center(6))
         dialog.trial_type_var.set("probe")
@@ -443,7 +463,7 @@ class TestApply:
 
     def test_a_frame_without_a_video_entry_sends_no_trial_type(self, tkinter_root, boxes):
         synth = SyntheticTable()
-        bus = MagicMock()
+        bus = AnsweringBus()
         dialog = _build(tkinter_root, synth, bus=bus, trial_type_editable=False)
         assert not _enabled(dialog.training_radio)
         dialog.handle_click(*synth.hole_center(0))
@@ -453,7 +473,7 @@ class TestApply:
     @pytest.mark.parametrize("answer", [True, False])
     def test_a_suspicious_layout_asks_first(self, tkinter_root, boxes, answer):
         synth = SyntheticTable(missing=(2,))
-        bus = MagicMock()
+        bus = AnsweringBus()
         boxes.answer = answer
         dialog = _build(tkinter_root, synth, bus=bus)
         dialog.handle_click(*synth.hole_center(0))
@@ -475,7 +495,23 @@ class TestApply:
         dialog.apply_layout()
 
         assert _published(bus) == []
-        assert boxes.calls["showerror"]
+        assert "overlap" in dialog.status_label.cget("text")
+        assert dialog.winfo_exists()
+
+    @pytest.mark.parametrize(
+        "bus", [AnsweringBus(answer=False), MagicMock()], ids=["refused", "unanswered"]
+    )
+    def test_a_write_that_did_not_happen_keeps_the_dialog_open(self, tkinter_root, boxes, bus):
+        synth = SyntheticTable()
+        dialog = _build(tkinter_root, synth, bus=bus)
+        dialog.handle_click(*synth.hole_center(0))
+
+        dialog.apply_layout()
+
+        assert len(_published(bus)) == 1
+        assert dialog.winfo_exists()
+        assert dialog.applied_paths == []
+        assert "could not be saved" in dialog.status_label.cget("text")
 
     def test_cancel_writes_nothing(self, tkinter_root):
         bus = MagicMock()
@@ -494,7 +530,7 @@ class TestOtherVideos:
         here = SyntheticTable()
         shifted = SyntheticTable(center=(324.0, 238.0))  # the camera moved a little
         backgrounds = {VIDEO: here.image(), self.OTHERS[0].path: shifted.image()}
-        bus = MagicMock()
+        bus = AnsweringBus()
         dialog = _build(
             tkinter_root,
             here,
@@ -510,20 +546,22 @@ class TestOtherVideos:
 
         dialog.apply_to_other_videos()
 
-        (payload,) = _published(bus)
+        current, payload = _published(bus)
+        assert current.video_path == VIDEO  # one Apply writes this video too
         assert payload.video_path == self.OTHERS[0].path
         assert payload.trial_type == "training"
         layout = _loaded(payload.layout_metadata)
         assert _distance(layout.target.center_px, shifted.hole_center(0)) < 1.0
         assert all(hole.snapped for hole in layout.holes)
         summary = boxes.calls["showinfo"][0][1]
-        assert "1 video(s)" in summary and "b.mp4" in summary
-        assert dialog.winfo_exists()
+        assert "2 video(s)" in summary and "Could not read: b.mp4" in summary
+        assert dialog.applied_paths == [VIDEO, self.OTHERS[0].path]
+        assert not dialog.winfo_exists()
 
     def test_suspicious_copies_are_named(self, tkinter_root, boxes):
         here = SyntheticTable()
         holey = SyntheticTable(missing=(3,))
-        bus = MagicMock()
+        bus = AnsweringBus()
         dialog = _build(
             tkinter_root,
             here,
@@ -538,8 +576,12 @@ class TestOtherVideos:
 
         dialog.apply_to_other_videos()
 
-        assert _published(bus)[0].trial_type is None
+        (current,) = _published(bus)  # the doubtful copy is NOT written
+        assert current.video_path == VIDEO
         assert "trial.mp4" in boxes.calls["showinfo"][0][1].split("\n")[1]
+        assert dialog.video_path == self.OTHERS[0].path  # reviewed by hand instead
+        assert dialog.mode is AssistantMode.TARGET
+        assert "Video 1 of 1" in dialog.status_label.cget("text")
 
     def test_a_cancelled_choice_does_nothing(self, tkinter_root, boxes):
         synth = SyntheticTable()
@@ -559,7 +601,7 @@ class TestOtherVideos:
             self.OTHERS[0].path: second.image(),
             self.OTHERS[1].path: third.image(),
         }
-        bus = MagicMock()
+        bus = AnsweringBus()
         dialog = _build(
             tkinter_root,
             here,
@@ -584,7 +626,8 @@ class TestOtherVideos:
         dialog.handle_click(*third.hole_center(11))
         dialog.apply_layout()
 
-        first, last = _published(bus)
+        current, first, last = _published(bus)
+        assert current.video_path == VIDEO
         assert first.video_path == self.OTHERS[0].path and last.video_path == self.OTHERS[1].path
         assert {first.trial_type, last.trial_type} == {"probe"}
         assert (
@@ -598,7 +641,7 @@ class TestOtherVideos:
 
     def test_an_unreadable_queued_video_is_skipped(self, tkinter_root, boxes):
         here = SyntheticTable()
-        bus = MagicMock()
+        bus = AnsweringBus()
         dialog = _build(
             tkinter_root,
             here,
@@ -615,6 +658,91 @@ class TestOtherVideos:
 
         assert boxes.calls["warn"]
         assert dialog.video_path == self.OTHERS[1].path
+
+    def test_a_differently_framed_copy_is_not_written(self, tkinter_root, boxes):
+        here = SyntheticTable()
+        small = np.full((240, 320), 200, dtype=np.uint8)
+        bus = AnsweringBus()
+        dialog = _build(
+            tkinter_root,
+            here,
+            bus=bus,
+            loader=lambda path: here.image() if path == VIDEO else small,
+            other_videos=self.OTHERS[:1],
+        )
+        dialog.handle_click(*here.hole_center(0))
+        dialog.choose_other_videos = lambda: OtherVideosChoice(  # type: ignore[method-assign]
+            paths=(self.OTHERS[0].path,), same_escape_hole=True, trial_type=None
+        )
+
+        dialog.apply_to_other_videos()
+
+        assert [p.video_path for p in _published(bus)] == [VIDEO]
+        assert "Framed differently" in boxes.calls["showinfo"][0][1]
+
+    def test_a_table_outside_another_frame_is_not_reused(self, tkinter_root, boxes):
+        here = SyntheticTable()
+        moved = SyntheticTable(center=(320.0, 240.0))
+        bus = AnsweringBus()
+        dialog = _build(
+            tkinter_root,
+            here,
+            bus=bus,
+            loader=lambda path: here.image() if path == VIDEO else moved.image(),
+            other_videos=self.OTHERS[:1],
+            initial_table=geometry.BarnesEllipse(
+                center_px=(320.0, 240.0), semi_axes_px=(200.0, 170.0), angle_deg=0.0
+            ),
+        )
+        dialog._table = geometry.BarnesEllipse(
+            center_px=(620.0, 240.0), semi_axes_px=(200.0, 170.0), angle_deg=0.0
+        )
+        dialog._model = geometry.ring_from_click(dialog._table, (700.0, 240.0), 20)
+        dialog._layout = geometry.assemble_layout(dialog._table, dialog._model)
+        boxes.answer = True
+        dialog.choose_other_videos = lambda: OtherVideosChoice(  # type: ignore[method-assign]
+            paths=(self.OTHERS[0].path,), same_escape_hole=True, trial_type=None
+        )
+
+        dialog.apply_to_other_videos()
+
+        assert self.OTHERS[0].path not in [p.video_path for p in _published(bus)]
+        assert "Framed differently" in boxes.calls["showinfo"][0][1]
+
+    def test_a_queued_video_framed_differently_asks_for_its_table(self, tkinter_root, boxes):
+        here = SyntheticTable()
+        other = np.full((300, 400), 200, dtype=np.uint8)
+        dialog = _build(
+            tkinter_root,
+            here,
+            loader=lambda path: here.image() if path == VIDEO else other,
+            other_videos=self.OTHERS[:1],
+        )
+        dialog.handle_click(*here.hole_center(0))
+        dialog.choose_other_videos = lambda: OtherVideosChoice(  # type: ignore[method-assign]
+            paths=(self.OTHERS[0].path,), same_escape_hole=False, trial_type=None
+        )
+
+        dialog.apply_to_other_videos()
+
+        assert dialog.video_path == self.OTHERS[0].path
+        assert dialog.mode is AssistantMode.RIM
+        assert dialog._table is None
+        assert "framed differently" in dialog.status_label.cget("text")
+
+    def test_nothing_else_is_written_when_this_video_fails(self, tkinter_root, boxes):
+        here = SyntheticTable()
+        bus = AnsweringBus(answer=False)
+        dialog = _build(tkinter_root, here, bus=bus, other_videos=self.OTHERS)
+        dialog.handle_click(*here.hole_center(0))
+        dialog.choose_other_videos = lambda: OtherVideosChoice(  # type: ignore[method-assign]
+            paths=tuple(v.path for v in self.OTHERS), same_escape_hole=True, trial_type=None
+        )
+
+        dialog.apply_to_other_videos()
+
+        assert [p.video_path for p in _published(bus)] == [VIDEO]
+        assert boxes.calls["showinfo"] == []
 
     def test_the_last_unreadable_video_closes_the_dialog(self, tkinter_root, boxes):
         here = SyntheticTable()
@@ -668,3 +796,121 @@ def test_the_background_falls_back_to_the_frame_in_grayscale(tkinter_root):
     assert dialog._background is not None
     assert dialog._background.shape == (480, 640)
     assert np.abs(dialog._background.astype(int) - synth.image().astype(int)).max() <= 1
+
+
+class TestHoleCount:
+    @pytest.mark.parametrize(("table_holes", "project_holes"), [(18, 20), (20, 18)])
+    def test_the_count_is_detected_on_the_video(self, tkinter_root, table_holes, project_holes):
+        synth = SyntheticTable(n_holes=table_holes)
+        dialog = _build(tkinter_root, synth, params=BarnesParams(n_holes=project_holes))
+
+        dialog.handle_click(*synth.hole_center(0))
+
+        layout = _layout_of(dialog)
+        assert layout.n_holes == table_holes
+        assert all(hole.snapped for hole in layout.holes)
+        assert dialog.n_holes_var.get() == str(table_holes)
+        assert dialog.count_label.cget("text") == (
+            f"detected: {table_holes} · project: {project_holes}"
+        )
+
+    def test_a_matching_count_writes_no_project_change(self, tkinter_root, boxes):
+        synth = SyntheticTable(n_holes=18)
+        bus = AnsweringBus()
+        dialog = _build(tkinter_root, synth, bus=bus, params=BarnesParams(n_holes=18))
+        dialog.handle_click(*synth.hole_center(0))
+        assert dialog.count_label.cget("text") == "detected: 18"
+
+        dialog.apply_layout()
+
+        (payload,) = _published(bus)
+        assert payload.project_n_holes is None
+        assert [name for name, _p in payload.rois] == list(expected_roi_names(18))
+        assert boxes.calls["askyesno"] == []
+
+    def test_a_different_count_asks_before_changing_the_project(self, tkinter_root, boxes):
+        synth = SyntheticTable(n_holes=18)
+        bus = AnsweringBus()
+        dialog = _build(tkinter_root, synth, bus=bus, params=BarnesParams(n_holes=20))
+        dialog.handle_click(*synth.hole_center(0))
+
+        dialog.apply_layout()
+
+        (question,) = boxes.calls["askyesno"]
+        assert "18 holes" in question[1] and "set to 20" in question[1]
+        (payload,) = _published(bus)
+        assert payload.project_n_holes == 18
+        assert [name for name, _p in payload.rois] == list(expected_roi_names(18))
+        assert dialog._params.n_holes == 18
+
+    def test_refusing_the_project_change_writes_nothing(self, tkinter_root, boxes):
+        synth = SyntheticTable(n_holes=18)
+        bus = AnsweringBus()
+        boxes.answer = False
+        dialog = _build(tkinter_root, synth, bus=bus, params=BarnesParams(n_holes=20))
+        dialog.handle_click(*synth.hole_center(0))
+
+        dialog.apply_layout()
+
+        assert _published(bus) == []
+        assert dialog.winfo_exists()
+
+    def test_the_user_can_override_the_count(self, tkinter_root):
+        synth = SyntheticTable(n_holes=18)
+        dialog = _build(tkinter_root, synth, params=BarnesParams(n_holes=18))
+        dialog.handle_click(*synth.hole_center(0))
+
+        dialog.n_holes_var.set("20")
+        dialog.on_hole_count_changed()
+
+        assert _layout_of(dialog).n_holes == 20
+        assert dialog._count_overridden is True
+        assert _distance(_layout_of(dialog).target.center_px, synth.hole_center(0)) < 1.5
+        dialog.rotate(1)  # an override survives the next placement
+        assert _layout_of(dialog).n_holes == 20
+
+    @pytest.mark.parametrize("typed", ["abc", "2", "500"])
+    def test_an_invalid_count_is_put_back(self, tkinter_root, typed):
+        synth = SyntheticTable()
+        dialog = _build(tkinter_root, synth)
+        dialog.handle_click(*synth.hole_center(0))
+
+        dialog.n_holes_var.set(typed)
+        dialog.on_hole_count_changed()
+
+        assert dialog.n_holes_var.get() == "20"
+        assert _layout_of(dialog).n_holes == 20
+
+    def test_a_count_set_before_the_click_is_used(self, tkinter_root):
+        synth = SyntheticTable(n_holes=18)
+        dialog = _build(tkinter_root, synth, params=BarnesParams(n_holes=18))
+        dialog.n_holes_var.set("20")
+        dialog.on_hole_count_changed()
+        assert dialog._layout is None
+
+        dialog.handle_click(*synth.hole_center(0))
+
+        assert _layout_of(dialog).n_holes == 20
+
+
+class TestStatusNotes:
+    def test_a_single_frame_background_is_announced(self, tkinter_root):
+        dialog = _build(tkinter_root, loader=lambda _p: None)
+        assert "single frame" in dialog.status_label.cget("text")
+
+    def test_a_real_background_has_no_note(self, tkinter_root):
+        dialog = _build(tkinter_root)
+        assert "single frame" not in dialog.status_label.cget("text")
+
+    def test_a_relayout_failure_is_shown(self, tkinter_root, monkeypatch):
+        synth = SyntheticTable()
+        dialog = _build(tkinter_root, synth)
+        dialog.handle_click(*synth.hole_center(0))
+
+        def broken(*_args, **_kwargs):
+            raise geometry.BarnesGeometryError("ring lost")
+
+        monkeypatch.setattr(dialog_module.geometry, "relayout", broken)
+        dialog.rotate(1)
+
+        assert "could not be placed: ring lost" in dialog.status_label.cget("text")
