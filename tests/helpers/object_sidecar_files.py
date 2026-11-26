@@ -9,7 +9,7 @@ not a mock of the reader, or they would prove nothing about the file lookup.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable
 from pathlib import Path
 
 import pyarrow.parquet as pq
@@ -34,18 +34,19 @@ def heartbeat_sidecar_path(trajectory_path: str | Path) -> Path:
 
 def write_heartbeat_sidecar(
     trajectory_path: str | Path,
-    times: Sequence[float],
+    times: Iterable[float],
     *,
-    frames: Sequence[int] | None = None,
+    frames: Iterable[int] | None = None,
     clock: str = CLOCK_PTS,
 ) -> Path:
     """A heartbeat-only ``3c`` (one row per processed frame) beside the trajectory."""
-    frame_numbers = list(frames) if frames is not None else list(range(len(times)))
+    instants = [float(t) for t in times]
+    frame_numbers = list(frames) if frames is not None else list(range(len(instants)))
     rows = [
         {
             "frame": int(frame),
-            "timestamp": float(t),
-            "t_event_s": float(t),
+            "timestamp": t,
+            "t_event_s": t,
             "class_id": HEARTBEAT_CLASS_ID,
             "class_name": None,
             "role": HEARTBEAT_ROLE,
@@ -57,7 +58,7 @@ def write_heartbeat_sidecar(
             "track_id": None,
             "aquarium_id": None,
         }
-        for frame, t in zip(frame_numbers, times, strict=True)
+        for frame, t in zip(frame_numbers, instants, strict=True)
     ]
     metadata = ObjectSidecarMetadata(
         class_names={0: "rat"},

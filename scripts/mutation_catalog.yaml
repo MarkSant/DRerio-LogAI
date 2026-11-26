@@ -1762,8 +1762,8 @@ modules:
         replace: 'pass'
       - id: nominal-fps-kept
         description: "pos-analise usa o fps nominal da camera em vez do da gravacao"
-        find: 'df, fps, time_warnings = self._retime_live_trajectory(df, trajectory_file)'
-        replace: 'df, _fps, time_warnings = self._retime_live_trajectory(df, trajectory_file)'
+        find: 'df, fps, time_warnings, time_base = self._retime_live_trajectory('
+        replace: 'df, _fps, time_warnings, time_base = self._retime_live_trajectory('
   analysis_window_cut:
     source: src/zebtrack/analysis/behavior.py
     tests:
@@ -2192,6 +2192,7 @@ modules:
           smoothing_polyorder=smoothing_polyorder,
                       window=window,
                       behavioral_config=behavioral_config,
+                      time_base=time_base,
                   )
 
               def _resolve_analysis_window(
@@ -2199,6 +2200,7 @@ modules:
           smoothing_polyorder=smoothing_polyorder,
                       window=None,
                       behavioral_config=behavioral_config,
+                      time_base=time_base,
                   )
 
               def _resolve_analysis_window(
@@ -6492,3 +6494,137 @@ _load_registry()"
         description: "#727: zonas ilegiveis derrubam a abertura do dialogo do bloco"
         find: "self._project_has_polygon = bool(zone_data and getattr(zone_data, \"polygon\", None))\n        except Exception as exc:"
         replace: "self._project_has_polygon = bool(zone_data and getattr(zone_data, \"polygon\", None))\n        except KeyError as exc:"
+  # --- 3c heartbeat dates every analysis path (TASK-088 deferral) ---
+  recording_time_base:
+    source: src/zebtrack/analysis/time_base.py
+    tests:
+      - tests/analysis/test_time_base.py
+    mutations:
+      - id: sidecar-never-read
+        description: "o 3c ao lado da trajetoria deixa de ser lido e o PTS volta a datar o Barnes"
+        find: "objects_df = read_object_sidecar(resolve_object_sidecar(trajectory_path))"
+        replace: "objects_df = None"
+      - id: ledger-not-forwarded
+        description: "o ledger da sessao deixa de chegar ao resolvedor e a sessao perde o relogio de captura"
+        find: "trajectory_df, objects_df=objects_df, ledger=ledger, fallback_fps=fallback_fps"
+        replace: "trajectory_df, objects_df=objects_df, ledger=None, fallback_fps=fallback_fps"
+      - id: trajectory-counts-as-recording-clock
+        description: "o PTS da trajetoria vira relogio da gravacao e nao e remedido apos a triagem"
+        find: "RECORDING_CLOCK_SOURCES = frozenset({SOURCE_HEARTBEAT, SOURCE_LEDGER})"
+        replace: "RECORDING_CLOCK_SOURCES = frozenset({SOURCE_HEARTBEAT, SOURCE_LEDGER, SOURCE_TRAJECTORY})"
+  threaded_time_base_service:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_service.py
+    mutations:
+      - id: handed-down-clock-ignored
+        description: "a base do 3c entregue pelo chamador e ignorada e o relatorio volta ao PTS"
+        find: "if time_base is not None and time_base.source in RECORDING_CLOCK_SOURCES"
+        replace: "if False"
+      - id: trajectory-clock-trusted
+        description: "uma base do PTS entregue pelo chamador nao e remedida na trajetoria triada"
+        find: "if time_base is not None and time_base.source in RECORDING_CLOCK_SOURCES"
+        replace: "if time_base is not None"
+      - id: screening-ignores-the-recording-clock
+        description: "a triagem de trilhas curtas mede o intervalo na trajetoria, nao na gravacao"
+        find: "recording_clock or resolve_time_base(trajectory_df, fallback_fps=fps)\n            ).median_dt,"
+        replace: "resolve_time_base(trajectory_df, fallback_fps=fps)\n            ).median_dt,"
+      - id: validator-resolves-its-own
+        description: "o validador re-resolve a base e a estatistica duration_s diverge do relatorio"
+        find: "trajectory_df, arena_polygon=arena_polygon_cm, time_base=time_base"
+        replace: "trajectory_df, arena_polygon=arena_polygon_cm"
+      - id: dto-drops-the-time-base
+        description: "run_full_analysis_as_dto deixa de repassar a base e o caminho do relatorio perde o 3c"
+        find: "            window=window,\n            time_base=time_base,\n        )\n\n        # Wrap in DTO"
+        replace: "            window=window,\n        )\n\n        # Wrap in DTO"
+  threaded_time_base_multi_aquarium:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_multi_aquarium.py
+    mutations:
+      - id: aquarium-time-base-dropped
+        description: "cada aquario deixa de receber a base do seu proprio 3c"
+        find: "time_base=(time_bases or {}).get(aq_id),"
+        replace: "time_base=None,"
+  threaded_time_base_validator:
+    source: src/zebtrack/analysis/trajectory_validator.py
+    tests:
+      - tests/analysis/test_trajectory_validator.py
+    mutations:
+      - id: handed-down-base-ignored
+        description: "o validador ignora a base entregue e data a gravacao pelo trecho detectado"
+        find: "stats.update(self._calculate_base_stats(df, time_base))"
+        replace: "stats.update(self._calculate_base_stats(df))"
+  threaded_time_base_reporter_context:
+    source: src/zebtrack/analysis/reporters/reporter_context.py
+    tests:
+      - tests/analysis/reporters/test_reporter_context.py
+    mutations:
+      - id: context-drops-the-time-base
+        description: "o construtor direto (sumarios, lote) deixa de repassar a base do 3c"
+        find: "            window=window,\n            time_base=time_base,\n        )"
+        replace: "            window=window,\n        )"
+  threaded_time_base_report_coordinator:
+    source: src/zebtrack/coordinators/report_generation_coordinator.py
+    tests:
+      - tests/coordinators/test_report_generation_coordinator.py
+    mutations:
+      - id: report-never-looks-beside-the-trajectory
+        description: "o coordenador de relatorios nao procura o 3c ao lado da trajetoria"
+        find: "df, trajectory_path, ledger=rows or None, fallback_fps=fallback_fps"
+        replace: "df, None, ledger=rows or None, fallback_fps=fallback_fps"
+  threaded_time_base_pipeline_runner:
+    source: src/zebtrack/core/video/analysis_pipeline_runner.py
+    tests:
+      - tests/core/video/test_analysis_pipeline_runner.py
+    mutations:
+      - id: runner-never-looks-beside-the-trajectory
+        description: "o lote/video unico nao procura o 3c ao lado da trajetoria"
+        find: "filtered_df, trajectory_path, fallback_fps=settings_fps"
+        replace: "filtered_df, None, fallback_fps=settings_fps"
+      - id: runner-drops-the-time-base
+        description: "o lote/video unico resolve a base mas nao a entrega ao ReporterContext"
+        find: "            behavioral_config=behavioral_config,\n            time_base=time_base,\n        )"
+        replace: "            behavioral_config=behavioral_config,\n        )"
+      - id: pipeline-forgets-the-trajectory-path
+        description: "o pipeline nao informa ao reporter onde esta a trajetoria (e o 3c)"
+        find: "            behavioral_config=self._resolve_report_behavioral_config(single_video_config),\n            trajectory_path=trajectory_path,\n        )"
+        replace: "            behavioral_config=self._resolve_report_behavioral_config(single_video_config),\n        )"
+  threaded_time_base_live:
+    source: src/zebtrack/core/recording/live_analysis_post_processor.py
+    tests:
+      - tests/core/recording/test_live_analysis_post_processor.py
+    mutations:
+      - id: live-never-looks-beside-the-trajectory
+        description: "a pos-analise ao vivo nao procura o 3c da sessao (ou do aquario)"
+        find: "retimed, trajectory_file, ledger=rows or None, fallback_fps=fallback_fps"
+        replace: "retimed, None, ledger=rows or None, fallback_fps=fallback_fps"
+      - id: live-single-drops-the-time-base
+        description: "a pos-analise de um aquario resolve a base mas nao a entrega a analise"
+        find: "                    window=window,\n                    time_base=time_base,\n                )"
+        replace: "                    window=window,\n                )"
+      - id: live-multi-drops-the-time-bases
+        description: "a pos-analise multi-aquario deixa de entregar a base de cada aquario"
+        find: "            windows=windows,\n            time_bases=time_bases,\n        )"
+        replace: "            windows=windows,\n        )"
+  threaded_time_base_summaries:
+    source: src/zebtrack/core/viewmodels/analysis_control_view_model.py
+    tests:
+      - tests/core/test_analysis_control_view_model.py
+    mutations:
+      - id: summaries-never-look-beside-the-trajectory
+        description: "os sumarios nao procuram o 3c ao lado da trajetoria"
+        find: "time_base = resolve_recording_time_base(df, parquet_path, fallback_fps=float(fps))"
+        replace: "time_base = resolve_recording_time_base(df, None, fallback_fps=float(fps))"
+      - id: summaries-keep-the-entry-fps
+        description: "os sumarios mantem o fps da entrada (30) mesmo com o 3c datando o video"
+        find: "if time_base.source in RECORDING_CLOCK_SOURCES and time_base.fps_video:"
+        replace: "if False:"
+      - id: summaries-trust-a-pts-rate
+        description: "sem 3c/ledger, os sumarios trocam o fps da entrada pelo do PTS (relatorio muda)"
+        find: "if time_base.source in RECORDING_CLOCK_SOURCES and time_base.fps_video:"
+        replace: "if time_base.fps_video:"
+      - id: summaries-drop-the-time-base
+        description: "os sumarios resolvem a base mas nao a entregam a analise"
+        find: "                    window=window,\n                    time_base=time_base,\n                )"
+        replace: "                    window=window,\n                )"

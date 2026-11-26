@@ -14,6 +14,18 @@ suíte core, um teste ponta a ponta por fluxo, e os defeitos que esses testes en
 
 ### Fixed
 
+- **O batimento do `3c_Objetos_` agora data a gravação em todos os caminhos de análise.**
+  A ordem declarada (`3c` > `6_FrameLedger` > PTS da trajetória > fps do settings, com
+  aviso) só existia no papel: nenhum chamador de produção passava o `3c`, então um vídeo de
+  quadro variável (Barnes, ~9,9 fps) era datado pelo PTS do trecho em que o animal foi
+  detectado, e `scripts/barnes_validation.py` (que lê o `3c`) podia discordar do relatório.
+  Agora `time_base.resolve_recording_time_base()` lê o `3c` ao lado da trajetória (ausente ou
+  incompatível ⇒ próximo relógio, nunca exceção) no relatório individual, nos sumários, no
+  lote/vídeo único e na pós-análise ao vivo (por aquário), e `run_full_analysis(time_base=...)`
+  usa essa base UMA vez na triagem de sujeitos, no validador e em `duracao_video_s`. Efeito
+  visível só onde há `3c` ou ledger: `duracao_video_s` passa a ser a duração da sessão
+  processada (do primeiro ao último quadro), não do trecho com detecção, e o fps da análise
+  vem do batimento. Projetos sem `3c` saem idênticos (golden intocado).
 - **Pontas soltas da TASK-087 (#724–#730):**
   - `performance.enable_parallel_analysis = false` e `performance.memory_mode = "low"` agora
     valem: os gráficos do relatório são desenhados um a um, sem pool, e o modo econômico limita

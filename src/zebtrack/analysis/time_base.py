@@ -17,6 +17,11 @@ in this order (ADR-011 § Clocks):
 4. the caller's ``fallback_fps`` (``settings.video_processing.fps``), always
    with a warning, because nothing in the recording backs it.
 
+Analysis paths that read a trajectory from disk call
+:func:`resolve_recording_time_base`, which reads the ``3c`` beside it, and hand
+the result to ``AnalysisService.run_full_analysis(time_base=...)``; never call
+:func:`resolve_time_base` there without the sidecar.
+
 ``duration_s`` is ``(t_last - t_first) + median_dt`` over unique timestamps:
 the last sample covers one interval too. Never rows divided by a rate.
 
