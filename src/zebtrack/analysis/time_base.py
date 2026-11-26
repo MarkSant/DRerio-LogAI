@@ -30,6 +30,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -45,6 +46,13 @@ SOURCE_LEDGER = "ledger"
 SOURCE_TRAJECTORY = "trajectory_timestamps"
 SOURCE_FALLBACK = "fallback_fps"
 SOURCE_NONE = "none"
+
+#: Sources that date the RECORDING itself rather than the rows a trajectory
+#: kept. Screening a short track or an untracked row out of the analysis does
+#: not move them, so a time base from one of these is resolved once and handed
+#: down; one from the trajectory's own timestamps is re-measured on whatever
+#: trajectory is being analysed.
+RECORDING_CLOCK_SOURCES = frozenset({SOURCE_HEARTBEAT, SOURCE_LEDGER})
 
 #: ``class_id`` of the per-frame heartbeat rows in ``3c_Objetos_`` (ADR-010).
 HEARTBEAT_CLASS_ID = -1
@@ -351,6 +359,53 @@ def resolve_time_base(
             ),
         ),
     )
+
+
+def resolve_recording_time_base(
+    trajectory_df: pd.DataFrame,
+    trajectory_path: str | Path | None,
+    *,
+    ledger: LedgerInput | None = None,
+    fallback_fps: float | None = None,
+) -> TimeBase:
+    """:func:`resolve_time_base` with the ``3c`` sidecar of ``trajectory_path``.
+
+    The one way an analysis path dates a recording it read from disk: the
+    ``3c_Objetos_<base>.parquet`` next to the trajectory (same base, including
+    any ``_aquarium_N`` suffix) is read here, so no caller can forget the best
+    clock. Until this existed no production caller passed it, and a
+    variable-frame-rate Barnes video was dated by its trajectory PTS while the
+    validation script used the heartbeat.
+
+    A missing sidecar is the normal case for older projects and is silent; an
+    unreadable or incompatible one is logged by
+    :func:`zebtrack.io.object_sidecar.read_object_sidecar` and treated as
+    missing — the next source in the order dates the recording, never an
+    exception.
+
+    Args:
+        trajectory_df: The trajectory (live: already re-timed on the capture clock).
+        trajectory_path: Path of its ``3_CoordMovimento_<base>.parquet``.
+        ledger: Rows of the session's ``6_FrameLedger_``, when there is one.
+        fallback_fps: ``settings.video_processing.fps`` — the warned last resort.
+    """
+    # Imported here: ``zebtrack.io``'s package import pulls modules that import
+    # the analysis package (circular at import time).
+    from zebtrack.io.object_sidecar import read_object_sidecar, resolve_object_sidecar
+
+    objects_df = read_object_sidecar(resolve_object_sidecar(trajectory_path))
+    time_base = resolve_time_base(
+        trajectory_df, objects_df=objects_df, ledger=ledger, fallback_fps=fallback_fps
+    )
+    log.info(
+        "time_base.resolve.recording",
+        trajectory=str(trajectory_path) if trajectory_path else None,
+        source=time_base.source,
+        has_objects=objects_df is not None,
+        fps_video=time_base.fps_video,
+        duration_s=time_base.duration_s,
+    )
+    return time_base
 
 
 def _with_warnings(df: pd.DataFrame, warnings: list[str]) -> pd.DataFrame:

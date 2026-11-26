@@ -28,7 +28,7 @@ from zebtrack.analysis.behavioral_policy import (
 from zebtrack.analysis.metrics_cache import MetricsCache
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
-from zebtrack.analysis.time_base import resolve_time_base
+from zebtrack.analysis.time_base import RECORDING_CLOCK_SOURCES, TimeBase, resolve_time_base
 from zebtrack.analysis.track_significance import min_track_duration_from, screen_subjects
 from zebtrack.analysis.trajectory_validator import (
     TrajectoryQualityValidator,
@@ -289,6 +289,7 @@ class AnalysisService:
         behavioral_config: dict[str, Any] | None = None,
         mask_sidecar_path: str | Path | pd.DataFrame | None = None,
         window: WindowResolution | None = None,
+        time_base: TimeBase | None = None,
     ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None, list, dict]:
         """
         Run a complete analysis pipeline on the given trajectory data.
@@ -330,6 +331,14 @@ class AnalysisService:
                 not start follows its ``on_start_not_met`` (whole recording or
                 empty metrics); its warnings join ``validation_warnings`` here,
                 before any report is generated.
+            time_base: The recording's time base, resolved ONCE by the caller
+                with :func:`zebtrack.analysis.time_base.resolve_recording_time_base`
+                (``3c`` heartbeat > ``6_FrameLedger`` > trajectory PTS > ``fps``).
+                A heartbeat or ledger base dates the recording itself and is
+                used as given for the subject screening, the validator and
+                ``duracao_video_s``; a base from the trajectory's own
+                timestamps is re-measured on the screened trajectory, exactly
+                as when ``None`` is passed. Its warnings join the report's.
 
         Returns:
             A tuple containing:
@@ -357,12 +366,32 @@ class AnalysisService:
         # semantics, ``n_animais`` and ``por_animal`` agree: tracks too short to
         # be an animal (a one-row id from a tracker glitch, #649) and rows
         # without a ``track_id`` next to identified tracks (#671).
+        # A heartbeat or ledger time base dates the RECORDING and does not move
+        # when tracks are screened out; one measured on the trajectory's own
+        # timestamps is measured on the trajectory actually analysed.
+        recording_clock = (
+            time_base
+            if time_base is not None and time_base.source in RECORDING_CLOCK_SOURCES
+            else None
+        )
         screening = screen_subjects(
             trajectory_df,
             min_duration_s=min_track_duration_from(self.settings),
-            median_dt=resolve_time_base(trajectory_df, fallback_fps=fps).median_dt,
+            median_dt=(
+                recording_clock or resolve_time_base(trajectory_df, fallback_fps=fps)
+            ).median_dt,
         )
         trajectory_df = screening.trajectory
+
+        # The recording length comes from the time base (unique timestamps),
+        # never from rows / fps. ``fps`` is only its warned fallback.
+        time_base = recording_clock or resolve_time_base(trajectory_df, fallback_fps=fps)
+        self.log.info(
+            "analysis_service.time_base",
+            source=time_base.source,
+            fps_video=time_base.fps_video,
+            duration_s=time_base.duration_s,
+        )
 
         # IMPROVEMENT #5: Validate trajectory quality before analysis
         # Use lenient minimum (3 frames) to allow test scenarios
@@ -382,7 +411,9 @@ class AnalysisService:
         if "x_cm" in trajectory_df.columns and pixelcm_x > 0:
             arena_polygon_cm = [(x / pixelcm_x, y / pixelcm_y) for x, y in arena_polygon_px]
 
-        validation_result = validator.validate(trajectory_df, arena_polygon=arena_polygon_cm)
+        validation_result = validator.validate(
+            trajectory_df, arena_polygon=arena_polygon_cm, time_base=time_base
+        )
 
         # Raise error if validation fails
         if not validation_result["is_valid"]:
@@ -400,9 +431,6 @@ class AnalysisService:
         validation_warnings.extend(screening.warnings)
         validation_stats = validation_result["stats"]
 
-        # The recording length comes from the time base (unique timestamps),
-        # never from rows / fps. ``fps`` is only its warned fallback.
-        time_base = resolve_time_base(trajectory_df, fallback_fps=fps)
         validation_warnings.extend(time_base.warnings)
         if validation_warnings:
             self.log.info(
@@ -679,6 +707,7 @@ class AnalysisService:
         behavioral_config: dict[str, Any] | None = None,
         mask_sidecar_path: str | Path | pd.DataFrame | None = None,
         window: WindowResolution | None = None,
+        time_base: TimeBase | None = None,
     ) -> AnalysisResult:
         """Run complete analysis and return results as DTO (RECOMMENDED).
 
@@ -704,6 +733,7 @@ class AnalysisService:
             calibration: Optional Calibration object
             sharp_turn_threshold: Sharp turn detection threshold (deg/s)
             window: Analysis window (see :meth:`run_full_analysis`).
+            time_base: The recording's time base (see :meth:`run_full_analysis`).
 
         Returns:
             AnalysisResult DTO with all analysis data
@@ -747,6 +777,7 @@ class AnalysisService:
             behavioral_config=behavioral_config,
             mask_sidecar_path=mask_sidecar_path,
             window=window,
+            time_base=time_base,
         )
 
         # Wrap in DTO
@@ -796,6 +827,7 @@ class AnalysisService:
         sharp_turn_threshold: float = DEFAULT_SHARP_TURN_THRESHOLD_DEG_S,
         behavioral_config: dict[str, Any] | None = None,
         windows: dict[int, WindowResolution | None] | None = None,
+        time_bases: dict[int, TimeBase | None] | None = None,
     ) -> dict[int, AnalysisResult | None]:
         """
         Execute complete analysis for each aquarium in multi-aquarium mode.
@@ -822,6 +854,9 @@ class AnalysisService:
             behavioral_config: Behavioral analysis configuration (thigmotaxis, geotaxis).
             windows: Analysis window of each aquarium (ADR-011: one evaluator
                 per aquarium); a missing key analyses the whole recording.
+            time_bases: Time base of each aquarium's recording, from its own
+                ``3c`` sidecar (see :meth:`run_full_analysis`); a missing key
+                measures it on that aquarium's trajectory.
 
         Returns:
             Dictionary mapping aquarium_id to AnalysisResult (or None if failed).
@@ -894,6 +929,7 @@ class AnalysisService:
                     sharp_turn_threshold=sharp_turn_threshold,
                     behavioral_config=behavioral_config,
                     window=(windows or {}).get(aq_id),
+                    time_base=(time_bases or {}).get(aq_id),
                 )
 
                 results[aq_id] = analysis_result

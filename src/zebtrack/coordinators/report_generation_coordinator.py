@@ -32,7 +32,7 @@ from zebtrack.analysis.roi_builder import build_roi_from_polygon, build_rois_fro
 from zebtrack.analysis.time_base import (
     SOURCE_LEDGER,
     TimeBase,
-    resolve_time_base,
+    resolve_recording_time_base,
     retime_from_ledger,
 )
 from zebtrack.coordinators._unified_report_mixin import UnifiedReportMixin
@@ -153,16 +153,21 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
     ) -> tuple[pd.DataFrame, TimeBase]:
         """Time base of one trajectory, re-timed from its ledger when it has one.
 
+        Sources in the declared order: the ``3c_Objetos_`` heartbeat next to the
+        trajectory, the ``6_FrameLedger_``, the trajectory's own PTS.
         ``fallback_fps`` (``settings.video_processing.fps``) is used only when
         the recording itself cannot be dated — reports used to take it as the
-        truth, so a 9.9 fps video was analysed as 30 fps.
+        truth, so a 9.9 fps video was analysed as 30 fps. The result is handed
+        to ``run_full_analysis`` so the report is dated by the same clock.
         """
         rows, anchor = self._load_frame_ledger(trajectory_path)
         if rows:
             # Live trajectories carry a PROCESSING clock; the analysis must
             # run on the capture clock. In memory only — the Parquet stays.
             df = retime_from_ledger(df, rows, anchor)
-        time_base = resolve_time_base(df, ledger=rows or None, fallback_fps=fallback_fps)
+        time_base = resolve_recording_time_base(
+            df, trajectory_path, ledger=rows or None, fallback_fps=fallback_fps
+        )
         log.info(
             "workflow.reports.time_base",
             trajectory=str(trajectory_path) if trajectory_path else None,
@@ -206,7 +211,9 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             roi_rule=roi_rule,
             settings_obj=self.settings_baseline,
             pixelcm=pixelcm,
-            # A re-timed live trajectory is on the capture clock.
+            # A re-timed live trajectory is on the capture clock. With a
+            # heartbeat source the ``3c`` exists, and its own clock metadata
+            # is what the window service reads instead of this argument.
             clock="capture_perf" if time_base.source == SOURCE_LEDGER else None,
             mask_source=self._masks_in_report_space(trajectory_path, local_offset),
         )
@@ -457,6 +464,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             frame_crop_box=frame_crop_for_viz,
             behavioral_config=params.get("behavioral_config"),
             window=window,
+            time_base=time_base,
         )
 
         report_base = self._build_aquarium_report_base(aq_metadata, aq_id)
@@ -585,6 +593,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             # df and ROIs are in the arena's local space; the masks must be too.
             mask_sidecar_path=self._masks_in_report_space(traj_path, (off_x, off_y)),
             window=window,
+            time_base=time_base,
         )
 
         report_paths = self._export_individual_outputs(analysis_result, str(results_path), exp_id)
@@ -847,6 +856,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             behavioral_config=behavioral_config,
             settings_obj=settings,
             window=window,
+            time_base=time_base,
         )
 
         os.makedirs(aq_results_dir, exist_ok=True)
@@ -940,6 +950,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 behavioral_config=behavioral_config,
                 settings_obj=settings,
                 window=window,
+                time_base=time_base,
             )
 
             os.makedirs(res_dir, exist_ok=True)

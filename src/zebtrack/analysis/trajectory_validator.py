@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import structlog
 
-from zebtrack.analysis.time_base import resolve_time_base
+from zebtrack.analysis.time_base import TimeBase, resolve_time_base
 from zebtrack.analysis.track_significance import count_subjects
 from zebtrack.core.detection.multi_aquarium_detector import (
     AQUARIUM_TRACK_ID_MULTIPLIER,
@@ -77,7 +77,11 @@ class TrajectoryQualityValidator:
         self.min_trajectory_frames = min_trajectory_frames
 
     def validate(
-        self, df: pd.DataFrame, arena_polygon: Sequence[Sequence[float]] | None = None
+        self,
+        df: pd.DataFrame,
+        arena_polygon: Sequence[Sequence[float]] | None = None,
+        *,
+        time_base: TimeBase | None = None,
     ) -> dict[str, Any]:
         """
         Run all validations and return comprehensive report.
@@ -85,6 +89,10 @@ class TrajectoryQualityValidator:
         Args:
             df: Trajectory dataframe with required columns
             arena_polygon: Optional arena boundary for position validation
+            time_base: The recording's time base, already resolved by the
+                caller (``run_full_analysis`` resolves it once, with the
+                ``3c`` heartbeat or the ledger when they exist). ``None``
+                measures it on ``df``'s own timestamps.
 
         Returns:
             {
@@ -128,7 +136,7 @@ class TrajectoryQualityValidator:
         self._check_per_aquarium_gaps(df, warnings, stats)
 
         # Calculate overall quality metrics
-        stats.update(self._calculate_base_stats(df))
+        stats.update(self._calculate_base_stats(df, time_base))
 
         # Determine overall validity and log result
         is_valid = len(errors) == 0
@@ -345,18 +353,22 @@ class TrajectoryQualityValidator:
         if per_aquarium_gaps["stats"]:
             stats["per_aquarium_gaps"] = per_aquarium_gaps["stats"]
 
-    def _calculate_base_stats(self, df: pd.DataFrame) -> dict[str, Any]:
+    def _calculate_base_stats(
+        self, df: pd.DataFrame, time_base: TimeBase | None = None
+    ) -> dict[str, Any]:
         """Calculate overall quality metrics.
 
         ``total_frames`` counts distinct analysed FRAMES
         (:func:`count_unique_frames`), not rows: two animals on a frame are one
         frame (#641). It is still not a duration: with
         ``analysis_interval_frames`` it counts only the analysed frames.
-        ``duration_s`` is the recording length from the time base (unique
-        timestamps), with this validator's ``fps`` only as the warned fallback.
+        ``duration_s`` is the recording length from the time base: the one the
+        caller resolved (``3c`` heartbeat > ledger > PTS), else ``df``'s unique
+        timestamps, with this validator's ``fps`` only as the warned fallback.
         ``temporal_coverage`` is in :meth:`_temporal_coverage`.
         """
-        time_base = resolve_time_base(df, fallback_fps=self.fps)
+        if time_base is None:
+            time_base = resolve_time_base(df, fallback_fps=self.fps)
         base_stats: dict[str, Any] = {
             "total_frames": count_unique_frames(df),
             # The one reading of "how many animals" (#671): rows without an id

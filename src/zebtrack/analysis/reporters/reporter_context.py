@@ -21,6 +21,7 @@ from zebtrack.analysis.analysis_window_service import WindowResolution
 from zebtrack.analysis.data_transformer import DataTransformer
 from zebtrack.analysis.models import AnalysisResult
 from zebtrack.analysis.roi import ROI
+from zebtrack.analysis.time_base import TimeBase
 from zebtrack.analysis.visualization_generator import VisualizationGenerator
 from zebtrack.i18n import LOCALES_DIR as LOCALES_DIR  # re-exported for callers
 from zebtrack.i18n import REPORTER_DOMAIN, translate
@@ -102,6 +103,8 @@ class ReporterContext:
         analysis: AnalysisResult | None = None,
         # Analysis window (ADR-011), from resolve_analysis_window
         window: WindowResolution | None = None,
+        # Time base of the recording, from resolve_recording_time_base
+        time_base: TimeBase | None = None,
     ):
         """Create ReporterContext.
 
@@ -130,6 +133,9 @@ class ReporterContext:
             behavioral_config: Behavioural config dict (optional)
             analysis: AnalysisResult DTO (RECOMMENDED)
             window: Analysis window to apply (``None`` = whole recording)
+            time_base: The recording's time base, resolved by the caller with
+                the ``3c`` heartbeat / ledger (``None`` = measured on the
+                trajectory's own timestamps)
         """
         # Modern path: delegate to from_analysis
         if analysis is not None:
@@ -188,6 +194,7 @@ class ReporterContext:
             smoothing_polyorder=smoothing_polyorder,
             behavioral_config=behavioral_config,
             window=window,
+            time_base=time_base,
         )
 
         # Analysis parameters

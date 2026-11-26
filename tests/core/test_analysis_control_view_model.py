@@ -10,6 +10,12 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from zebtrack.analysis.time_base import (
+    SOURCE_HEARTBEAT,
+    SOURCE_LEDGER,
+    SOURCE_TRAJECTORY,
+    TimeBase,
+)
 from zebtrack.core.viewmodels.analysis_control_view_model import AnalysisControlViewModel
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -208,6 +214,10 @@ def test_generate_summaries_applies_the_analysis_window(view_model, tmp_path):
         patch("zebtrack.analysis.reporters.ParquetSummaryReporter"),
         patch("zebtrack.analysis.reporters.WordReporter"),
         patch("zebtrack.core.video.video_metadata_service.VideoMetadataService"),
+        patch(
+            "zebtrack.core.viewmodels.analysis_control_view_model.resolve_recording_time_base",
+            side_effect=_TimeBaseStub(),
+        ),
     ):
         view_model._generate_summaries_impl(["v.mp4"])
 
@@ -642,6 +652,30 @@ class _FakeProjectManager:
         self.registered.append(kwargs)
 
 
+def _time_base(source: str, fps_video: float) -> TimeBase:
+    return TimeBase(
+        fps_sampling=fps_video,
+        fps_video=fps_video,
+        duration_s=10.0,
+        t_first=0.0,
+        t_last=10.0 - 1.0 / fps_video,
+        median_dt=1.0 / fps_video,
+        source=source,
+    )
+
+
+class _TimeBaseStub:
+    """Stands in for ``resolve_recording_time_base``: the fakes' trajectory is a string."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[Any, Any, float | None]] = []
+        self.result = _time_base(SOURCE_TRAJECTORY, 29.97)
+
+    def __call__(self, df, trajectory_path, *, ledger=None, fallback_fps=None):
+        self.calls.append((df, trajectory_path, fallback_fps))
+        return self.result
+
+
 class _FakeAnalysisService:
     def __init__(self, fail_for=None):
         self.analysis_calls: list[dict] = []
@@ -704,6 +738,7 @@ def summaries(view_model, tmp_path):
         return factory
 
     window = object()
+    time_base = _TimeBaseStub()
     patches = [
         patch("zebtrack.analysis.reporters.ExcelReporter", side_effect=reporter("excel")),
         patch(
@@ -722,6 +757,10 @@ def summaries(view_model, tmp_path):
             "zebtrack.core.viewmodels.analysis_control_view_model.resolve_analysis_window",
             return_value=window,
         ),
+        patch(
+            "zebtrack.core.viewmodels.analysis_control_view_model.resolve_recording_time_base",
+            side_effect=time_base,
+        ),
     ]
     for p in patches:
         p.start()
@@ -734,6 +773,7 @@ def summaries(view_model, tmp_path):
         entry=entry,
         tmp_path=tmp_path,
         window=window,
+        time_base=time_base,
     )
     for p in patches:
         p.stop()
@@ -890,6 +930,45 @@ def test_summaries_skip_a_video_without_a_trajectory(summaries):
     summaries.vm._generate_summaries_impl(["v.mp4"])
 
     assert summaries.service.analysis_calls == []
+
+
+def test_summaries_date_the_recording_by_its_own_3c_sidecar(summaries):
+    """The summary path resolves the time base from the trajectory's own files.
+
+    Until it did, this path analysed every video at the project entry's fps (30
+    when unknown) and never read the ``3c`` heartbeat.
+    """
+    summaries.time_base.result = _time_base(SOURCE_HEARTBEAT, 9.9)
+
+    summaries.vm._generate_summaries_impl(["v.mp4"])
+
+    trajectory = summaries.tmp_path / "3_CoordMovimento_exp1.parquet"
+    ((df, path, fallback),) = summaries.time_base.calls
+    assert df == f"df:{trajectory}"
+    assert path == str(trajectory)
+    # The entry's fps is only the fallback of the resolution.
+    assert fallback == 25.0
+    (call,) = summaries.service.analysis_calls
+    assert call["time_base"] is summaries.time_base.result
+    assert call["fps"] == 9.9
+
+
+def test_summaries_take_the_rate_of_a_ledger_clock_too(summaries):
+    summaries.time_base.result = _time_base(SOURCE_LEDGER, 14.5)
+
+    summaries.vm._generate_summaries_impl(["v.mp4"])
+
+    (call,) = summaries.service.analysis_calls
+    assert call["fps"] == 14.5
+
+
+def test_summaries_keep_the_entry_fps_when_only_the_trajectory_dates_it(summaries):
+    """Without a 3c/ledger the analysis is unchanged: entry fps, PTS re-measured inside."""
+    summaries.vm._generate_summaries_impl(["v.mp4"])
+
+    (call,) = summaries.service.analysis_calls
+    assert call["fps"] == 25.0
+    assert call["time_base"] is summaries.time_base.result
 
 
 def test_summaries_fall_back_to_the_generic_detections_file(summaries):

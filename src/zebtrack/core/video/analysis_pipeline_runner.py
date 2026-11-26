@@ -45,7 +45,7 @@ from zebtrack.analysis.reporters import (
 )
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.analysis.roi_builder import build_rois_from_zone_polygons
-from zebtrack.analysis.time_base import resolve_time_base
+from zebtrack.analysis.time_base import resolve_recording_time_base
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.detection.calibration import Calibration
 from zebtrack.core.services.project_settings_snapshot import (
@@ -400,14 +400,19 @@ class AnalysisPipelineRunnerMixin:
         smoothing_polyorder: int,
         window: WindowResolution | None = None,
         behavioral_config: dict | None = None,
+        trajectory_path: str | None = None,
     ) -> ReporterContext:
         """Create ReporterContext instance with all required parameters.
 
-        The frame rate is the recording's own (PTS of the trajectory); the
-        global ``settings.video_processing.fps`` is only the warned fallback.
+        The frame rate and the recording length are the recording's own: the
+        ``3c_Objetos_`` heartbeat next to ``trajectory_path`` when it exists,
+        else the trajectory's PTS; the global ``settings.video_processing.fps``
+        is only the warned fallback. The same time base dates the report.
         """
         settings_fps = float(self.settings.video_processing.fps)
-        time_base = resolve_time_base(filtered_df, fallback_fps=settings_fps)
+        time_base = resolve_recording_time_base(
+            filtered_df, trajectory_path, fallback_fps=settings_fps
+        )
         fps = time_base.fps_video if time_base.fps_video else settings_fps
         return ReporterContext(
             trajectory_df=filtered_df,
@@ -428,6 +433,7 @@ class AnalysisPipelineRunnerMixin:
             smoothing_polyorder=smoothing_polyorder,
             window=window,
             behavioral_config=behavioral_config,
+            time_base=time_base,
         )
 
     def _resolve_analysis_window(
@@ -863,6 +869,7 @@ class AnalysisPipelineRunnerMixin:
             smoothing_polyorder=smoothing_polyorder,
             window=window,
             behavioral_config=self._resolve_report_behavioral_config(single_video_config),
+            trajectory_path=trajectory_path,
         )
 
         if self.cancel_event.is_set():
