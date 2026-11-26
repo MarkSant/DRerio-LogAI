@@ -16440,11 +16440,6 @@ msgstr ""
 "Alguns buracos não foram encontrados ou parecem fora do lugar. Aplicar este "
 "layout mesmo assim?"
 
-#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:908
-#, python-brace-format
-msgid "Layout applied to {count} video(s)."
-msgstr "Layout aplicado a {count} vídeo(s)."
-
 #: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:497
 msgid "Click the centre of the escape hole."
 msgstr "Clique no centro da toca."
@@ -16456,11 +16451,6 @@ msgid ""
 msgstr ""
 "Arraste um buraco para movê-lo; “◀ 1 buraco” / “1 buraco ▶” movem a toca. "
 "Vermelho = toca, verde = ajustado, laranja = não encontrado, azul = movido."
-
-#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:911
-#, python-brace-format
-msgid "Check these, some holes were not found: {names}"
-msgstr "Confira estes, alguns buracos não foram encontrados: {names}"
 
 #: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:917
 #, python-brace-format
@@ -16518,6 +16508,93 @@ msgstr "Não foi possível ajustar uma elipse a estes pontos: {error}"
 #, python-brace-format
 msgid "The Barnes zones could not be saved for {video}."
 msgstr "As zonas Barnes não puderam ser salvas para {video}."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:631
+msgid ""
+"The video's frames could not be read: holes are snapped on this single frame,"
+" where the rat or the experimenter may hide one."
+msgstr ""
+"Não foi possível ler os quadros do vídeo: os buracos são ajustados neste "
+"único quadro, onde o rato ou o experimentador podem esconder algum."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:695
+msgid ""
+"Table detected. The detection also saved this outline as the video's arena; "
+"Apply replaces it with the table ellipse. Now click the centre of the escape "
+"hole."
+msgstr ""
+"Mesa detectada. A detecção também salvou este contorno como a arena do vídeo;"
+" Aplicar o substitui pela elipse da mesa. Agora clique no centro da toca."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1183
+msgid ""
+"This video is framed differently: define its table again (detect it or click "
+"the rim)."
+msgstr ""
+"Este vídeo está enquadrado de outro jeito: defina a mesa de novo (detecte-a "
+"ou clique na borda)."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:961
+#, python-brace-format
+msgid ""
+"This table has {found} holes but the project is set to {expected}. Change the"
+" project's hole count to {found}? Every video of the project must use the "
+"same count: it fixes the report's columns."
+msgstr ""
+"Esta mesa tem {found} buracos, mas o projeto está configurado para "
+"{expected}. Mudar o número de buracos do projeto para {found}? Todos os "
+"vídeos do projeto precisam usar o mesmo número: ele define as colunas do "
+"relatório."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1114
+#, python-brace-format
+msgid "Layout applied to {count} video(s), this one included."
+msgstr "Layout aplicado a {count} vídeo(s), incluindo este."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:322
+msgid "Holes:"
+msgstr "Buracos:"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:505
+#, python-brace-format
+msgid "detected: {n}"
+msgstr "detectados: {n}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:507
+#, python-brace-format
+msgid "project: {n}"
+msgstr "projeto: {n}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:981
+#, python-brace-format
+msgid "The Barnes zones could not be saved for {video}; nothing was changed."
+msgstr ""
+"As zonas Barnes não puderam ser salvas para {video}; nada foi alterado."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1120
+#, python-brace-format
+msgid ""
+"Some holes were not found on these; you will click their escape hole one by "
+"one: {names}"
+msgstr ""
+"Alguns buracos não foram encontrados nestes; você vai clicar na toca de cada "
+"um: {names}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1127
+#, python-brace-format
+msgid "Framed differently, not written (open them on their own): {names}"
+msgstr ""
+"Enquadrados de outro jeito, não gravados (abra-os separadamente): {names}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1134
+#, python-brace-format
+msgid "Could not be saved: {names}"
+msgstr "Não puderam ser salvos: {names}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:790
+#, python-brace-format
+msgid "The holes could not be placed: {error}"
+msgstr "Não foi possível posicionar os buracos: {error}"
 
 #~ msgid "Detector parameters updated."
 #~ msgstr "Parâmetros do detector atualizados."

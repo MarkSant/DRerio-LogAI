@@ -13691,11 +13691,6 @@ msgstr ""
 msgid "Some holes were not found or look misplaced. Apply this layout anyway?"
 msgstr ""
 
-#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:908
-#, python-brace-format
-msgid "Layout applied to {count} video(s)."
-msgstr ""
-
 #: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:497
 msgid "Click the centre of the escape hole."
 msgstr ""
@@ -13704,11 +13699,6 @@ msgstr ""
 msgid ""
 "Drag a hole to move it; “◀ 1 hole” / “1 hole ▶” move the escape hole. Red = "
 "escape hole, green = snapped, orange = not found, blue = moved."
-msgstr ""
-
-#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:911
-#, python-brace-format
-msgid "Check these, some holes were not found: {names}"
 msgstr ""
 
 #: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:917
@@ -13762,4 +13752,77 @@ msgstr ""
 #: src/zebtrack/coordinators/multi_aquarium_coordinator.py:982
 #, python-brace-format
 msgid "The Barnes zones could not be saved for {video}."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:631
+msgid ""
+"The video's frames could not be read: holes are snapped on this single frame,"
+" where the rat or the experimenter may hide one."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:695
+msgid ""
+"Table detected. The detection also saved this outline as the video's arena; "
+"Apply replaces it with the table ellipse. Now click the centre of the escape "
+"hole."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1183
+msgid ""
+"This video is framed differently: define its table again (detect it or click "
+"the rim)."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:961
+#, python-brace-format
+msgid ""
+"This table has {found} holes but the project is set to {expected}. Change the"
+" project's hole count to {found}? Every video of the project must use the "
+"same count: it fixes the report's columns."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1114
+#, python-brace-format
+msgid "Layout applied to {count} video(s), this one included."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:322
+msgid "Holes:"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:505
+#, python-brace-format
+msgid "detected: {n}"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:507
+#, python-brace-format
+msgid "project: {n}"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:981
+#, python-brace-format
+msgid "The Barnes zones could not be saved for {video}; nothing was changed."
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1120
+#, python-brace-format
+msgid ""
+"Some holes were not found on these; you will click their escape hole one by "
+"one: {names}"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1127
+#, python-brace-format
+msgid "Framed differently, not written (open them on their own): {names}"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1134
+#, python-brace-format
+msgid "Could not be saved: {names}"
+msgstr ""
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:790
+#, python-brace-format
+msgid "The holes could not be placed: {error}"
 msgstr ""
