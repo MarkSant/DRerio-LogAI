@@ -670,7 +670,6 @@ class BehavioralConfigWidget(BaseWidget):
                 )
         if self.perspective_combo:
             self.perspective_combo.configure(state="disabled" if forced is not None else "readonly")
-        self._apply_terms()
         self._on_perspective_changed()
 
     def set_protocol_param(self, name: str, value: Any) -> None:

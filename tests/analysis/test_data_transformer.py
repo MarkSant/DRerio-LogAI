@@ -1141,6 +1141,10 @@ class TestAnimalDisplayNames:
         assert display_column_name("aquarium_id", AnimalModel.OTHER) == "Arena"
         assert display_column_name("total_distance_cm", AnimalModel.RODENT) == "Total Distance (cm)"
         assert display_column_name("some_unmapped_key", AnimalModel.OTHER) == "Some Unmapped Key"
+        assert display_column_name("aquarium_perspective") == "Aquarium Perspective"
+        assert display_column_name("aquarium_perspective", AnimalModel.RODENT) == (
+            "Arena Perspective"
+        )
 
     def test_prepare_for_display_renames_aquarium_id_per_animal_but_keeps_the_keys(self) -> None:
         frame = pd.DataFrame({"aquarium_id": [0], "total_distance_cm": [1.5]})

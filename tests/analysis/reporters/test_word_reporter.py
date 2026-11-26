@@ -409,6 +409,18 @@ class TestMetadataLabelsFollowTheAnimalModel:
         assert "Arena Width Cm: 40.0" in text
         assert "Aquarium" not in text.split(_("Metrics Summary"))[0]
 
+    def test_the_aquarium_column_row_is_worded_per_animal(
+        self, reporter_ctx, tmp_path: Path
+    ) -> None:
+        reporter_ctx.tidy_data = reporter_ctx.tidy_data.assign(aquarium_id=0)
+
+        legacy = self._export(reporter_ctx, tmp_path, None)
+        rodent = self._export(reporter_ctx, tmp_path, "rodent")
+
+        assert "Aquarium" in legacy.split(_("Metrics Summary"))[1]
+        assert "Arena" in rodent.split(_("Metrics Summary"))[1]
+        assert "Aquarium" not in rodent.split(_("Metrics Summary"))[1]
+
     def test_the_metric_rows_are_the_same_for_every_animal(
         self, reporter_ctx, tmp_path: Path
     ) -> None:

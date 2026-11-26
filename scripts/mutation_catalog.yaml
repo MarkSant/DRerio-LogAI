@@ -8289,6 +8289,10 @@ _load_registry()"
     tests:
       - tests/analysis/test_data_transformer.py
     mutations:
+      - id: unmapped-column-ignores-animal
+        description: "coluna sem mapa ignora o animal ao montar o rotulo"
+        find: "    return mapped if mapped is not None else display_metadata_label(column, animal_model)"
+        replace: "    return mapped if mapped is not None else display_metadata_label(column)"
       - id: column-override-ignored
         description: "o nome de coluna por animal deixa de valer"
         find: "    if override is not None:"
@@ -8425,10 +8429,6 @@ _load_registry()"
         description: "o rotulo de divisao de zonas nao acompanha o animal"
         find: '            self._zones_split_label.configure(text=term("behavioral.zones_split", model))'
         replace: "            pass"
-      - id: locks-do-not-reword
-        description: "travar o protocolo nao reescreve os rotulos"
-        find: "        self._apply_terms()\n        self._on_perspective_changed()"
-        replace: "        self._on_perspective_changed()"
 
   animal_terms_live_analysis_dialog:
     source: src/zebtrack/ui/dialogs/live_analysis_dialog.py

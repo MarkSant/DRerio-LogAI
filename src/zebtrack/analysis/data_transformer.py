@@ -197,12 +197,14 @@ def animal_model_of_config(behavioral_config: Mapping[str, Any] | None) -> Anima
 def display_column_name(column: str, animal_model: AnimalModel = AnimalModel.ZEBRAFISH) -> str:
     """Display name of an internal column; ``DISPLAY_COLUMN_MAPPING`` unless the animal words it.
 
-    Falls back to the title-cased key, as the Word summary table always did.
+    Falls back to the title-cased key, as the Word summary table always did (for
+    another animal the aquarium fragment of the KEY is re-worded first).
     """
     override = _ANIMAL_DISPLAY_OVERRIDES.get(animal_model, {}).get(column)
     if override is not None:
         return override
-    return DISPLAY_COLUMN_MAPPING.get(column, column.replace("_", " ").title())
+    mapped = DISPLAY_COLUMN_MAPPING.get(column)
+    return mapped if mapped is not None else display_metadata_label(column, animal_model)
 
 
 def display_metadata_label(key: str, animal_model: AnimalModel = AnimalModel.ZEBRAFISH) -> str:

@@ -194,6 +194,21 @@ class TestZoneControls:
         dispatcher.refresh_animal_terminology()
         assert _text(zone_widget.auto_detect_button) == "Detect Aquarium (Auto)"
 
+    def test_the_barnes_button_refresh_also_rewords_the_zones_tab(self, zone_widget) -> None:
+        # The refresh that runs on project open and on every zone-list update.
+        from zebtrack.ui.components.event_dispatcher import EventDispatcher
+
+        manager = SimpleNamespace(project_data={"behavioral_config": {"animal_model": "rodent"}})
+        gui = SimpleNamespace(
+            zone_controls=zone_widget, controller=SimpleNamespace(project_manager=manager)
+        )
+        dispatcher = EventDispatcher.__new__(EventDispatcher)
+        dispatcher.gui = gui  # type: ignore[assignment]
+
+        dispatcher.refresh_barnes_assistant_visibility()
+
+        assert _text(zone_widget.auto_detect_button) == "Detect Arena (Auto)"
+
     def test_the_dispatcher_tolerates_no_project(self, zone_widget) -> None:
         from zebtrack.ui.components.event_dispatcher import EventDispatcher
 
@@ -215,7 +230,7 @@ class TestAdHocDialogs:
         from zebtrack.ui.dialogs.single_video_config_dialog import SingleVideoConfigDialog
 
         with patch.object(SingleVideoConfigDialog, "wait_window"):
-            dialog = SingleVideoConfigDialog(tkinter_root, settings_obj=test_settings)
+            dialog: Any = SingleVideoConfigDialog(tkinter_root, settings_obj=test_settings)
             tkinter_root.update_idletasks()
         widget = dialog.behavioral_config_widget
 
@@ -232,7 +247,7 @@ class TestAdHocDialogs:
         from zebtrack.ui.wizard.tooltip import _HELP_TOOLTIPS
 
         with patch.object(SingleVideoConfigDialog, "wait_window"):
-            dialog = SingleVideoConfigDialog(tkinter_root, settings_obj=test_settings)
+            dialog: Any = SingleVideoConfigDialog(tkinter_root, settings_obj=test_settings)
         widget = dialog.behavioral_config_widget
 
         assert _HELP_TOOLTIPS[dialog._count_help].text.startswith("Number of Aquariums")
@@ -251,7 +266,7 @@ class TestAdHocDialogs:
                 return_value=[],
             ),
         ):
-            dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
+            dialog: Any = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
             tkinter_root.update_idletasks()
         widget = dialog.behavioral_config_widget
 
@@ -266,6 +281,32 @@ class TestAdHocDialogs:
 
         _pick(widget.animal_model_combo, animal_model_choices(), "zebrafish")
         assert self._labels(dialog) == ("No. of aquariums:", "Animals/aquarium:")
+
+    def test_live_dialog_count_error_names_the_arena_for_a_rodent(
+        self, tkinter_root, test_settings
+    ):
+        from zebtrack.ui.dialogs.live_analysis_dialog import LiveAnalysisDialog
+
+        with (
+            patch.object(LiveAnalysisDialog, "wait_window"),
+            patch(
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras",
+                return_value=[],
+            ),
+        ):
+            dialog: Any = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
+        dialog.camera_selection_var.set("Cam 0")
+        dialog.camera_index_map = {"Cam 0": 0}
+        dialog.num_aquariums_var.set(0)
+
+        def error_text() -> str:
+            with patch("zebtrack.ui.dialogs.live_analysis_dialog.messagebox.showerror") as shown:
+                assert dialog.validate() is False
+            return str(shown.call_args.args[1])
+
+        assert "number of aquariums and animals" in error_text()
+        _pick(dialog.behavioral_config_widget.animal_model_combo, animal_model_choices(), "rodent")
+        assert "number of arenas and animals" in error_text()
 
     def test_assignment_dialog_names_the_arena_for_a_rodent_project(self, tkinter_root):
         from zebtrack.ui.dialogs.aquarium_assignment_dialog import AquariumAssignmentDialog
@@ -346,7 +387,7 @@ class TestSubjectLabelsInTheTrees:
         from zebtrack.ui.components.project_views.report_tree_builder import ReportTreeBuilder
 
         manager = SimpleNamespace(project_data=project_data)
-        validation = SimpleNamespace(format_subject_label=lambda sid: f"S{sid}")
+        validation: Any = SimpleNamespace(format_subject_label=lambda sid: f"S{sid}")
         return ReportTreeBuilder(project_manager_getter=manager, validation_manager=validation)
 
     @staticmethod
