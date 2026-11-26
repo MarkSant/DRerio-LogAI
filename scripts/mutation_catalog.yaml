@@ -7162,6 +7162,46 @@ _load_registry()"
         description: "colunas tidy ignoram o numero de buracos do projeto"
         find: "return barnes_tidy_columns(parse_barnes_params(raw_params)[0].n_holes)"
         replace: "return barnes_tidy_columns(20)"
+      - id: window-preset-not-wired
+        description: "o Barnes deixa de propor a janela v2 para um projeto novo"
+        find: "    window_preset=_window_preset,"
+        replace: "    window_preset=None,"
+      - id: window-preset-ignores-params
+        description: "a janela proposta ignora os parametros do projeto"
+        find: "return barnes_window_preset(parse_barnes_params(raw_params)[0])"
+        replace: "return barnes_window_preset(BarnesParams())"
+      - id: ceiling-not-from-params
+        description: "o teto da janela deixa de vir de max_trial_s"
+        find: "max_s=params.max_trial_s if max_s is None else max_s,"
+        replace: "max_s=240.0 if max_s is None else max_s,"
+      - id: ceiling-override-dropped
+        description: "o teto de uma janela v1 se perde na atualizacao para v2"
+        find: "max_s=params.max_trial_s if max_s is None else max_s,"
+        replace: "max_s=params.max_trial_s,"
+      - id: release-hold-override-dropped
+        description: "o k_frames de uma janela v1 se perde na atualizacao para v2"
+        find: "hold = {} if k_frames is None else {\"k_frames\": k_frames}"
+        replace: "hold = {}"
+      - id: entry-cover-default
+        description: "cobertura minima da entrada ignora o projeto"
+        find: "entry_min_cover=params.entry_min_cover,"
+        replace: "entry_min_cover=0.5,"
+      - id: entry-visible-default
+        description: "fracao visivel maxima da entrada ignora o projeto"
+        find: "entry_max_visible_fraction=params.entry_max_visible_fraction,"
+        replace: "entry_max_visible_fraction=0.35,"
+      - id: entry-hold-default
+        description: "tempo de permanencia da entrada ignora o projeto"
+        find: "entry_hold_s=params.entry_hold_s,"
+        replace: "entry_hold_s=0.5,"
+      - id: entry-absent-default
+        description: "tempo de ausencia da entrada ignora o projeto"
+        find: "entry_absent_s=params.entry_absent_s,"
+        replace: "entry_absent_s=3.0,"
+      - id: entry-reference-default
+        description: "quadros de referencia da entrada ignoram o projeto"
+        find: "entry_min_reference_frames=params.entry_min_reference_frames,"
+        replace: "entry_min_reference_frames=10,"
   barnes_registry:
     source: src/zebtrack/analysis/protocols/registry.py
     tests:

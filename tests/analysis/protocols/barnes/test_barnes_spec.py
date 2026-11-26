@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import json
+
 from zebtrack import i18n
-from zebtrack.analysis.protocols.barnes.contract import ASSISTANT_ID, barnes_tidy_columns
+from zebtrack.analysis.protocols.barnes.contract import (
+    ASSISTANT_ID,
+    BarnesParams,
+    barnes_tidy_columns,
+)
 from zebtrack.analysis.protocols.barnes.metrics import compute_barnes_metrics
-from zebtrack.analysis.protocols.barnes.spec import BARNES_SPEC
+from zebtrack.analysis.protocols.barnes.spec import BARNES_SPEC, barnes_window_preset
 from zebtrack.analysis.protocols.base import GenericReportSection
+from zebtrack.core.conditions.presets import barnes_maze_preset_v2
 from zebtrack.core.services.experiment_profile import ProtocolId
 
 
@@ -17,7 +24,63 @@ def test_the_spec_declares_what_the_contract_says():
         {GenericReportSection.THIGMOTAXIS, GenericReportSection.GEOTAXIS}
     )
     assert BARNES_SPEC.zone_assistant == ASSISTANT_ID
-    assert BARNES_SPEC.window_preset is None
+    assert BARNES_SPEC.window_preset is not None
+
+
+def _dump(spec) -> dict:
+    return spec.model_dump(mode="json", by_alias=True)
+
+
+def test_window_preset_is_v2_with_the_default_params():
+    preset = BARNES_SPEC.window_preset
+    assert preset is not None
+
+    window = preset({})
+
+    assert _dump(window) == _dump(barnes_maze_preset_v2())
+    assert "burrow_entry" in json.dumps(_dump(window))
+
+
+def test_window_preset_reads_the_trial_ceiling_and_the_entry_thresholds():
+    raw = {
+        "max_trial_s": 120.0,
+        "entry_min_cover": 0.6,
+        "entry_max_visible_fraction": 0.25,
+        "entry_hold_s": 1.0,
+        "entry_absent_s": 2.0,
+        "entry_min_reference_frames": 15,
+        "n_holes": 20,
+    }
+    preset = BARNES_SPEC.window_preset
+    assert preset is not None
+
+    window = preset(raw)
+
+    assert _dump(window) == _dump(
+        barnes_maze_preset_v2(
+            max_s=120.0,
+            entry_min_cover=0.6,
+            entry_max_visible_fraction=0.25,
+            entry_hold_s=1.0,
+            entry_absent_s=2.0,
+            entry_min_reference_frames=15,
+        )
+    )
+    # A bad value falls back to its default instead of raising.
+    assert _dump(preset({"max_trial_s": "long"})) == _dump(barnes_maze_preset_v2())
+
+
+def test_barnes_window_preset_keeps_the_overrides_of_a_v1_update():
+    params = BarnesParams(n_holes=18, max_trial_s=200.0, entry_hold_s=0.8)
+
+    window = barnes_window_preset(params, k_frames=7, max_s=60.0, burrow_roi="Toca")
+
+    assert _dump(window) == _dump(
+        barnes_maze_preset_v2(k_frames=7, max_s=60.0, burrow_roi="Toca", entry_hold_s=0.8)
+    )
+    assert _dump(barnes_window_preset(params)) == _dump(
+        barnes_maze_preset_v2(max_s=200.0, entry_hold_s=0.8)
+    )
 
 
 def test_tidy_columns_follow_the_project_hole_count():

@@ -78,7 +78,6 @@ from zebtrack.core.conditions.presets import (
     BARNES_BURROW_ROI,
     barnes_maze_preset,
     barnes_maze_preset_v1_arguments,
-    barnes_maze_preset_v2,
 )
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
@@ -982,21 +981,14 @@ def barnes_v2_spec(
     burrow ROI takes the project's own spelling of ``toca``.
     """
     from zebtrack.analysis.protocols.barnes.contract import parse_barnes_params
+    from zebtrack.analysis.protocols.barnes.spec import barnes_window_preset
     from zebtrack.core.services.experiment_profile import resolve_experiment_profile
 
     profile = resolve_experiment_profile(project_data=project_data)
     params, _warnings = parse_barnes_params(profile.protocol_params)
     roi = burrow_roi if burrow_roi is not None else match_roi_name(BARNES_BURROW_ROI, roi_names)
-    return barnes_maze_preset_v2(
-        k_frames=5 if k_frames is None else k_frames,
-        max_s=params.max_trial_s if max_s is None else max_s,
-        burrow_roi=roi,
-        entry_min_cover=params.entry_min_cover,
-        entry_max_visible_fraction=params.entry_max_visible_fraction,
-        entry_hold_s=params.entry_hold_s,
-        entry_absent_s=params.entry_absent_s,
-        entry_min_reference_frames=params.entry_min_reference_frames,
-    )
+    # The same params -> preset mapping as the Barnes spec's window_preset.
+    return barnes_window_preset(params, k_frames=k_frames, max_s=max_s, burrow_roi=roi)
 
 
 def barnes_v2_update(

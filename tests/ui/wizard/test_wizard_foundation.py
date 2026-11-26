@@ -413,6 +413,17 @@ class TestDiscoveryExperimentProfile:
 
         assert step.get_data()["analysis_window"] == window
 
+    def test_barnes_gets_preset_v2_from_the_registered_spec(self):
+        """No patch: the Barnes spec's window_preset reaches a new project (#633)."""
+        from zebtrack.core.conditions.presets import barnes_maze_preset_v2
+
+        step, _data = self._step()
+        _choose(step.protocol_combo, protocol_choices(), "barnes")
+
+        assert step.get_data()["analysis_window"] == barnes_maze_preset_v2().model_dump(
+            mode="json", by_alias=True
+        )
+
     def test_barnes_does_not_overwrite_a_window_the_user_already_has(self, monkeypatch):
         _with_window_preset(monkeypatch)
         step, _data = self._step({"analysis_window": {"kind": "mine"}})

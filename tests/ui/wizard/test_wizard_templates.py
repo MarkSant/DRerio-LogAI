@@ -907,6 +907,26 @@ class TestProtocolWindowSpec:
         assert window == barnes_maze_preset().model_dump(mode="json", by_alias=True)
         assert seen == [{"max_trial_s": 120}]
 
+    def test_the_registered_barnes_spec_proposes_preset_v2(self):
+        """The real registry, no patch: a new Barnes project gets preset v2 (#633)."""
+        import json
+
+        from zebtrack.core.conditions.presets import barnes_maze_preset_v2
+
+        profile = resolve_experiment_profile(
+            behavioral_config={
+                "protocol": "barnes",
+                "protocol_params": {"barnes": {"max_trial_s": 180.0, "entry_hold_s": 1.0}},
+            }
+        )
+
+        window = protocol_window_spec(profile)
+
+        assert window == barnes_maze_preset_v2(max_s=180.0, entry_hold_s=1.0).model_dump(
+            mode="json", by_alias=True
+        )
+        assert "burrow_entry" in json.dumps(window)
+
 
 class TestBuiltinBarnesTemplate:
     def _template(self) -> dict[str, Any]:
