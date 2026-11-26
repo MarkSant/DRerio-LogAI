@@ -14099,3 +14099,39 @@ msgid ""
 "recognise; it was replaced by the closest valid one. Check the animal model "
 "and the protocol in the first step."
 msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "Automatic"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "Direct"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "Random"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "Search strategy"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "Serial"
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "The manual correction was removed. Regenerate the report of this video to show the automatic search strategy again."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "The search strategy could not be saved; the project was left unchanged."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "The search strategy was saved as corrected. Regenerate the report (and the summary) of this video for the correction to appear."
+msgstr ""
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "🐀 Search strategy (Barnes)"
+msgstr ""
