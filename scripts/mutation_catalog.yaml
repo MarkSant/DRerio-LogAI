@@ -8018,7 +8018,7 @@ _load_registry()"
         replace: 'StrategyChoice(_("Automatic"), None, False),'
       - id: clearing-writes-instead
         description: "limpar a correcao grava em vez de remover"
-        find: 'if token is None:'
+        find: 'if token is None or token is _ABSENT:'
         replace: 'if False:'
       - id: project-not-saved
         description: "a correcao nao persiste o projeto"
