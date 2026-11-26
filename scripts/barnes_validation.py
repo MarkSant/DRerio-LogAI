@@ -42,7 +42,7 @@ import shutil
 import sys
 import tempfile
 import unicodedata
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from datetime import time as dt_time
@@ -611,6 +611,11 @@ def censoring_block(app_censored: Sequence[bool], lab_censored: Sequence[bool]) 
     }
 
 
+def _as_flags(series: pd.Series) -> np.ndarray:
+    """A boolean vector from a True/False/None series (blank counts as ``False``)."""
+    return np.array([False if _is_missing(v) else bool(v) for v in series], dtype=bool)
+
+
 def latency_comparison(
     app: pd.Series,
     app_censored: pd.Series,
@@ -626,8 +631,8 @@ def latency_comparison(
     """
     app_values = pd.to_numeric(app, errors="coerce").to_numpy(dtype=float)
     lab_values = pd.to_numeric(lab, errors="coerce").to_numpy(dtype=float)
-    app_cens = app_censored.fillna(False).astype(bool).to_numpy()
-    lab_cens = lab_censored.fillna(False).astype(bool).to_numpy()
+    app_cens = _as_flags(app_censored)
+    lab_cens = _as_flags(lab_censored)
     lab_known = np.isfinite(lab_values) | lab_cens
     app_known = np.isfinite(app_values)
     both = lab_known & app_known
@@ -1567,6 +1572,7 @@ class Recomputer:
         self._probe_re = re.compile(probe_regex, re.IGNORECASE) if probe_regex else None
         self._settings = settings_obj if settings_obj is not None else load_settings()
         self._service = AnalysisService(settings_obj=self._settings)
+        self._analysis: dict[str, Any] = self._service.collect_analysis_parameters(self._project)
         profile = resolve_experiment_profile(project_data=self._project)
         self._base_params: dict[str, Any] = dict(profile.protocol_params)
         self._workdir = Path(tempfile.mkdtemp(prefix="barnes_validation_"))
@@ -1616,15 +1622,13 @@ class Recomputer:
         prepared = self._prepare(index)
         params = {**self._base_params, **dict(overrides or {})}
         effective = self._effective_params(params)
-        behavioral = dict(
-            self._service.collect_analysis_parameters(self._project).get("behavioral_config") or {}
-        )
+        analysis = self._analysis
+        behavioral = dict(analysis.get("behavioral_config") or {})
         behavioral.update(
             {"protocol": "barnes", "animal_model": "rodent", "protocol_params": {"barnes": params}}
         )
         window = self._window(prepared, effective)
         inputs = {"barnes": {"trial_type": self._trial_type_of(case)}}
-        analysis = self._service.collect_analysis_parameters(self._project)
         report, *_rest = self._service.run_full_analysis(
             trajectory_df=prepared["df"],
             pixelcm_x=prepared["px"],
@@ -1852,9 +1856,6 @@ _LOSS_EPS: Final[dict[str, float]] = {
     "mad_first_error": 0.5,
     "strategy_disagreement": 0.02,
 }
-
-#: Which summary values each parameter group answers for (lower is better).
-_GROUP_METRICS: Final[dict[str, Callable[[Mapping[str, Any]], dict[str, float]]]] = {}
 
 
 def _get(block: Mapping[str, Any], *path: str) -> float:

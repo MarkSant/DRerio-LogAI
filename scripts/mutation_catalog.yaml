@@ -7658,3 +7658,103 @@ _load_registry()"
         description: "Barnes deixa de guardar o intervalo anterior"
         find: "if self._interval_before_barnes is None:"
         replace: "if False:"
+
+  # --- Barnes v8.1 barnes-validation ---
+
+  barnes_validation:
+    source: scripts/barnes_validation.py
+    tests:
+      - tests/scripts/test_barnes_validation.py
+    mutations:
+      - id: bland-altman-sign-flipped
+        description: "a diferenca passa a ser lab - app: o vies troca de sinal"
+        find: |-
+          diff = a - b
+              bias = float(diff.mean())
+        replace: |-
+          diff = b - a
+              bias = float(diff.mean())
+      - id: bland-altman-population-sd
+        description: "desvio-padrao das diferencas com ddof=0 estreita os limites de concordancia"
+        find: "sd = float(diff.std(ddof=1))"
+        replace: "sd = float(diff.std(ddof=0))"
+      - id: bland-altman-lower-limit-above-bias
+        description: "limite inferior de concordancia fica acima do vies"
+        find: "loa_lower=bias - 1.96 * sd,"
+        replace: "loa_lower=bias + 1.96 * sd,"
+      - id: icc-ignores-rater-offset
+        description: "ICC deixa de penalizar o desvio sistematico entre avaliadores (vira consistencia)"
+        find: "denominator = ms_rows + (k - 1) * ms_err + k * (ms_cols - ms_err) / n"
+        replace: "denominator = ms_rows + (k - 1) * ms_err"
+      - id: icc-residual-keeps-rater-variance
+        description: "soma de quadrados residual esquece a variancia entre avaliadores"
+        find: "ss_err = float(((data - grand) ** 2).sum()) - ss_rows - ss_cols"
+        replace: "ss_err = float(((data - grand) ** 2).sum()) - ss_rows"
+      - id: icc-upper-limit-uses-error-term
+        description: "limite superior do IC do ICC usa MSE onde McGraw-Wong usam MSR"
+        find: "upper = n * (f_upper_tail * ms_rows - ms_err) / (pooled + n * f_upper_tail * ms_rows)"
+        replace: "upper = n * (f_upper_tail * ms_rows - ms_err) / (pooled + n * f_upper_tail * ms_err)"
+      - id: kappa-chance-agreement-wrong-denominator
+        description: "concordancia esperada ao acaso dividida por n em vez de n ao quadrado"
+        find: "expected = float((matrix.sum(axis=1) * matrix.sum(axis=0)).sum()) / (n * n)"
+        replace: "expected = float((matrix.sum(axis=1) * matrix.sum(axis=0)).sum()) / n"
+      - id: confusion-matrix-transposed
+        description: "matriz de confusao com linhas = app em vez de linhas = laboratorio"
+        find: "matrix[index[lab_label], index[app_label]] += 1"
+        replace: "matrix[index[app_label], index[lab_label]] += 1"
+      - id: censored-pairs-count-as-observed
+        description: "latencia censurada pelo laboratorio entra nas estatisticas de pares observados"
+        find: "observed = both & ~app_cens & ~lab_cens & np.isfinite(lab_values)"
+        replace: "observed = both & ~app_cens & np.isfinite(lab_values)"
+      - id: lab-ceiling-not-censored
+        description: "latencia do laboratorio exatamente no teto (240 s) deixa de ser censurada"
+        find: "ceiling_hit = out[latency] >= spec.censor_at_s - _CENSOR_TOLERANCE_S"
+        replace: "ceiling_hit = out[latency] > spec.censor_at_s"
+      - id: offset-half-second-excludes-the-bound
+        description: "|offset| de exatamente 0,5 s deixa de contar como dentro de 0,5 s"
+        find: "within_0_5_s=float((abs_diff <= 0.5).mean()),"
+        replace: "within_0_5_s=float((abs_diff < 0.5).mean()),"
+      - id: clock-time-not-multiplied-by-sixty
+        description: "tempo em m:ss deixa de multiplicar os minutos por 60"
+        find: "seconds = seconds * 60.0 + float(chunk)"
+        replace: "seconds = seconds + float(chunk)"
+      - id: source-row-off-by-header
+        description: "numero da linha da planilha ignora a linha do cabecalho"
+        find: 'out["source_row"] = frame.index + spec.header_row + 1'
+        replace: 'out["source_row"] = frame.index + 1'
+      - id: path-match-accepts-one-component
+        description: "uma unica componente de caminho em comum (so o nome do arquivo) passa a casar"
+        find: "if shared < 2 or shared < best:"
+        replace: "if shared < 1 or shared < best:"
+      - id: path-tie-resolved-silently
+        description: "empate de caminhos deixa de ser ambiguo e o ultimo vence"
+        find: "if shared > best:"
+        replace: "if shared >= best:"
+      - id: strategy-counts-pairs-without-app-label
+        description: "par sem estrategia do app entra na comparacao de kappa"
+        find: "usable = lab.notna() & app.notna()"
+        replace: "usable = lab.notna()"
+      - id: relative-loss-inverted
+        description: "perda relativa invertida: piorar passa a parecer melhorar"
+        find: "(values[name] + _LOSS_EPS[name]) / (reference[name] + _LOSS_EPS[name])"
+        replace: "(reference[name] + _LOSS_EPS[name]) / (values[name] + _LOSS_EPS[name])"
+      - id: ties-do-not-prefer-the-current-values
+        description: "empate na grade deixa de preferir o valor mais proximo do atual"
+        find: "scored.sort(key=lambda item: (item[0], item[1]))"
+        replace: "scored.sort(key=lambda item: (item[0],))"
+      - id: held-out-tie-counts-as-improvement
+        description: "perda relativa igual a 1 (sem ganho) passa a ser chamada de melhora"
+        find: "bool(math.isfinite(loss) and loss < 1.0)"
+        replace: "bool(math.isfinite(loss) and loss <= 1.0)"
+      - id: split-stratum-can-empty-one-side
+        description: "estrato de dois pode deixar o conjunto de avaliacao vazio"
+        find: "cut = min(max(round(fraction * len(shuffled)), 1), len(shuffled) - 1)"
+        replace: "cut = round(fraction * len(shuffled))"
+      - id: calibration-accepts-too-few-videos
+        description: "calibracao com 1 video casado deixa de ser recusada"
+        find: "if len(matched) < 4:"
+        replace: "if len(matched) < 1:"
+      - id: recompute-ignores-the-rebuilt-window
+        description: "o recompute deixa de reconstruir a janela com o preset v2 e os limiares sobrescritos"
+        find: 'if self._window_mode == "preset_v2"'
+        replace: "if False"

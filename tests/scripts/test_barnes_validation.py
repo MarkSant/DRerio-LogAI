@@ -1704,3 +1704,111 @@ def test_a_user_grid_extends_and_replaces_the_default_axes(tmp_path):
     assert grid["visit_min_cover"] == [0.25, 0.35]
     assert grid["entry_hold_s"] == [0.7]
     assert grid["visit_enter_frames"] == bv.DEFAULT_GRID["visit_enter_frames"]
+
+
+# --- parity with the individual report's own helpers ------------------------------------------
+# ``Recomputer`` mirrors three small steps of ``ReportGenerationCoordinator`` so a recompute sees
+# the numbers the report saw. Nothing else keeps the copies honest, so these tests compare them.
+
+
+def test_the_local_space_matches_the_report_coordinators(results_root):
+    from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
+
+    coordinator: Any = ReportGenerationCoordinator
+    cases, _ = bv.discover_cases(results_root)
+    polygon = [list(p) for p in TABLE.arena()]
+    off_x, off_y, width, height = coordinator._compute_local_space_geometry(None, polygon, 640, 428)
+    raw = pd.read_parquet(cases[0].trajectory)
+
+    mine = bv.Recomputer._to_local(raw, off_x, off_y, width, height)
+    theirs = coordinator._normalize_df_to_local_space(None, raw, off_x, off_y, width, height)
+
+    pd.testing.assert_frame_equal(mine, theirs)
+    with bv.Recomputer(cases, project_data=PROJECT) as recomputer:
+        prepared = recomputer._prepare(0)
+    assert prepared["height"] == height
+    assert prepared["arena"][0] == (polygon[0][0] - off_x, polygon[0][1] - off_y)
+
+
+@pytest.mark.parametrize(
+    "calibration",
+    [
+        {"pixel_per_cm_x": 2.5, "pixel_per_cm_y": 2.5},
+        {"aquarium_width_cm": 184.0, "aquarium_height_cm": 184.0},
+        {"pixel_per_cm_x": 0.5, "aquarium_width_cm": 100.0, "aquarium_height_cm": 50.0},
+    ],
+)
+def test_the_pixel_cm_rule_matches_the_report_coordinators(calibration):
+    from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
+
+    coordinator: Any = ReportGenerationCoordinator
+    project = {**PROJECT, "calibration": calibration}
+    px_o = float(calibration.get("pixel_per_cm_x", 1.0))
+    py_o = float(calibration.get("pixel_per_cm_y", 1.0))
+
+    with bv.Recomputer([], project_data=project) as recomputer:
+        mine = recomputer._pixel_cm(400, 400)
+    theirs = coordinator._resolve_pixel_cm(None, {}, calibration, 400, 400, px_o, py_o)
+
+    assert mine == pytest.approx(theirs)
+
+
+def test_without_a_calibration_the_pixel_cm_falls_back_to_the_table_diameter():
+    with bv.Recomputer([], project_data=PROJECT) as recomputer:
+        default = recomputer._pixel_cm(368, 368)
+    with bv.Recomputer([], project_data=PROJECT, table_diameter_cm=200.0) as recomputer:
+        explicit = recomputer._pixel_cm(400, 400)
+
+    assert default == pytest.approx((2.0, 2.0))  # 368 px / the 184 cm default table
+    assert explicit == pytest.approx((2.0, 2.0))
+
+
+# --- edges the first tests left open ----------------------------------------------------------
+
+
+def test_one_shared_path_component_is_not_a_match():
+    lab = lab_frame({"video": "D:/lab/CECT_4.mp4"})  # only the file name agrees
+    app = app_frame({"video_path": "C:/proj/Dia_1/CECT_4/CECT_4.mp4"})
+
+    result = bv.match_rows(lab, app, bv.MatchSpec())
+
+    assert result.pairs == [] and result.lab_unmatched == [0]
+
+
+def test_two_videos_with_the_same_trailing_path_are_ambiguous_not_first_come():
+    lab = lab_frame({"video": "CECT_4/CECT_4.mp4"})
+    app = app_frame(
+        {"video_path": "C:/proj/Dia_1/CECT_4/CECT_4.mp4"},
+        {"video_path": "C:/proj/Dia_2/CECT_4/CECT_4.mp4"},
+    )
+
+    result = bv.match_rows(lab, app, bv.MatchSpec())
+
+    assert result.pairs == []
+    assert result.ambiguous[0]["candidates"] and len(result.ambiguous[0]["candidates"]) == 2
+
+
+def test_a_strategy_the_app_could_not_produce_is_counted_apart_from_a_disagreement():
+    lab = lab_frame(
+        {"group": "A", "day": 1, "subject": 1, "strategy": "direct"},
+        {"group": "A", "day": 1, "subject": 2, "strategy": "serial"},
+    )
+    app = app_frame(
+        {"group": "A", "day": 1, "subject": 1, "strategy_auto": "direct"},
+        {"group": "A", "day": 1, "subject": 2, "strategy_auto": None},
+    )
+    tables = {"strategy": lab}
+
+    block = bv.evaluate(tables, app, bv.match_all(tables, app, bv.MatchSpec()))
+    strategy = block.summary["strategy"]["strategy"]
+
+    assert strategy["counts"] == {"pairs": 2, "lab_missing": 0, "app_missing": 1, "compared": 1}
+    assert strategy["kappa"]["n"] == 1
+
+
+def test_a_stratum_of_two_keeps_both_sides_even_with_a_high_fraction():
+    identities = _identities({("A", 1): 2, ("A", 2): 2})
+
+    cal, held = bv.split_cases(identities, [0, 1, 2, 3], fraction=0.9, seed=5)
+
+    assert len(cal) == 2 and len(held) == 2
