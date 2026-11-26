@@ -1525,7 +1525,9 @@ def test_recompute_marks_probe_trials_by_regex_or_by_the_project_entry(results_r
     assert regex_row["trial_type"] == "probe" and entry_row["trial_type"] == "probe"
     assert regex_row["entry_censored"] is None  # probe: no escape box
     assert entry_identity.loc[0, "video_path"] == "C:/v/rat1.mp4"
-    assert regex_identity.loc[0, "video_path"].endswith("3_CoordMovimento_rat1.parquet")
+    # no project entry: no video path to offer (the match falls back to the experiment id)
+    assert regex_identity.loc[0, "video_path"] is None
+    assert regex_identity.loc[0, "experiment_id"] == "rat1"
 
 
 def test_recompute_rejects_a_case_without_zones_or_an_unknown_window_mode(tmp_path, results_root):

@@ -1611,7 +1611,7 @@ class Recomputer:
                     "day": case.day,
                     "subject": case.subject,
                     "experiment_id": case.base,
-                    "video_path": (entry or {}).get("path") or str(case.trajectory),
+                    "video_path": (entry or {}).get("path"),
                 }
             )
         return coerce_app_frame(pd.DataFrame(rows, columns=list(APP_COLUMNS)))
