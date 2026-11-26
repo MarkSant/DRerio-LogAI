@@ -6724,6 +6724,14 @@ _load_registry()"
         description: "fundo vira o minimo dos quadros e o rato que anda fica no fundo"
         find: "background = np.median(stack, axis=0).astype(np.uint8)"
         replace: "background = np.min(stack, axis=0).astype(np.uint8)"
+      - id: worst-hole-count-kept
+        description: "contagem de buracos escolhe o pior ajuste (20 numa mesa de 18)"
+        find: "best = max(placed, key=lambda count: _count_score(placed[count][0]))"
+        replace: "best = min(placed, key=lambda count: _count_score(placed[count][0]))"
+      - id: frame-margin-too-wide
+        description: "mesa bem fora do quadro ainda conta como enquadrada"
+        find: "min(xs) >= -margin * width"
+        replace: "min(xs) >= -10 * margin * width"
 
   barnes_layout_dialog:
     source: src/zebtrack/ui/dialogs/barnes_layout_dialog.py
@@ -6748,11 +6756,39 @@ _load_registry()"
         replace: "self._model = self._model.rotated(-holes * self._model.step)"
       - id: queue-trial-type-dropped
         description: "tipo de sessao escolhido para os outros videos se perde"
-        find: "paths=list(choice.paths), trial_type=choice.trial_type, total=len(choice.paths)"
-        replace: "paths=list(choice.paths), trial_type=None, total=len(choice.paths)"
+        find: "self._start_queue(list(choice.paths), choice.trial_type)"
+        replace: "self._start_queue(list(choice.paths), None)"
       - id: early-click-never-snapped
         description: "clique feito antes do fundo carregar nunca e ajustado"
         find: "if self._click is not None and not self._manual and self._table is not None:"
+        replace: "if False:"
+      - id: count-never-detected
+        description: "numero de buracos nao e detectado no video e fica o do projeto"
+        find: "if self._background is not None and not self._count_overridden:"
+        replace: "if False:"
+      - id: project-count-changed-silently
+        description: "contagem diferente do projeto e gravada sem perguntar"
+        find: "if layout.n_holes == self._params.n_holes:"
+        replace: "if True:"
+      - id: unanswered-write-is-success
+        description: "gravacao sem resposta do coordenador e dada como feita"
+        find: "written = bool(outcome) and outcome[-1]"
+        replace: "written = not outcome or outcome[-1]"
+      - id: table-outside-frame-reused
+        description: "mesa fora do quadro de outro video e reaproveitada"
+        find: "                ) or not geometry.table_fits_frame(table, background.shape[:2]):"
+        replace: "                ):"
+      - id: suspicious-copy-written
+        description: "copia com buraco nao encontrado e gravada sem revisao"
+        find: "                if geometry.layout_quality(layout).suspicious:\n"
+        replace: "                if False:\n"
+      - id: current-video-not-written
+        description: "aplicar a outros videos esquece o video atual"
+        find: "if not proceed or not self._write_current(layout, project_n_holes):\n            return\n        if choice.same_escape_hole:"
+        replace: "if not proceed:\n            return\n        if choice.same_escape_hole:"
+      - id: single-frame-note-hidden
+        description: "fundo de um quadro so deixa de ser avisado"
+        find: "if self._background_note:"
         replace: "if False:"
 
   multi_aquarium_coordinator_barnes:
@@ -6776,6 +6812,26 @@ _load_registry()"
         description: "arena vai para o video ativo e nao para o caminho pedido"
         find: "zone_data.polygon = [(int(x), int(y)) for x, y in points]\n\n        self.project_manager.save_zone_data(zone_data, video_path, persist=persist)"
         replace: "zone_data.polygon = [(int(x), int(y)) for x, y in points]\n\n        self.project_manager.save_zone_data(zone_data, None, persist=persist)"
+      - id: no-rollback
+        description: "falha no meio da gravacao deixa o projeto meio escrito"
+        find: "            self._barnes_restore(snapshot)\n"
+        replace: "            pass\n"
+      - id: refused-roi-ignored
+        description: "ROI do contrato recusada some em silencio"
+        find: "                raise _BarnesWriteRefusedError(roi_name)\n"
+        replace: "                pass\n"
+      - id: other-count-leftovers-kept
+        description: "ROIs de um layout de 20 buracos sobram ao refazer com 18"
+        find: "for n in (98, 99))"
+        replace: "for n in (18,))"
+      - id: outcome-always-success
+        description: "o dialogo e informado de sucesso mesmo quando nada foi gravado"
+        find: "            on_result(written)\n"
+        replace: "            on_result(True)\n"
+      - id: confirmed-count-dropped
+        description: "contagem confirmada pelo usuario nao chega ao projeto"
+        find: '"n_holes", project_n_holes)'
+        replace: '"n_holes", 20)'
 
   event_dispatcher_barnes:
     source: src/zebtrack/ui/components/event_dispatcher.py
@@ -6798,6 +6854,10 @@ _load_registry()"
         description: "instantaneo ao vivo oferece deteccao por video"
         find: "can_detect_table=not (is_live or is_snapshot),"
         replace: "can_detect_table=True,"
+      - id: stale-arena-as-detection
+        description: "arena antiga e apresentada como mesa detectada"
+        find: "if not after or after == before:"
+        replace: "if not after:"
 
   zone_controls_barnes:
     source: src/zebtrack/ui/components/zone_controls.py
@@ -6808,3 +6868,17 @@ _load_registry()"
         description: "botao do assistente vai para depois de Concluir e Salvar"
         find: "                        before=self.conclude_video_btn,\n"
         replace: ""
+
+  experiment_profile_barnes_write:
+    source: src/zebtrack/core/services/experiment_profile.py
+    tests:
+      - tests/core/services/test_experiment_profile.py
+    mutations:
+      - id: legacy-block-ignored
+        description: "projeto legado recebe o parametro num bloco que o leitor nao le"
+        find: "        block_key = _LEGACY_BLOCK_KEY"
+        replace: "        block_key = _PROJECT_BLOCK_KEY"
+      - id: param-not-written
+        description: "parametro do protocolo nao e gravado"
+        find: "    own[key] = value"
+        replace: "    own[key] = previous"
