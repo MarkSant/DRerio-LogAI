@@ -16,6 +16,8 @@ New here? Start with [Installation and Setup](1_Installation.md), then the
 - [Getting Started](user-guide/GETTING_STARTED.md) - first launch, models, first project, reports
 - [Primeiros passos](user-guide/PRIMEIROS_PASSOS.md) - o mesmo guia, em português
 - [Troubleshooting](user-guide/TROUBLESHOOTING.md)
+- [Barnes maze (rats)](user-guide/BARNES_MAZE.md) - experiment profile, arena assistant, metrics, validation
+- [Labirinto de Barnes (ratos)](user-guide/LABIRINTO_BARNES.md) - o mesmo guia, em português
 
 ## 2. Developer Guide
 

@@ -349,6 +349,46 @@ effective weight on the Tk thread, reads the class names on a daemon thread
 `VideoFrameManager._draw_detection_overlay_on_frame`) colour and label boxes by role through
 `ui/components/canvas/overlay_roles.py`; without an explicit map the 7.2 colours are kept.
 
+### 3.10. Barnes Maze Events (v8.1, #633)
+
+| Event (UIEvents)               | Payload                                   | Publishers                         | Subscribers                                   |
+| ------------------------------ | ----------------------------------------- | ---------------------------------- | --------------------------------------------- |
+| `ZONE_BARNES_ASSISTANT_OPEN`   | —                                         | `ZoneControlsWidget` (button shown only when the profile's protocol is `barnes`) | `EventDispatcher` → opens `BarnesLayoutDialog` |
+| `ZONE_BARNES_LAYOUT_APPLY`     | `BarnesLayoutApplyPayload` (`video_path`, `arena_polygon`, `rois`, `layout_metadata`, `trial_type`, `project_n_holes`, `on_result`) | `BarnesLayoutDialog` | `MultiAquariumCoordinator._on_barnes_layout_apply` → `apply_barnes_layout` (subscribed in its constructor) |
+
+`apply_barnes_layout` is all-or-nothing: it snapshots the zones, `behavioral_config` and the
+video entry, writes the arena and the contract ROIs (`toca`, `quadrante_alvo`,
+`buraco_±NN`, `buraco_oposto`) through `set_main_arena_polygon`/`add_roi_polygon`, the trial type
+through `set_protocol_input` and an accepted hole count through `set_protocol_param`, saves once,
+and on any failure restores the snapshot, publishes `UI_SHOW_WARNING` and answers
+`on_result(False)` (no answer counts as a failure in the dialog).
+
+**Experiment profile and protocol layer (ADR-014).** The profile (`animal_model`, `protocol`,
+`protocol_params`) lives in `behavioral_config` and is read only through
+`core/services/experiment_profile.resolve_experiment_profile`. It is chosen in the wizard
+Discovery step (persisted by `ProjectWorkflowService._persist_project_data`) or in the ad-hoc
+dialogs' `BehavioralConfigWidget`. `AnalysisService.run_full_analysis` always writes
+`report["protocol_metrics"]` (`{"status": "none"}` for `generic`); for `barnes` the registry
+(`analysis/protocols/registry.py`) dispatches to `analysis/protocols/barnes/metrics.compute_barnes_metrics`.
+Per-video inputs (`trial_type`, `strategy_override`) live in `video_entry["protocol_inputs"]` and
+reach the hook through `protocol_inputs` on every single-arena path; multi-aquarium runs answer
+`unavailable/multi_aquarium`. `BARNES_SPEC.window_preset` → `barnes_window_preset` →
+`core/conditions/presets.barnes_maze_preset_v2`, which the wizard applies to a new Barnes project
+and `AnalysisWindowPanel.barnes_v2_spec` reuses.
+
+**Burrow entry in the conditions engine.** `FrameObservation` carries `subject_area_px` and
+`subject_cover` (fraction of the subject bbox inside each ROI), computed by
+`core/conditions/subject_geometry.py` for both builders: offline `build_window_observations(spec=)`
+(only when the spec reads them) and live `ConditionRuntime.step(subject_boxes=, rois=)`, fed by
+`FrameProcessingMixin._condition_geometry_inputs` with the raw ROI polygons. A missing burrow ROI
+live logs `condition_runtime.subject_geometry.inputs_missing` once. STOP reason `burrow_entry` is
+additive in the `7_AnalysisWindow` artifact.
+
+**Interface vocabulary.** `ui/terminology.term(key, animal_model)` returns whole-sentence msgids
+per animal model (zebrafish = the original msgid). `EventDispatcher.refresh_animal_terminology()`
+runs from the same hooks as `refresh_barnes_assistant_visibility` and calls
+`ZoneControlsWidget.set_animal_model()`. Exported `.xlsx` headers never change with the model.
+
 ---
 
 ## 4. Component Dependencies (The Hierarchy)
