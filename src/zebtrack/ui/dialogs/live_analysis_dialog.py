@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 from zebtrack.analysis.behavioral_policy import freezing_defaults
 from zebtrack.core.recording.live_output_paths import default_live_sessions_dir
-from zebtrack.core.services.experiment_profile import ExperimentProfile, ProtocolId
+from zebtrack.core.services.experiment_profile import AnimalModel, ExperimentProfile, ProtocolId
 from zebtrack.core.services.external_trigger_gate import (
     ExternalTriggerDecision,
     conflicting_triggers_message,
@@ -214,6 +214,9 @@ class LiveAnalysisDialog(Dialog):
         # What the freezing fields hold for the zebrafish baseline: the experiment
         # profile's animal model swaps them for its own numbers and back.
         self._freezing_baseline = (float(freeze_thresh_default), float(freeze_dur_default))
+        self._profile_animal = AnimalModel.ZEBRAFISH
+        #: The analysis interval before Barnes pinned it to one frame (None: not pinned).
+        self._interval_before_barnes: int | None = None
 
         # Smoothing parameters
         smoothing_window_default = 5
@@ -720,12 +723,24 @@ class LiveAnalysisDialog(Dialog):
         return self.camera_combo
 
     def _on_profile_changed(self, profile: ExperimentProfile) -> None:
-        """Follow the experiment profile: the animal's freezing numbers, Barnes interval."""
-        velocity, duration = freezing_defaults(profile.animal_model, *self._freezing_baseline)
-        self.freeze_thresh_var.set(velocity)
-        self.freeze_dur_var.set(duration)
+        """Follow the experiment profile: the animal's freezing numbers, Barnes interval.
+
+        The freezing fields change only when the animal model does (a hand-edited
+        value survives a protocol or trial-type change); Barnes pins the analysis
+        interval to one frame and leaving it puts the earlier value back.
+        """
+        if profile.animal_model is not self._profile_animal:
+            self._profile_animal = profile.animal_model
+            velocity, duration = freezing_defaults(profile.animal_model, *self._freezing_baseline)
+            self.freeze_thresh_var.set(velocity)
+            self.freeze_dur_var.set(duration)
         if profile.protocol is ProtocolId.BARNES:
+            if self._interval_before_barnes is None:
+                self._interval_before_barnes = int(self.analysis_interval_var.get())
             self.analysis_interval_var.set(BARNES_ANALYSIS_INTERVAL_FRAMES)
+        elif self._interval_before_barnes is not None:
+            self.analysis_interval_var.set(self._interval_before_barnes)
+            self._interval_before_barnes = None
 
     def buttonbox(self) -> None:
         """Create custom button box with Start and Cancel."""

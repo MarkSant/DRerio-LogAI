@@ -6802,6 +6802,10 @@ _load_registry()"
         description: "perfil generico passa a devolver parametros de protocolo"
         find: "if self.protocol_var.get() == ProtocolId.GENERIC.value:"
         replace: "if False:"
+      - id: restore-keeps-old-animal-numbers
+        description: "restaurar outro animal mantem a velocidade e a parede do animal anterior"
+        find: "if profile.animal_model.value != self.animal_model_var.get():"
+        replace: "if False:"
 
   exp_profile_discovery_step:
     source: src/zebtrack/ui/wizard/discovery_step.py
@@ -6820,17 +6824,9 @@ _load_registry()"
         description: "Barnes sobrescreve a janela que o usuario ja tinha"
         find: "if not self.wizard_data.get(\"analysis_window\"):"
         replace: "if True:"
-      - id: barnes-interval-not-forced
-        description: "Barnes deixa de fixar o intervalo em 1 quadro"
-        find: "data[\"analysis_interval_frames\"] = BARNES_ANALYSIS_INTERVAL_FRAMES"
-        replace: "pass"
       - id: barnes-geotaxis-left-on
         description: "Barnes deixa de desligar a geotaxia"
         find: "block[\"geotaxis_enabled\"] = False"
-        replace: "pass"
-      - id: leaving-barnes-keeps-interval
-        description: "sair do Barnes mantem o intervalo de 1 quadro"
-        find: "self.wizard_data.pop(\"analysis_interval_frames\", None)"
         replace: "pass"
       - id: leaving-barnes-clears-custom-window
         description: "sair do Barnes apaga a janela customizada"
@@ -6844,6 +6840,10 @@ _load_registry()"
         description: "voltar ao passo nao restaura o perfil"
         find: "if isinstance(data.get(\"behavioral_analysis\"), dict):"
         replace: "if False:"
+      - id: leaving-barnes-keeps-window
+        description: "sair do Barnes mantem a janela que o proprio Barnes propos"
+        find: "data[\"analysis_window\"] = None"
+        replace: "pass"
 
   exp_profile_calibration_step:
     source: src/zebtrack/ui/wizard/calibration_step.py
@@ -6874,3 +6874,47 @@ _load_registry()"
         description: "o campo do intervalo continua editavel no Barnes"
         find: "self._analysis_entry.configure(state=\"disabled\" if barnes else \"normal\")"
         replace: "self._analysis_entry.configure(state=\"normal\")"
+      - id: interval-not-restored
+        description: "sair do Barnes nao devolve o intervalo anterior"
+        find: "self.analysis_interval_var.set(self._interval_before_barnes)"
+        replace: "pass"
+      - id: interval-not-remembered
+        description: "entrar no Barnes nao guarda o intervalo anterior"
+        find: "self._interval_before_barnes = int(self.analysis_interval_var.get())"
+        replace: "self._interval_before_barnes = None"
+
+  exp_profile_live_dialog:
+    source: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+    tests:
+      - tests/test_live_analysis_ui.py
+    mutations:
+      - id: freezing-reset-on-every-callback
+        description: "os campos de congelamento voltam ao padrao a cada mudanca de perfil"
+        find: "if profile.animal_model is not self._profile_animal:"
+        replace: "if True:"
+      - id: barnes-interval-not-restored
+        description: "sair do Barnes nao devolve o intervalo anterior"
+        find: "self.analysis_interval_var.set(self._interval_before_barnes)"
+        replace: "pass"
+      - id: barnes-interval-not-remembered
+        description: "Barnes deixa de guardar o intervalo anterior"
+        find: "if self._interval_before_barnes is None:"
+        replace: "if False:"
+
+  exp_profile_single_video_dialog:
+    source: src/zebtrack/ui/dialogs/single_video_config_dialog.py
+    tests:
+      - tests/test_single_video_config.py
+    mutations:
+      - id: freezing-reset-on-every-callback
+        description: "os campos de congelamento voltam ao padrao a cada mudanca de perfil"
+        find: "if profile.animal_model is not self._profile_animal:"
+        replace: "if True:"
+      - id: barnes-interval-not-restored
+        description: "sair do Barnes nao devolve o intervalo anterior"
+        find: "self.analysis_interval_var.set(self._interval_before_barnes)"
+        replace: "pass"
+      - id: barnes-interval-not-remembered
+        description: "Barnes deixa de guardar o intervalo anterior"
+        find: "if self._interval_before_barnes is None:"
+        replace: "if False:"

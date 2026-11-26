@@ -567,3 +567,93 @@ class TestCalibrationStepBarnesProfile:
 
         assert _need(step._table_row).winfo_manager()
         assert step.table_diameter_var.get() == 120.0
+
+
+@pytest.mark.gui
+class TestWizardProfileEndToEnd:
+    """Discovery -> Calibration: the persisted thresholds follow the animal model."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, wizard_dependencies):
+        self.root = wizard_dependencies["root"]
+        self.wizard_data: dict[str, Any] = {}
+        self.calibration = CalibrationStep(self.root, self.wizard_data)
+        self.calibration.build_ui()
+
+    def _run(self, animal: str, protocol: str) -> dict[str, Any]:
+        """One pass through the wizard: Discovery picks, Calibration shows and is read."""
+        from zebtrack.ui.components.behavioral_config_widget import (
+            animal_model_choices,
+            protocol_choices,
+        )
+        from zebtrack.ui.wizard.discovery_step import DiscoveryStep
+
+        discovery = DiscoveryStep(self.root, self.wizard_data)
+        discovery.build_ui()
+        discovery.set_data({"behavioral_analysis": self.wizard_data.get("behavioral_analysis", {})})
+        for combo, choices, token in (
+            # Protocol first, as in the UI: Barnes keeps the animal combo locked until left.
+            (discovery.protocol_combo, protocol_choices(), protocol),
+            (discovery.animal_model_combo, animal_model_choices(), animal),
+        ):
+            _need(combo).set(next(label for label, value in choices if value == token))
+            _need(combo).event_generate("<<ComboboxSelected>>")
+        self.wizard_data.update(discovery.get_data())
+
+        self.calibration.on_show()
+        self.root.update()
+        data = self.calibration.get_data()
+        self.wizard_data.update(data)
+        return data
+
+    def _baseline(self) -> tuple[float, float]:
+        widget = _need(self.calibration.behavioral_config_widget)
+        return widget._default_thigmotaxis_cm, widget._default_max_speed_cm_s
+
+    def test_a_rodent_chosen_in_discovery_persists_the_rodent_thresholds(self):
+        block = self._run("rodent", "generic")["behavioral_analysis"]
+
+        assert block["animal_model"] == "rodent"
+        assert block["thigmotaxis_distance_cm"] == 15.0
+        assert block["max_plausible_speed_cm_s"] == 100.0
+
+    def test_barnes_chosen_in_discovery_persists_the_rodent_thresholds(self):
+        block = self._run("zebrafish", "barnes")["behavioral_analysis"]
+
+        assert block["protocol"] == "barnes"
+        assert block["thigmotaxis_distance_cm"] == 15.0
+        assert block["max_plausible_speed_cm_s"] == 100.0
+
+    def test_barnes_and_then_back_to_zebrafish_persists_the_zebrafish_thresholds(self):
+        self._run("zebrafish", "barnes")
+
+        block = self._run("zebrafish", "generic")["behavioral_analysis"]
+
+        thigmotaxis, speed = self._baseline()
+        assert block["animal_model"] == "zebrafish"
+        assert block["thigmotaxis_distance_cm"] == thigmotaxis
+        assert block["max_plausible_speed_cm_s"] == speed
+
+    def test_numbers_the_user_set_for_the_same_animal_survive_a_second_pass(self):
+        self._run("rodent", "generic")
+        self.wizard_data["behavioral_analysis"]["max_plausible_speed_cm_s"] = 120.0
+
+        block = self._run("rodent", "generic")["behavioral_analysis"]
+
+        assert block["max_plausible_speed_cm_s"] == 120.0
+
+    def test_leaving_barnes_gives_the_previous_interval_back(self):
+        self.wizard_data["analysis_interval_frames"] = 7
+        assert self._run("zebrafish", "barnes")["analysis_interval_frames"] == 1
+
+        restored = self._run("zebrafish", "generic")
+
+        assert restored["analysis_interval_frames"] == 7
+        assert str(_need(self.calibration._analysis_entry).cget("state")) == "normal"
+
+    def test_staying_in_barnes_across_passes_keeps_the_remembered_interval(self):
+        self.wizard_data["analysis_interval_frames"] = 7
+        self._run("zebrafish", "barnes")
+        self._run("zebrafish", "barnes")
+
+        assert self._run("zebrafish", "generic")["analysis_interval_frames"] == 7

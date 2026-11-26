@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import structlog
 
 from zebtrack.analysis.behavioral_policy import freezing_defaults
-from zebtrack.core.services.experiment_profile import ExperimentProfile, ProtocolId
+from zebtrack.core.services.experiment_profile import AnimalModel, ExperimentProfile, ProtocolId
 from zebtrack.i18n import _
 from zebtrack.settings import DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
@@ -118,6 +118,9 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         # What the freezing fields hold for the zebrafish baseline: the experiment
         # profile's animal model swaps them for its own numbers and back.
         self._freezing_baseline = (float(freeze_thresh_default), float(freeze_dur_default))
+        self._profile_animal = AnimalModel.ZEBRAFISH
+        #: The analysis interval before Barnes pinned it to one frame (None: not pinned).
+        self._interval_before_barnes: str | None = None
         self.smoothing_window_var = StringVar(value=smoothing_window_default)
         self.smoothing_polyorder_var = StringVar(value=smoothing_polyorder_default)
 
@@ -533,12 +536,24 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         return main_frame
 
     def _on_profile_changed(self, profile: ExperimentProfile) -> None:
-        """Follow the experiment profile: the animal's freezing numbers, Barnes interval."""
-        velocity, duration = freezing_defaults(profile.animal_model, *self._freezing_baseline)
-        self.freeze_thresh_var.set(str(velocity))
-        self.freeze_dur_var.set(str(duration))
+        """Follow the experiment profile: the animal's freezing numbers, Barnes interval.
+
+        The freezing fields change only when the animal model does (a hand-edited
+        value survives a protocol or trial-type change); Barnes pins the analysis
+        interval to one frame and leaving it puts the earlier value back.
+        """
+        if profile.animal_model is not self._profile_animal:
+            self._profile_animal = profile.animal_model
+            velocity, duration = freezing_defaults(profile.animal_model, *self._freezing_baseline)
+            self.freeze_thresh_var.set(str(velocity))
+            self.freeze_dur_var.set(str(duration))
         if profile.protocol is ProtocolId.BARNES:
+            if self._interval_before_barnes is None:
+                self._interval_before_barnes = self.analysis_interval_var.get()
             self.analysis_interval_var.set(str(BARNES_ANALYSIS_INTERVAL_FRAMES))
+        elif self._interval_before_barnes is not None:
+            self.analysis_interval_var.set(self._interval_before_barnes)
+            self._interval_before_barnes = None
 
     def _browse_video(self):
         """Open file dialog to select a video file."""

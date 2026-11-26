@@ -43,7 +43,6 @@ from zebtrack.ui.components.behavioral_config_widget import (
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
-from zebtrack.ui.wizard.models import BARNES_ANALYSIS_INTERVAL_FRAMES
 from zebtrack.ui.wizard.templates import (
     TEMPLATE_OVERRIDES_KEY,
     WIZARD_TEMPLATE_ROLES_KEY,
@@ -77,8 +76,8 @@ class DiscoveryStep(WizardStep):
 
     The profile travels inside ``behavioral_analysis``, the dict the Calibration
     step completes and the project persists as ``behavioral_config``. Choosing
-    Barnes also forces the analysis interval (one frame) and, when no window is
-    set yet, the protocol's window preset.
+    Barnes also forces the top-down view and, when no window is set yet, the
+    protocol's window preset (the Calibration step pins the analysis interval).
     """
 
     def __init__(self, parent, wizard_data: dict):
@@ -489,15 +488,15 @@ class DiscoveryStep(WizardStep):
         if profile.protocol is ProtocolId.BARNES:
             block["aquarium_perspective"] = "top_down"
             block["geotaxis_enabled"] = False
-            data["analysis_interval_frames"] = BARNES_ANALYSIS_INTERVAL_FRAMES
+            # The analysis interval is pinned by the Calibration step, which owns the
+            # field and remembers the value to restore when Barnes is left.
             if not self.wizard_data.get("analysis_window"):
                 window = protocol_window_spec(profile)
                 if window is not None:
                     data["analysis_window"] = window
         elif previous.protocol is ProtocolId.BARNES:
-            self.wizard_data.pop("analysis_interval_frames", None)
             if self.wizard_data.get("analysis_window") == protocol_window_spec(previous):
-                self.wizard_data["analysis_window"] = None
+                data["analysis_window"] = None
         return data
 
     def _set_scroll(self, first, last):

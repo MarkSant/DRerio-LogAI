@@ -1764,3 +1764,33 @@ class TestLiveAnalysisDialogExperimentProfile:
         assert block["aquarium_perspective"] == "top_down"
         assert block["protocol_params"] == {"barnes": {"default_trial_type": "probe"}}
         assert dialog.result["analysis_interval_frames"] == 1
+
+    def test_leaving_barnes_puts_the_previous_interval_back(self, dialog):
+        widget = dialog.behavioral_config_widget
+        dialog.analysis_interval_var.set(7)
+
+        _pick_profile(widget.protocol_combo, protocol_choices(), "barnes")
+        assert dialog.analysis_interval_var.get() == 1
+        _pick_profile(widget.protocol_combo, protocol_choices(), "generic")
+
+        assert dialog.analysis_interval_var.get() == 7
+
+    def test_a_second_barnes_pick_does_not_forget_the_original_interval(self, dialog):
+        widget = dialog.behavioral_config_widget
+        dialog.analysis_interval_var.set(7)
+
+        _pick_profile(widget.protocol_combo, protocol_choices(), "barnes")
+        _pick_profile(widget.trial_type_combo, trial_type_choices(), "probe")
+        _pick_profile(widget.protocol_combo, protocol_choices(), "generic")
+
+        assert dialog.analysis_interval_var.get() == 7
+
+    def test_a_hand_edited_freezing_value_survives_a_protocol_change(self, dialog):
+        widget = dialog.behavioral_config_widget
+        _pick_profile(widget.animal_model_combo, animal_model_choices(), "rodent")
+        dialog.freeze_thresh_var.set(3.5)
+
+        _pick_profile(widget.protocol_combo, protocol_choices(), "barnes")
+        _pick_profile(widget.trial_type_combo, trial_type_choices(), "probe")
+
+        assert dialog.freeze_thresh_var.get() == 3.5

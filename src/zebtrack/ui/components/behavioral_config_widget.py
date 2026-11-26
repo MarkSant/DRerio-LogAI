@@ -776,12 +776,18 @@ class BehavioralConfigWidget(BaseWidget):
         """Take the profile out of ``config`` when it declares one.
 
         A configuration that mentions none of the profile keys (a legacy project,
-        a partial update) leaves the combos alone. Unlike a user pick, restoring
-        never resets the speed ceiling or the wall band: the saved values win.
+        a partial update) leaves the combos alone. When the restored animal model
+        differs from the one the widget holds, the speed ceiling and the wall band
+        first follow the new animal's defaults; :meth:`set_values` then applies
+        any value the configuration declares, so a saved value always wins. This is
+        what makes a rodent chosen in the wizard's Discovery step reach the
+        Calibration step's fields (and a return to zebrafish take them back).
         """
         if not any(key in config for key in (ANIMAL_MODEL_KEY, PROTOCOL_KEY, PROTOCOL_PARAMS_KEY)):
             return
         profile = resolve_experiment_profile(behavioral_config=config)
+        if profile.animal_model.value != self.animal_model_var.get():
+            self._reset_animal_defaults(profile.animal_model)
         self.animal_model_var.set(profile.animal_model.value)
         self.protocol_var.set(profile.protocol.value)
         self._protocol_params = dict(profile.protocol_params)

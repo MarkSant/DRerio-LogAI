@@ -13,6 +13,7 @@ from tkinter import (
     Label,
     LabelFrame,
     StringVar,
+    TclError,
 )
 from tkinter import (
     font as tkfont,
@@ -86,6 +87,8 @@ class CalibrationStep(WizardStep):
         # Barnes protocol (ADR-014): one "Table diameter" replaces width and height.
         self.table_diameter_var = DoubleVar(value=parse_barnes_params(None)[0].table_diameter_cm)
         self._barnes_active = False
+        #: The analysis interval the user had before Barnes pinned it to one frame.
+        self._interval_before_barnes: int | None = None
         self._width_row: Frame | None = None
         self._height_row: Frame | None = None
         self._table_row: Frame | None = None
@@ -405,8 +408,16 @@ class CalibrationStep(WizardStep):
             params, _warnings = parse_barnes_params(profile.protocol_params)
             if "table_diameter_cm" in profile.protocol_params or not self._barnes_active:
                 self.table_diameter_var.set(params.table_diameter_cm)
+            if not self._barnes_active:
+                try:
+                    self._interval_before_barnes = int(self.analysis_interval_var.get())
+                except TclError:
+                    self._interval_before_barnes = None
             self.analysis_interval_var.set(BARNES_ANALYSIS_INTERVAL_FRAMES)
         else:
+            if self._barnes_active and self._interval_before_barnes is not None:
+                self.analysis_interval_var.set(self._interval_before_barnes)
+            self._interval_before_barnes = None
             self._table_row.pack_forget()
             if not self._width_row.winfo_manager():
                 self._width_row.pack(fill="x", pady=3)

@@ -277,10 +277,54 @@ class TestProfileRoundTrip:
         assert values["animal_model"] == "other"
         assert values["protocol"] == "generic"
 
-    def test_restoring_does_not_reset_the_fields_to_the_animals_defaults(self, profile_widget):
+    def test_restoring_another_animal_without_saved_numbers_follows_its_defaults(
+        self, profile_widget
+    ):
         profile_widget.set_values({"animal_model": "rodent"})
 
-        assert profile_widget.get_values()["max_plausible_speed_cm_s"] == 80.0
+        values = profile_widget.get_values()
+        assert values["max_plausible_speed_cm_s"] == 100.0
+        assert values["thigmotaxis_distance_cm"] == 15.0
+
+    def test_restoring_another_animal_keeps_the_numbers_the_config_declares(self, profile_widget):
+        profile_widget.set_values(
+            {
+                "animal_model": "rodent",
+                "max_plausible_speed_cm_s": 130.0,
+                "thigmotaxis_distance_cm": 4.0,
+            }
+        )
+
+        values = profile_widget.get_values()
+        assert values["max_plausible_speed_cm_s"] == 130.0
+        assert values["thigmotaxis_distance_cm"] == 4.0
+
+    def test_restoring_the_same_animal_does_not_touch_hand_edited_numbers(self, profile_widget):
+        profile_widget.set_values({"animal_model": "rodent"})
+        profile_widget.max_speed_var.set(120.0)
+
+        profile_widget.set_values({"animal_model": "rodent"})
+
+        assert profile_widget.get_values()["max_plausible_speed_cm_s"] == 120.0
+
+    def test_restoring_zebrafish_after_a_rodent_takes_the_callers_defaults_back(
+        self, profile_widget
+    ):
+        profile_widget.set_values({"animal_model": "rodent"})
+
+        profile_widget.set_values({"animal_model": "zebrafish"})
+
+        values = profile_widget.get_values()
+        assert values["max_plausible_speed_cm_s"] == 80.0
+        assert values["thigmotaxis_distance_cm"] == 2.5
+
+    def test_restoring_barnes_then_zebrafish_never_leaves_the_rodent_numbers(self, profile_widget):
+        profile_widget.set_values({"protocol": "barnes"})
+        assert profile_widget.get_values()["thigmotaxis_distance_cm"] == 15.0
+
+        profile_widget.set_values({"animal_model": "zebrafish", "protocol": "generic"})
+
+        assert profile_widget.get_values()["thigmotaxis_distance_cm"] == 2.5
 
     def test_reset_to_defaults_goes_back_to_the_legacy_profile(self, profile_widget):
         profile_widget.set_values({"protocol": "barnes"})

@@ -393,7 +393,7 @@ class TestDiscoveryExperimentProfile:
         assert str(_need(step.animal_model_combo).cget("state")) == "disabled"
         assert "rodents" in step.profile_hint_label.cget("text")
 
-    def test_barnes_output_forces_the_view_and_every_frame(self):
+    def test_barnes_output_forces_the_view_and_leaves_the_interval_to_calibration(self):
         step, _data = self._step()
         _choose(step.protocol_combo, protocol_choices(), "barnes")
 
@@ -404,7 +404,7 @@ class TestDiscoveryExperimentProfile:
         assert block["protocol"] == "barnes"
         assert block["aquarium_perspective"] == "top_down"
         assert block["geotaxis_enabled"] is False
-        assert data["analysis_interval_frames"] == 1
+        assert "analysis_interval_frames" not in data
 
     def test_barnes_sets_the_protocols_window_when_the_project_has_none(self, monkeypatch):
         window = _with_window_preset(monkeypatch)
@@ -489,21 +489,24 @@ class TestDiscoveryExperimentProfile:
 
         assert step.get_data()["behavioral_analysis"]["protocol_params"] == params
 
-    def test_leaving_barnes_undoes_what_barnes_forced(self, monkeypatch):
+    def test_leaving_barnes_drops_the_window_it_proposed_without_touching_wizard_data(
+        self, monkeypatch
+    ):
         window = _with_window_preset(monkeypatch)
         step, data = self._step(
             {
                 "behavioral_analysis": {"animal_model": "rodent", "protocol": "barnes"},
-                "analysis_interval_frames": 1,
+                "analysis_interval_frames": 7,
                 "analysis_window": window,
             }
         )
         _choose(step.protocol_combo, protocol_choices(), "generic")
 
-        step.get_data()
+        result = step.get_data()
 
-        assert "analysis_interval_frames" not in data
-        assert data["analysis_window"] is None
+        assert result["analysis_window"] is None
+        assert data["analysis_window"] == window
+        assert data["analysis_interval_frames"] == 7
 
     def test_leaving_barnes_keeps_a_window_the_user_customised(self, monkeypatch):
         _with_window_preset(monkeypatch)
@@ -515,8 +518,10 @@ class TestDiscoveryExperimentProfile:
         )
         _choose(step.protocol_combo, protocol_choices(), "generic")
 
-        step.get_data()
+        result = step.get_data()
 
+        # Neither the step's output nor wizard_data clears the user's own window.
+        assert "analysis_window" not in result
         assert data["analysis_window"] == {"kind": "mine"}
 
     def test_set_data_restores_the_combos_for_back_navigation(self):
