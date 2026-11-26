@@ -1276,3 +1276,99 @@ def test_roi_colors_of_a_single_aquarium_video_are_unchanged(coordinator):
     coordinator._collect_roi_colors_into("/p/single.mp4", colors)
 
     assert colors == {"toca": (0, 0, 0)}
+
+
+# =============================================================================
+# Barnes protocol (#633): aggregates in the unified report, nothing for generic
+# =============================================================================
+
+
+def _barnes_unified_df() -> pd.DataFrame:
+    from tests.analysis.reporters.barnes_report_builders import tidy_row
+
+    return pd.DataFrame(
+        [
+            tidy_row("CTL", "Dia_1", "1", encounter=20.0),
+            tidy_row("CTL", "Dia_1", "2", encounter=240.0, encounter_censored=True),
+            tidy_row("CTL", "Dia_2", "1", encounter=10.0, strategy="direct"),
+            tidy_row(
+                "CTL",
+                "Dia_6",
+                "1",
+                trial_type="probe",
+                probe_offset=2,
+                probe_score=3,
+                probe_attempts=2,
+            ),
+        ]
+    )
+
+
+class TestBarnesUnifiedReport:
+    def test_the_workbook_gets_the_aggregate_sheets_and_the_word_report_the_section(
+        self, coordinator, tmp_path
+    ):
+        from docx import Document
+
+        coordinator.project_manager.project_data = {}
+        final_df = _barnes_unified_df()
+
+        coordinator._export_unified_reports(final_df, tmp_path, {}, False, list(final_df.columns))
+
+        [excel_path] = tmp_path.glob("unified_summary_*.xlsx")
+        with pd.ExcelFile(excel_path) as workbook:
+            assert {"Data", "barnes_learning_curves", "barnes_strategy", "barnes_probe"} <= set(
+                workbook.sheet_names
+            )
+            curves = workbook.parse("barnes_learning_curves")
+        censored = curves[(curves["day"] == "Dia_1") & (curves["metric"] == "encounter_latency_s")]
+        assert censored["n_censored"].iloc[0] == 1
+        [word_path] = tmp_path.glob("unified_report_*.docx")
+        paragraphs = [p.text for p in Document(str(word_path)).paragraphs]
+        assert "Barnes Maze Results" in paragraphs
+        assert "Learning curves" in paragraphs
+        assert "Probe trial" in paragraphs
+
+    def test_the_parquet_keeps_the_barnes_columns_in_their_schema_order(
+        self, coordinator, tmp_path
+    ):
+        coordinator.project_manager.project_data = {}
+        final_df = _barnes_unified_df()
+
+        coordinator._export_unified_reports(final_df, tmp_path, {}, False, list(final_df.columns))
+
+        [parquet_path] = tmp_path.glob("unified_summary_*.parquet")
+        assert list(pd.read_parquet(parquet_path).columns) == list(final_df.columns)
+
+    def test_descriptive_stats_leave_the_censored_barnes_columns_to_the_aggregates(
+        self, coordinator
+    ):
+        stats = coordinator._generate_descriptive_stats(_barnes_unified_df())
+
+        assert stats is not None
+        assert "total_distance_cm_mean" in stats.columns
+        assert not [c for c in stats.columns if c.startswith("barnes_")]
+
+    def test_a_generic_report_has_no_barnes_sheet_and_no_barnes_section(
+        self, coordinator, tmp_path
+    ):
+        from docx import Document
+
+        coordinator.project_manager.project_data = {}
+        generic = pd.DataFrame(
+            {
+                "experiment_id": ["a", "b"],
+                "group_id": ["g", "g"],
+                "day": ["Dia_1", "Dia_1"],
+                "total_distance_cm": [1.0, 2.0],
+                "mean_speed_cm_s": [1.0, 2.0],
+            }
+        )
+
+        coordinator._export_unified_reports(generic, tmp_path, {}, False, list(generic.columns))
+
+        [excel_path] = tmp_path.glob("unified_summary_*.xlsx")
+        with pd.ExcelFile(excel_path) as workbook:
+            assert not [s for s in workbook.sheet_names if s.startswith("barnes_")]
+        [word_path] = tmp_path.glob("unified_report_*.docx")
+        assert "Barnes Maze Results" not in [p.text for p in Document(str(word_path)).paragraphs]

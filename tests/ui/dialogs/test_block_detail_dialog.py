@@ -654,3 +654,98 @@ def test_camera_chooser_reports_detection_failure_on_tk():
     assert "dshow down" in message
     assert thread is _threading.main_thread()
     assert dialog._camera_detection_pending is False
+
+
+# ---------------------------------------------------------------------------
+# Barnes protocol (#633): per-animal results and aggregates in the partial report
+# ---------------------------------------------------------------------------
+
+
+def _barnes_summary(tmp_path, name: str, **fields) -> Any:
+    """An individual ``.xlsx`` as the Excel reporter writes it (display column names)."""
+    from tests.analysis.reporters.barnes_report_builders import tidy_row
+
+    from zebtrack.analysis.data_transformer import DataTransformer
+
+    summary = tmp_path / name
+    summary.parent.mkdir(exist_ok=True)
+    row = tidy_row("Controle", "Dia_1", "1", **fields)
+    DataTransformer().prepare_for_display(pd.DataFrame([row])).to_excel(summary, index=False)
+    return summary
+
+
+def test_partial_word_report_has_barnes_results_per_animal_and_aggregates(tmp_path):
+    dialog = _build_partial_report_dialog(tmp_path)
+    first = _barnes_summary(tmp_path, "s1/4_Relatorio_a.xlsx", encounter=20.0)
+    second = _barnes_summary(
+        tmp_path,
+        "s2/4_Relatorio_b.xlsx",
+        encounter=240.0,
+        encounter_censored=True,
+        strategy="random",
+        strategy_source="manual",
+    )
+    all_data, unified_df, parsed = dialog._build_partial_report_dataset(
+        [("R1", first), ("R2", second)]
+    )
+    output = tmp_path / "partial.docx"
+
+    dialog._write_partial_report_word(output, "partial.xlsx", parsed, all_data, unified_df)
+
+    document = Document(output)
+    headings = [p.text for p in document.paragraphs if p.style.name.startswith("Heading")]
+    assert "Barnes Maze Results per Animal" in headings
+    assert "Barnes Maze Results" in headings
+    rows = {
+        r.cells[0].text: [c.text for c in r.cells]
+        for table in document.tables
+        for r in table.rows
+        if r.cells[0].text in {"R1", "R2"} and len(r.cells) == 7
+    }
+    assert rows["R1"][2] == "20.00"
+    assert rows["R2"][2] == "≥ 240.00 s (censored)"
+    assert rows["R2"][6] == "Random (corrected)"
+    # a censored latency is never averaged into the generic per-animal means
+    cells = [c.text for table in document.tables for r in table.rows for c in r.cells]
+    assert not [text for text in cells if "Barnes Encounter Latency" in text]
+
+
+def test_partial_stats_columns_skip_the_barnes_columns(tmp_path):
+    dialog = _build_partial_report_dialog(tmp_path)
+    summary = _barnes_summary(tmp_path, "s1/4_Relatorio_a.xlsx")
+    _all, unified_df, _parsed = dialog._build_partial_report_dataset([("R1", summary)])
+
+    stats_cols = dialog._get_partial_report_stats_columns(unified_df)
+
+    assert "Barnes Visits at Distance 3" in unified_df.columns  # it says "distance", but is Barnes
+    assert not [c for c in stats_cols if c.startswith("Barnes ")]
+
+
+def test_partial_excel_has_the_barnes_aggregate_sheets_only_for_barnes(tmp_path):
+    dialog = _build_partial_report_dialog(tmp_path)
+    barnes = _barnes_summary(tmp_path, "s1/4_Relatorio_a.xlsx")
+    all_data, unified_df, _parsed = dialog._build_partial_report_dataset([("R1", barnes)])
+    out = tmp_path / "partial.xlsx"
+
+    dialog._write_partial_report_excel(out, all_data, unified_df)
+
+    with pd.ExcelFile(out) as workbook:
+        assert "barnes_learning_curves" in workbook.sheet_names
+        assert "Dados Consolidados" in workbook.sheet_names
+
+
+def test_partial_report_of_a_generic_block_has_no_barnes_content(tmp_path):
+    dialog = _build_partial_report_dialog(tmp_path)
+    document = _write_partial_word(tmp_path, dialog)
+
+    headings = [p.text for p in document.paragraphs if p.style.name.startswith("Heading")]
+
+    assert not [h for h in headings if "Barnes" in h]
+
+    plain = tmp_path / "plain.xlsx"
+    pd.DataFrame({"total_distance_cm": [10.0]}).to_excel(plain, index=False)
+    all_data, unified_df, _parsed = dialog._build_partial_report_dataset([("1", plain)])
+    out = tmp_path / "plain_partial.xlsx"
+    dialog._write_partial_report_excel(out, all_data, unified_df)
+    with pd.ExcelFile(out) as workbook:
+        assert not [s for s in workbook.sheet_names if s.startswith("barnes_")]

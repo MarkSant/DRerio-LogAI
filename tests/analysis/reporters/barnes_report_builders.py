@@ -75,3 +75,69 @@ def barnes_context(
         window=entry_window(script) if with_window else None,
         protocol_inputs=protocol_inputs,
     )
+
+
+def tidy_row(
+    group: str,
+    day: str,
+    subject: str,
+    *,
+    trial_type: str = "training",
+    encounter: float | None = 30.0,
+    encounter_censored: bool = False,
+    entry: float | None = 60.0,
+    entry_censored: bool | None = False,
+    primary: int = 1,
+    total: int = 2,
+    strategy: str | None = "serial",
+    strategy_source: str = "auto",
+    status: str = "ok",
+    probe_offset: int | None = None,
+    probe_score: int | None = None,
+    probe_error_latency: float | None = None,
+    probe_attempts: int | None = None,
+    quadrant_pct: float | None = 25.0,
+) -> dict[str, Any]:
+    """One unified-report row: metadata plus the ``barnes_*`` columns the product writes.
+
+    The Barnes values come out of ``barnes_columns`` itself (from a metrics dict shaped as
+    CONTRACTS section 7), so a test row can never drift from the real schema.
+    """
+    from zebtrack.analysis.data_transformer import barnes_columns
+
+    metrics: dict[str, Any] = {"status": status, "protocol": "barnes", "version": 1}
+    if status == "ok":
+        metrics.update(
+            trial_type=trial_type,
+            encounter_latency_s=encounter,
+            encounter_censored=encounter_censored,
+            entry_latency_s=entry,
+            entry_censored=entry_censored,
+            entry_source="not_applicable" if trial_type == "probe" else "window",
+            primary_errors=primary,
+            total_errors=total,
+            perseverative_errors=0,
+            primary_path_length_cm=100.0,
+            entry_path_length_cm=120.0,
+            target_quadrant_time_s=10.0,
+            target_quadrant_time_pct=quadrant_pct,
+            visits_by_distance={d: 0 for d in range(10)},
+            strategy=strategy,
+            strategy_source=None if strategy is None else strategy_source,
+            strategy_auto=strategy,
+            strategy_features={"center_crossings": 0, "adjacent_transition_fraction": 1.0},
+            probe_first_hole_offset=probe_offset,
+            probe_first_hole_score=probe_score,
+            probe_first_error_latency_s=probe_error_latency,
+            probe_attempts_to_target=probe_attempts,
+        )
+    row: dict[str, Any] = {
+        "group_id": group,
+        "day": day,
+        "subject": subject,
+        "experiment_id": f"{group}_{day}_{subject}",
+        "total_distance_cm": 500.0,
+        "mean_speed_cm_s": 5.0,
+    }
+    row.update(barnes_columns({"protocol_metrics": metrics}, BARNES_CONFIG))
+    return row
