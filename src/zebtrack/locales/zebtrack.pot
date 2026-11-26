@@ -14025,3 +14025,77 @@ msgstr ""
 #: src/zebtrack/ui/components/analysis_window_panel.py:1593
 msgid "Review the lines, then Save."
 msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:45
+msgid "Zebrafish (aquarium)"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:46
+msgid "Rodent (rat or mouse)"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:47
+msgid "Other species"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:54
+msgid "Generic (no protocol)"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:55
+msgid "Barnes maze (rodents)"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:224
+msgid "Experiment Profile"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:229
+msgid "Animal model:"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:241
+msgid "Protocol:"
+msgstr ""
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:268
+msgid ""
+"The Barnes maze is run with rodents: choosing it sets the animal model, the "
+"top-down view and the analysis interval for you."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/calibration_step.py:266
+msgid "Table diameter (cm):"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/calibration_step.py:274
+msgid ""
+"📏 Table Diameter\n"
+"\n"
+"The REAL diameter of the Barnes table, edge to edge, in centimetres.\n"
+"\n"
+"It converts pixels into centimetres for the whole project (distances, speeds, paths). The lab's table measures 184 cm.\n"
+"\n"
+"💡 Tip: measure the table itself, not the visible area of the video."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/calibration_step.py:434
+msgid "The table diameter must be greater than zero."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/discovery_step.py:372
+msgid "4. Experiment Profile"
+msgstr ""
+
+#: src/zebtrack/ui/wizard/discovery_step.py:379
+msgid ""
+"Which animal is studied and which protocol is run? This decides the zone "
+"assistant, the metrics and the reports."
+msgstr ""
+
+#: src/zebtrack/ui/wizard/templates.py:290
+msgid ""
+"The template's experiment profile held a value this version does not "
+"recognise; it was replaced by the closest valid one. Check the animal model "
+"and the protocol in the first step."
+msgstr ""

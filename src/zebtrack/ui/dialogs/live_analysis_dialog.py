@@ -32,7 +32,9 @@ if TYPE_CHECKING:
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus_v2 import EventBusV2
 
+from zebtrack.analysis.behavioral_policy import freezing_defaults
 from zebtrack.core.recording.live_output_paths import default_live_sessions_dir
+from zebtrack.core.services.experiment_profile import AnimalModel, ExperimentProfile, ProtocolId
 from zebtrack.core.services.external_trigger_gate import (
     ExternalTriggerDecision,
     conflicting_triggers_message,
@@ -45,6 +47,7 @@ from zebtrack.settings import DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S
 from zebtrack.ui.background_task import run_in_background
 from zebtrack.ui.components.analysis_window_panel import AnalysisWindowPanel, SpecBuildError
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
+from zebtrack.ui.wizard.models import BARNES_ANALYSIS_INTERVAL_FRAMES
 from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
 
 log = structlog.get_logger()
@@ -208,6 +211,12 @@ class LiveAnalysisDialog(Dialog):
         self.sharp_turn_var = DoubleVar(value=sharp_turn_default)
         self.freeze_thresh_var = DoubleVar(value=freeze_thresh_default)
         self.freeze_dur_var = DoubleVar(value=freeze_dur_default)
+        # What the freezing fields hold for the zebrafish baseline: the experiment
+        # profile's animal model swaps them for its own numbers and back.
+        self._freezing_baseline = (float(freeze_thresh_default), float(freeze_dur_default))
+        self._profile_animal = AnimalModel.ZEBRAFISH
+        #: The analysis interval before Barnes pinned it to one frame (None: not pinned).
+        self._interval_before_barnes: int | None = None
 
         # Smoothing parameters
         smoothing_window_default = 5
@@ -700,6 +709,11 @@ class LiveAnalysisDialog(Dialog):
             default_geotaxis_mode=def_geotaxis_mode,
             default_max_speed_cm_s=def_max_speed,
             event_bus=self.event_bus,
+            # Ad-hoc live: no wizard asked, so the profile is chosen here, and the
+            # trial type is the session default (there is no video entry yet; §2.4).
+            show_profile=True,
+            show_trial_type=True,
+            on_profile_changed=self._on_profile_changed,
         )
         self.behavioral_config_widget.pack(fill="x", expand=True)
 
@@ -707,6 +721,26 @@ class LiveAnalysisDialog(Dialog):
         self.after(0, self._detect_cameras)
 
         return self.camera_combo
+
+    def _on_profile_changed(self, profile: ExperimentProfile) -> None:
+        """Follow the experiment profile: the animal's freezing numbers, Barnes interval.
+
+        The freezing fields change only when the animal model does (a hand-edited
+        value survives a protocol or trial-type change); Barnes pins the analysis
+        interval to one frame and leaving it puts the earlier value back.
+        """
+        if profile.animal_model is not self._profile_animal:
+            self._profile_animal = profile.animal_model
+            velocity, duration = freezing_defaults(profile.animal_model, *self._freezing_baseline)
+            self.freeze_thresh_var.set(velocity)
+            self.freeze_dur_var.set(duration)
+        if profile.protocol is ProtocolId.BARNES:
+            if self._interval_before_barnes is None:
+                self._interval_before_barnes = int(self.analysis_interval_var.get())
+            self.analysis_interval_var.set(BARNES_ANALYSIS_INTERVAL_FRAMES)
+        elif self._interval_before_barnes is not None:
+            self.analysis_interval_var.set(self._interval_before_barnes)
+            self._interval_before_barnes = None
 
     def buttonbox(self) -> None:
         """Create custom button box with Start and Cancel."""

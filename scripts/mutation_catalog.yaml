@@ -7421,3 +7421,240 @@ _load_registry()"
         description: "#633: a linha de entrada na toca passa a ser aceita no Inicio"
         find: '{"delay_after_start", "end_of_video", "subject_small", "burrow_entry"}'
         replace: '{"delay_after_start", "end_of_video", "subject_small"}'
+
+  # --- Barnes v8.1 exp-profile ---
+  exp_profile_behavioral_policy:
+    source: src/zebtrack/analysis/behavioral_policy.py
+    tests:
+      - tests/analysis/test_behavioral_policy.py
+    mutations:
+      - id: rodent-ceiling-ignored
+        description: "perfil rodent deixa de trocar o teto de velocidade"
+        find: "None if animal_defaults is None else animal_defaults.max_plausible_speed_cm_s,"
+        replace: "None,"
+      - id: rodent-ceiling-number
+        description: "teto de velocidade do roedor deixa de ser o do template rodent"
+        find: "max_plausible_speed_cm_s=100.0,"
+        replace: "max_plausible_speed_cm_s=50.0,"
+      - id: declared-wall-band-overridden
+        description: "faixa de parede declarada pelo projeto e sobrescrita pelo padrao do roedor"
+        find: "if animal_defaults is not None and not _declares(project_block, \"thigmotaxis_distance_cm\"):"
+        replace: "if animal_defaults is not None:"
+      - id: rodent-wall-band-lost
+        description: "projeto roedor sem faixa propria fica com a do zebrafish"
+        find: "config[\"thigmotaxis_distance_cm\"] = animal_defaults.thigmotaxis_distance_cm"
+        replace: "config[\"thigmotaxis_distance_cm\"] = 1.5"
+      - id: none-counts-as-declared
+        description: "valor None passa a contar como declarado"
+        find: "return isinstance(block, Mapping) and block.get(key) is not None"
+        replace: "return isinstance(block, Mapping) and key in block"
+      - id: freezing-baseline-lost
+        description: "zebrafish deixa de devolver o baseline de congelamento"
+        find: "return baseline_velocity, baseline_min_duration_s"
+        replace: "return 0.0, 0.0"
+
+  exp_profile_templates:
+    source: src/zebtrack/ui/wizard/templates.py
+    tests:
+      - tests/ui/wizard/test_wizard_templates.py
+    mutations:
+      - id: profile-migration-skipped
+        description: "a migracao deixa de normalizar o perfil do template"
+        find: "notes.extend(_migrate_experiment_profile(migrated))"
+        replace: "notes.extend(())"
+      - id: barnes-interval-not-forced
+        description: "template Barnes deixa de fixar o intervalo em 1 quadro"
+        find: "migrated[\"analysis_interval_frames\"] = 1"
+        replace: "migrated[\"analysis_interval_frames\"] = migrated.get(\"analysis_interval_frames\")"
+      - id: barnes-view-not-forced
+        description: "template Barnes mantem a vista lateral declarada"
+        find: "normalised[\"aquarium_perspective\"] = \"top_down\""
+        replace: "normalised[\"aquarium_perspective\"] = block.get(\"aquarium_perspective\", \"top_down\")"
+      - id: profile-note-never
+        description: "valor de perfil desconhecido deixa de gerar nota"
+        find: "return [NOTE_EXPERIMENT_PROFILE_NORMALISED] if profile.warnings else []"
+        replace: "return []"
+      - id: bad-params-kept
+        description: "parametros malformados do protocolo sobrevivem a migracao"
+        find: "normalised.pop(PROTOCOL_PARAMS_KEY, None)"
+        replace: "pass"
+      - id: window-preset-ignores-params
+        description: "o preset de janela deixa de receber os parametros do protocolo"
+        find: "spec.window_preset(profile.protocol_params)"
+        replace: "spec.window_preset({})"
+      - id: window-preset-none-unchecked
+        description: "spec sem preset passa a ser chamado"
+        find: "if spec is None or spec.window_preset is None:"
+        replace: "if spec is None:"
+
+  exp_profile_wizard_models:
+    source: src/zebtrack/ui/wizard/models.py
+    tests:
+      - tests/ui/wizard/test_wizard_edge_cases.py
+    mutations:
+      - id: params-not-mapping-kept
+        description: "parametros que nao sao mapeamento deixam de virar vazio"
+        find: "if not isinstance(value, Mapping):\n        return {}"
+        replace: "if not isinstance(value, Mapping):\n        return value"
+      - id: params-junk-blocks-kept
+        description: "bloco de protocolo que nao e mapeamento deixa de ser descartado"
+        find: "if isinstance(block, Mapping)"
+        replace: "if True"
+      - id: barnes-view-not-forced
+        description: "Barnes deixa de impor a vista superior"
+        find: "object.__setattr__(self, \"aquarium_perspective\", AquariumPerspective.TOP_DOWN)"
+        replace: "pass"
+      - id: barnes-animal-not-forced
+        description: "Barnes deixa de impor o roedor"
+        find: "forced = forced_animal_model(self.protocol)"
+        replace: "forced = None"
+
+  exp_profile_behavioral_widget:
+    source: src/zebtrack/ui/components/behavioral_config_widget.py
+    tests:
+      - tests/ui/components/test_behavioral_config_widget.py
+    mutations:
+      - id: animal-change-keeps-fields
+        description: "trocar o animal deixa de trocar velocidade e faixa de parede"
+        find: "if profile.animal_model.value != before:"
+        replace: "if False:"
+      - id: rodent-speed-reset-baseline
+        description: "roedor recebe o teto do zebrafish ao trocar de animal"
+        find: "self.max_speed_var.set(defaults.max_plausible_speed_cm_s)"
+        replace: "self.max_speed_var.set(self._default_max_speed_cm_s)"
+      - id: barnes-view-not-locked
+        description: "Barnes deixa de travar a vista superior"
+        find: "self.perspective_var.set(AquariumPerspective.TOP_DOWN.value)"
+        replace: "pass"
+      - id: restore-always-resets
+        description: "config sem chaves de perfil volta o perfil ao padrao"
+        find: "if not any(key in config for key in (ANIMAL_MODEL_KEY, PROTOCOL_KEY, PROTOCOL_PARAMS_KEY)):"
+        replace: "if False:"
+      - id: trial-type-not-persisted
+        description: "o tipo de tentativa deixa de ir para os parametros do protocolo"
+        find: "if protocol == ProtocolId.BARNES.value and self._show_trial_type:"
+        replace: "if False:"
+      - id: params-survive-protocol-change
+        description: "parametros do protocolo anterior sobrevivem a troca"
+        find: "if token != self.protocol_var.get():"
+        replace: "if False:"
+      - id: generic-has-params
+        description: "perfil generico passa a devolver parametros de protocolo"
+        find: "if self.protocol_var.get() == ProtocolId.GENERIC.value:"
+        replace: "if False:"
+      - id: restore-keeps-old-animal-numbers
+        description: "restaurar outro animal mantem a velocidade e a parede do animal anterior"
+        find: "if profile.animal_model.value != self.animal_model_var.get():"
+        replace: "if False:"
+
+  exp_profile_discovery_step:
+    source: src/zebtrack/ui/wizard/discovery_step.py
+    tests:
+      - tests/ui/wizard/test_wizard_foundation.py
+    mutations:
+      - id: animal-change-keeps-thigmotaxis
+        description: "trocar o animal mantem a faixa de parede do animal anterior"
+        find: "block.pop(\"thigmotaxis_distance_cm\", None)"
+        replace: "pass"
+      - id: protocol-change-keeps-params
+        description: "trocar o protocolo mantem os parametros do anterior"
+        find: "if profile.protocol is not previous.protocol:"
+        replace: "if False:"
+      - id: barnes-overwrites-window
+        description: "Barnes sobrescreve a janela que o usuario ja tinha"
+        find: "if not self.wizard_data.get(\"analysis_window\"):"
+        replace: "if True:"
+      - id: barnes-geotaxis-left-on
+        description: "Barnes deixa de desligar a geotaxia"
+        find: "block[\"geotaxis_enabled\"] = False"
+        replace: "pass"
+      - id: leaving-barnes-clears-custom-window
+        description: "sair do Barnes apaga a janela customizada"
+        find: "if self.wizard_data.get(\"analysis_window\") == protocol_window_spec(previous):"
+        replace: "if True:"
+      - id: animal-combo-never-locked
+        description: "o combo do animal nao trava com Barnes"
+        find: "self.animal_model_combo.configure(state=\"disabled\" if forced else \"readonly\")"
+        replace: "self.animal_model_combo.configure(state=\"readonly\")"
+      - id: set-data-ignores-profile
+        description: "voltar ao passo nao restaura o perfil"
+        find: "if isinstance(data.get(\"behavioral_analysis\"), dict):"
+        replace: "if False:"
+      - id: leaving-barnes-keeps-window
+        description: "sair do Barnes mantem a janela que o proprio Barnes propos"
+        find: "data[\"analysis_window\"] = None"
+        replace: "pass"
+
+  exp_profile_calibration_step:
+    source: src/zebtrack/ui/wizard/calibration_step.py
+    tests:
+      - tests/ui/wizard/test_calibration_step.py
+    mutations:
+      - id: barnes-interval-not-pinned
+        description: "Barnes deixa de fixar o intervalo na tela de calibracao"
+        find: "self.analysis_interval_var.set(BARNES_ANALYSIS_INTERVAL_FRAMES)"
+        replace: "pass"
+      - id: declared-diameter-ignored
+        description: "diametro declarado do projeto nao volta ao campo"
+        find: "self.table_diameter_var.set(params.table_diameter_cm)"
+        replace: "pass"
+      - id: height-not-written
+        description: "a altura deixa de receber o diametro da mesa"
+        find: "data[\"aquarium_height_cm\"] = diameter"
+        replace: "pass"
+      - id: diameter-not-a-param
+        description: "o diametro deixa de ir para os parametros do protocolo"
+        find: "self.behavioral_config_widget.set_protocol_param(\"table_diameter_cm\", diameter)"
+        replace: "pass"
+      - id: zero-diameter-accepted
+        description: "diametro zero passa na validacao"
+        find: "if self._is_barnes() and not 0 < float(data[\"aquarium_width_cm\"]):"
+        replace: "if False:"
+      - id: interval-entry-stays-open
+        description: "o campo do intervalo continua editavel no Barnes"
+        find: "self._analysis_entry.configure(state=\"disabled\" if barnes else \"normal\")"
+        replace: "self._analysis_entry.configure(state=\"normal\")"
+      - id: interval-not-restored
+        description: "sair do Barnes nao devolve o intervalo anterior"
+        find: "self.analysis_interval_var.set(self._interval_before_barnes)"
+        replace: "pass"
+      - id: interval-not-remembered
+        description: "entrar no Barnes nao guarda o intervalo anterior"
+        find: "self._interval_before_barnes = int(self.analysis_interval_var.get())"
+        replace: "self._interval_before_barnes = None"
+
+  exp_profile_live_dialog:
+    source: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+    tests:
+      - tests/test_live_analysis_ui.py
+    mutations:
+      - id: freezing-reset-on-every-callback
+        description: "os campos de congelamento voltam ao padrao a cada mudanca de perfil"
+        find: "if profile.animal_model is not self._profile_animal:"
+        replace: "if True:"
+      - id: barnes-interval-not-restored
+        description: "sair do Barnes nao devolve o intervalo anterior"
+        find: "self.analysis_interval_var.set(self._interval_before_barnes)"
+        replace: "pass"
+      - id: barnes-interval-not-remembered
+        description: "Barnes deixa de guardar o intervalo anterior"
+        find: "if self._interval_before_barnes is None:"
+        replace: "if False:"
+
+  exp_profile_single_video_dialog:
+    source: src/zebtrack/ui/dialogs/single_video_config_dialog.py
+    tests:
+      - tests/test_single_video_config.py
+    mutations:
+      - id: freezing-reset-on-every-callback
+        description: "os campos de congelamento voltam ao padrao a cada mudanca de perfil"
+        find: "if profile.animal_model is not self._profile_animal:"
+        replace: "if True:"
+      - id: barnes-interval-not-restored
+        description: "sair do Barnes nao devolve o intervalo anterior"
+        find: "self.analysis_interval_var.set(self._interval_before_barnes)"
+        replace: "pass"
+      - id: barnes-interval-not-remembered
+        description: "Barnes deixa de guardar o intervalo anterior"
+        find: "if self._interval_before_barnes is None:"
+        replace: "if False:"
