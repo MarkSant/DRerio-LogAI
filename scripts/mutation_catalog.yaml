@@ -7185,6 +7185,7 @@ _load_registry()"
       - id: count-range-unchecked
         description: "contagem fora de 3..99 passa"
         find: "if not _MIN_HOLES <= n_holes <= _MAX_HOLES:"
+        replace: "if False:"
 
   # --- Barnes v8.1 exp-profile ---
   exp_profile_behavioral_policy:
