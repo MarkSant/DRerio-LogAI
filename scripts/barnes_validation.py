@@ -76,6 +76,7 @@ SHEET_FIELDS: Final[dict[str, tuple[str, ...]]] = {
         "group",
         "day",
         "subject",
+        "trial",
         "start_time_s",
         "encounter_latency_s",
         "entry_latency_s",
@@ -84,19 +85,21 @@ SHEET_FIELDS: Final[dict[str, tuple[str, ...]]] = {
         "primary_errors",
         "total_errors",
     ),
-    "strategy": ("video", "group", "day", "subject", "start_time_s", "strategy"),
+    "strategy": ("video", "group", "day", "subject", "trial", "start_time_s", "strategy"),
     "probe": (
         "video",
         "group",
         "day",
         "subject",
+        "trial",
         "start_time_s",
         "probe_score",
         "first_error_latency_s",
         "attempts",
     ),
 }
-_IDENTITY_FIELDS: Final = ("video", "group", "day", "subject")
+_IDENTITY_FIELDS: Final = ("video", "group", "day", "subject", "trial")
+_KEY_FIELDS: Final = ("group", "day", "subject", "trial")
 _TIME_FIELDS: Final = (
     "start_time_s",
     "encounter_latency_s",
@@ -129,11 +132,12 @@ _DEFAULT_STRATEGY_MAP: Final[dict[str, str]] = {
 _TRUE_TOKENS: Final = frozenset({"1", "true", "sim", "s", "yes", "y", "x", "verdadeiro"})
 _FALSE_TOKENS: Final = frozenset({"0", "false", "nao", "n", "no", "falso"})
 
-#: Canonical app columns, in order. ``case`` is the row's identity inside this run.
+#: Canonical app columns, in order.
 APP_COLUMNS: Final = (
     "group",
     "day",
     "subject",
+    "trial",
     "experiment_id",
     "video_path",
     "status",
@@ -162,6 +166,8 @@ _APP_NUMERIC: Final = (
     "probe_attempts_to_target",
 )
 _APP_FLAGS: Final = ("encounter_censored", "entry_censored")
+#: Who a row is (kept when a recompute fills in the metrics).
+IDENTITY_APP_COLUMNS: Final = ("group", "day", "subject", "trial", "experiment_id", "video_path")
 
 #: Where each canonical app column lives in the app's unified summary (``.parquet`` has the
 #: raw names; override any of them with ``app.columns`` in the mapping file).
@@ -169,6 +175,7 @@ UNIFIED_COLUMNS: Final[dict[str, tuple[str, ...]]] = {
     "group": ("group", "group_id"),
     "day": ("day",),
     "subject": ("subject",),
+    "trial": ("trial",),
     "experiment_id": ("experiment_id",),
     "video_path": ("video_path",),
     "status": ("barnes_status",),
@@ -188,13 +195,17 @@ UNIFIED_COLUMNS: Final[dict[str, tuple[str, ...]]] = {
 }
 
 _ID_PREFIX_RE: Final = re.compile(
-    r"^(?:grupo|group|dia|day|sujeito|subject|animal|rato|rat)[\s_\-]*", re.IGNORECASE
+    r"^(?:grupo|group|dia|day|sujeito|subject|animal|rato|rat|tentativa|trial)[\s_\-]*",
+    re.IGNORECASE,
 )
 _FOLDER_RE: Final[dict[str, re.Pattern[str]]] = {
     "group": re.compile(r"^(?:grupo|group)[\s_\-]*(.+)$", re.IGNORECASE),
     "day": re.compile(r"^(?:dia|day)[\s_\-]*(.+)$", re.IGNORECASE),
     "subject": re.compile(r"^(?:sujeito|subject)[\s_\-]*(.+)$", re.IGNORECASE),
+    "trial": re.compile(r"^(?:tentativa|trial)[\s_\-]*(.+)$", re.IGNORECASE),
 }
+#: A trial number written into an experiment id or a video path (``..._Trial_2``, ``Tentativa 3``).
+_TRIAL_NAME_RE: Final = re.compile(r"(?:trial|tentativa)[\s_\-]*(\d+)", re.IGNORECASE)
 _TRAJECTORY_PREFIX: Final = "3_CoordMovimento_"
 _ARENA_PREFIX: Final = "1_ProcessingArea_"
 _ROIS_PREFIX: Final = "2_AreasOfInterest_"
@@ -621,13 +632,17 @@ def latency_comparison(
     app_censored: pd.Series,
     lab: pd.Series,
     lab_censored: pd.Series,
+    *,
+    lab_ceiling: float = DEFAULT_CENSOR_AT_S,
 ) -> dict[str, Any]:
     """Compare a latency measured by the app with the lab's, censoring handled explicitly.
 
     Returns ``counts`` (how many pairs and why some are out), ``observed`` (statistics on
     pairs both sides observed — the figure to quote), ``censoring`` (agreement of the two
-    flags) and ``ceiling_imputed`` (every pair that has a value, censored ones included at
-    the ceiling: NOT observations, shown so the effect of the ceiling can be judged).
+    flags) and ``ceiling_imputed``: every compared pair with the lab set to ``lab_ceiling``
+    wherever the lab row is flagged censored (whatever the cell holds, blank included) and the
+    app at its own value (the app writes its ceiling into a censored latency). These are NOT
+    observations; the view only shows what the ceiling does to the statistics.
     """
     app_values = pd.to_numeric(app, errors="coerce").to_numpy(dtype=float)
     lab_values = pd.to_numeric(lab, errors="coerce").to_numpy(dtype=float)
@@ -649,7 +664,7 @@ def latency_comparison(
         "observed": agreement_block(app_values[observed], lab_values[observed]),
         "censoring": censoring_block(app_cens[both], lab_cens[both]),
         "ceiling_imputed": agreement_block(
-            app_values[both], np.where(np.isfinite(lab_values[both]), lab_values[both], np.nan)
+            app_values[both], np.where(lab_cens[both], lab_ceiling, lab_values[both])
         ),
     }
 
@@ -664,11 +679,14 @@ EXAMPLE_MAPPING: Final = """\
 # (case, accents and surrounding spaces are tolerated). Leave a field out if the lab
 # does not record it. Docs: docs/tasks/v8.1/barnes/VALIDATION.md
 
-# How lab rows are matched with the app's results. A row is matched by its video path
-# (two or more path components) when the sheet has one, else by the key below. A bare file
-# name is NEVER enough on its own (the same name repeats across days) unless you turn
-# allow_unique_basename on and the name is unique on both sides.
+# How lab rows are matched with the app's results. A row that has a video path (two or more
+# components) is matched by that path ONLY (no path match = unmatched, never a fallback to the
+# key); a row without one is matched by the key below. A bare file name is NEVER enough on its
+# own (the same name repeats across days) unless you turn allow_unique_basename on and the
+# name is unique on both sides.
 match:
+  # Add `trial` when the lab runs several trials per subject per day (working memory: 3/day,
+  # reference memory: 2/day) and map a `trial` column in every sheet.
   keys: [group, day, subject]
   use_video_path: true
   allow_unique_basename: false
@@ -786,14 +804,18 @@ def load_mapping(path: str | Path) -> ValidationMapping:
     if not isinstance(match_raw, Mapping):
         raise ValidationInputError("'match' must be an object")
     keys = tuple(str(k) for k in match_raw.get("keys", ("group", "day", "subject")))
-    bad_keys = [k for k in keys if k not in ("group", "day", "subject")]
+    bad_keys = [k for k in keys if k not in _KEY_FIELDS]
     if bad_keys:
-        raise ValidationInputError(f"match.keys may only use group/day/subject, got {bad_keys}")
+        raise ValidationInputError(
+            f"match.keys may only use group/day/subject/trial, got {bad_keys}"
+        )
     aliases_raw = match_raw.get("aliases") or {}
     aliases: dict[str, dict[str, str]] = {}
     for field_name, table in aliases_raw.items():
-        if field_name not in ("group", "day", "subject") or not isinstance(table, Mapping):
-            raise ValidationInputError(f"match.aliases.{field_name} is not a group/day/subject map")
+        if field_name not in _KEY_FIELDS or not isinstance(table, Mapping):
+            raise ValidationInputError(
+                f"match.aliases.{field_name} is not a group/day/subject/trial map"
+            )
         aliases[field_name] = {
             (normalize_token(k) or ""): (normalize_token(v) or "") for k, v in table.items()
         }
@@ -928,6 +950,7 @@ def read_lab_sheet(spec: SheetSpec) -> tuple[pd.DataFrame, list[str]]:
     notes: list[str] = []
     out = pd.DataFrame(index=frame.index)
     out["source_row"] = frame.index + spec.header_row + 1
+    out.attrs["censor_at_s"] = spec.censor_at_s
     for canonical, wanted in spec.columns.items():
         header = _resolve_header(frame, wanted, where=f"sheets.{spec.name}")
         column = frame[header]
@@ -971,39 +994,159 @@ def _strategy_label(value: Any, label_map: Mapping[str, str]) -> str | None:
 # =============================================================================
 
 
+_RUN_STAMP_RE: Final = re.compile(r"(\d{8}_\d{6}(?:_\d+)?)\.parquet$")
+
+
+def newest_unified_file(folder: Path) -> Path:
+    """The most recent ``unified*_summary_*.parquet`` below ``folder``.
+
+    "Most recent" is the run timestamp the app writes into the name
+    (``..._20261126_101530_123456.parquet``), then the file's modification time; sorting by
+    NAME would rank ``unified_summary_*`` above every ``unified_partial_summary_*`` however old.
+    """
+    candidates = list(folder.rglob("unified*_summary_*.parquet"))
+    if not candidates:
+        raise ValidationInputError(f"no unified*_summary_*.parquet under {folder}")
+
+    def age_key(path: Path) -> tuple[str, float]:
+        match = _RUN_STAMP_RE.search(path.name)
+        return (match.group(1) if match else "", path.stat().st_mtime)
+
+    return max(candidates, key=age_key)
+
+
+def derive_trials(app: pd.DataFrame, *, label: str = "app") -> tuple[pd.DataFrame, list[str]]:
+    """Fill the ``trial`` column of the app rows, and say how each value was obtained.
+
+    A lab working-memory protocol runs several trials per subject per day, so group/day/subject
+    is not a row key. The app does not always know the trial number; in this order:
+
+    1. an explicit ``trial`` value (a column of the unified file, a ``Tentativa_N`` folder);
+    2. a number written in the experiment id or video path (``..._Trial_2``, ``Tentativa 3``);
+    3. the ORDER of the rows inside their group/day/subject (sorted by experiment id, then video
+       path), numbered from 1 - only when no row of that group/day/subject has a trial yet, and
+       only where the group/day/subject repeats (a single row stays without a trial).
+
+    Order is a guess about the lab's numbering: the returned notes count every source, so the
+    report states how much of the match leans on each.
+    """
+    out = app.copy()
+    trials: list[str | None] = []
+    sources: list[str] = []
+    for _, row in out.iterrows():
+        explicit = normalize_token(row.get("trial"))
+        if explicit is not None:
+            trials.append(explicit)
+            sources.append("column")
+            continue
+        text = f"{row.get('experiment_id') or ''} {row.get('video_path') or ''}"
+        named = _TRIAL_NAME_RE.search(text)
+        trials.append(normalize_token(named.group(1)) if named else None)
+        sources.append("name" if named else "")
+    positions: dict[tuple[str | None, ...], list[int]] = {}
+    for position, (_, row) in enumerate(out.iterrows()):
+        key = tuple(normalize_token(row.get(k)) for k in ("group", "day", "subject"))
+        if None not in key:
+            positions.setdefault(key, []).append(position)
+    for members in positions.values():
+        if len(members) < 2 or any(trials[i] is not None for i in members):
+            continue
+        ordered = sorted(
+            members,
+            key=lambda i: (
+                str(out.iloc[i].get("experiment_id")),
+                str(out.iloc[i].get("video_path")),
+            ),
+        )
+        for number, position in enumerate(ordered, start=1):
+            trials[position] = str(number)
+            sources[position] = "order"
+    out["trial"] = trials
+    counts = {name: sources.count(name) for name in ("column", "name", "order")}
+    notes: list[str] = []
+    if counts["name"] or counts["order"]:
+        notes.append(
+            f"{label} trial numbers: {counts['column']} from a column, {counts['name']} from the "
+            f"experiment id / video path, {counts['order']} assigned by order within "
+            "group/day/subject (a guess at the lab's numbering: check it), "
+            f"{len(trials) - sum(counts.values())} without a trial."
+        )
+    return out, notes
+
+
+def derive_censoring(
+    app: pd.DataFrame, *, ceiling_s: float, label: str
+) -> tuple[pd.DataFrame, list[str]]:
+    """Flag latencies the app left without a ``*_censored`` value as censored when at the ceiling.
+
+    The app's own flag is the truth. When the column is missing (an older report) or blank for a
+    row that has a latency, the flag is DERIVED as ``latency >= ceiling_s`` so a 240 s ceiling
+    value never reaches the "observed" statistics; the notes count what was derived.
+    """
+    out = app.copy()
+    notes: list[str] = []
+    for event in ("encounter", "entry"):
+        latency, flag = f"{event}_latency_s", f"{event}_censored"
+        derived = 0
+        values = []
+        for value, existing in zip(out[latency], out[flag], strict=True):
+            if existing is None and math.isfinite(value):
+                values.append(bool(value >= ceiling_s - _CENSOR_TOLERANCE_S))
+                derived += 1
+            else:
+                values.append(existing)
+        out[flag] = pd.Series(values, index=out.index, dtype=object)
+        if derived:
+            notes.append(
+                f"{label}: {derived} {event} latenc{'y' if derived == 1 else 'ies'} had no "
+                f"censoring flag; derived as latency >= {ceiling_s:g} s."
+            )
+    return out, notes
+
+
 def read_unified(
-    path: str | Path, overrides: Mapping[str, str] | None = None
+    path: str | Path,
+    overrides: Mapping[str, str] | None = None,
+    *,
+    max_trial_s: float = DEFAULT_CENSOR_AT_S,
 ) -> tuple[pd.DataFrame, list[str]]:
     """Read the app's unified summary into :data:`APP_COLUMNS`.
 
-    ``path`` is a ``unified*_summary_*.parquet`` (raw column names), or a folder: the newest
-    such file below it. A missing column becomes blank and is listed in ``notes`` (for
-    example the ``barnes_*`` columns before the reports stage exists in the app version).
+    ``path`` is a ``unified*_summary_*.parquet`` (raw column names), or a folder: the NEWEST
+    such file below it (:func:`newest_unified_file`); the file used is always named in
+    ``notes``, with a warning when it is a partial (selected videos only) report. A missing
+    column becomes blank and is listed in ``notes`` (for example the ``barnes_*`` columns
+    before the reports stage exists in the app version); a missing or blank censoring flag
+    is derived from the latency (:func:`derive_censoring`) and the trial numbers are derived
+    when absent (:func:`derive_trials`), both stated in the notes.
     """
     target = Path(path)
+    notes: list[str] = []
     if target.is_dir():
-        candidates = sorted(target.rglob("unified*_summary_*.parquet"))
-        if not candidates:
-            raise ValidationInputError(f"no unified*_summary_*.parquet under {target}")
-        target = candidates[-1]
+        target = newest_unified_file(target)
+    notes.append(f"Unified file used: {target}")
+    if "partial" in target.name:
+        notes.append(
+            "WARNING: this is a PARTIAL unified report (only the videos that were selected); "
+            "every other lab row will show as unmatched."
+        )
     frame = read_table(target, sheet=None, header_row=1, encoding=None, delimiter=None)
     names = {
         **{k: v for k, v in UNIFIED_COLUMNS.items()},
         **{k: (v,) for k, v in (overrides or {}).items()},
     }
-    notes: list[str] = []
     out = pd.DataFrame(index=frame.index)
     for canonical in APP_COLUMNS:
         header = next((h for h in names[canonical] if h in frame.columns), None)
         if header is None:
-            if canonical in ("group", "day", "subject", "experiment_id", "video_path"):
-                out[canonical] = None
-            else:
-                out[canonical] = np.nan if canonical in _APP_NUMERIC else None
+            out[canonical] = np.nan if canonical in _APP_NUMERIC else None
             notes.append(f"{target.name}: column {names[canonical]} not found ({canonical} blank)")
             continue
         out[canonical] = frame[header]
-    return coerce_app_frame(out), notes
+    app = coerce_app_frame(out)
+    app, trial_notes = derive_trials(app, label=target.name)
+    app, censor_notes = derive_censoring(app, ceiling_s=max_trial_s, label=target.name)
+    return app, [*notes, *trial_notes, *censor_notes]
 
 
 def coerce_app_frame(frame: pd.DataFrame) -> pd.DataFrame:
@@ -1067,6 +1210,7 @@ class MatchResult:
     app_unmatched: list[int] = field(default_factory=list)
     ambiguous: list[dict[str, Any]] = field(default_factory=list)
     rules: dict[int, str] = field(default_factory=dict)
+    reasons: dict[int, str] = field(default_factory=dict)
 
 
 def _key_of(
@@ -1084,9 +1228,12 @@ def _key_of(
 def match_rows(lab: pd.DataFrame, app: pd.DataFrame, spec: MatchSpec) -> MatchResult:
     """Match lab rows with app rows, in this order, first rule with a candidate wins:
 
-    1. **video path** — both sides have a path and the shorter is a suffix of the longer, at
-       least two components (so ``Dia_2/CECT_4/CECT_4.mp4`` is not confused with day 1);
-    2. **key** — the normalised ``match.keys`` tuple (group/day/subject by default);
+    1. **video path** — the lab row has a path of two or more components and an app row shares
+       the longest trailing run of components (at least two; so ``Dia_2/CECT_4/CECT_4.mp4`` is
+       not confused with day 1). A lab row WITH such a path never falls through to the key:
+       without a path match it is reported as unmatched;
+    2. **key** — the normalised ``match.keys`` tuple (group/day/subject, plus ``trial`` when
+       the lab runs several trials per day);
     3. **unique basename** — only with ``allow_unique_basename`` and a name that occurs once
        on the lab side and once on the app side.
 
@@ -1117,6 +1264,16 @@ def match_rows(lab: pd.DataFrame, app: pd.DataFrame, spec: MatchSpec) -> MatchRe
         if spec.use_video_path and len(lab_path) >= 2:
             candidates = _closest_paths(lab_path, app_paths)
             rule = "video_path"
+            if not candidates:
+                # A lab row that names its video must match THAT video: falling back to the
+                # key could pair it with another trial of the same animal, silently.
+                result.lab_unmatched.append(li)
+                result.reasons[li] = (
+                    "the row has a video path and no app video shares two or more path "
+                    "components with it (to match it by group/day/subject instead, drop the "
+                    "video column from the mapping or set use_video_path: false)"
+                )
+                continue
         if not candidates and keys:
             lab_key = _key_of(row, keys, spec.aliases)
             if lab_key is not None:
@@ -1226,7 +1383,7 @@ def match_summary(lab: pd.DataFrame, app: pd.DataFrame, result: MatchResult) -> 
         row = app.loc[i]
         return {
             k: _plain(row.get(k))
-            for k in ("group", "day", "subject", "experiment_id", "video_path")
+            for k in ("group", "day", "subject", "trial", "experiment_id", "video_path")
         }
 
     return {
@@ -1237,7 +1394,10 @@ def match_summary(lab: pd.DataFrame, app: pd.DataFrame, result: MatchResult) -> 
             rule: sum(1 for r in result.rules.values() if r == rule)
             for rule in sorted(set(result.rules.values()))
         },
-        "lab_unmatched": [lab_view(i) for i in result.lab_unmatched],
+        "lab_unmatched": [
+            {**lab_view(i), **({"reason": result.reasons[i]} if i in result.reasons else {})}
+            for i in result.lab_unmatched
+        ],
         "app_unmatched": [app_view(i) for i in result.app_unmatched],
         "ambiguous": [
             {
@@ -1260,7 +1420,9 @@ def _plain(value: Any) -> Any:
 # =============================================================================
 
 
-def compare_sheet(name: str, pairs: pd.DataFrame) -> dict[str, Any]:
+def compare_sheet(
+    name: str, pairs: pd.DataFrame, *, lab_ceiling: float = DEFAULT_CENSOR_AT_S
+) -> dict[str, Any]:
     """Statistics of one lab sheet's matched pairs (see the module docstring for the rules)."""
     block: dict[str, Any] = {"pairs": len(pairs)}
     if pairs.empty:
@@ -1281,6 +1443,7 @@ def compare_sheet(name: str, pairs: pd.DataFrame) -> dict[str, Any]:
                     col("app", f"{event}_censored"),
                     col("lab", lat),
                     col("lab", f"{event}_censored"),
+                    lab_ceiling=lab_ceiling,
                 )
         for errors in ("primary_errors", "total_errors"):
             if has("lab", errors):
@@ -1391,7 +1554,11 @@ def evaluate(
         pairs = [(li, ai) for li, ai in result.pairs if keep is None or ai in keep]
         pair_table = build_pair_table(table, app, pairs)
         pair_tables[name] = pair_table
-        block = compare_sheet(name, pair_table)
+        block = compare_sheet(
+            name,
+            pair_table,
+            lab_ceiling=float(table.attrs.get("censor_at_s", DEFAULT_CENSOR_AT_S)),
+        )
         if keep is None:
             block["matching"] = match_summary(table, app, result)
         else:
@@ -1463,12 +1630,14 @@ class CaseFiles:
     group: str | None
     day: str | None
     subject: str | None
+    trial: str | None = None
 
 
 def discover_cases(root: str | Path) -> tuple[list[CaseFiles], list[str]]:
     """Find every ``3_CoordMovimento_<base>.parquet`` below ``root`` and its zone files.
 
-    Group/day/subject come from the ``Grupo_*/Dia_*/Sujeito_*`` folders the app writes.
+    Group/day/subject (and the trial, from a ``Tentativa_*``/``Trial_*`` folder when there is
+    one) come from the folders the app writes.
     Multi-aquarium trajectories (``*_aquarium_N``) are skipped with a note.
     """
     base_dir = Path(root)
@@ -1483,7 +1652,7 @@ def discover_cases(root: str | Path) -> tuple[list[CaseFiles], list[str]]:
             continue
         arena = trajectory.with_name(f"{_ARENA_PREFIX}{base}.parquet")
         rois = trajectory.with_name(f"{_ROIS_PREFIX}{base}.parquet")
-        identity: dict[str, str | None] = {"group": None, "day": None, "subject": None}
+        identity: dict[str, str | None] = dict.fromkeys(("group", "day", "subject", "trial"))
         for part in trajectory.parent.relative_to(base_dir).parts:
             for field_name, pattern in _FOLDER_RE.items():
                 match = pattern.match(part)
@@ -1499,6 +1668,22 @@ def discover_cases(root: str | Path) -> tuple[list[CaseFiles], list[str]]:
             )
         )
     return cases, notes
+
+
+def check_override_keys(overrides: Mapping[str, Any]) -> None:
+    """Refuse override names that are not ``BarnesParams`` fields.
+
+    Raises:
+        ValidationInputError: lists the unknown names and every valid one.
+    """
+    from zebtrack.analysis.protocols.barnes.contract import BarnesParams
+
+    valid = set(BarnesParams.model_fields)
+    unknown = sorted(str(k) for k in overrides if k not in valid)
+    if unknown:
+        raise ValidationInputError(
+            f"unknown BarnesParams parameter(s) {unknown}; valid names: {sorted(valid)}"
+        )
 
 
 def preset_kwargs(params: Mapping[str, Any], *, k_frames: int = 5) -> dict[str, Any]:
@@ -1577,6 +1762,8 @@ class Recomputer:
         self._base_params: dict[str, Any] = dict(profile.protocol_params)
         self._workdir = Path(tempfile.mkdtemp(prefix="barnes_validation_"))
         self._prepared: dict[int, dict[str, Any]] = {}
+        self._identity: pd.DataFrame | None = None
+        self._checked_overrides: set[tuple[tuple[str, Any], ...]] = set()
         self.notes: list[str] = []
 
     # -- lifecycle ---------------------------------------------------------------
@@ -1595,11 +1782,23 @@ class Recomputer:
 
     @property
     def base_params(self) -> dict[str, Any]:
-        """The project's own ``protocol_params.barnes`` block (the starting point)."""
-        return dict(self._base_params)
+        """The EFFECTIVE ``BarnesParams`` of the project: its own block over the defaults.
+
+        The starting point of a calibration. Using the raw override block would leave every
+        parameter the project does not set looking like "no current value".
+        """
+        from zebtrack.analysis.protocols.barnes.contract import parse_barnes_params
+
+        return parse_barnes_params(self._base_params)[0].model_dump(mode="python")
 
     def identity_table(self) -> pd.DataFrame:
-        """One identity-only app row per case (group/day/subject/experiment/video path)."""
+        """One identity-only app row per case (group/day/subject/trial/experiment/video path).
+
+        The trial comes from a ``Tentativa_*`` folder, else from the name, else from the order
+        within group/day/subject (:func:`derive_trials`); how many of each is in ``notes``.
+        """
+        if self._identity is not None:
+            return self._identity.copy()
         rows = []
         for case in self._cases:
             entry = self._project_entry(case)
@@ -1610,15 +1809,22 @@ class Recomputer:
                     "group": case.group,
                     "day": case.day,
                     "subject": case.subject,
+                    "trial": case.trial,
                     "experiment_id": case.base,
                     "video_path": (entry or {}).get("path"),
                 }
             )
-        return coerce_app_frame(pd.DataFrame(rows, columns=list(APP_COLUMNS)))
+        frame, trial_notes = derive_trials(
+            coerce_app_frame(pd.DataFrame(rows, columns=list(APP_COLUMNS))), label="results"
+        )
+        self.notes.extend(trial_notes)
+        self._identity = frame
+        return frame.copy()
 
     def run_case(self, index: int, overrides: Mapping[str, Any] | None = None) -> dict[str, Any]:
         """Analyse one case with ``overrides`` on top of the project's Barnes params."""
         case = self._cases[index]
+        self._check_overrides(overrides)
         prepared = self._prepare(index)
         params = {**self._base_params, **dict(overrides or {})}
         effective = self._effective_params(params)
@@ -1657,10 +1863,34 @@ class Recomputer:
         selected = list(range(len(self._cases)) if indexes is None else indexes)
         rows = {i: self.run_case(i, overrides) for i in selected}
         frame = pd.DataFrame.from_dict(rows, orient="index", columns=list(APP_COLUMNS))
-        frame["video_path"] = self.identity_table().loc[frame.index, "video_path"]
+        identity = self.identity_table()
+        for column in IDENTITY_APP_COLUMNS:
+            frame[column] = identity.loc[frame.index, column]
         return coerce_app_frame(frame.reset_index(drop=True)).set_axis(frame.index)
 
     # -- internals ---------------------------------------------------------------
+
+    def _check_overrides(self, overrides: Mapping[str, Any] | None) -> None:
+        """Refuse an override that is not a ``BarnesParams`` field or that ``BarnesParams`` rejects.
+
+        ``parse_barnes_params`` ignores unknown keys and silently falls back to the default for
+        a bad value (it is made for stored project data); for an explicit ``--set`` either would
+        turn a typo into a run that quietly used the defaults.
+        """
+        if not overrides:
+            return
+        signature = tuple(sorted((str(k), repr(v)) for k, v in overrides.items()))
+        if signature in self._checked_overrides:
+            return
+        from zebtrack.analysis.protocols.barnes.contract import parse_barnes_params
+
+        check_override_keys(overrides)
+        _, base_warnings = parse_barnes_params(self._base_params)
+        _, warnings = parse_barnes_params({**self._base_params, **dict(overrides)})
+        new = [w for w in warnings if w not in base_warnings]
+        if new:
+            raise ValidationInputError("invalid BarnesParams override: " + " ".join(new))
+        self._checked_overrides.add(signature)
 
     def _effective_params(self, params: Mapping[str, Any]) -> dict[str, Any]:
         from zebtrack.analysis.protocols.barnes.contract import parse_barnes_params
@@ -1708,9 +1938,20 @@ class Recomputer:
         import math as _math
 
         from zebtrack.analysis.roi_builder import build_roi_from_polygon
-        from zebtrack.analysis.time_base import resolve_time_base
+        from zebtrack.analysis.time_base import (
+            SOURCE_FALLBACK,
+            SOURCE_LEDGER,
+            SOURCE_NONE,
+            resolve_time_base,
+            retime_from_ledger,
+        )
         from zebtrack.core.project.zone_manager import ZoneManager
-        from zebtrack.io.object_sidecar import trajectory_sidecars
+        from zebtrack.core.recording.frame_ledger import load_anchor, load_ledger
+        from zebtrack.io.object_sidecar import (
+            read_object_sidecar,
+            resolve_object_sidecar,
+            trajectory_sidecars,
+        )
 
         case = self._cases[index]
         folder = self._workdir / f"case_{index}"
@@ -1750,9 +1991,29 @@ class Recomputer:
             )
             if roi is not None
         ]
+        # Date the recording from ITS OWN clocks: the ledger (live), the 3c heartbeat, the
+        # trajectory timestamps. The settings fps is not an acceptable answer for a rat video
+        # recorded at 9.9 fps with a variable frame rate: `frame / 30` is off by up to 125 s.
+        ledger_rows = load_ledger(folder, case.base)
+        if ledger_rows:
+            df = retime_from_ledger(df, ledger_rows, load_anchor(folder, case.base))
+        objects = read_object_sidecar(resolve_object_sidecar(copy))
+        time_base = resolve_time_base(
+            df, objects_df=objects, ledger=ledger_rows or None, fallback_fps=None
+        )
+        if time_base.source in (SOURCE_FALLBACK, SOURCE_NONE) or not time_base.fps_video:
+            raise ValidationInputError(
+                f"{case.base}: the recording cannot be dated from its own timestamps "
+                f"(time base '{time_base.source}'); refusing to fall back to the settings fps. "
+                + " ".join(time_base.warnings)
+            )
+        extra = f"; {' '.join(time_base.warnings)}" if time_base.warnings else ""
+        self.notes.append(
+            f"{case.base}: time base from {time_base.source} "
+            f"({time_base.fps_video:.2f} fps video, {time_base.fps_sampling or 0:.2f} fps "
+            f"analysed){extra}"
+        )
         local = self._to_local(df, off_x, off_y, width, height)
-        settings_fps = float(self._settings.video_processing.fps)
-        time_base = resolve_time_base(df, fallback_fps=settings_fps)
         px, py = self._pixel_cm(width, height)
         prepared = {
             "df": local,
@@ -1762,8 +2023,9 @@ class Recomputer:
             "height": height,
             "px": px,
             "py": py,
-            "fps": float(time_base.fps_video or settings_fps),
+            "fps": float(time_base.fps_video),
             "time_base": time_base,
+            "clock": "capture_perf" if time_base.source == SOURCE_LEDGER else None,
         }
         self._prepared[index] = prepared
         return prepared
@@ -1836,6 +2098,7 @@ class Recomputer:
             rois=prepared["rois"],
             subject_names=project_subject_names(self._project),
             pixelcm=(prepared["px"], prepared["py"]),
+            clock=prepared["clock"],
         )
 
 
@@ -1847,6 +2110,7 @@ class Recomputer:
 #: any ratio explode, so ``(m + eps) / (m0 + eps)`` is used (eps in the metric's own unit).
 _LOSS_EPS: Final[dict[str, float]] = {
     "mad_encounter": 0.5,
+    "encounter_censoring_mismatch": 0.5,
     "mad_entry": 0.5,
     "entry_censoring_mismatch": 0.5,
     "mad_primary_errors": 0.05,
@@ -1870,8 +2134,9 @@ def _get(block: Mapping[str, Any], *path: str) -> float:
 def group_losses(group: str, summary: Mapping[str, Any]) -> dict[str, float]:
     """The lower-is-better values a parameter group is judged on, from an evaluation summary.
 
-    * ``visits``: MAD of encounter latency (both observed), primary and total errors, and the
-      probe score / attempts / first-error latency, whichever the lab sheets provide;
+    * ``visits``: MAD of encounter latency (both observed) and the number of pairs the two
+      sides disagree on being censored, primary and total error MAD, and the probe score /
+      attempts / first-error latency, whichever the lab sheets provide;
     * ``entry``: MAD of entry latency (both observed) and the number of pairs the two sides
       disagree on being censored;
     * ``strategy``: share of pairs whose automatic strategy differs from the lab's.
@@ -1881,6 +2146,13 @@ def group_losses(group: str, summary: Mapping[str, Any]) -> dict[str, float]:
     values: dict[str, float] = {}
     if group == "visits":
         values["mad_encounter"] = _get(lat, "encounter", "observed", "mad")
+        cens = lat.get("encounter", {}).get("censoring", {})
+        if cens.get("n"):
+            # Without this term a threshold that turns the hard encounters into censored ones
+            # would DROP them from the observed MAD and score better for losing them.
+            values["encounter_censoring_mismatch"] = float(
+                cens.get("lab_only_censored", 0) + cens.get("app_only_censored", 0)
+            )
         values["mad_primary_errors"] = _get(lat, "primary_errors", "mad")
         values["mad_total_errors"] = _get(lat, "total_errors", "mad")
         values["mad_probe_score"] = _get(probe, "score", "mad")
@@ -1902,51 +2174,65 @@ def group_losses(group: str, summary: Mapping[str, Any]) -> dict[str, float]:
 
 
 def relative_loss(values: Mapping[str, float], reference: Mapping[str, float]) -> float:
-    """Mean of ``(m + eps) / (m_ref + eps)`` over the metrics both have; < 1 beats the reference.
+    """Mean of ``(m + eps) / (m_ref + eps)`` over the reference's metrics; < 1 beats it.
 
     Scale-free on purpose: latency seconds, error counts and a disagreement rate cannot be
     summed, but "how much worse or better than where we started" can be averaged.
+
+    A candidate that leaves any of the reference's metrics UNDEFINED (no pair left to compare,
+    for instance because every latency became censored) is rejected with ``inf``: dropping
+    the term would reward the candidate for the numbers it can no longer produce.
     """
+    if not reference or any(name not in values for name in reference):
+        return math.inf
     ratios = [
-        (values[name] + _LOSS_EPS[name]) / (reference[name] + _LOSS_EPS[name])
-        for name in values
-        if name in reference
+        (values[name] + _LOSS_EPS[name]) / (reference[name] + _LOSS_EPS[name]) for name in reference
     ]
-    return float(np.mean(ratios)) if ratios else math.inf
+    return float(np.mean(ratios))
 
 
 def split_cases(
     identities: pd.DataFrame, indexes: Sequence[int], *, fraction: float, seed: int
 ) -> tuple[list[int], list[int]]:
-    """Seeded calibration / held-out split, stratified by group x day when they exist.
+    """Seeded calibration / held-out split BY ANIMAL, stratified by group.
 
-    Each stratum is shuffled with the seed and cut at ``round(fraction · size)`` (at least
-    one case on each side when the stratum has two or more). Strata of a single case are
-    pooled, shuffled and cut the same way, so the overall ratio holds.
+    The unit is the animal (group + subject), never the video: a rat has several trials and
+    days, and one rat on both sides would let the thresholds be tuned to it and then
+    "confirmed" on it. Within each group the animals are shuffled with the seed and cut at
+    ``round(fraction x animals)`` (at least one animal on each side when the group has two or
+    more); groups with a single animal are pooled, shuffled and cut the same way so the overall
+    ratio holds. Every video of an animal goes where the animal goes. A video with no subject
+    value counts as an animal of its own.
     """
     if not 0.0 < fraction < 1.0:
         raise ValidationInputError("--calibration-fraction must be between 0 and 1")
     rng = np.random.default_rng(seed)
-    strata: dict[tuple[str, str], list[int]] = {}
+    animals: dict[tuple[str, str], list[int]] = {}
     for index in sorted(indexes):
         row = identities.loc[index]
-        strata.setdefault((str(row.get("group")), str(row.get("day"))), []).append(index)
+        group = normalize_token(row.get("group")) or ""
+        subject = normalize_token(row.get("subject")) or f"__video_{index}"
+        animals.setdefault((group, subject), []).append(index)
+    by_group: dict[str, list[tuple[str, str]]] = {}
+    for key in animals:
+        by_group.setdefault(key[0], []).append(key)
     calibration: list[int] = []
     held_out: list[int] = []
-    singles: list[int] = []
-    for members in strata.values():
-        if len(members) == 1:
-            singles.extend(members)
+
+    def assign(keys: list[tuple[str, str]], cut_at: int) -> None:
+        for position in rng.permutation(len(keys)).tolist():
+            target = calibration if cut_at > 0 else held_out
+            target.extend(animals[keys[position]])
+            cut_at -= 1
+
+    singles: list[tuple[str, str]] = []
+    for keys in by_group.values():
+        if len(keys) == 1:
+            singles.extend(keys)
             continue
-        shuffled = list(rng.permutation(members))
-        cut = min(max(round(fraction * len(shuffled)), 1), len(shuffled) - 1)
-        calibration.extend(int(i) for i in shuffled[:cut])
-        held_out.extend(int(i) for i in shuffled[cut:])
+        assign(keys, min(max(round(fraction * len(keys)), 1), len(keys) - 1))
     if singles:
-        shuffled = list(rng.permutation(singles))
-        cut = round(fraction * len(shuffled))
-        calibration.extend(int(i) for i in shuffled[:cut])
-        held_out.extend(int(i) for i in shuffled[cut:])
+        assign(singles, round(fraction * len(singles)))
     return sorted(calibration), sorted(held_out)
 
 
@@ -1957,6 +2243,16 @@ def grid_candidates(
     axes = [list(grid[key]) for key in keys if grid.get(key)]
     names = [key for key in keys if grid.get(key)]
     return [dict(zip(names, combo, strict=True)) for combo in product(*axes)] if names else [{}]
+
+
+def _differs(current: Any, candidate: Any) -> bool:
+    """Whether ``candidate`` is a different value from ``current`` (floats compared by value)."""
+    if isinstance(current, float) or isinstance(candidate, float):
+        try:
+            return not math.isclose(float(current), float(candidate), rel_tol=1e-9)
+        except (TypeError, ValueError):
+            return True
+    return bool(current != candidate)
 
 
 def _distance_to_defaults(candidate: Mapping[str, Any], defaults: Mapping[str, Any]) -> float:
@@ -2025,6 +2321,8 @@ def calibrate(
         seed=seed,
     )
 
+    if not held_out_cases:
+        logger.warning("barnes_validation.calibrate.no_held_out", animals=len(matched))
     cache: dict[tuple[int, tuple[tuple[str, Any], ...]], dict[str, Any]] = {}
 
     def frame_for(params: Mapping[str, Any], indexes: Sequence[int]) -> pd.DataFrame:
@@ -2035,13 +2333,14 @@ def calibrate(
                 cache[(i, key_params)] = recomputer.run_case(i, params)
             rows[i] = cache[(i, key_params)]
         frame = pd.DataFrame.from_dict(rows, orient="index", columns=list(APP_COLUMNS))
-        frame["video_path"] = identities.loc[frame.index, "video_path"]
-        return coerce_app_frame(frame.reset_index()).set_index(frame.index)
+        return coerce_app_frame(frame.reset_index(drop=True)).set_axis(frame.index)
 
     def summarise(params: Mapping[str, Any], indexes: Sequence[int]) -> dict[str, Any]:
         app = identities.copy()
         computed = frame_for(params, indexes)
         for column in APP_COLUMNS:
+            if column in IDENTITY_APP_COLUMNS:
+                continue  # who the video is does not depend on the parameters
             app[column] = app[column].astype(object)
             app.loc[computed.index, column] = computed[column].astype(object)
         app = coerce_app_frame(app)
@@ -2083,6 +2382,12 @@ def calibrate(
             )
         scored.sort(key=lambda item: (item[0], item[1]))
         best_loss, _distance, best, best_values = scored[0]
+        if not math.isfinite(best_loss):
+            outcome_groups[group] = {
+                "status": "skipped",
+                "reason": "every candidate left a metric undefined; the current values are kept",
+            }
+            continue
         current.update(best)
         outcome_groups[group] = {
             "status": "searched",
@@ -2097,7 +2402,7 @@ def calibrate(
             ],
         }
 
-    changed = {k: v for k, v in current.items() if defaults.get(k) != v}
+    changed = {k: v for k, v in current.items() if _differs(defaults.get(k), v)}
     held_default = summarise(defaults, held_out_cases) if held_out_cases else {}
     held_chosen = summarise({**defaults, **current}, held_out_cases) if held_out_cases else {}
     cal_default = summarise(defaults, calibration_cases)
@@ -2125,17 +2430,24 @@ def calibrate(
 def _held_out_verdict(
     default: Mapping[str, Any], chosen: Mapping[str, Any], *, groups: Sequence[str]
 ) -> dict[str, Any]:
-    """Whether the calibrated values beat the defaults on cases they were NOT fitted on."""
+    """Whether the calibrated values beat the defaults on cases they were NOT fitted on.
+
+    ``improves`` is ``None`` (and ``evaluated`` ``False``) when the held-out set could not
+    judge the group at all (no held-out video, or no pair left to compare): "nothing was
+    evaluated" must never read as "keep the defaults".
+    """
     verdict: dict[str, Any] = {}
     for group in groups:
         ref = group_losses(group, default)
         new = group_losses(group, chosen)
-        loss = relative_loss(new, ref) if ref and new else math.nan
+        evaluated = bool(ref) and all(name in new for name in ref)
+        loss = relative_loss(new, ref) if evaluated else math.nan
         verdict[group] = {
             "default_metrics": ref,
             "calibrated_metrics": new,
             "relative_loss": loss,
-            "improves": bool(math.isfinite(loss) and loss < 1.0),
+            "evaluated": evaluated,
+            "improves": (bool(math.isfinite(loss) and loss < 1.0) if evaluated else None),
         }
     return verdict
 
@@ -2356,7 +2668,7 @@ def render_markdown(
         "",
     ]
     if notes:
-        lines += ["## Notes", "", *[f"- {n}" for n in notes[:100]], ""]
+        lines += ["## Notes", "", *[f"- {n}" for n in notes[:400]], ""]
     for name in SHEET_NAMES:
         block = summary.get(name)
         if not block:
@@ -2435,6 +2747,14 @@ def _render_calibration(cal: Mapping[str, Any]) -> list[str]:
             "",
         ]
     lines += ["### Held-out evaluation (videos the thresholds were NOT fitted on)", ""]
+    if not cal["held_out_cases"]:
+        lines += [
+            "**WARNING: there are no held-out videos, so NOTHING was evaluated.** The numbers "
+            "above were fitted on every matched video and prove nothing; do not use the "
+            "suggested block. Add animals (the split is by animal) or lower "
+            "--calibration-fraction.",
+            "",
+        ]
     rows = []
     for group, info in cal["held_out_verdict"].items():
         rows.append(
@@ -2443,7 +2763,9 @@ def _render_calibration(cal: Mapping[str, Any]) -> list[str]:
                 json.dumps(info["default_metrics"]),
                 json.dumps(info["calibrated_metrics"]),
                 info["relative_loss"],
-                "yes" if info["improves"] else "no — keep the defaults",
+                {True: "yes", False: "no - keep the defaults", None: "not evaluated"}[
+                    info["improves"]
+                ],
             ]
         )
     lines.append(md_table(["group", "defaults", "calibrated", "relative loss", "improves"], rows))
@@ -2578,6 +2900,7 @@ def _parse_overrides(items: Sequence[str]) -> dict[str, Any]:
             overrides[key.strip()] = json.loads(raw)
         except json.JSONDecodeError:
             overrides[key.strip()] = raw
+    check_override_keys(overrides)
     return overrides
 
 
@@ -2701,7 +3024,12 @@ def run(argv: Sequence[str] | None = None) -> int:
         if args.mode == "validate":
             assert mapping is not None
             lab_tables, notes = load_lab_tables(mapping)
-            app, app_notes = read_unified(args.unified, mapping.app_columns)
+            latency_sheet = mapping.sheets.get("latencies")
+            app, app_notes = read_unified(
+                args.unified,
+                mapping.app_columns,
+                max_trial_s=latency_sheet.censor_at_s if latency_sheet else DEFAULT_CENSOR_AT_S,
+            )
             result = evaluate(lab_tables, app, match_all(lab_tables, app, mapping.match))
             result.notes = [*notes, *app_notes]
             paths = write_outputs(
@@ -2746,6 +3074,12 @@ def run(argv: Sequence[str] | None = None) -> int:
                 title="Barnes calibration — held-out evaluation",
                 calibration=outcome,
             )
+            if not outcome.held_out_cases:
+                print(
+                    "warning: no held-out videos; nothing was evaluated, do not use the suggested "
+                    "block",
+                    file=sys.stderr,
+                )
             print(yaml.safe_dump(jsonable(outcome.suggested_block), sort_keys=True))
     except ValidationInputError as exc:
         print(f"error: {exc}", file=sys.stderr)

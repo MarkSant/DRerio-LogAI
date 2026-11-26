@@ -7746,10 +7746,10 @@ _load_registry()"
         description: "perda relativa igual a 1 (sem ganho) passa a ser chamada de melhora"
         find: "bool(math.isfinite(loss) and loss < 1.0)"
         replace: "bool(math.isfinite(loss) and loss <= 1.0)"
-      - id: split-stratum-can-empty-one-side
-        description: "estrato de dois pode deixar o conjunto de avaliacao vazio"
-        find: "cut = min(max(round(fraction * len(shuffled)), 1), len(shuffled) - 1)"
-        replace: "cut = round(fraction * len(shuffled))"
+      - id: split-group-can-empty-one-side
+        description: "grupo de dois animais pode deixar o conjunto de avaliacao vazio"
+        find: "min(max(round(fraction * len(keys)), 1), len(keys) - 1)"
+        replace: "round(fraction * len(keys))"
       - id: calibration-accepts-too-few-videos
         description: "calibracao com 1 video casado deixa de ser recusada"
         find: "if len(matched) < 4:"
@@ -7758,3 +7758,63 @@ _load_registry()"
         description: "o recompute deixa de reconstruir a janela com o preset v2 e os limiares sobrescritos"
         find: 'if self._window_mode == "preset_v2"'
         replace: "if False"
+      - id: split-by-video-not-by-animal
+        description: "a divisao passa a ser por video: o mesmo rato cai nos dois conjuntos"
+        find: 'subject = normalize_token(row.get("subject")) or f"__video_{index}"'
+        replace: 'subject = f"__video_{index}"'
+      - id: defaults-are-the-raw-override-block
+        description: "padroes da calibracao voltam a ser so os overrides do projeto (vazio sem overrides)"
+        find: 'return parse_barnes_params(self._base_params)[0].model_dump(mode="python")'
+        replace: "return dict(self._base_params)"
+      - id: visits-loss-ignores-censoring-mismatch
+        description: "perda de visitas deixa de contar o desacordo de censura do encontro (limiar que censura vence)"
+        find: 'values["encounter_censoring_mismatch"] = float('
+        replace: 'values["encounter_censoring_mismatch"] = 0.0 * float('
+      - id: undefined-metric-is-dropped-from-the-loss
+        description: "candidato que deixa uma metrica indefinida passa a ter o termo descartado em vez de rejeitado"
+        find: "if not reference or any(name not in values for name in reference):"
+        replace: "if not reference:"
+      - id: video-path-falls-back-to-the-key
+        description: "linha do laboratorio com caminho de video e sem candidato cai silenciosamente na chave"
+        find: |-
+          rule = "video_path"
+                      if not candidates:
+        replace: |-
+          rule = "video_path"
+                      if False:
+      - id: trial-order-off-by-one
+        description: "tentativa derivada da ordem comeca de 2 em vez de 1"
+        find: "trials[position] = str(number)"
+        replace: "trials[position] = str(number + 1)"
+      - id: derived-censoring-excludes-the-ceiling
+        description: "latencia exatamente no teto sem flag deixa de ser censurada"
+        find: "values.append(bool(value >= ceiling_s - _CENSOR_TOLERANCE_S))"
+        replace: "values.append(bool(value > ceiling_s))"
+      - id: imputed-view-keeps-the-lab-value
+        description: "visao com teto imputado deixa de por o laboratorio no teto onde esta censurado"
+        find: "np.where(lab_cens[both], lab_ceiling, lab_values[both])"
+        replace: "np.where(np.isfinite(lab_values[both]), lab_values[both], np.nan)"
+      - id: newest-unified-by-path
+        description: "arquivo unificado mais recente escolhido pelo caminho em vez do carimbo da execucao"
+        find: "return max(candidates, key=age_key)"
+        replace: "return max(candidates)"
+      - id: unified-mtime-ignored
+        description: "sem carimbo no nome, a data de modificacao deixa de decidir o mais recente"
+        find: 'return (match.group(1) if match else "", path.stat().st_mtime)'
+        replace: 'return (match.group(1) if match else "", 0.0)'
+      - id: empty-held-out-reads-as-no-improvement
+        description: "avaliacao nao feita (sem videos de teste) passa a parecer 'mantenha os padroes'"
+        find: "if evaluated else None"
+        replace: "if evaluated else False"
+      - id: unknown-override-accepted
+        description: "--set com nome que nao e campo de BarnesParams deixa de ser recusado"
+        find: "if k not in valid)"
+        replace: "if k in valid)"
+      - id: invalid-override-value-accepted
+        description: "--set com valor invalido volta a cair no padrao em silencio"
+        find: "new = [w for w in warnings if w not in base_warnings]"
+        replace: "new = []"
+      - id: undated-recording-falls-back-to-settings-fps
+        description: "gravacao que nao se data pelo proprio relogio deixa de ser recusada"
+        find: "if time_base.source in (SOURCE_FALLBACK, SOURCE_NONE) or not time_base.fps_video:"
+        replace: "if False:"

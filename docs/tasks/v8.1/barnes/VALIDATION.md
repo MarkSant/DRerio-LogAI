@@ -31,10 +31,10 @@ identified (group + day + subject, or the video file), and these values:
 One row per trial. Times in seconds (`83.5`, `83,5`) or as `m:ss` (`1:23.5`); an Excel time cell
 also works.
 
-| Grupo | Dia | Animal | Início (s) | Latência encontro (s) | Latência entrada (s) | Erros primários | Erros totais |
-|---|---|---|---|---|---|---|---|
-| CBD | 1 | 7 | 5 | 38,1 | 41,7 | 2 | 3 |
-| CBD | 1 | 8 | 7 | 240 | 240 | 9 | 14 |
+| Grupo | Dia | Animal | Tentativa | Início (s) | Latência encontro (s) | Latência entrada (s) | Erros primários | Erros totais |
+|---|---|---|---|---|---|---|---|---|
+| CBD | 1 | 7 | 1 | 5 | 38,1 | 41,7 | 2 | 3 |
+| CBD | 1 | 8 | 1 | 7 | 240 | 240 | 9 | 14 |
 
 * **Início** is the *manual START* — the instant the rat was released and the experimenter was
   gone, read from the video. It is what the app's own START (the analysis window) is compared
@@ -46,6 +46,10 @@ also works.
   lab marks it in a yes/no column instead of (or besides) the 240, map that column too.
 * The error columns are optional; they are what calibrates `visit_*` best, so include them if the
   lab has them.
+* **Tentativa (trial)** is needed whenever an animal has more than one trial per day (the lab's
+  working-memory protocol runs 3 per day, reference memory 2): group + day + subject then no longer
+  identify a row. Put it in every sheet, add `trial` to `match.keys` and see "Matching" below for how
+  the app side gets its trial number. With one trial per animal per day, leave it out.
 
 ### 1.2 Search strategy
 
@@ -96,7 +100,7 @@ left out. Paths are relative to the mapping file.
 
 ```yaml
 match:
-  keys: [group, day, subject]      # how rows are matched (see below)
+  keys: [group, day, subject]      # how rows are matched (see below); add `trial` for 2-3 trials/day
   use_video_path: true
   allow_unique_basename: false
   aliases:
@@ -140,7 +144,7 @@ app:
 
 | Field (per sheet) | Meaning |
 |---|---|
-| `group`, `day`, `subject`, `video` | Identify the row (at least one required). |
+| `group`, `day`, `subject`, `trial`, `video` | Identify the row (at least one required). |
 | `start_time_s` | Manual START, any sheet. |
 | `encounter_latency_s`, `entry_latency_s` | Latencies (latencies sheet). |
 | `encounter_censored`, `entry_censored` | Optional yes/no columns; ORed with "value ≥ `censor_at_s`". |
@@ -158,16 +162,28 @@ The same file name repeats across days (`Dia_1/CECT_4/CECT_4.mp4` and `Dia_2/CEC
 are different trials), so a bare name is **never** used on its own. In this order, the first rule
 that finds a candidate decides:
 
-1. **Video path** — the sheet has `video` with two or more path components and the app row has a
-   video path: the app row sharing the **longest** trailing run of components (at least two) wins;
-   a tie is *ambiguous*.
+1. **Video path** — the lab row has a `video` with two or more path components: the app row
+   sharing the **longest** trailing run of components (at least two) wins; a tie is *ambiguous*. A
+   lab row that has such a path and finds **no** app video is reported as **unmatched** — it never
+   falls through to the key, because the key could pair it with another trial of the same animal.
+   (If the app side has no video paths at all, as in the unified parquet, drop `video` from the
+   mapping or set `use_video_path: false`; the unmatched list says so.)
 2. **Key** — the normalised `match.keys`. Normalisation makes `Dia_1`, `dia 01`, `1` and `1.0` equal
-   and `Grupo_CBD` equal `cbd`; `aliases` bridge real spelling differences.
+   and `Grupo_CBD` equal `cbd`, `Tentativa_2` equal `2`; `aliases` bridge real spelling
+   differences.
 3. **Unique basename** — only with `allow_unique_basename: true`, and only when the name occurs
    exactly once on each side.
 
+**Trial numbers on the app side.** The app does not always know which trial a video was. In this
+order, and with every count written into the report notes: an explicit value (a `trial` column in
+the unified file, a `Tentativa_N`/`Trial_N` folder in the results), a number in the experiment id
+or video path (`..._Trial_2`, `Tentativa 3`), and finally the **order** of the videos within their
+group/day/subject (by experiment id, numbered from 1; only where that group/day/subject repeats).
+The order is a guess at the lab's numbering — check the note and the `pairs_*` tab before trusting
+it, and prefer naming the trial in the video or folder.
+
 A row with several candidates, or two lab rows claiming one app row, is **ambiguous and matched to
-nothing**. Rows without a counterpart are listed on both sides (report and workbook): read that list
+nothing** (two trials of one animal on one day are ambiguous unless `trial` is a key). Rows without a counterpart are listed on both sides (report and workbook): read that list
 first, it is the usual reason numbers look wrong.
 
 ## 3. Running it
@@ -184,13 +200,17 @@ python scripts/barnes_validation.py validate `
   --out C:\lab\validation_run1
 ```
 
-`--unified` is a `unified*_summary_*.parquet`, or a folder (the newest such file below it is used).
+`--unified` is a `unified*_summary_*.parquet`, or a folder: the **newest** such file below it, by
+the run timestamp in its name (then by modification time), is used. The file chosen is the first line
+of the report notes, with a warning when it is a partial report (only the selected videos).
 The `.parquet` carries the raw column names the tool expects (`group`, `day`, `subject`,
 `experiment_id`, `barnes_status`, `barnes_encounter_latency_s`, `barnes_strategy_auto`,
 `window_start_s`, …). The `.xlsx`/`.csv` exports use display titles; to read them instead, name those
 titles under `app.columns` in the mapping (`app: {columns: {status: "Barnes Status", …}}`). A column
 that cannot be found is **listed in the report notes** and left blank — the report never silently
-skips a metric.
+skips a metric. If the censoring flags (`barnes_*_censored`) are missing, they are **derived** as
+`latency >= 240 s` (the lab sheet's `censor_at_s`) so a ceiling value never counts as an observation;
+the notes say how many were derived.
 
 ### 3.2 `recompute` — re-run the analysis only
 
@@ -205,7 +225,8 @@ python scripts/barnes_validation.py recompute `
 
 It re-runs **the analysis, never the detection**, through the real public entry
 (`AnalysisService.run_full_analysis`), with the trajectory, zones and `3c` object sidecar that
-already exist, and with `BarnesParams` overrides (`--set KEY=VALUE`, JSON values). Mirroring the
+already exist, and with `BarnesParams` overrides (`--set KEY=VALUE`, JSON values; a name that is not a `BarnesParams`
+field, or a value `BarnesParams` rejects, stops the run). Mirroring the
 individual report, it works in the arena's local pixel space and uses the report's pixel/cm rule
 (falling back to the table diameter, `--table-diameter-cm`, when the project has no calibration).
 
@@ -218,8 +239,13 @@ individual report, it works in the arena's local pixel space and uses the report
 * Trial type: `--trial-type` (default `training`), `--probe-regex <regex>` to mark videos whose
   result path matches as probe, and the project's own `protocol_inputs.barnes.trial_type` when
   `--project` is given (it wins).
-* Identity comes from the `Grupo_*/Dia_*/Sujeito_*` folders. A results folder of a single video has
-  none: match it by `video` (needs `--project`) or set `allow_unique_basename: true`.
+* Identity comes from the `Grupo_*/Dia_*/Sujeito_*` folders, and the trial from a `Tentativa_*` or
+  `Trial_*` folder when there is one (otherwise as in "Matching"). A results folder of a single
+  video has none: match it by `video` (needs `--project`) or set `allow_unique_basename: true`.
+* **Time base.** Each recording is dated from its own clocks — the frame ledger (live), the `3c`
+  heartbeat, the trajectory timestamps — never from `settings.video_processing.fps` (the rat videos
+  run at ~9.9 fps with a variable frame rate). The report notes give, per video, which clock was used
+  and its frame rate and any warning; a recording none of them can date is **refused**.
 * Multi-aquarium trajectories are skipped (Barnes is one arena per video).
 
 Without `--mapping` it only writes the recomputed table (`app_results` sheet).
@@ -245,32 +271,41 @@ python scripts/barnes_validation.py calibrate `
   --out C:\lab\calibration_run1
 ```
 
-1. The videos the lab sheets cover are split, **seeded** and **stratified by group × day**, into a
-   calibration subset (`--calibration-fraction`, default 0.6) and a held-out subset (strata of two
-   keep one video on each side).
+1. The videos the lab sheets cover are split **by animal** (group + subject), **seeded** and
+   **stratified by group**, into a calibration subset (`--calibration-fraction`, default 0.6, of the
+   animals) and a held-out subset. A rat has several trials and days: splitting by video would put the
+   same rat on both sides and let the thresholds be tuned to it and then "confirmed" on it. Every video
+   of an animal goes where the animal goes; a group of two animals keeps one on each side; groups of a
+   single animal are pooled. With too few animals the held-out subset can be empty — the report then
+   says **nothing was evaluated** (and the command prints a warning) instead of "keep the defaults".
 2. The parameters are optimised in three **groups**, in this order, each over the Cartesian product
    of its own grid with the earlier groups fixed at their chosen values:
 
    | Group | Parameters (current default → default grid) | Judged on |
    |---|---|---|
-   | `visits` | `visit_min_cover` (0.3 → 0.2, 0.3, 0.4, 0.5); `visit_enter_frames` (2 → 1, 2, 3); `visit_exit_frames` (3 → 2, 3, 5) — 36 candidates | encounter-latency MAD, primary/total-error MAD, probe score / attempts / first-error MAD |
+   | `visits` | `visit_min_cover` (0.3 → 0.2, 0.3, 0.4, 0.5); `visit_enter_frames` (2 → 1, 2, 3); `visit_exit_frames` (3 → 2, 3, 5) — 36 candidates | encounter-latency MAD **and the number of pairs the two sides disagree on being censored**, primary/total-error MAD, probe score / attempts / first-error MAD |
    | `entry` | `entry_min_cover` (0.5 → 0.4, 0.5, 0.65); `entry_max_visible_fraction` (0.35 → 0.25, 0.35, 0.5); `entry_hold_s` (0.5 → 0.3, 0.5, 1.0); `entry_absent_s` (3.0 → 2, 3, 5) — 81 candidates | entry-latency MAD and the number of pairs the two sides disagree on being censored |
    | `strategy` | `center_radius_ratio` (0.5 → 0.4, 0.5, 0.6); `strategy_direct_max_errors` (3 → 2, 3, 4); `strategy_serial_min_adjacent_fraction` (⅔ → 0.5, ⅔, 0.8); `strategy_serial_max_center_crossings` (1 → 0, 1, 2) — 81 candidates | share of strategies that differ from the lab's |
 
-   A group whose lab data is missing (no strategy sheet, no error columns, …) is **skipped**, and
-   said so. `strategy_adjacent_max_step`, `entry_min_reference_frames`, `max_trial_s` and the layout
+   The "current default" is the project's **effective** `BarnesParams` (its own block over the
+   defaults), so a project without overrides starts from the defaults above. A group whose lab data is
+   missing (no strategy sheet, no error columns, …) is **skipped**, and said so. `strategy_adjacent_max_step`, `entry_min_reference_frames`, `max_trial_s` and the layout
    parameters are not searched by default.
 3. The score of a candidate is the **relative loss**: the mean over the group's metrics of
    `(m + ε) / (m_start + ε)`, where `m_start` is the metric at the group's starting values and ε a
    small constant (0.5 s, 0.05 errors, 0.02 disagreement) so a perfect start does not divide by zero.
    `1.0` = no better than where it started; `< 1` = better. It is scale-free because seconds, error
-   counts and a disagreement rate cannot be added.
+   counts and a disagreement rate cannot be added. A candidate that leaves any of the starting
+   metrics **undefined** (for instance every latency became censored, so no pair is left to compare)
+   is **rejected**, not scored on what remains: a threshold must not win by hiding the hard trials
+   (the censoring-mismatch term closes the same loophole from the other side).
 4. The best candidate wins; **ties go to the one closest to the current values** — the tool does not
    move a threshold without evidence.
 5. Finally the defaults and the chosen values are both evaluated on the **held-out** videos. The
-   report says, per group, whether the calibrated values improved there (`relative loss < 1`) or
-   "keep the defaults". **Only the held-out result counts**; the calibration-subset numbers are
-   optimistic by construction.
+   report says, per group, whether the calibrated values improved there (`relative loss < 1`),
+   "keep the defaults", or "not evaluated" (no held-out video could judge the group).
+   **Only the held-out result counts**; the calibration-subset numbers are optimistic by
+   construction.
 
 Options: `--grid grid.yaml` (a map `parameter: [values…]`, replacing or adding axes — only the
 parameters above are accepted), `--max-candidates N` (default 500 per group; the run refuses a larger
@@ -333,8 +368,10 @@ Three blocks per latency, in this order of importance:
    censored* (the lab says the rat never entered, the app measured an entry), *app only censored*,
    the agreement rate and Cohen's kappa. A high lab-only count points at the entry thresholds being
    too permissive (or the lab placing rats by hand); a high app-only count, too strict.
-3. **Ceiling-imputed (not observations).** The same statistics with the censored pairs kept at the
-   ceiling. They are shown **only** so the effect of the ceiling can be judged — two censored
+3. **Ceiling-imputed (not observations).** The same statistics with every censored pair kept at the
+   ceiling: the lab is set to its `censor_at_s` wherever its row is flagged censored (whatever the cell
+   holds, blank included), the app keeps its own value (it writes the ceiling into a censored
+   latency). They are shown **only** so the effect of the ceiling can be judged — two censored
    trials "agree" at 240 s trivially, which flatters the numbers. Do not quote this block.
 
 ### 4.3 Errors, strategy, probe
@@ -385,5 +422,5 @@ These are not statistics the tool can settle; the `pairs_*` tabs tell you which 
 * The calibration optimises each group on its own lab columns and never tunes against the strategy
   sheet while searching visits; interactions between groups beyond the fixed order are not explored.
 * Seeded splits are reproducible (same seed, same files); a different seed will pick different
-  videos — a result that depends heavily on the seed means the sample is too small.
+  animals — a result that depends heavily on the seed means the sample is too small.
 * No real lab data is in the repository: every number in the tests is synthetic.

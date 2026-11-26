@@ -1030,16 +1030,26 @@ def test_write_outputs_creates_the_report_the_workbook_and_the_json(tmp_path):
 # --- calibration: split, grid, loss -----------------------------------------------------------
 
 
-def _identities(groups: dict[tuple[str, int], int]) -> pd.DataFrame:
+def _animals(per_group: dict[str, int], videos: int = 2) -> pd.DataFrame:
+    """Identity rows: ``per_group[g]`` animals in group g, each with ``videos`` videos (days)."""
     rows = []
-    for (group, day), count in groups.items():
-        rows += [{"group": group, "day": day}] * count
+    for group, count in per_group.items():
+        for subject in range(1, count + 1):
+            rows += [
+                {"group": group, "day": str(day), "subject": str(subject)}
+                for day in range(1, videos + 1)
+            ]
     return pd.DataFrame(rows)
 
 
-def test_split_is_seeded_stratified_disjoint_and_complete():
-    identities = _identities({("A", 1): 6, ("A", 2): 6, ("B", 1): 6, ("B", 2): 6})
-    indexes = list(range(24))
+def _animal_of(identities: pd.DataFrame, index: int) -> tuple[str, str]:
+    row = identities.loc[index]
+    return (row["group"], row["subject"])
+
+
+def test_split_is_by_animal_stratified_by_group_seeded_disjoint_and_complete():
+    identities = _animals({"A": 6, "B": 6}, videos=2)
+    indexes = list(range(len(identities)))
 
     cal, held = bv.split_cases(identities, indexes, fraction=0.5, seed=7)
     again = bv.split_cases(identities, indexes, fraction=0.5, seed=7)
@@ -1048,28 +1058,51 @@ def test_split_is_seeded_stratified_disjoint_and_complete():
     assert (cal, held) == again
     assert (cal, held) != other
     assert sorted(cal + held) == indexes and not set(cal) & set(held)
-    for (group, day), _count in {("A", 1): 6, ("A", 2): 6, ("B", 1): 6, ("B", 2): 6}.items():
-        members = set(identities.index[(identities.group == group) & (identities.day == day)])
-        assert len(members & set(cal)) == 3 and len(members & set(held)) == 3
+    # the same rat never sits on both sides, whatever the number of its videos
+    cal_animals = {_animal_of(identities, i) for i in cal}
+    held_animals = {_animal_of(identities, i) for i in held}
+    assert not cal_animals & held_animals
+    for group in ("A", "B"):  # stratified by group: 3 of 6 animals each side
+        assert len({a for a in cal_animals if a[0] == group}) == 3
+        assert len({a for a in held_animals if a[0] == group}) == 3
 
 
-def test_a_stratum_of_two_keeps_one_case_on_each_side_and_singletons_are_pooled():
-    identities = _identities({("A", 1): 2, ("A", 2): 1, ("B", 1): 1, ("B", 2): 1, ("C", 1): 1})
-    indexes = list(range(6))
+def test_a_group_of_two_animals_keeps_one_on_each_side_and_single_animal_groups_are_pooled():
+    identities = _animals({"A": 2, "B": 1, "C": 1, "D": 1, "E": 1}, videos=3)
+    indexes = list(range(len(identities)))
 
     cal, held = bv.split_cases(identities, indexes, fraction=0.6, seed=1)
 
-    pair = set(identities.index[(identities.group == "A") & (identities.day == 1)])
-    assert len(pair & set(cal)) == 1 and len(pair & set(held)) == 1
+    cal_animals = {_animal_of(identities, i) for i in cal}
+    held_animals = {_animal_of(identities, i) for i in held}
+    assert not cal_animals & held_animals
+    assert len({a for a in cal_animals if a[0] == "A"}) == 1
+    assert len({a for a in held_animals if a[0] == "A"}) == 1
+    # four single-animal groups pooled: round(0.6 x 4) = 2 animals to calibration
+    assert len({a for a in cal_animals if a[0] != "A"}) == 2
     assert sorted(cal + held) == indexes
-    # four singletons pooled: round(0.6 * 4) = 2 go to calibration, plus 1 of the pair
-    assert len(cal) == 3 and len(held) == 3
+
+
+def test_a_high_fraction_still_leaves_an_animal_on_each_side_of_a_group_of_two():
+    identities = _animals({"A": 2}, videos=2)
+
+    cal, held = bv.split_cases(identities, [0, 1, 2, 3], fraction=0.9, seed=5)
+
+    assert len(cal) == 2 and len(held) == 2
+
+
+def test_videos_without_a_subject_are_animals_of_their_own():
+    identities = pd.DataFrame({"group": ["A"] * 4, "subject": [None] * 4})
+
+    cal, held = bv.split_cases(identities, [0, 1, 2, 3], fraction=0.5, seed=2)
+
+    assert len(cal) == 2 and len(held) == 2
 
 
 @pytest.mark.parametrize("fraction", [0.0, 1.0, -1, 2])
 def test_split_rejects_a_fraction_outside_zero_one(fraction):
     with pytest.raises(bv.ValidationInputError, match="between 0 and 1"):
-        bv.split_cases(_identities({("A", 1): 4}), [0, 1, 2, 3], fraction=fraction, seed=1)
+        bv.split_cases(_animals({"A": 4}, videos=1), [0, 1, 2, 3], fraction=fraction, seed=1)
 
 
 def test_grid_candidates_is_the_cartesian_product_of_the_groups_own_axes():
@@ -1120,7 +1153,8 @@ def test_group_losses_read_the_metrics_each_group_governs():
     entry = bv.group_losses("entry", summary)
     strategy = bv.group_losses("strategy", summary)
 
-    assert set(visits) == {"mad_encounter", "mad_primary_errors"}
+    assert set(visits) == {"mad_encounter", "encounter_censoring_mismatch", "mad_primary_errors"}
+    assert visits["encounter_censoring_mismatch"] == 0.0
     assert set(entry) == {"mad_entry", "entry_censoring_mismatch"}
     assert entry["entry_censoring_mismatch"] == 1.0
     assert strategy == {"strategy_disagreement": pytest.approx(1 - 1 / 2)}
@@ -1687,14 +1721,27 @@ def test_cli_reports_input_errors_with_exit_code_two(tmp_path, capsys):
 
 
 def test_cli_set_values_are_parsed_as_json_then_as_text():
-    assert bv._parse_overrides(["a=0.4", "b=3", "c=null", "d=hello"]) == {
-        "a": 0.4,
-        "b": 3,
-        "c": None,
-        "d": "hello",
+    parsed = bv._parse_overrides(
+        [
+            "visit_min_cover=0.4",
+            "visit_enter_frames=3",
+            "visit_max_speed_cm_s=null",
+            "default_trial_type=probe",
+        ]
+    )
+    assert parsed == {
+        "visit_min_cover": 0.4,
+        "visit_enter_frames": 3,
+        "visit_max_speed_cm_s": None,
+        "default_trial_type": "probe",
     }
     with pytest.raises(bv.ValidationInputError, match="key=value"):
         bv._parse_overrides(["oops"])
+
+
+def test_cli_set_rejects_a_parameter_that_does_not_exist():
+    with pytest.raises(bv.ValidationInputError, match=r"unknown BarnesParams.*visit_min_cvoer"):
+        bv._parse_overrides(["visit_min_cvoer=0.4"])
 
 
 def test_a_user_grid_extends_and_replaces_the_default_axes(tmp_path):
@@ -1808,9 +1855,406 @@ def test_a_strategy_the_app_could_not_produce_is_counted_apart_from_a_disagreeme
     assert strategy["kappa"]["n"] == 1
 
 
-def test_a_stratum_of_two_keeps_both_sides_even_with_a_high_fraction():
-    identities = _identities({("A", 1): 2, ("A", 2): 2})
+# --- hub review of 41824c54 -------------------------------------------------------------------
+# 1. effective defaults  2. visits loss cannot be gamed  3. trial key and strict path match
+# 4. time base from the recording's own clock  5. --set validated  6. censoring flag derived
+# 7. ceiling-imputed view  + newest unified file, split by animal, empty held-out.
 
-    cal, held = bv.split_cases(identities, [0, 1, 2, 3], fraction=0.9, seed=5)
 
-    assert len(cal) == 2 and len(held) == 2
+def test_recompute_defaults_are_the_effective_params_not_the_raw_override_block():
+    with bv.Recomputer([], project_data=PROJECT) as recomputer:
+        params = recomputer.base_params
+    with bv.Recomputer([], project_data={}) as recomputer:
+        bare = recomputer.base_params
+
+    assert params["n_holes"] == 20  # the project's own override
+    assert params["visit_min_cover"] == 0.3 and params["entry_absent_s"] == 3.0  # the defaults
+    assert bare["n_holes"] == 18 and bare["visit_enter_frames"] == 2  # never an empty dict
+
+
+class GamingRunner(FakeRunner):
+    """``visit_min_cover = 0.5`` hides the hard encounters by turning them into censored ones."""
+
+    def run_case(self, index: int, overrides: Any = None) -> dict[str, Any]:
+        row = super().run_case(index, overrides)
+        params = {**self.base_params, **dict(overrides or {})}
+        truth = self.truth_enc[index]
+        hides = math.isclose(params["visit_min_cover"], 0.5)
+        if hides and truth >= 45:
+            row.update(encounter_latency_s=240.0, encounter_censored=True)
+        else:
+            row.update(
+                encounter_latency_s=truth + (1.0 if hides else 3.0), encounter_censored=False
+            )
+        row["primary_errors"] = 2
+        return row
+
+
+def test_a_threshold_that_censors_the_hard_encounters_does_not_win_on_the_observed_mad():
+    runner = GamingRunner()
+
+    outcome = bv.calibrate(
+        runner,
+        _fake_lab(),
+        bv.MatchSpec(),
+        grid={"visit_min_cover": [0.2, 0.3, 0.5]},
+        seed=3,
+        # 3 of the 4 animals of each group: whatever the seed, both the hidden (truth >= 45)
+        # and the visible encounters are in the calibration subset of each group
+        calibration_fraction=0.75,
+    )
+
+    info = outcome.groups["visits"]
+    ranked = {json.dumps(t["params"]): t["relative_loss"] for t in info["top"]}
+    # judged on the observed MAD alone 0.5 would be the best (1 s against 3 s); the censoring
+    # mismatch it creates makes it the worst
+    assert ranked['{"visit_min_cover": 0.5}'] > 1.0
+    assert outcome.chosen["visit_min_cover"] == pytest.approx(0.3)
+    assert outcome.suggested_block == {"protocol_params": {"barnes": {}}}
+
+
+def test_a_candidate_that_leaves_a_metric_undefined_is_rejected_not_rewarded():
+    reference = {"mad_encounter": 3.0, "mad_primary_errors": 1.0}
+
+    assert bv.relative_loss({"mad_encounter": 0.5}, reference) == math.inf
+    assert bv.relative_loss({}, reference) == math.inf
+    # a metric the reference never had is not a reason to reject
+    assert math.isfinite(bv.relative_loss({**reference, "mad_total_errors": 1.0}, reference))
+
+
+def test_trial_is_a_match_key_and_separates_the_trials_of_one_day():
+    lab = lab_frame(
+        {"group": "A", "day": 1, "subject": 1, "trial": 1},
+        {"group": "A", "day": 1, "subject": 1, "trial": 2},
+    )
+    app = app_frame(
+        {"group": "A", "day": 1, "subject": 1, "trial": "2"},
+        {"group": "A", "day": 1, "subject": 1, "trial": "1"},
+    )
+
+    by_trial = bv.match_rows(lab, app, bv.MatchSpec(keys=("group", "day", "subject", "trial")))
+    without = bv.match_rows(lab, app, bv.MatchSpec())
+
+    assert by_trial.pairs == [(0, 1), (1, 0)]
+    # without the key the two trials are ambiguous: never paired by row order
+    assert without.pairs == [] and len(without.ambiguous) == 2
+
+
+def test_the_mapping_accepts_a_trial_column_and_a_trial_key(tmp_path):
+    (tmp_path / "lat.csv").write_text(
+        "Grupo,Dia,Animal,Tentativa,Ent\nA,1,7,2,30\nA,1,7,3,45\n", encoding="utf-8"
+    )
+    mapping_file = _write_mapping(
+        tmp_path,
+        "match: {keys: [group, day, subject, trial]}\n"
+        "sheets: {latencies: {file: lat.csv, columns: {group: Grupo, day: Dia, subject: Animal,"
+        " trial: Tentativa, entry_latency_s: Ent}}}",
+    )
+
+    mapping = bv.load_mapping(mapping_file)
+    table, _ = bv.read_lab_sheet(mapping.sheets["latencies"])
+
+    assert mapping.match.keys == ("group", "day", "subject", "trial")
+    assert table["trial"].tolist() == [2, 3]
+
+
+def test_trials_come_from_a_column_then_the_name_then_the_order_and_are_reported():
+    app = app_frame(
+        {"group": "A", "day": "1", "subject": "1", "experiment_id": "r_T1", "trial": "2"},
+        {"group": "A", "day": "1", "subject": "2", "experiment_id": "rat_Trial_3"},
+        {"group": "A", "day": "2", "subject": "1", "experiment_id": "b"},
+        {"group": "A", "day": "2", "subject": "1", "experiment_id": "a"},
+        {"group": "A", "day": "3", "subject": "1", "experiment_id": "c"},
+    )
+
+    out, notes = bv.derive_trials(app, label="x")
+
+    assert out["trial"].tolist() == ["2", "3", "2", "1", None]
+    assert notes == [
+        "x trial numbers: 1 from a column, 1 from the experiment id / video path, "
+        "2 assigned by order within group/day/subject (a guess at the lab's numbering: "
+        "check it), 1 without a trial."
+    ]
+
+
+def test_derive_trials_says_nothing_when_every_trial_is_explicit():
+    app = app_frame({"group": "A", "day": "1", "subject": "1", "trial": "1"})
+
+    assert bv.derive_trials(app)[1] == []
+
+
+def test_a_lab_row_with_a_video_path_never_falls_back_to_the_key():
+    lab = lab_frame({"video": "D:/lab/X/R1.mp4", "group": "A", "day": 1, "subject": 1})
+    app = app_frame({"group": "A", "day": 1, "subject": 1, "video_path": "C:/p/Dia_1/R7/R7.mp4"})
+
+    strict = bv.match_rows(lab, app, bv.MatchSpec())
+    by_key = bv.match_rows(lab, app, bv.MatchSpec(use_video_path=False))
+
+    assert strict.pairs == [] and strict.lab_unmatched == [0]
+    assert "video path" in strict.reasons[0]
+    assert by_key.pairs == [(0, 0)]
+    unmatched = bv.match_summary(lab, app, strict)["lab_unmatched"][0]
+    assert "no app video shares two or more path components" in unmatched["reason"]
+
+
+def test_the_trial_comes_from_a_tentativa_folder(tmp_path):
+    root = tmp_path / "r"
+    _write_case(root / "Tentativa_2", base="x1")
+
+    cases, _ = bv.discover_cases(root)
+    with bv.Recomputer(cases, project_data=PROJECT) as recomputer:
+        identity = recomputer.identity_table()
+
+    assert cases[0].trial == "2"
+    assert identity.loc[0, "trial"] == "2"
+    assert recomputer.notes == []  # explicit: nothing to report
+
+
+def test_without_a_trial_folder_the_trial_is_the_order_and_the_run_says_so(tmp_path):
+    root = tmp_path / "r"
+    _write_case(root / "a", base="b1")
+    _write_case(root / "b", base="a1")
+
+    cases, _ = bv.discover_cases(root)
+    with bv.Recomputer(cases, project_data=PROJECT) as recomputer:
+        identity = recomputer.identity_table()
+
+    assert dict(zip(identity["experiment_id"], identity["trial"], strict=True)) == {
+        "a1": "1",
+        "b1": "2",
+    }
+    assert any("assigned by order" in note for note in recomputer.notes)
+
+
+def test_recompute_says_which_clock_dated_each_recording(tmp_path):
+    with_objects = tmp_path / "with"
+    without = tmp_path / "without"
+    _write_case(with_objects, base="r1")
+    _write_case(without, base="r2", objects=False)
+
+    notes: list[str] = []
+    for root in (with_objects, without):
+        cases, _ = bv.discover_cases(root)
+        with bv.Recomputer(cases, project_data=PROJECT) as recomputer:
+            recomputer.run_case(0)
+            notes += recomputer.notes
+
+    assert any(n.startswith("r1: time base from objects_heartbeat (10.00 fps video") for n in notes)
+    assert any(
+        n.startswith("r2: time base from trajectory_timestamps (10.00 fps video") for n in notes
+    )
+
+
+def test_a_recording_that_cannot_be_dated_is_refused_not_given_the_settings_fps(tmp_path):
+    root = tmp_path / "r"
+    folder = _write_case(root, base="r1", objects=False)
+    _script().frame().iloc[:1].to_parquet(folder / "3_CoordMovimento_r1.parquet")
+    cases, _ = bv.discover_cases(root)
+
+    with bv.Recomputer(cases, project_data=PROJECT) as recomputer:
+        with pytest.raises(bv.ValidationInputError, match="cannot be dated.*refusing"):
+            recomputer.run_case(0)
+
+
+def test_recompute_refuses_unknown_and_invalid_overrides(results_root):
+    cases, _ = bv.discover_cases(results_root)
+
+    with bv.Recomputer(cases, project_data=PROJECT) as recomputer:
+        with pytest.raises(bv.ValidationInputError, match="unknown BarnesParams.*visit_min_cvoer"):
+            recomputer.run_case(0, {"visit_min_cvoer": 0.4})
+        with pytest.raises(bv.ValidationInputError, match="invalid BarnesParams override"):
+            recomputer.run_case(0, {"visit_min_cover": 5})
+        assert recomputer.run_case(0, {"visit_min_cover": 0.4})["status"] == "ok"
+
+
+def test_a_missing_censoring_column_is_derived_from_the_ceiling_and_said_so(tmp_path):
+    frame = _unified_frame().drop(columns=["barnes_entry_censored", "barnes_encounter_censored"])
+    frame["barnes_entry_latency_s"] = [240.0, 100.0]
+    path = tmp_path / "unified_summary_20260101_000000_000000.parquet"
+    frame.to_parquet(path)
+
+    app, notes = bv.read_unified(path)
+
+    assert app["entry_censored"].tolist() == [True, False]
+    assert app["encounter_censored"].tolist() == [False, None]  # no latency, no flag
+    assert any(
+        "2 entry latencies had no censoring flag; derived as latency >= 240 s" in n for n in notes
+    )
+    assert any("1 encounter latency had no censoring flag" in n for n in notes)
+
+
+def test_a_derived_ceiling_flag_keeps_240_out_of_the_observed_statistics(tmp_path):
+    frame = _unified_frame().drop(columns=["barnes_entry_censored"])
+    frame["barnes_entry_latency_s"] = [240.0, 90.0]
+    frame["barnes_status"] = "ok"
+    path = tmp_path / "unified_summary_20260101_000000_000000.parquet"
+    frame.to_parquet(path)
+    app, _ = bv.read_unified(path)
+    lab = lab_frame(
+        {"group": "A", "day": 1, "subject": 1, "entry_latency_s": 240.0, "entry_censored": True},
+        {"group": "A", "day": 1, "subject": 2, "entry_latency_s": 80.0, "entry_censored": False},
+    )
+    tables = {"latencies": lab}
+
+    result = bv.evaluate(tables, app, bv.match_all(tables, app, bv.MatchSpec()))
+    entry = result.summary["latencies"]["entry"]
+
+    assert entry["observed"]["n"] == 1  # the 240 s pair is not an observation
+    assert entry["censoring"]["both_censored"] == 1
+
+
+def test_an_existing_censoring_flag_is_never_overridden_by_the_derivation():
+    app = app_frame(
+        {"entry_latency_s": 240.0, "entry_censored": False},  # the app says it was observed
+        {"entry_latency_s": 240.0},
+    )
+
+    out, notes = bv.derive_censoring(app, ceiling_s=240.0, label="u")
+
+    assert out["entry_censored"].tolist() == [False, True]
+    assert notes == ["u: 1 entry latency had no censoring flag; derived as latency >= 240 s."]
+
+
+def test_ceiling_imputed_puts_the_lab_at_the_ceiling_wherever_it_is_flagged_censored():
+    lab = pd.Series([100.0, math.nan, 30.0])  # a flagged value, a flagged blank, an observation
+    lab_cens = pd.Series([True, True, False])
+    app = pd.Series([240.0, 240.0, 31.0])
+    app_cens = pd.Series([True, True, False])
+
+    result = bv.latency_comparison(app, app_cens, lab, lab_cens)
+
+    imputed = result["ceiling_imputed"]
+    assert imputed["n"] == 3  # the blank censored row is kept, not dropped
+    assert imputed["bland_altman"]["bias"] == pytest.approx(1 / 3)  # diffs 0, 0, +1
+    assert result["observed"]["n"] == 1
+
+
+def test_the_ceiling_of_the_lab_sheet_is_used_by_the_imputed_view():
+    lab = lab_frame(
+        *[
+            {"group": "A", "day": 1, "subject": i, "entry_latency_s": v, "entry_censored": c}
+            for i, (v, c) in enumerate([(180.0, True), (20.0, False), (30.0, False)], start=1)
+        ]
+    )
+    lab.attrs["censor_at_s"] = 180.0
+    app = app_frame(
+        *[
+            {"group": "A", "day": 1, "subject": i, "entry_latency_s": v, "entry_censored": c}
+            for i, (v, c) in enumerate([(180.0, True), (21.0, False), (31.0, False)], start=1)
+        ]
+    )
+    tables = {"latencies": lab}
+
+    result = bv.evaluate(tables, app, bv.match_all(tables, app, bv.MatchSpec()))
+    entry = result.summary["latencies"]["entry"]
+
+    assert entry["ceiling_imputed"]["bland_altman"]["bias"] == pytest.approx(2 / 3)
+
+
+def test_a_folder_gives_the_newest_unified_file_by_run_stamp_and_names_it(tmp_path):
+    (tmp_path / "total").mkdir()
+    (tmp_path / "selecionados").mkdir()
+    old = tmp_path / "total" / "unified_summary_20250101_000000_000000.parquet"
+    new = tmp_path / "selecionados" / "unified_partial_summary_20260301_120000_000000.parquet"
+    _unified_frame().assign(barnes_status="old").to_parquet(old)
+    _unified_frame().assign(barnes_status="new").to_parquet(new)
+
+    app, notes = bv.read_unified(tmp_path)
+
+    assert app["status"].tolist() == ["new", "new"]  # name order alone would pick 'unified_summary'
+    assert notes[0] == f"Unified file used: {new}"
+    assert any(n.startswith("WARNING: this is a PARTIAL unified report") for n in notes)
+
+
+def test_without_a_run_stamp_the_modification_time_decides(tmp_path):
+    import os
+
+    first = tmp_path / "unified_summary_first.parquet"
+    second = tmp_path / "unified_summary_second.parquet"
+    _unified_frame().to_parquet(first)
+    _unified_frame().to_parquet(second)
+    os.utime(first, (1_000_000_000, 1_000_000_000))
+    os.utime(second, (2_000_000_000, 2_000_000_000))
+
+    assert bv.newest_unified_file(tmp_path) == second
+
+
+class SingletonRunner(FakeRunner):
+    """Eight animals, each alone in its group: every one is a 'single' of the split."""
+
+    def identity_table(self) -> pd.DataFrame:
+        return app_frame(*[{"group": f"G{i}", "day": "1", "subject": "1"} for i in range(8)])
+
+
+def _lab_for(runner: FakeRunner) -> dict[str, pd.DataFrame]:
+    identity = runner.identity_table()
+    rows = [
+        {
+            "group": identity.loc[i, "group"],
+            "day": identity.loc[i, "day"],
+            "subject": identity.loc[i, "subject"],
+            "encounter_latency_s": runner.truth_enc[i],
+            "encounter_censored": False,
+            "primary_errors": 2,
+        }
+        for i in range(len(identity))
+    ]
+    return {"latencies": lab_frame(*rows)}
+
+
+def test_an_empty_held_out_set_is_reported_as_not_evaluated_not_as_keep_the_defaults(tmp_path):
+    runner = SingletonRunner()
+
+    outcome = bv.calibrate(
+        runner,
+        _lab_for(runner),
+        bv.MatchSpec(),
+        grid={"visit_min_cover": [0.3, 0.4]},
+        seed=1,
+        calibration_fraction=0.99,
+    )
+    result = bv.ValidationResult(summary=outcome.held_out_calibrated, pair_tables={})
+    paths = bv.write_outputs(tmp_path, result, title="C", calibration=outcome)
+    text = paths["report"].read_text(encoding="utf-8")
+
+    assert outcome.held_out_cases == []
+    verdict = outcome.held_out_verdict["visits"]
+    assert verdict["evaluated"] is False and verdict["improves"] is None
+    assert "WARNING: there are no held-out videos, so NOTHING was evaluated" in text
+    assert "not evaluated" in text
+    assert "keep the defaults" not in text
+
+
+def test_the_cli_warns_on_stderr_when_calibration_had_nothing_to_hold_out(
+    tmp_path, results_root, capsys, monkeypatch
+):
+    mapping = _write_lab_files(tmp_path)
+    project = tmp_path / "project_config.json"
+    project.write_text(json.dumps(PROJECT), encoding="utf-8")
+    runner = SingletonRunner()
+    outcome = bv.calibrate(
+        runner,
+        _lab_for(runner),
+        bv.MatchSpec(),
+        grid={"visit_min_cover": [0.3]},
+        seed=1,
+        calibration_fraction=0.99,
+    )
+    monkeypatch.setattr(bv, "calibrate", lambda *a, **k: outcome)
+
+    code = bv.run(
+        [
+            "calibrate",
+            "--mapping",
+            str(mapping),
+            "--results-root",
+            str(results_root),
+            "--project",
+            str(project),
+            "--out",
+            str(tmp_path / "out"),
+        ]
+    )
+
+    assert code == 0
+    assert "no held-out videos; nothing was evaluated" in capsys.readouterr().err
