@@ -569,10 +569,10 @@ class TestSubjectGeometryRule:
                 children=(
                     BurrowEntry(roi="toca"),
                     RoiEdge(roi="ignored", edge="enter"),
-                    Persist(level=LastSeenIn(roi="a"), hold=Hold(frames=1)),
+                    Persist(level=LastSeenIn(roi="b"), hold=Hold(frames=1)),
                 )
             ),
         )
 
-        assert subject_geometry_rois(spec) == ("a", "toca")
+        assert subject_geometry_rois(spec) == ("a", "toca", "b")
         assert subject_geometry_rois(None) == ()
