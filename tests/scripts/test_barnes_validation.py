@@ -2166,17 +2166,20 @@ def test_a_folder_gives_the_newest_unified_file_by_run_stamp_and_names_it(tmp_pa
     assert any(n.startswith("WARNING: this is a PARTIAL unified report") for n in notes)
 
 
-def test_without_a_run_stamp_the_modification_time_decides(tmp_path):
+@pytest.mark.parametrize("newer_name", ["first", "second"])
+def test_without_a_run_stamp_the_modification_time_decides(tmp_path, newer_name):
+    # Both directions: ``rglob`` order is alphabetical on Windows but directory order on
+    # Linux, so a single direction can pass by listing order alone when mtime is ignored.
     import os
 
-    first = tmp_path / "unified_summary_first.parquet"
-    second = tmp_path / "unified_summary_second.parquet"
-    _unified_frame().to_parquet(first)
-    _unified_frame().to_parquet(second)
-    os.utime(first, (1_000_000_000, 1_000_000_000))
-    os.utime(second, (2_000_000_000, 2_000_000_000))
+    paths = {name: tmp_path / f"unified_summary_{name}.parquet" for name in ("first", "second")}
+    for path in paths.values():
+        _unified_frame().to_parquet(path)
+    older_name = "second" if newer_name == "first" else "first"
+    os.utime(paths[older_name], (1_000_000_000, 1_000_000_000))
+    os.utime(paths[newer_name], (2_000_000_000, 2_000_000_000))
 
-    assert bv.newest_unified_file(tmp_path) == second
+    assert bv.newest_unified_file(tmp_path) == paths[newer_name]
 
 
 class SingletonRunner(FakeRunner):

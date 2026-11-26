@@ -1705,6 +1705,7 @@ def _pick_profile(combo, choices, token) -> None:
     combo.event_generate("<<ComboboxSelected>>")
 
 
+@pytest.mark.gui
 class TestLiveAnalysisDialogExperimentProfile:
     @pytest.fixture
     def dialog(self, tkinter_root, test_settings):
