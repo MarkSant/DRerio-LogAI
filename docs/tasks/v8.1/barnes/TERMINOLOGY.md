@@ -99,7 +99,8 @@ project (Barnes forces the rodent model); `other` reads the same except for the 
   **key** is re-worded (`Num Arenas`, `Animals Per Arena`, `Arena Width Cm`). The labels are
   English, as before (they were never translated).
 - `display_column_name(column, animal_model)` — the Word summary table; `DISPLAY_COLUMN_MAPPING`
-  is untouched, with `aquarium_id` → `Arena` only for rodent/other.
+  is untouched, with `aquarium_id` → `Arena` only for rodent/other; an unmapped column falls back to
+  the title-cased key with the same aquarium → arena re-wording (`Arena Perspective`).
 - `DataTransformer.prepare_for_display(..., animal_model=...)` — same override for the
   `.xlsx` (individual report: `ExcelReporter` passes the run's model). Internal column keys never
   change. The unified/partial report (`_unified_report_mixin`) does not know the profile and keeps
