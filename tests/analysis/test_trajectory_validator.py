@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from zebtrack.analysis.time_base import SOURCE_HEARTBEAT, TimeBase
 from zebtrack.analysis.trajectory_validator import TrajectoryQualityValidator
 
 
@@ -302,6 +303,33 @@ class TestDurationStat:
         stats = validator.validate(df)["stats"]
 
         assert stats["duration_s"] == pytest.approx(2.0)
+
+    def test_a_handed_down_time_base_dates_the_stats(self):
+        """``run_full_analysis`` hands the validator the ONE time base it resolved."""
+        validator = TrajectoryQualityValidator(fps=30.0, min_trajectory_frames=3)
+        df = pd.DataFrame(
+            {"timestamp": np.arange(100) / 10.0, "frame": np.arange(100), "track_id": 1}
+        )
+        heartbeat = TimeBase(
+            fps_sampling=9.9,
+            fps_video=9.9,
+            duration_s=120.0,
+            t_first=0.0,
+            t_last=119.9,
+            median_dt=0.1,
+            source=SOURCE_HEARTBEAT,
+        )
+
+        stats = validator.validate(df, time_base=heartbeat)["stats"]
+
+        assert stats["duration_s"] == pytest.approx(120.0)
+        assert validator.validate(df)["stats"]["duration_s"] == pytest.approx(10.0)
+
+        # Without frame numbers the coverage is samples x interval over THAT
+        # duration: 10 s seen of a 120 s recording.
+        no_frames = df.drop(columns=["frame"])
+        coverage = validator.validate(no_frames, time_base=heartbeat)["stats"]
+        assert coverage["temporal_coverage"] == pytest.approx(10.0 / 120.0)
 
 
 def _frames_df(frames, track_ids=None) -> pd.DataFrame:

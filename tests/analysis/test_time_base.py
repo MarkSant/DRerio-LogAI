@@ -12,8 +12,10 @@ import numpy as np
 import pandas as pd
 import pytest
 import structlog.testing
+from tests.helpers.object_sidecar_files import heartbeat_sidecar_path, write_heartbeat_sidecar
 
 from zebtrack.analysis.time_base import (
+    RECORDING_CLOCK_SOURCES,
     SOURCE_FALLBACK,
     SOURCE_HEARTBEAT,
     SOURCE_LEDGER,
@@ -21,6 +23,7 @@ from zebtrack.analysis.time_base import (
     SOURCE_TRAJECTORY,
     TIME_WARNINGS_ATTR,
     TimeBase,
+    resolve_recording_time_base,
     resolve_time_base,
     retime_from_ledger,
 )
@@ -393,3 +396,117 @@ class TestRetimeFromLedger:
         out = retime_from_ledger(df, rows, {"t0_perf": 0.0})
 
         assert resolve_time_base(out).fps_sampling == pytest.approx(20.0)
+
+
+def _vfr_heartbeat_times(n: int = 99) -> np.ndarray:
+    """A ~9.9 fps variable-frame-rate clock: alternating 0.09 s / 0.112 s gaps."""
+    gaps = np.where(np.arange(n - 1) % 2 == 0, 0.09, 0.112)
+    return np.concatenate([[0.0], np.cumsum(gaps)])
+
+
+class TestResolveRecordingTimeBase:
+    """The one entry point analysis paths use: the 3c next to the trajectory is read."""
+
+    def test_heartbeat_sidecar_beside_the_trajectory_dates_the_recording(self, tmp_path) -> None:
+        trajectory = tmp_path / "3_CoordMovimento_rat1.parquet"
+        beats = _vfr_heartbeat_times()
+        write_heartbeat_sidecar(trajectory, beats)
+        # The subject was only detected in the middle third of the session.
+        df = _trajectory(beats[30:60], frames=range(30, 60))
+
+        base = resolve_recording_time_base(df, trajectory, fallback_fps=30.0)
+
+        assert base.source == SOURCE_HEARTBEAT
+        assert base.t_first == pytest.approx(0.0)
+        assert base.t_last == pytest.approx(beats[-1])
+        # The last beat covers one median interval: (0.09 + 0.112) / 2.
+        assert base.duration_s == pytest.approx(beats[-1] + 0.101)
+        assert base.fps_video == pytest.approx(98 / beats[-1])
+        assert base.warnings == ()
+
+    def test_heartbeat_wins_over_a_ledger(self, tmp_path) -> None:
+        trajectory = tmp_path / "3_CoordMovimento_s.parquet"
+        write_heartbeat_sidecar(trajectory, np.arange(50) / 10.0)
+        df = _trajectory(np.arange(10) / 10.0)
+
+        base = resolve_recording_time_base(
+            df, trajectory, ledger=_ledger_rows(list(np.arange(20) / 20.0))
+        )
+
+        assert base.source == SOURCE_HEARTBEAT
+        assert base.duration_s == pytest.approx(5.0)
+
+    def test_without_a_sidecar_the_ledger_dates_it(self, tmp_path) -> None:
+        trajectory = tmp_path / "3_CoordMovimento_s.parquet"
+        df = _trajectory(np.arange(10) / 10.0)
+
+        base = resolve_recording_time_base(
+            df, trajectory, ledger=_ledger_rows(list(np.arange(40) / 20.0))
+        )
+
+        assert base.source == SOURCE_LEDGER
+        assert base.duration_s == pytest.approx(2.0)
+
+    def test_without_sidecar_or_ledger_the_trajectory_pts_date_it(self, tmp_path) -> None:
+        df = _trajectory(np.arange(100) / 10.0)
+
+        base = resolve_recording_time_base(
+            df, tmp_path / "3_CoordMovimento_s.parquet", fallback_fps=30.0
+        )
+
+        assert base == resolve_time_base(df, fallback_fps=30.0)
+        assert base.source == SOURCE_TRAJECTORY
+
+    def test_nothing_dates_it_then_the_fallback_warns(self, tmp_path) -> None:
+        df = pd.DataFrame({"frame": [0, 1, 2], "track_id": [1, 1, 1]})
+
+        base = resolve_recording_time_base(
+            df, tmp_path / "3_CoordMovimento_s.parquet", fallback_fps=25.0
+        )
+
+        assert base.source == SOURCE_FALLBACK
+        assert base.fps_video == 25.0
+        assert len(base.warnings) == 1
+
+    def test_an_unreadable_sidecar_degrades_to_the_next_source(self, tmp_path) -> None:
+        trajectory = tmp_path / "3_CoordMovimento_s.parquet"
+        heartbeat_sidecar_path(trajectory).write_bytes(b"not a parquet file")
+        df = _trajectory(np.arange(100) / 10.0)
+
+        with structlog.testing.capture_logs() as logs:
+            base = resolve_recording_time_base(df, trajectory, fallback_fps=30.0)
+
+        assert base.source == SOURCE_TRAJECTORY
+        assert any(e["event"] == "object_sidecar.read.failed" for e in logs)
+
+    def test_the_aquarium_suffix_finds_that_aquariums_sidecar(self, tmp_path) -> None:
+        aquarium = tmp_path / "aquarium_2"
+        aquarium.mkdir()
+        trajectory = aquarium / "3_CoordMovimento_exp_aquarium_2.parquet"
+        write_heartbeat_sidecar(trajectory, np.arange(30) / 10.0)
+        # Another aquarium's sidecar in the parent folder must not be picked up.
+        write_heartbeat_sidecar(tmp_path / "3_CoordMovimento_exp.parquet", np.arange(90) / 10.0)
+
+        base = resolve_recording_time_base(_trajectory(np.arange(5) / 10.0), trajectory)
+
+        assert base.source == SOURCE_HEARTBEAT
+        assert base.duration_s == pytest.approx(3.0)
+
+    def test_no_trajectory_path_means_no_sidecar(self) -> None:
+        df = _trajectory(np.arange(10) / 10.0)
+
+        assert resolve_recording_time_base(df, None).source == SOURCE_TRAJECTORY
+
+    def test_the_resolved_source_is_logged(self, tmp_path) -> None:
+        trajectory = tmp_path / "3_CoordMovimento_s.parquet"
+        write_heartbeat_sidecar(trajectory, np.arange(20) / 10.0)
+
+        with structlog.testing.capture_logs() as logs:
+            resolve_recording_time_base(_trajectory(np.arange(5) / 10.0), trajectory)
+
+        (event,) = [e for e in logs if e["event"] == "time_base.resolve.recording"]
+        assert event["source"] == SOURCE_HEARTBEAT
+        assert event["has_objects"] is True
+
+    def test_only_heartbeat_and_ledger_are_recording_clocks(self) -> None:
+        assert RECORDING_CLOCK_SOURCES == {SOURCE_HEARTBEAT, SOURCE_LEDGER}

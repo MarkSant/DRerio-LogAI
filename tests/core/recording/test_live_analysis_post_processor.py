@@ -8,8 +8,10 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from tests.helpers.object_sidecar_files import write_heartbeat_sidecar
 
 from zebtrack.core.recording.live_analysis_post_processor import LiveAnalysisPostProcessorMixin
+from zebtrack.io.object_sidecar import CLOCK_CAPTURE
 
 ARENA_400PX = [[100, 100], [500, 100], [500, 500], [100, 500]]
 
@@ -219,7 +221,9 @@ def _write_ledger(output_dir, captures=(100.5, 101.0), origin=100.0):
 class TestPostAnalysisWiring:
     """``_on_session_complete`` → ``_run_post_analysis`` → reports."""
 
-    def _run(self, tmp_path, monkeypatch, *, project_data, analysis_params, ledger=True):
+    def _run(
+        self, tmp_path, monkeypatch, *, project_data, analysis_params, ledger=True, beats=None
+    ):
         from unittest.mock import patch
 
         output_dir = tmp_path / "live_20260822_120000"
@@ -227,6 +231,13 @@ class TestPostAnalysisWiring:
         _write_trajectory(output_dir)
         if ledger:
             _write_ledger(output_dir)
+        if beats is not None:
+            write_heartbeat_sidecar(
+                output_dir / "3_CoordMovimento_adhoc_exp.parquet",
+                beats,
+                frames=range(1, len(beats) + 1),
+                clock=CLOCK_CAPTURE,
+            )
 
         host = PostAnalysisHost(
             output_dir, project_data=project_data, analysis_params=analysis_params
@@ -309,6 +320,32 @@ class TestPostAnalysisWiring:
         assert list(kwargs["trajectory_df"]["timestamp"]) == pytest.approx([0.5, 1.0])
         # the recording's own rate (1 frame / 0.5 s), not the camera's nominal 30
         assert kwargs["fps"] == pytest.approx(2.0)
+
+    def test_the_ledger_time_base_is_handed_to_the_analysis(self, tmp_path, monkeypatch):
+        _host, service, _result = self._run(
+            tmp_path, monkeypatch, project_data={}, analysis_params={}
+        )
+
+        time_base = service.run_full_analysis_as_dto.call_args.kwargs["time_base"]
+        assert time_base.source == "ledger"
+        assert time_base.duration_s == pytest.approx(1.0)
+
+    def test_the_3c_heartbeat_dates_the_session(self, tmp_path, monkeypatch):
+        """Every processed frame has a heartbeat; 40 of them at 4 fps is a 10 s session."""
+        _host, service, _result = self._run(
+            tmp_path,
+            monkeypatch,
+            project_data={},
+            analysis_params={},
+            beats=[i / 4.0 for i in range(40)],
+        )
+
+        kwargs = service.run_full_analysis_as_dto.call_args.kwargs
+        assert kwargs["time_base"].source == "objects_heartbeat"
+        assert kwargs["time_base"].duration_s == pytest.approx(10.0)
+        assert kwargs["fps"] == pytest.approx(4.0)
+        # The trajectory is still re-dated by the ledger (capture clock).
+        assert list(kwargs["trajectory_df"]["timestamp"]) == pytest.approx([0.5, 1.0])
 
     def test_missing_ledger_is_reported_and_keeps_the_nominal_fps(self, tmp_path, monkeypatch):
         _host, service, result = self._run(
@@ -701,7 +738,7 @@ class TestMultiAquariumPostAnalysis:
     session's single ledger and gets its own offline window (ADR-011).
     """
 
-    def _session(self, tmp_path):
+    def _session(self, tmp_path, beats=None):
         import pandas as pd
 
         output_dir = tmp_path / "live_20261105_120000"
@@ -723,12 +760,19 @@ class TestMultiAquariumPostAnalysis:
                     "confidence": [0.9, 0.9],
                 }
             ).to_parquet(folder / f"3_CoordMovimento_adhoc_exp_aquarium_{aq_id + 1}.parquet")
+        if beats is not None:
+            write_heartbeat_sidecar(
+                output_dir / "aquarium_2" / "3_CoordMovimento_adhoc_exp_aquarium_2.parquet",
+                beats,
+                frames=range(1, len(beats) + 1),
+                clock=CLOCK_CAPTURE,
+            )
         return output_dir
 
-    def _run(self, tmp_path, monkeypatch, raw_window=None):
+    def _run(self, tmp_path, monkeypatch, raw_window=None, beats=None):
         from unittest.mock import patch
 
-        output_dir = self._session(tmp_path)
+        output_dir = self._session(tmp_path, beats)
         host = PostAnalysisHost(
             output_dir,
             project_data={"calibration": {"pixelcm_x": 12.0, "pixelcm_y": 12.0}},
@@ -773,6 +817,17 @@ class TestMultiAquariumPostAnalysis:
             assert list(df["timestamp"]) == pytest.approx([0.5, 1.0])
         assert kwargs["fps"] == pytest.approx(2.0)  # the recording's rate, not 30
         assert results[0].validation_warnings == []  # the ledger was found
+
+    def test_each_aquarium_is_dated_by_its_own_files(self, tmp_path, monkeypatch):
+        """Aquarium 2 has a 3c heartbeat; aquarium 1 falls back to the session ledger."""
+        service, _results = self._run(tmp_path, monkeypatch, beats=[i / 5.0 for i in range(50)])
+
+        time_bases = service.run_multi_aquarium_analysis.call_args.kwargs["time_bases"]
+        assert sorted(time_bases) == [0, 1]
+        assert time_bases[0].source == "ledger"
+        assert time_bases[0].duration_s == pytest.approx(1.0)
+        assert time_bases[1].source == "objects_heartbeat"
+        assert time_bases[1].duration_s == pytest.approx(10.0)
 
     def test_one_offline_window_per_aquarium(self, tmp_path, monkeypatch):
         raw = _frame_spec().model_dump(mode="json", by_alias=True)

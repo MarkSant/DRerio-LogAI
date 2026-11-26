@@ -16,6 +16,7 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
+from tests.helpers.object_sidecar_files import write_heartbeat_sidecar
 
 from zebtrack.core.detection import ZoneData
 from zebtrack.core.video.analysis_pipeline_runner import AnalysisPipelineRunnerMixin
@@ -267,11 +268,15 @@ class TestRegisterProjectOutputs:
 class TestReporterFrameRate:
     """The reporter gets the recording's fps; the setting is only a fallback."""
 
-    def _create(self, runner, df):
+    def _create(self, runner, df, trajectory_path=None):
+        return self._kwargs(runner, df, trajectory_path)["fps"]
+
+    def _kwargs(self, runner, df, trajectory_path=None):
         from unittest.mock import patch
 
         with patch("zebtrack.core.video.analysis_pipeline_runner.ReporterContext") as context:
             runner._create_reporter_instance(
+                trajectory_path=trajectory_path,
                 filtered_df=df,
                 metadata={},
                 calibration=SimpleNamespace(target_dims_px=(100, 100)),
@@ -287,7 +292,7 @@ class TestReporterFrameRate:
                 smoothing_window=5,
                 smoothing_polyorder=2,
             )
-        return context.call_args.kwargs["fps"]
+        return context.call_args.kwargs
 
     def test_ten_fps_pts_beats_the_30_fps_setting(self, runner):
         df = pd.DataFrame({"timestamp": [f / 10 for f in range(50)], "frame": range(50)})
@@ -296,6 +301,28 @@ class TestReporterFrameRate:
 
     def test_without_timestamps_the_setting_is_used(self, runner, trajectory_df):
         assert self._create(runner, trajectory_df) == pytest.approx(30.0)
+
+    def test_the_3c_heartbeat_beside_the_trajectory_beats_the_pts(self, runner, tmp_path):
+        """A ~9.9 fps variable-rate video: the heartbeat, not the 10 fps PTS, dates it."""
+        trajectory = tmp_path / "3_CoordMovimento_E1.parquet"
+        beats = [0.0]
+        for i in range(98):
+            beats.append(beats[-1] + (0.09 if i % 2 == 0 else 0.112))
+        write_heartbeat_sidecar(trajectory, beats)
+        df = pd.DataFrame({"timestamp": [f / 10 for f in range(50)], "frame": range(50)})
+
+        kwargs = self._kwargs(runner, df, str(trajectory))
+
+        assert kwargs["time_base"].source == "objects_heartbeat"
+        assert kwargs["fps"] == pytest.approx(98 / beats[-1])
+
+    def test_without_a_sidecar_the_pts_time_base_is_handed_down(self, runner, tmp_path):
+        df = pd.DataFrame({"timestamp": [f / 10 for f in range(50)], "frame": range(50)})
+
+        kwargs = self._kwargs(runner, df, str(tmp_path / "3_CoordMovimento_E1.parquet"))
+
+        assert kwargs["time_base"].source == "trajectory_timestamps"
+        assert kwargs["fps"] == pytest.approx(10.0)
 
 
 @pytest.mark.unit
@@ -756,6 +783,8 @@ class TestRunAnalysisPipeline:
         assert reporter["filtered_df"]["track_id"].tolist() == [2]
         assert reporter["metadata"]["analysis_profile"] == "Focal"
         assert reporter["window"] == "WINDOW"
+        # The reporter dates the recording from the files beside the trajectory.
+        assert reporter["trajectory_path"] == trajectory_path
         (summary,) = [e for e in _events(runner) if e.type == UIEvents.UI_UPDATE_SOCIAL_SUMMARY]
         assert summary.data.profile == "Focal"
         assert summary.data.stats == {"pairs": 3}
