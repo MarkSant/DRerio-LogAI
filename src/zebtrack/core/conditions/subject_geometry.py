@@ -157,7 +157,10 @@ def _cover_columns(
 
 
 def _geometry_rows(
-    boxes: Sequence[Box | None], rois: Sequence[tuple[str, BaseGeometry]]
+    boxes: Sequence[Box | None],
+    rois: Sequence[tuple[str, BaseGeometry]],
+    *,
+    prepared: bool = False,
 ) -> list[SubjectGeometry]:
     usable = [index for index, box in enumerate(boxes) if box is not None]
     result = [NO_SUBJECT] * len(boxes)
@@ -165,7 +168,8 @@ def _geometry_rows(
         return result
     array = np.asarray([boxes[index] for index in usable], dtype=np.float64)
     areas = (array[:, 2] - array[:, 0]) * (array[:, 3] - array[:, 1])
-    columns = _cover_columns(array, prepare_rois(rois)) if rois else []
+    shapes = rois if prepared else prepare_rois(rois)
+    columns = _cover_columns(array, shapes) if shapes else []
     for row, index in enumerate(usable):
         cover: dict[str, float] = {}
         for name, values in columns:
@@ -177,7 +181,10 @@ def _geometry_rows(
 
 
 def observe_subject(
-    bbox: Sequence[float] | None, rois: Sequence[tuple[str, BaseGeometry]]
+    bbox: Sequence[float] | None,
+    rois: Sequence[tuple[str, BaseGeometry]],
+    *,
+    prepared: bool = False,
 ) -> SubjectGeometry:
     """Area and per-ROI cover of one frame's subject box (live, one frame at a time).
 
@@ -186,9 +193,11 @@ def observe_subject(
             or ``None`` when no subject was detected.
         rois: ``(name, shapely geometry)`` in the same pixel space as ``bbox``.
             Two ROIs with the same name keep the larger cover.
+        prepared: ``rois`` already went through :func:`prepare_rois` (the live
+            runtime prepares them once per zone set, not once per frame).
     """
     box = None if bbox is None else _normalised_box(bbox)
-    return _geometry_rows([box], rois)[0]
+    return _geometry_rows([box], rois, prepared=prepared)[0]
 
 
 def observe_subjects(

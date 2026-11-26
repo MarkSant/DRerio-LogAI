@@ -1030,6 +1030,34 @@ def barnes_v2_offer_text() -> str:
     )
 
 
+def barnes_v2_change_text(stored: WindowSpec | None) -> str:
+    """What the v1 -> v2 update changes, in words; ``""`` when ``stored`` is not v1.
+
+    v2 has no "rat absent" line of its own: the update REPLACES it (and v1's
+    touch line) with the burrow entry, so the researcher must see it go.
+    """
+    arguments = barnes_maze_preset_v1_arguments(stored)
+    if arguments is None:
+        return ""
+    if arguments["burrow_roi"] is None:
+        text = _(
+            "Updating replaces the Stop line \"'rat' is not visible, for {seconds} s\" "
+            "with the burrow entry; the Start condition and the {ceiling} s ceiling "
+            "are kept."
+        )
+    else:
+        text = _(
+            "Updating replaces the Stop lines \"'rat' is not visible, for {seconds} s\" "
+            "and \"the subject enters ROI '{roi}'\" (the first touch) with the burrow "
+            "entry; the Start condition and the {ceiling} s ceiling are kept."
+        )
+    return text.format(
+        seconds=format_number(arguments["absent_s"]),
+        ceiling=format_number(arguments["max_s"]),
+        roi=arguments["burrow_roi"],
+    )
+
+
 def missing_roi_warning(missing: Iterable[str]) -> str:
     """Sentence telling the researcher a rule waits for ROIs the project lacks."""
     return _(
@@ -1532,9 +1560,10 @@ class AnalysisWindowPanel(ttk.Frame):
             self._refresh_v2_offer()
             return
         log.info("analysis_window_panel.barnes_v2_update.loaded", spec_hash=spec_hash(spec))
-        self._load_preset(spec, roi_names)
+        self._load_preset(spec, roi_names, note=barnes_v2_change_text(self._stored_spec))
 
-    def _load_preset(self, spec: WindowSpec, roi_names: list[str]) -> None:
+    def _load_preset(self, spec: WindowSpec, roi_names: list[str], *, note: str = "") -> None:
+        """Load ``spec`` into the editor; ``note`` opens the status line (what changed)."""
         drafts = drafts_from_spec(spec)
         # Both Barnes presets are always representable as editor lines: guaranteed
         # by TestDraftsFromSpec.test_round_trip_is_exact.
@@ -1556,8 +1585,12 @@ class AnalysisWindowPanel(ttk.Frame):
         missing_rois = missing_roi_names(spec, roi_names)
         if missing_rois:
             problems.append(missing_roi_warning(missing_rois))
+        if note and problems:
+            problems.insert(0, note)
         if problems:
             self._set_status(" ".join(problems), error=True)
+        elif note:
+            self._set_status(f"{note} {_('Review the lines, then Save.')}")
         elif self._session_only:
             self._set_status(_("Preset loaded. Review the lines."))
         else:
@@ -1785,7 +1818,9 @@ class AnalysisWindowPanel(ttk.Frame):
         if self.barnes_v2_offered():
             if not button.winfo_manager():
                 button.pack(side="left", padx=4)
-            self._show_notice(barnes_v2_offer_text())
+            self._show_notice(
+                f"{barnes_v2_offer_text()} {barnes_v2_change_text(self._stored_spec)}"
+            )
         elif button.winfo_manager():
             button.pack_forget()
 

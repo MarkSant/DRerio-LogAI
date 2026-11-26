@@ -59,6 +59,7 @@ from zebtrack.ui.components.analysis_window_panel import (
     ConditionRow,
     SectionDraft,
     SpecBuildError,
+    barnes_v2_change_text,
     barnes_v2_offer_text,
     barnes_v2_spec,
     barnes_v2_update,
@@ -1622,7 +1623,9 @@ class TestBarnesV2Panel:
 
         assert panel.barnes_v2_offered() is True
         assert self._offered(panel) is True
-        assert panel._notice.cget("text") == barnes_v2_offer_text()
+        assert panel._notice.cget("text") == (
+            f"{barnes_v2_offer_text()} {barnes_v2_change_text(barnes_maze_preset())}"
+        )
 
     @pytest.mark.parametrize(
         ("data", "spec"),
@@ -1704,3 +1707,58 @@ class TestBarnesV2Panel:
 
         assert row == ConditionRow(kind="subject_over_roi", target="toca", value=0.7)
         assert "Fraction of the subject's box" in panel._number_hint.cget("text")
+
+
+class TestBarnesV2ChangeText:
+    """Hub review of #633: the update says which v1 lines it replaces."""
+
+    def test_names_the_absence_and_touch_lines_it_replaces(self) -> None:
+        text = barnes_v2_change_text(barnes_maze_preset(absent_s=2.5, max_s=200.0))
+
+        assert text == (
+            "Updating replaces the Stop lines \"'rat' is not visible, for 2.5 s\" and "
+            "\"the subject enters ROI 'toca'\" (the first touch) with the burrow entry; "
+            "the Start condition and the 200 s ceiling are kept."
+        )
+
+    def test_v1_without_a_burrow_line_names_only_the_absence(self) -> None:
+        text = barnes_v2_change_text(barnes_maze_preset(burrow_roi=None))
+
+        assert text == (
+            "Updating replaces the Stop line \"'rat' is not visible, for 3 s\" with the "
+            "burrow entry; the Start condition and the 240 s ceiling are kept."
+        )
+
+    def test_nothing_to_say_for_other_windows(self) -> None:
+        assert barnes_v2_change_text(None) == ""
+        assert barnes_v2_change_text(barnes_maze_preset_v2()) == ""
+
+
+@pytest.mark.gui
+class TestBarnesV2ChangeShown:
+    def test_offer_and_status_show_what_changes(self, tkinter_root: Any) -> None:
+        data = {**BARNES_PROJECT}
+        store_window_spec(data, barnes_maze_preset())
+        controller, _pm = _make_controller(data, roi_names=["toca"])
+        panel = AnalysisWindowPanel(tkinter_root, controller, event_bus=MagicMock())
+        change = barnes_v2_change_text(barnes_maze_preset())
+
+        assert change in panel._notice.cget("text")  # type: ignore[union-attr]
+
+        panel.apply_barnes_v2_update()
+
+        status = panel._status.cget("text")  # type: ignore[union-attr]
+        assert status == f"{change} Review the lines, then Save."
+
+    def test_problems_follow_the_change_note(self, tkinter_root: Any) -> None:
+        data = {**BARNES_PROJECT}
+        store_window_spec(data, barnes_maze_preset(burrow_roi="hole"))
+        controller, _pm = _make_controller(data, roi_names=["center"])
+        panel = AnalysisWindowPanel(tkinter_root, controller, event_bus=MagicMock())
+
+        panel.apply_barnes_v2_update()
+
+        status = panel._status.cget("text")  # type: ignore[union-attr]
+        assert status.startswith("Updating replaces the Stop lines")
+        assert "'hole'" in status
+        assert str(panel._status.cget("foreground")) == "red"  # type: ignore[union-attr]

@@ -6714,6 +6714,10 @@ _load_registry()"
         description: "#633: encostar na borda da ROI vira cobertura"
         find: "if fraction > _MIN_COVER:"
         replace: "if fraction >= 0.0:"
+      - id: prepared-flag-ignored
+        description: "#633: ROIs ja preparadas sao preparadas de novo a cada quadro ao vivo"
+        find: "shapes = rois if prepared else prepare_rois(rois)"
+        replace: "shapes = prepare_rois(rois)"
 
   barnes_entry_evaluator:
     source: src/zebtrack/core/conditions/evaluator.py
@@ -6782,6 +6786,14 @@ _load_registry()"
         description: "#633: fracao visivel 1 (qualquer tamanho) passa a ser aceita"
         find: "max_fraction: float = Field(gt=0.0, lt=1.0)"
         replace: "max_fraction: float = Field(gt=0.0, le=1.0)"
+      - id: needs-geometry-only-entry
+        description: "#633: so BurrowEntry liga a geometria; os niveis sozinhos ficam cegos"
+        find: "isinstance(node, _GEOMETRY_NODES)"
+        replace: "isinstance(node, BurrowEntry)"
+      - id: geometry-rois-miss-last-seen
+        description: "#633: a ROI do 'sumiu na toca' nao e conferida ao vivo"
+        find: "isinstance(node, SubjectOverRoi | LastSeenIn | BurrowEntry)"
+        replace: "isinstance(node, SubjectOverRoi | BurrowEntry)"
 
   barnes_entry_presets:
     source: src/zebtrack/core/conditions/presets.py
@@ -6820,12 +6832,20 @@ _load_registry()"
         replace: "if True:"
       - id: live-first-box-is-subject
         description: "#633: ao vivo a primeira caixa vira o sujeito, nao a mais confiante"
-        find: "geometry = observe_subject(pick_subject_bbox(subject_boxes), self._prepared(rois))"
-        replace: "geometry = observe_subject(pick_subject_bbox(subject_boxes[:1]), self._prepared(rois))"
-      - id: needs-geometry-only-entry
-        description: "#633: so BurrowEntry liga a geometria; os niveis sozinhos ficam cegos"
-        find: "if isinstance(node, _GEOMETRY_NODES):"
-        replace: "if isinstance(node, BurrowEntry):"
+        find: "geometry = observe_subject(pick_subject_bbox(subject_boxes), shapes, prepared=True)"
+        replace: "geometry = observe_subject(pick_subject_bbox(subject_boxes[:1]), shapes, prepared=True)"
+      - id: live-missing-roi-silent
+        description: "#633: janela v2 sem a ROI da toca termina no teto sem nenhum aviso"
+        find: "missing = tuple(f\"roi:{name}\" for name in self._geometry_rois if name not in available)"
+        replace: "missing: tuple[str, ...] = ()"
+      - id: live-missing-roi-before-start
+        description: "#633: ROI ausente e acusada antes do START, enquanto as zonas ainda carregam"
+        find: "if self._missing_inputs or self._evaluator.result.start is None:"
+        replace: "if self._missing_inputs:"
+      - id: live-key-rebuilt-from-wkb
+        description: "#633: a chave do cache muda a cada quadro e os poligonos sao refeitos sempre"
+        find: "key.append((str(name), vertices.shape, vertices.dtype.str, vertices.tobytes()))"
+        replace: "key.append((str(name), id(polygon)))"
 
   barnes_entry_pipeline_feed:
     source: src/zebtrack/core/recording/frame_processing_pipeline.py
@@ -6850,6 +6870,10 @@ _load_registry()"
         description: "#633: offline a primeira linha do quadro vira o sujeito"
         find: "chosen = [pick_subject_bbox(boxes[frame]) for frame in ordered]"
         replace: "chosen = [pick_subject_bbox(boxes[frame][:1]) for frame in ordered]"
+      - id: offline-geometry-always
+        description: "#633: a geometria offline e calculada para toda janela, mesmo sem no que a leia"
+        find: "if spec is None or spec_needs_subject_geometry(spec)"
+        replace: "if True"
       - id: offline-area-dropped
         description: "#633: a area do sujeito nao chega as observacoes offline"
         find: "subject_area_px=None if geometry is None else geometry.area_px,"
@@ -6879,6 +6903,14 @@ _load_registry()"
       - id: preset-button-stays-v1
         description: "#633: o botao de preset num projeto Barnes continua dando a v1"
         find: "if not self._session_only and is_barnes_project(project_data):"
+        replace: "if False:"
+      - id: v2-change-text-silent
+        description: "#633: a atualizacao v1 -> v2 nao diz que a linha 'rato ausente' sai"
+        find: "self._load_preset(spec, roi_names, note=barnes_v2_change_text(self._stored_spec))"
+        replace: "self._load_preset(spec, roi_names)"
+      - id: v2-change-text-touch-always
+        description: "#633: v1 sem linha de toca e descrita como se tivesse o toque"
+        find: 'if arguments["burrow_roi"] is None:'
         replace: "if False:"
       - id: burrow-line-allowed-in-start
         description: "#633: a linha de entrada na toca passa a ser aceita no Inicio"

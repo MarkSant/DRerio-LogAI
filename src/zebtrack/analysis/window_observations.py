@@ -56,6 +56,7 @@ from zebtrack.core.conditions.model import (
     WindowSpec,
     _normalize_class_name,
     iter_nodes,
+    spec_needs_subject_geometry,
 )
 from zebtrack.core.conditions.subject_geometry import (
     SubjectGeometry,
@@ -373,6 +374,7 @@ def build_window_observations(
     pixelcm: tuple[float, float] = (1.0, 1.0),
     mask_source: Any = None,
     min_track_duration_s: float = DEFAULT_MIN_TRACK_DURATION_S,
+    spec: WindowSpec | None = None,
 ) -> WindowObservations:
     """Rebuild the observation stream of one recording (one aquarium).
 
@@ -394,6 +396,11 @@ def build_window_observations(
         mask_source: ``3b_Mascaras_`` sidecar, for the ``seg_overlap`` rule.
         min_track_duration_s: The report's ``min_track_duration_s``, so the
             window screens the same short tracks (``<= 0`` disables it).
+        spec: The window the stream is built for. The subject geometry (box
+            area and ROI cover, ~one shapely intersection per row and ROI) is
+            computed only when it has a burrow-entry node
+            (:func:`spec_needs_subject_geometry`); ``None`` computes it, for
+            callers that do not know the spec.
     """
     warnings: list[str] = []
     # One screening for the ROI presence AND the trajectory-only stream: the
@@ -407,7 +414,11 @@ def build_window_observations(
         if trajectory_df is None
         else _rois_by_frame(trajectory_df, rois, roi_rule, pixelcm, mask_source)
     )
-    geometry_by_frame = subject_geometry_by_frame(trajectory_df, rois)
+    geometry_by_frame = (
+        subject_geometry_by_frame(trajectory_df, rois)
+        if spec is None or spec_needs_subject_geometry(spec)
+        else {}
+    )
 
     if objects_df is not None and not objects_df.empty:
         metadata = objects_df.attrs.get("objects_metadata")

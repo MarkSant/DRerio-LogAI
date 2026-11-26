@@ -40,6 +40,8 @@ from zebtrack.core.conditions import (
     WindowSpec,
     iter_nodes,
     spec_hash,
+    spec_needs_subject_geometry,
+    subject_geometry_rois,
 )
 
 BARNES_FIXTURE = (
@@ -539,3 +541,38 @@ class TestBurrowEntryNodes:
         node = BurrowEntry(roi="toca")
 
         assert list(iter_nodes(node)) == [node]
+
+
+class TestSubjectGeometryRule:
+    def test_needs_geometry_for_every_geometry_node_anywhere(self) -> None:
+        nested = Persist(
+            level=AllOfLevel(children=(_rat_present(), LastSeenIn(roi="t"))),
+            hold=Hold(frames=1),
+        )
+        size = Persist(level=SubjectVisibleFraction(max_fraction=0.3), hold=Hold(frames=1))
+        over = Persist(level=SubjectOverRoi(roi="a"), hold=Hold(frames=1))
+
+        assert spec_needs_subject_geometry(WindowSpec(stop=nested)) is True
+        assert spec_needs_subject_geometry(WindowSpec(stop=size)) is True
+        assert spec_needs_subject_geometry(WindowSpec(start=over)) is True
+        assert spec_needs_subject_geometry(WindowSpec(stop=BurrowEntry(roi="t"))) is True
+
+    def test_no_geometry_for_other_specs(self) -> None:
+        assert spec_needs_subject_geometry(None) is False
+        assert spec_needs_subject_geometry(WindowSpec()) is False
+        assert spec_needs_subject_geometry(_barnes_spec()) is False
+
+    def test_rois_read_by_the_geometry_nodes(self) -> None:
+        spec = WindowSpec(
+            start=Persist(level=SubjectOverRoi(roi="a"), hold=Hold(frames=1)),
+            stop=FirstOf(
+                children=(
+                    BurrowEntry(roi="toca"),
+                    RoiEdge(roi="ignored", edge="enter"),
+                    Persist(level=LastSeenIn(roi="a"), hold=Hold(frames=1)),
+                )
+            ),
+        )
+
+        assert subject_geometry_rois(spec) == ("a", "toca")
+        assert subject_geometry_rois(None) == ()

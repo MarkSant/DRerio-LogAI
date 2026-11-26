@@ -60,21 +60,19 @@ from shapely.geometry.base import BaseGeometry
 from zebtrack.core.conditions import (
     AnalysisWindowArtifact,
     ArtifactExternalEvent,
-    BurrowEntry,
     ConditionEvaluator,
     External,
     ExternalEvent,
     FrameObservation,
-    LastSeenIn,
     OnlineWindow,
     Persist,
-    SubjectOverRoi,
-    SubjectVisibleFraction,
     WindowEvent,
     WindowResult,
     WindowSpec,
     artifact_path,
     iter_nodes,
+    spec_needs_subject_geometry,
+    subject_geometry_rois,
     write_artifact,
 )
 from zebtrack.core.conditions.model import _normalize_class_name
@@ -101,8 +99,6 @@ __all__ = [
 #: ``(roi name, polygon)``; the polygon is a shapely geometry or its vertices
 #: (``[[x, y], ...]``, as the detector stores ``scaled_roi_polygons``).
 RoiShape = tuple[str, Any]
-
-_GEOMETRY_NODES = (SubjectOverRoi, SubjectVisibleFraction, LastSeenIn, BurrowEntry)
 
 log = structlog.get_logger()
 
@@ -182,17 +178,26 @@ def spec_listens_to(spec: WindowSpec | None, source: ExternalSource) -> bool:
     return False
 
 
-def spec_needs_subject_geometry(spec: WindowSpec | None) -> bool:
-    """Whether any START/STOP node reads the subject box's area or ROI cover."""
-    if spec is None:
-        return False
-    for root in (spec.start, spec.stop):
-        if root is None:
+def _roi_key(rois: Sequence[RoiShape]) -> tuple[tuple[object, ...], ...]:
+    """Cheap identity of a ROI set: the raw vertex bytes, never a shapely build.
+
+    The detector hands the same polygons every frame; building a shapely
+    ``Polygon`` (or serialising one) per ROI per analysed frame just to compare
+    them was the dominant per-frame cost. A shapely geometry is keyed by
+    identity (geometries are immutable).
+    """
+    key: list[tuple[object, ...]] = []
+    for name, polygon in rois:
+        if isinstance(polygon, BaseGeometry):
+            key.append((str(name), "geometry", id(polygon)))
             continue
-        for node in iter_nodes(root):
-            if isinstance(node, _GEOMETRY_NODES):
-                return True
-    return False
+        try:
+            vertices = np.asarray(polygon)
+        except (TypeError, ValueError):
+            key.append((str(name), "unusable", repr(polygon)))
+            continue
+        key.append((str(name), vertices.shape, vertices.dtype.str, vertices.tobytes()))
+    return tuple(key)
 
 
 def _roi_geometry(polygon: Any) -> BaseGeometry | None:
@@ -341,10 +346,12 @@ class ConditionRuntime:
             "manual": spec_listens_to(spec, "manual"),
         }
         self._needs_geometry = spec_needs_subject_geometry(spec)
+        self._geometry_rois = subject_geometry_rois(spec)
         # ROI polygons prepared once per distinct set (the detector re-scales
         # them only when the zones change).
-        self._roi_key: tuple[tuple[str, bytes], ...] | None = None
+        self._roi_key: tuple[tuple[object, ...], ...] | None = None
         self._roi_shapes: tuple[tuple[str, BaseGeometry], ...] = ()
+        self._missing_inputs: tuple[str, ...] = ()
         if _uses_frame_holds(spec):
             log.warning(
                 "condition_runtime.frame_hold_in_live",
@@ -393,6 +400,18 @@ class ConditionRuntime:
     def needs_subject_geometry(self) -> bool:
         """Whether :meth:`step` uses ``subject_boxes``/``rois`` (else they are ignored)."""
         return self._needs_geometry
+
+    @property
+    def missing_inputs(self) -> tuple[str, ...]:
+        """``roi:<name>`` the burrow-entry nodes need but the session's zones lack.
+
+        Filled at most once, on the first analysed frame after START that still
+        lacks one (the detector's zones are certainly loaded by then). Same
+        tokens as the offline ``inputs_missing`` (``missing_inputs``). Not written
+        into the artifact: its ``online`` keys are fixed by ADR-011, and the
+        analysis reports the same missing ROI as ``inputs_missing``.
+        """
+        return self._missing_inputs
 
     @property
     def external_events(self) -> tuple[ExternalEvent, ...]:
@@ -449,7 +468,9 @@ class ConditionRuntime:
         area: float | None = None
         cover: Mapping[str, float] = {}
         if self._needs_geometry:
-            geometry = observe_subject(pick_subject_bbox(subject_boxes), self._prepared(rois))
+            shapes = self._prepared(rois)
+            self._check_geometry_inputs(shapes)
+            geometry = observe_subject(pick_subject_bbox(subject_boxes), shapes, prepared=True)
             area, cover = geometry.area_px, geometry.cover
         observation = FrameObservation(
             frame=int(frame),
@@ -510,13 +531,13 @@ class ConditionRuntime:
     # -- internals -----------------------------------------------------------
     def _prepared(self, rois: Sequence[RoiShape]) -> tuple[tuple[str, BaseGeometry], ...]:
         """``rois`` as prepared shapely geometries, rebuilt only when they change."""
-        shapes: list[tuple[str, BaseGeometry]] = []
-        for name, polygon in rois:
-            geometry = _roi_geometry(polygon)
-            if geometry is not None:
-                shapes.append((str(name), geometry))
-        key = tuple((name, geometry.wkb) for name, geometry in shapes)
+        key = _roi_key(rois)
         if key != self._roi_key:
+            shapes: list[tuple[str, BaseGeometry]] = []
+            for name, polygon in rois:
+                geometry = _roi_geometry(polygon)
+                if geometry is not None:
+                    shapes.append((str(name), geometry))
             self._roi_key = key
             self._roi_shapes = prepare_rois(shapes)
             log.info(
@@ -524,6 +545,27 @@ class ConditionRuntime:
                 rois=[name for name, _shape in self._roi_shapes],
             )
         return self._roi_shapes
+
+    def _check_geometry_inputs(self, shapes: Sequence[tuple[str, BaseGeometry]]) -> None:
+        """Warn ONCE when the window is open and a ROI the entry needs is missing.
+
+        Without it the burrow entry can never fire and the trial silently ends
+        at the ceiling. Checked only after START: before it, the detector's
+        zones may still be loading, which is not a problem yet.
+        """
+        if self._missing_inputs or self._evaluator.result.start is None:
+            return
+        available = {name for name, _shape in shapes}
+        missing = tuple(f"roi:{name}" for name in self._geometry_rois if name not in available)
+        if not missing:
+            return
+        self._missing_inputs = missing
+        log.warning(
+            "condition_runtime.subject_geometry.inputs_missing",
+            missing=list(missing),
+            available=sorted(available),
+            hint="the burrow entry cannot fire without its ROI; the trial ends at the ceiling",
+        )
 
     def _resolve_origin(self, t_capture_perf: float) -> float:
         if self._origin is not None:

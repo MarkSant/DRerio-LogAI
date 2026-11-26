@@ -59,6 +59,8 @@ from zebtrack.core.conditions.model import (
     WindowSpec,
     iter_nodes,
     spec_hash,
+    spec_needs_subject_geometry,
+    subject_geometry_rois,
 )
 
 __all__ = [
@@ -106,5 +108,7 @@ __all__ = [
     "iter_nodes",
     "read_artifact",
     "spec_hash",
+    "spec_needs_subject_geometry",
+    "subject_geometry_rois",
     "write_artifact",
 ]

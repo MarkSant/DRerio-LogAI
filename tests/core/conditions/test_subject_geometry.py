@@ -162,3 +162,33 @@ class TestPrepareRois:
         line = ("line", Polygon([(0, 0), (1, 1), (2, 2)]))
 
         assert prepare_rois([line]) == ()
+
+
+class TestPreparedRois:
+    def test_prepared_rois_are_used_as_given(self, monkeypatch) -> None:
+        import zebtrack.core.conditions.subject_geometry as module
+
+        shapes = prepare_rois([TOCA])
+
+        def _boom(_rois):
+            raise AssertionError("prepared shapes prepared again")
+
+        monkeypatch.setattr(module, "prepare_rois", _boom)
+        geometry = observe_subject((5, 0, 15, 10), shapes, prepared=True)
+
+        assert geometry.cover == {"toca": pytest.approx(0.5)}
+
+    def test_raw_rois_are_prepared(self, monkeypatch) -> None:
+        import zebtrack.core.conditions.subject_geometry as module
+
+        calls = []
+        real = module.prepare_rois
+
+        def _counting(rois):
+            calls.append(1)
+            return real(rois)
+
+        monkeypatch.setattr(module, "prepare_rois", _counting)
+        observe_subject((5, 0, 15, 10), [TOCA])
+
+        assert calls == [1]

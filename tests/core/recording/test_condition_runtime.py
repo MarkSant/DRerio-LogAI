@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 from shapely.geometry import box
+from structlog.testing import capture_logs
 
 from zebtrack.core.conditions import (
     AllOfLevel,
@@ -699,3 +700,113 @@ class TestPipelineGeometryInputs:
             [],
             [],
         )
+
+
+class TestRuntimeGeometryCost:
+    """Hub review of #633: no shapely work per frame once the zones are known."""
+
+    def test_polygons_are_built_once_for_unchanged_vertices(self, monkeypatch):
+        import zebtrack.core.recording.condition_runtime as module
+
+        built = []
+        real = module._roi_geometry
+
+        def _counting(polygon):
+            built.append(1)
+            return real(polygon)
+
+        monkeypatch.setattr(module, "_roi_geometry", _counting)
+        runtime = _runtime(OVER_TOCA)
+        # A distinct container each frame (kept alive, so no id is reused): the
+        # key is the vertices, not the object that carries them.
+        containers = [[list(vertex) for vertex in TOCA_VERTICES] for _ in range(5)]
+        for frame, vertices in enumerate(containers):
+            _geo_step(runtime, frame, [(0, 0, 10, 10, 0.9)], rois=[("toca", vertices)])
+
+        assert len(built) == 1
+
+    def test_prepared_shapes_are_not_prepared_again_per_frame(self, monkeypatch):
+        import zebtrack.core.conditions.subject_geometry as geometry
+
+        runtime = _runtime(OVER_TOCA)
+        _geo_step(runtime, 0, [(0, 0, 10, 10, 0.9)])
+
+        def _boom(_rois):
+            raise AssertionError("prepare_rois called on already-prepared shapes")
+
+        monkeypatch.setattr(geometry, "prepare_rois", _boom)
+        update = _geo_step(runtime, 1, [(250, 50, 300, 100, 0.9)])
+
+        assert update.stop_confirmed is True
+
+    def test_a_shapely_roi_is_keyed_by_identity(self):
+        runtime = _runtime(OVER_TOCA)
+        shape = box(200, 0, 400, 200)
+        _geo_step(runtime, 0, [], rois=[("toca", shape)])
+        first = runtime._roi_shapes
+        _geo_step(runtime, 1, [], rois=[("toca", shape)])
+
+        assert runtime._roi_shapes is first
+
+
+class TestRuntimeMissingGeometryInputs:
+    """Hub review of #633: a v2 window without its ROI must not fail silently."""
+
+    SPEC = barnes_maze_preset_v2(k_frames=1)
+
+    def _run(self, runtime, rois, frames=6):
+        for frame in range(frames):
+            runtime.step(
+                frame=frame,
+                t_capture_perf=T0 + frame * 0.1,
+                classes={"rat": (0.9,)},
+                subject_rois=(),
+                subject_boxes=[(0, 0, 10, 10, 0.9)],
+                rois=rois,
+            )
+
+    def test_warns_once_after_start_when_the_burrow_roi_is_missing(self):
+        runtime = _runtime(self.SPEC)
+
+        with capture_logs() as logs:
+            self._run(runtime, [("center", TOCA_VERTICES)])
+
+        warnings = [
+            e for e in logs if e["event"] == "condition_runtime.subject_geometry.inputs_missing"
+        ]
+        assert len(warnings) == 1
+        assert warnings[0]["log_level"] == "warning"
+        assert warnings[0]["missing"] == ["roi:toca"]
+        assert warnings[0]["available"] == ["center"]
+        assert runtime.missing_inputs == ("roi:toca",)
+
+    def test_no_zones_at_all_is_reported_too(self):
+        runtime = _runtime(self.SPEC)
+
+        self._run(runtime, [])
+
+        assert runtime.missing_inputs == ("roi:toca",)
+
+    def test_nothing_is_reported_before_start(self):
+        runtime = _runtime(self.SPEC)
+        runtime.step(
+            frame=0,
+            t_capture_perf=T0,
+            classes={"start_box": (0.9,)},
+            subject_rois=(),
+            subject_boxes=[],
+            rois=[],
+        )
+
+        assert runtime.result.start is None
+        assert runtime.missing_inputs == ()
+
+    def test_present_roi_reports_nothing(self):
+        runtime = _runtime(self.SPEC)
+
+        with capture_logs() as logs:
+            self._run(runtime, TOCA_ROIS)
+
+        assert runtime.result.start is not None
+        assert runtime.missing_inputs == ()
+        assert not [e for e in logs if e["event"].endswith("inputs_missing")]

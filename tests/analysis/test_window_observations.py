@@ -528,3 +528,52 @@ class TestMissingInputsForEntryNodes:
             "roi:toca"
         ]
         assert missing_inputs(spec, has_objects=True, subject_names=[], roi_names=["toca"]) == []
+
+
+class TestGeometryOnlyWhenTheSpecReadsIt:
+    """Hub review of #633: a window without entry nodes never pays for the geometry."""
+
+    @staticmethod
+    def _spy(monkeypatch):
+        import zebtrack.analysis.window_observations as module
+
+        calls = []
+        real = module.subject_geometry_by_frame
+
+        def _counting(trajectory_df, rois):
+            calls.append(1)
+            return real(trajectory_df, rois)
+
+        monkeypatch.setattr(module, "subject_geometry_by_frame", _counting)
+        return calls
+
+    def test_a_spec_without_entry_nodes_never_computes_it(self, monkeypatch) -> None:
+        calls = self._spy(monkeypatch)
+        spec = WindowSpec(
+            stop=Persist(level=RoiInside(roi="toca", state="inside"), hold=Hold(frames=1))
+        )
+
+        built = build_window_observations(
+            _trajectory([0, 1], [50.0, 50.0]), rois=[ROI_SQUARE], spec=spec
+        )
+
+        assert calls == []
+        assert all(o.subject_area_px is None for o in built.observations)
+
+    def test_an_entry_spec_computes_it(self, monkeypatch) -> None:
+        calls = self._spy(monkeypatch)
+        spec = WindowSpec(stop=BurrowEntry(roi="toca"))
+
+        built = build_window_observations(
+            _trajectory([0, 1], [50.0, 50.0]), rois=[ROI_SQUARE], spec=spec
+        )
+
+        assert calls == [1]
+        assert built.observations[0].subject_area_px == pytest.approx(100.0)
+
+    def test_without_a_spec_it_is_computed(self, monkeypatch) -> None:
+        calls = self._spy(monkeypatch)
+
+        build_window_observations(_trajectory([0], [50.0]), rois=[ROI_SQUARE])
+
+        assert calls == [1]

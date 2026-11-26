@@ -58,6 +58,8 @@ __all__ = [
     "WindowSpec",
     "iter_nodes",
     "spec_hash",
+    "spec_needs_subject_geometry",
+    "subject_geometry_rois",
 ]
 
 # Same rule as ``core.detection.class_aliases.normalize_class_name``. Duplicated on
@@ -457,6 +459,43 @@ class WindowSpec(_Node):
 
 for _model in (Not, AllOfLevel, AnyOfLevel, Persist, Delay, FirstOf, AllOf, Sequence, WindowSpec):
     _model.model_rebuild()
+
+
+#: Nodes that read the subject box's area or ROI cover (``subject_geometry``).
+_GEOMETRY_NODES = (SubjectOverRoi, SubjectVisibleFraction, LastSeenIn, BurrowEntry)
+
+
+def spec_needs_subject_geometry(spec: WindowSpec | None) -> bool:
+    """Whether any START/STOP node reads the subject box's area or ROI cover.
+
+    The one rule both observation builders use to skip the geometry: a window
+    without these nodes never pays for it, offline or live.
+    """
+    if spec is None:
+        return False
+    return any(
+        isinstance(node, _GEOMETRY_NODES)
+        for root in (spec.start, spec.stop)
+        if root is not None
+        for node in iter_nodes(root)
+    )
+
+
+def subject_geometry_rois(spec: WindowSpec | None) -> tuple[str, ...]:
+    """ROI names the geometry nodes of ``spec`` read, in order of first appearance."""
+    names: list[str] = []
+    if spec is None:
+        return ()
+    for root in (spec.start, spec.stop):
+        if root is None:
+            continue
+        for node in iter_nodes(root):
+            if (
+                isinstance(node, SubjectOverRoi | LastSeenIn | BurrowEntry)
+                and node.roi not in names
+            ):
+                names.append(node.roi)
+    return tuple(names)
 
 
 def spec_hash(spec: WindowSpec) -> str:

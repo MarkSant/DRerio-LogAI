@@ -16429,6 +16429,33 @@ msgstr ""
 "por último ali. Datado retroativamente para quando isso começou."
 
 
+#: src/zebtrack/ui/components/analysis_window_panel.py:1044
+#, python-brace-format
+msgid ""
+"Updating replaces the Stop line \"'rat' is not visible, for {seconds} s\" "
+"with the burrow entry; the Start condition and the {ceiling} s ceiling are "
+"kept."
+msgstr ""
+"A atualização substitui a linha de Fim \"'rat' não está visível, por "
+"{seconds} s\" pela entrada na toca; a condição de Início e o teto de "
+"{ceiling} s são mantidos."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1050
+#, python-brace-format
+msgid ""
+"Updating replaces the Stop lines \"'rat' is not visible, for {seconds} s\" "
+"and \"the subject enters ROI '{roi}'\" (the first touch) with the burrow "
+"entry; the Start condition and the {ceiling} s ceiling are kept."
+msgstr ""
+"A atualização substitui as linhas de Fim \"'rat' não está visível, por "
+"{seconds} s\" e \"o sujeito entra na ROI '{roi}'\" (o primeiro toque) pela "
+"entrada na toca; a condição de Início e o teto de {ceiling} s são mantidos."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1593
+msgid "Review the lines, then Save."
+msgstr "Revise as linhas e depois clique em Salvar."
+
+
 #~ msgid "Detector parameters updated."
 #~ msgstr "Parâmetros do detector atualizados."
 
