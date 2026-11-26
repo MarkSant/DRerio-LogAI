@@ -48,7 +48,7 @@ from datetime import UTC, datetime, timedelta
 from datetime import time as dt_time
 from itertools import product
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, Protocol
 
 import numpy as np
 import pandas as pd
@@ -406,37 +406,45 @@ def bland_altman(app: Numbers, lab: Numbers) -> BlandAltman:
 def icc_2_1(app: Numbers, lab: Numbers) -> IccResult:
     """ICC(2,1) of paired measurements (see :class:`IccResult`); NaN when undefined."""
     a, b = _paired(app, lab)
-    n = len(a)
-    k = 2
-    if n < 3:
+    return icc_2_1_matrix(np.column_stack([a, b]) if len(a) else np.empty((0, 2)))
+
+
+def icc_2_1_matrix(data: np.ndarray) -> IccResult:
+    """ICC(2,1) of an ``n x k`` matrix (rows = targets, columns = raters).
+
+    The general form behind :func:`icc_2_1` (k = 2); exposed so the formula can be checked
+    against the published Shrout & Fleiss example (k = 4).
+    """
+    n, k = data.shape
+    if n < 3 or k < 2:
         return IccResult(n, _NAN, _NAN, _NAN)
-    data = np.column_stack([a, b])
     grand = data.mean()
-    ms_rows = k * float(((data.mean(axis=1) - grand) ** 2).sum()) / (n - 1)
-    ms_cols = n * float(((data.mean(axis=0) - grand) ** 2).sum()) / (k - 1)
-    total_ss = float(((data - grand) ** 2).sum())
-    ss_err = total_ss - k * float(((data.mean(axis=1) - grand) ** 2).sum())
-    ss_err -= n * float(((data.mean(axis=0) - grand) ** 2).sum())
+    ss_rows = k * float(((data.mean(axis=1) - grand) ** 2).sum())
+    ss_cols = n * float(((data.mean(axis=0) - grand) ** 2).sum())
+    ss_err = float(((data - grand) ** 2).sum()) - ss_rows - ss_cols
+    ms_rows = ss_rows / (n - 1)
+    ms_cols = ss_cols / (k - 1)
     ms_err = ss_err / ((n - 1) * (k - 1))
     denominator = ms_rows + (k - 1) * ms_err + k * (ms_cols - ms_err) / n
     if denominator <= 0 or not math.isfinite(denominator):
         return IccResult(n, _NAN, _NAN, _NAN)
     icc = (ms_rows - ms_err) / denominator
-    if ms_err <= 0:
-        return IccResult(n, icc, _NAN, _NAN)
+    if ms_err <= 1e-12:
+        return IccResult(n, float(icc), _NAN, _NAN)
     # McGraw & Wong (1996), ICC(A,1): Satterthwaite degrees of freedom, then F limits.
-    f_cols = ms_cols / ms_err
-    inner = n * (1 + (k - 1) * icc) - k * icc
-    v_num = (k - 1) * (n - 1) * (k * icc * f_cols + inner) ** 2
-    v_den = (n - 1) * (k * icc * f_cols) ** 2 + inner**2
+    if icc >= 1.0:
+        return IccResult(n, float(icc), _NAN, _NAN)
+    a = k * icc / (n * (1.0 - icc))
+    b = 1.0 + k * icc * (n - 1) / (n * (1.0 - icc))
+    v_den = (a * ms_cols) ** 2 / (k - 1) + (b * ms_err) ** 2 / ((n - 1) * (k - 1))
     if v_den <= 0:
-        return IccResult(n, icc, _NAN, _NAN)
-    v = v_num / v_den
-    f_upper = float(sp_stats.f.ppf(0.975, n - 1, v))
-    f_lower = float(sp_stats.f.ppf(0.975, v, n - 1))
+        return IccResult(n, float(icc), _NAN, _NAN)
+    v = (a * ms_cols + b * ms_err) ** 2 / v_den
+    f_lower_tail = float(sp_stats.f.ppf(0.975, n - 1, v))
+    f_upper_tail = float(sp_stats.f.ppf(0.975, v, n - 1))
     pooled = k * ms_cols + (k * n - k - n) * ms_err
-    lower = n * (ms_rows - f_upper * ms_err) / (f_upper * pooled + n * ms_rows)
-    upper = n * (f_lower * ms_rows - ms_err) / (pooled + n * f_lower * ms_err)
+    lower = n * (ms_rows - f_lower_tail * ms_err) / (f_lower_tail * pooled + n * ms_rows)
+    upper = n * (f_upper_tail * ms_rows - ms_err) / (pooled + n * f_upper_tail * ms_rows)
     return IccResult(n, float(icc), float(lower), float(upper))
 
 
@@ -1102,7 +1110,7 @@ def match_rows(lab: pd.DataFrame, app: pd.DataFrame, spec: MatchSpec) -> MatchRe
         rule = ""
         lab_path = path_parts(row.get("video")) if "video" in lab.columns else ()
         if spec.use_video_path and len(lab_path) >= 2:
-            candidates = [ai for ai, ap in app_paths.items() if _path_suffix_match(lab_path, ap)]
+            candidates = _closest_paths(lab_path, app_paths)
             rule = "video_path"
         if not candidates and keys:
             lab_key = _key_of(row, keys, spec.aliases)
@@ -1158,11 +1166,29 @@ def match_rows(lab: pd.DataFrame, app: pd.DataFrame, spec: MatchSpec) -> MatchRe
     return result
 
 
-def _path_suffix_match(a: tuple[str, ...], b: tuple[str, ...]) -> bool:
-    if len(a) < 2 or len(b) < 2:
-        return False
-    shorter = min(len(a), len(b))
-    return a[-shorter:] == b[-shorter:]
+def _closest_paths(
+    lab_path: tuple[str, ...], app_paths: Mapping[int, tuple[str, ...]]
+) -> list[int]:
+    """App rows whose path shares the LONGEST trailing run of components with ``lab_path``.
+
+    At least two components must agree (a bare file name repeats across days), and only the
+    rows at the maximum count: ``Dia_2/CECT_4/CECT_4`` beats ``Dia_1/CECT_4/CECT_4`` (three
+    shared components against two); a tie stays a tie, so it is reported as ambiguous.
+    """
+    best = 0
+    found: list[int] = []
+    for index, parts in app_paths.items():
+        shared = 0
+        for a, b in zip(reversed(lab_path), reversed(parts), strict=False):
+            if a != b:
+                break
+            shared += 1
+        if shared < 2 or shared < best:
+            continue
+        if shared > best:
+            best, found = shared, []
+        found.append(index)
+    return found
 
 
 def build_pair_table(
@@ -1476,6 +1502,21 @@ def preset_kwargs(params: Mapping[str, Any], *, k_frames: int = 5) -> dict[str, 
     for key in _PRESET_KEYS:
         kwargs[key] = params[key]
     return kwargs
+
+
+class CaseRunner(Protocol):
+    """What :func:`calibrate` needs from a recomputer (so it can be tested without the app)."""
+
+    notes: list[str]
+
+    @property
+    def base_params(self) -> dict[str, Any]: ...
+
+    def identity_table(self) -> pd.DataFrame: ...
+
+    def run_case(
+        self, index: int, overrides: Mapping[str, Any] | None = None
+    ) -> dict[str, Any]: ...
 
 
 class Recomputer:
@@ -1945,7 +1986,7 @@ class CalibrationOutcome:
 
 
 def calibrate(
-    recomputer: Recomputer,
+    recomputer: CaseRunner,
     lab_tables: Mapping[str, pd.DataFrame],
     match_spec: MatchSpec,
     *,
