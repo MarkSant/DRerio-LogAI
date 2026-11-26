@@ -471,3 +471,42 @@ def test_a_missing_value_is_na_and_never_zero_in_the_word_table(tmp_path):
         "Attempts until the target",
     ):
         assert rows[label] == "N/A", label
+
+
+def test_the_visits_sheet_is_written_when_there_is_no_per_animal_sheet(tmp_path):
+    context = barnes_context(scripted_rat(3, 2, 0))
+    context.per_animal_data = pd.DataFrame()  # nothing to write for por_animal
+    out = tmp_path / "summary.xlsx"
+
+    ExcelReporter(context).export_summary(out)
+
+    sheets = pd.read_excel(out, sheet_name=None)
+    assert set(sheets) == {"Sheet1", EXCEL_VISITS_SHEET}
+    assert len(sheets[EXCEL_VISITS_SHEET]) == 3
+
+
+def test_a_visited_hole_is_filled_darker_the_more_it_was_visited():
+    from matplotlib import pyplot as plt
+    from matplotlib.patches import Circle
+
+    context = barnes_context(scripted_rat(0))
+    metrics = {
+        "n_holes": 18,
+        "visit_sequence": [_visit(1, 3), _visit(2, 3), _visit(3, 3), _visit(4, 2)],
+    }
+
+    fig = context.viz_generator.generate_barnes_hole_diagram(None, metrics, quadrant_half_holes=2)
+
+    try:
+        holes = [p for p in fig.axes[0].patches if isinstance(p, Circle)]
+        by_offset = {}
+        for hole in holes[1:]:  # the first circle is the outer ring
+            x, y = hole.center
+            angle = math.atan2(x, y)  # clockwise from the top
+            by_offset[round(angle * 18 / (2 * math.pi))] = hole.get_facecolor()[:3]
+        never, once, thrice = by_offset[5], by_offset[2], by_offset[3]
+        assert never == pytest.approx((0.88, 0.88, 0.88))
+        assert once != pytest.approx(never)
+        assert sum(thrice) < sum(once) < sum(never)  # darker with more visits
+    finally:
+        plt.close(fig)

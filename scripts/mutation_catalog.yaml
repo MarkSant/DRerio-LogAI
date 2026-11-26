@@ -7844,10 +7844,10 @@ _load_registry()"
         description: "o EPM usa o desvio padrao populacional"
         find: 'return float(values.std(ddof=1) / math.sqrt(len(values)))'
         replace: 'return float(values.std(ddof=0) / math.sqrt(len(values)))'
-      - id: sem-of-one-trial-defined
-        description: "o EPM de um unico ensaio deixa de ser indefinido"
+      - id: sem-of-two-trials-undefined
+        description: "o EPM de dois ensaios passa a ser indefinido"
         find: 'if len(values) < 2:'
-        replace: 'if len(values) < 1:'
+        replace: 'if len(values) < 3:'
       - id: first-hole-distance-signed
         description: "a distancia do primeiro buraco passa a ter sinal"
         find: 'values = values.abs()'
@@ -8014,5 +8014,5 @@ _load_registry()"
     mutations:
       - id: failed-save-reported-as-success
         description: "uma falha ao salvar a correcao vira mensagem de sucesso"
-        find: 'if self._strategy_correction.apply(video_path, value):'
+        find: 'if self._strategy_correction.set_override(video_path, value):'
         replace: 'if True:'
