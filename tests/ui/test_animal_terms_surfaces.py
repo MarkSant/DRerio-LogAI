@@ -33,6 +33,11 @@ def _text(widget: Any) -> str:
     return str(widget.cget("text"))
 
 
+def _tip(help_label: Any) -> str:
+    """The tooltip text of a label made by ``create_help_label``."""
+    return str(help_label._help_tooltip.text)
+
+
 @pytest.mark.gui
 class TestWizardCalibration:
     @pytest.fixture
@@ -244,20 +249,18 @@ class TestAdHocDialogs:
 
     def test_single_video_dialog_rewords_the_tooltips_too(self, tkinter_root, test_settings):
         from zebtrack.ui.dialogs.single_video_config_dialog import SingleVideoConfigDialog
-        from zebtrack.ui.wizard.tooltip import _HELP_TOOLTIPS
 
         with patch.object(SingleVideoConfigDialog, "wait_window"):
             dialog: Any = SingleVideoConfigDialog(tkinter_root, settings_obj=test_settings)
         widget = dialog.behavioral_config_widget
 
-        assert _HELP_TOOLTIPS[dialog._count_help].text.startswith("Number of Aquariums")
+        assert _tip(dialog._count_help).startswith("Number of Aquariums")
         _pick(widget.protocol_combo, protocol_choices(), "barnes")
-        assert _HELP_TOOLTIPS[dialog._count_help].text.startswith("Number of Arenas")
-        assert "tanks" not in _HELP_TOOLTIPS[dialog._count_help].text
+        assert _tip(dialog._count_help).startswith("Number of Arenas")
+        assert "tanks" not in _tip(dialog._count_help)
 
     def test_live_analysis_dialog_follows_the_chosen_animal(self, tkinter_root, test_settings):
         from zebtrack.ui.dialogs.live_analysis_dialog import LiveAnalysisDialog
-        from zebtrack.ui.wizard.tooltip import _HELP_TOOLTIPS
 
         with (
             patch.object(LiveAnalysisDialog, "wait_window"),
@@ -276,8 +279,8 @@ class TestAdHocDialogs:
         _pick(widget.animal_model_combo, animal_model_choices(), "rodent")
         assert self._labels(dialog) == ("No. of arenas:", "Animals/arena:")
         assert "ONE arena" in _text(dialog._one_arena_notice)
-        assert "arenas" in _HELP_TOOLTIPS[dialog._count_help].text
-        assert "aquarium" not in _HELP_TOOLTIPS[dialog._animals_help].text
+        assert "arenas" in _tip(dialog._count_help)
+        assert "aquarium" not in _tip(dialog._animals_help)
 
         _pick(widget.animal_model_combo, animal_model_choices(), "zebrafish")
         assert self._labels(dialog) == ("No. of aquariums:", "Animals/aquarium:")
@@ -407,3 +410,146 @@ class TestSubjectLabelsInTheTrees:
 
         assert self._inserted_text(self._builder(rodent)) == "🐀 Subject 03"
         assert self._inserted_text(self._builder(other)) == "🐾 Subject 03"
+
+
+@pytest.mark.gui
+class TestHelpLabelTooltips:
+    def test_set_help_text_rewords_the_tooltip(self, tkinter_root) -> None:
+        from zebtrack.ui.wizard.tooltip import create_help_label, set_help_text
+
+        label = create_help_label(tkinter_root, "before")
+        set_help_text(label, "after")
+
+        assert _tip(label) == "after"
+
+    def test_a_label_not_made_by_create_help_label_is_left_alone(self, tkinter_root) -> None:
+        from tkinter import Label
+
+        from zebtrack.ui.wizard.tooltip import set_help_text
+
+        plain = Label(tkinter_root, text="x")
+
+        set_help_text(plain, "ignored")  # must not raise
+
+        assert not hasattr(plain, "_help_tooltip")
+
+    def test_destroying_a_help_label_frees_it_and_its_tooltip(self) -> None:
+        # Hub review: a module-level registry whose values reference their keys kept
+        # every dialog's labels alive for the whole session. Probed in a fresh
+        # interpreter with a bare Tk root: the suite's shared root runs ttkbootstrap,
+        # which keeps its own references to every Tk widget and would mask the result.
+        import subprocess
+        import sys
+
+        probe = "; ".join(
+            [
+                "import gc, weakref, tkinter as tk",
+                "from zebtrack.ui.wizard.tooltip import create_help_label, set_help_text",
+                "root = tk.Tk()",
+                "label = create_help_label(root, 'a')",
+                "set_help_text(label, 'b')",
+                "refs = (weakref.ref(label), weakref.ref(label._help_tooltip))",
+                "label.destroy()",
+                "del label",
+                "gc.collect()",
+                "print('FREED' if all(r() is None for r in refs) else 'LEAKED')",
+                "root.destroy()",
+            ]
+        )
+        done = subprocess.run(
+            [sys.executable, "-c", probe], capture_output=True, text=True, timeout=60, check=False
+        )
+
+        assert done.stdout.strip().endswith("FREED"), done.stdout + done.stderr
+
+    def test_no_module_level_registry_holds_the_tooltips(self) -> None:
+        import zebtrack.ui.wizard.tooltip as tooltip_module
+
+        assert not [name for name in vars(tooltip_module) if name.endswith("TOOLTIPS")]
+
+
+class TestVideoNodeEmoji:
+    """The tree's per-video row carries the animal's emoji, not always the fish."""
+
+    @pytest.mark.parametrize(
+        ("project_data", "emoji"),
+        [
+            ({}, "🐟"),
+            ({"behavioral_config": {"animal_model": "zebrafish"}}, "🐟"),
+            ({"behavioral_config": {"animal_model": "rodent"}}, "🐀"),
+            ({"behavioral_config": {"animal_model": "other"}}, "🐾"),
+        ],
+    )
+    def test_video_row_text(self, project_data, emoji) -> None:
+        from zebtrack.ui.components.project_views.report_tree_builder import ReportTreeBuilder
+
+        manager = Mock()
+        manager.project_data = project_data
+        manager.resolve_results_directory.return_value = None
+        builder = ReportTreeBuilder(project_manager_getter=lambda: manager)
+        tree = Mock()
+
+        builder._insert_video_node(tree, "day", {"path": "/data/v.mp4", "subject": "3"}, {})
+
+        assert tree.insert.call_args.kwargs["text"] == f"{emoji} Subject 3"
+
+
+@pytest.mark.gui
+class TestOverviewSubjectFallback:
+    @staticmethod
+    def _subject_text(overview: Any, animal: str | None) -> str:
+        hierarchy: dict[str, Any] = {
+            "groups": [
+                {
+                    "id": "g",
+                    "display": "G",
+                    "status_summary": "",
+                    "data_summary": "",
+                    "days": [
+                        {
+                            "id": "d",
+                            "title": "D",
+                            "status": "",
+                            "data": "",
+                            "subjects": [{"id": "s1", "videos": []}],  # no "label": the fallback
+                        }
+                    ],
+                }
+            ]
+        }
+        if animal is not None:
+            hierarchy["animal_model"] = animal
+        overview.populate_tree_with_hierarchy(hierarchy, {})
+        tree = overview.project_overview_tree
+        group = tree.get_children()[0]
+        day = tree.get_children(group)[0]
+        return str(tree.item(tree.get_children(day)[0], "text"))
+
+    @pytest.fixture
+    def overview(self, tkinter_root):
+        from zebtrack.ui.components.project_overview import ProjectOverviewWidget
+        from zebtrack.ui.event_bus_v2 import EventBusV2
+
+        widget = ProjectOverviewWidget(tkinter_root, event_bus=EventBusV2())
+        widget.pack()
+        tkinter_root.update()
+        return widget
+
+    @pytest.mark.parametrize(
+        ("animal", "emoji"), [(None, "🐟"), ("zebrafish", "🐟"), ("rodent", "🐀"), ("other", "🐾")]
+    )
+    def test_the_fallback_label_uses_the_animals_emoji(self, overview, animal, emoji) -> None:
+        assert self._subject_text(overview, animal) == f"{emoji} Subject s1"
+
+    def test_the_hierarchy_carries_the_open_projects_animal_model(self) -> None:
+        from zebtrack.ui.components.validation_manager import ValidationManager
+
+        manager = ValidationManager.__new__(ValidationManager)
+        project_manager = Mock()
+        project_manager.project_data = {"behavioral_config": {"animal_model": "rodent"}}
+        project_manager.get_project_type.return_value = "pre-recorded"
+        manager.gui = SimpleNamespace(  # type: ignore[assignment]
+            controller=SimpleNamespace(project_manager=project_manager)
+        )
+
+        assert manager.prepare_overview_hierarchy_for_widget([])["animal_model"] == "rodent"

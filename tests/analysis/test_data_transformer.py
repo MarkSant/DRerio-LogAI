@@ -1146,22 +1146,28 @@ class TestAnimalDisplayNames:
             "Arena Perspective"
         )
 
-    def test_prepare_for_display_renames_aquarium_id_per_animal_but_keeps_the_keys(self) -> None:
+    def test_the_exported_display_headers_never_follow_the_animal_model(self) -> None:
+        # Hub review: exported headers are a contract (aggregate_summaries concatenates
+        # xlsx files by header); only the Word report is re-worded.
+        import inspect
+
         frame = pd.DataFrame({"aquarium_id": [0], "total_distance_cm": [1.5]})
 
-        legacy = DataTransformer().prepare_for_display(frame)
-        rodent = DataTransformer().prepare_for_display(frame, animal_model=AnimalModel.RODENT)
+        shown = DataTransformer().prepare_for_display(frame)
 
-        assert list(legacy.columns) == ["Aquarium", "Total Distance (cm)"]
-        assert list(rodent.columns) == ["Arena", "Total Distance (cm)"]
+        assert list(shown.columns) == ["Aquarium", "Total Distance (cm)"]
         assert list(frame.columns) == ["aquarium_id", "total_distance_cm"]  # input untouched
+        assert (
+            "animal_model" not in inspect.signature(DataTransformer.prepare_for_display).parameters
+        )
 
     def test_the_mapping_itself_is_not_mutated(self) -> None:
-        from zebtrack.analysis.data_transformer import DISPLAY_COLUMN_MAPPING
-
-        DataTransformer().prepare_for_display(
-            pd.DataFrame({"aquarium_id": [0]}), animal_model=AnimalModel.RODENT
+        from zebtrack.analysis.data_transformer import (
+            DISPLAY_COLUMN_MAPPING,
+            display_column_name,
         )
+
+        assert display_column_name("aquarium_id", AnimalModel.RODENT) == "Arena"
 
         assert DISPLAY_COLUMN_MAPPING["aquarium_id"] == "Aquarium"
 

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import structlog
 
-from zebtrack.analysis.data_transformer import animal_model_of_config, barnes_visits_frame
+from zebtrack.analysis.data_transformer import barnes_visits_frame
 
 if TYPE_CHECKING:
     from zebtrack.analysis.reporters.reporter_context import ReporterContext
@@ -71,11 +71,9 @@ class ExcelReporter:
             num_zones = int(self._ctx.behavioral_config.get("geotaxis_num_zones", 0) or 0)
 
         # Apply display formatting
+        # Exported headers are a contract and never follow the animal model.
         data_to_export = self._ctx.data_transformer.prepare_for_display(
-            data_to_export,
-            height_cm,
-            num_zones,
-            animal_model=animal_model_of_config(getattr(self._ctx, "behavioral_config", None)),
+            data_to_export, height_cm, num_zones
         )
 
         fmt = "csv" if str(path).lower().endswith(".csv") else "excel"

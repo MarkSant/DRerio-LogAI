@@ -14380,3 +14380,90 @@ msgstr ""
 #: src/zebtrack/ui/terminology.py
 msgid "🐾 Subjects"
 msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"The main arena polygon has not been defined.\n"
+"\n"
+"The main arena is required for an accurate analysis.\n"
+"Do you want to define it now, before processing?"
+msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Please:\n"
+"1. Use 'Detect Arena (Auto)' or\n"
+"2. Draw the main polygon manually\n"
+"3. Then come back to add videos"
+msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"The main arena polygon has not been defined.\n"
+"\n"
+"Defining the arena before starting the recording is recommended.\n"
+"Do you want to define it now?"
+msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Please:\n"
+"1. Use the live camera to calibrate\n"
+"2. Use 'Detect Arena (Auto)' or\n"
+"3. Draw the main polygon manually\n"
+"4. Then come back to start the recording"
+msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid "Detecting the arena..."
+msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid "Arena Detected"
+msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Arena detected successfully!\n"
+"\n"
+"You can adjust the vertices or add ROIs.\n"
+"Click 'Finish' when you are ready."
+msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Could not detect the arena automatically.\n"
+"\n"
+"You will be taken to the zones tab to draw it manually."
+msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Could not detect the arena automatically.\n"
+"\n"
+"The captured image was loaded for manual drawing.\n"
+"Please use the 'Main Polygon' tool to define the arena."
+msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid "Draw the Arena"
+msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Draw the arena polygon and ROIs (if needed).\n"
+"\n"
+"Click 'Finish' when you are ready."
+msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐟 {label}"
+msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐀 {label}"
+msgstr ""
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐾 {label}"
+msgstr ""

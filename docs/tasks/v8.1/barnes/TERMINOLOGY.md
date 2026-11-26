@@ -78,7 +78,7 @@ project (Barnes forces the rodent model); `other` reads the same except for the 
 | | `calibration.count_help`, `calibration.animals_help` (tooltips) | "Each aquarium = 1 separate video", "(e.g. a zebrafish shoal)" | "Each arena = 1 separate video", "(e.g. a large social group)" |
 | Wizard · Discovery glossary | `discovery.glossary` | "Arena: the area of the tank where the animals move" | "Arena: the area where the animals move, such as a table or a box" (re-worded when the animal combo changes) |
 | Wizard · Detection / Confirmation summaries | `wizard.count_summary`, `wizard.animals_summary`, `wizard.arena_method_summary`, `wizard.arena_weight_summary` | • Aquariums: N · • Animals per aquarium: N · • Aquarium method/weight: … → • Aquários / • Animais por aquário / • Método aquário / • Peso aquário | • Arenas: N · • Animals per arena: N · • Arena method/weight: … → • Arenas / • Animais por arena / • Método da arena / • Peso da arena |
-| Behavioural configuration widget (Calibration step, live and single-video dialogs) | `behavioral.perspective_title` | Aquarium Perspective `*` → Perspectiva do Aquário `*` | Arena Perspective `*` → Perspectiva da Arena `*` |
+| Behavioural configuration widget (Calibration step, live and single-video dialogs) | `behavioral.perspective_title` | Aquarium Perspective `*` → Perspectiva do Aquário `*` | Arena Perspective `*` → Perspectiva da arena `*` |
 | | `behavioral.perspective_help` | Select how the camera sees the aquarium: | Select how the camera sees the arena: → Selecione como a câmera visualiza a arena: |
 | | `behavioral.thigmotaxis_help` | …considering the fish close to the aquarium walls: | …considering the animal close to the arena walls: → …considerar o animal próximo às paredes da arena: |
 | | `behavioral.zones_split` | Split the aquarium into: → Dividir aquário em: | Split the arena into: → Dividir a arena em: |
@@ -89,9 +89,16 @@ project (Barnes forces the rodent model); `other` reads the same except for the 
 | Live analysis dialog (no project) | `live.count_label/help`, `live.animals_label/help`, `live.one_arena_notice`, `live.count_error` | No. of aquariums: / Animals/aquarium: / Live analysis handles ONE aquarium… | No. of arenas: / Animals/arena: / …ONE arena… → Nº de arenas: / Animais/Arena: / …UMA arena… (follows the dialog's animal combo) |
 | Single-video dialog | `single.count_label/help`, `single.animals_label/help` | Number of Aquariums: / Animals per Aquarium: (+ tooltips, "e.g. tanks") | Number of Arenas: / Animals per Arena: |
 | Aquarium assignment dialog (2 arenas in one video) | `assignment.title/header/panel_title/excess_matches/group_empty/subject_empty` | Aquarium Configuration / Aquarium 1 (Left) / The group of Aquarium 1 cannot be empty | Arena Configuration / Arena 1 (Left) / The group of Arena 1 cannot be empty |
-| Subject nodes in the project trees (`validation_manager`, `report_tree_builder`, `video_selector_tree_manager`) and the block dialog title | `subject.label`, `subject.list_title` | 🐟 Subject 03 → 🐟 Sujeito 03 · 🐟 Subjects → 🐟 Cobaias | 🐀 Subject 03 → 🐀 Sujeito 03 · 🐀 Subjects → 🐀 Cobaias (other: 🐾) |
+| Subject nodes in the project trees (`validation_manager`, `report_tree_builder`, `video_selector_tree_manager`), the overview fallback, the per-video row and the block dialog title | `subject.label`, `subject.video_node`, `subject.list_title` | 🐟 Subject 03 → 🐟 Sujeito 03 · 🐟 {label} · 🐟 Subjects → 🐟 Cobaias | 🐀 Subject 03 → 🐀 Sujeito 03 · 🐀 {label} · 🐀 Subjects → 🐀 Cobaias (other: 🐾) |
+| Coordinator prompts (`dialog_coordinator`, `live_calibration_coordinator`) | `coordinator.*`, `calibration.detect*`, `calibration.draw_*`, `calibration.arena_missing_live`, `calibration.define_arena_steps_live` | Aquarium Detected / Draw the Aquarium / …use 'Detect Aquarium (Auto)' → Aquário Detectado / Desenhe o Aquário | Arena Detected / Draw the Arena / …use 'Detect Arena (Auto)' → Arena Detectada / Desenhe a Arena (from the open project's profile; an ad-hoc live run has none and reads legacy) |
 
 ### Reports (display mapping only, `analysis/data_transformer.py`)
+
+Only the **Word** report is re-worded. Exported spreadsheet headers (`Sheet1`, `por_animal`, the
+unified `.xlsx`/`.csv`) are a contract and never depend on the animal model:
+`analysis_service.aggregate_summaries` concatenates xlsx files by header, so an old `Aquarium`
+file and a new `Arena` file would split into two half-empty columns. A test pins that a rodent
+run's workbook has exactly the header rows of a zebrafish run.
 
 - `display_metadata_label(key, animal_model)` — the Word report's "Experiment Metadata" block
   title-cases the raw metadata keys. Zebrafish/legacy: byte-identical (`Num Aquariums`,
@@ -99,12 +106,9 @@ project (Barnes forces the rodent model); `other` reads the same except for the 
   **key** is re-worded (`Num Arenas`, `Animals Per Arena`, `Arena Width Cm`). The labels are
   English, as before (they were never translated).
 - `display_column_name(column, animal_model)` — the Word summary table; `DISPLAY_COLUMN_MAPPING`
-  is untouched, with `aquarium_id` → `Arena` only for rodent/other; an unmapped column falls back to
-  the title-cased key with the same aquarium → arena re-wording (`Arena Perspective`).
-- `DataTransformer.prepare_for_display(..., animal_model=...)` — same override for the
-  `.xlsx` (individual report: `ExcelReporter` passes the run's model). Internal column keys never
-  change. The unified/partial report (`_unified_report_mixin`) does not know the profile and keeps
-  `Aquarium`; multi-aquarium is refused for Barnes anyway.
+  is untouched, with `aquarium_id` → `Arena` only for rodent/other, and an unmapped column falling
+  back to the title-cased key with the same aquarium → arena re-wording (`Arena Perspective`).
+- `DataTransformer.prepare_for_display` takes no animal model: it feeds the xlsx/csv.
 
 ## Not migrated (inventory for a later pass)
 
@@ -112,18 +116,14 @@ project (Barnes forces the rodent model); `other` reads the same except for the 
 surface. Regenerate with the AST script in the stage-3 hand-over (walk `src/zebtrack`, `_()` calls
 whose first argument matches `aquari|fish|🐟|tank`). Notes:
 
-- **Coordinators are outside this stage's file ownership.** Two of them quote the Detect
-  button by its legacy label and therefore read "Detect Aquarium (Auto)" next to a rodent
-  project's "Detect Arena (Auto)": `coordinators/dialog_coordinator.py:237` and
-  `coordinators/live_calibration_coordinator.py:1080` (also the "Draw the Aquarium" /
-  "Aquarium Detected" dialog titles of `live_calibration_coordinator`). **Highest priority** for the
-  next pass; use `term("zones.detect_button", animal_model_of(project_data))` or add keys.
+- **Ad-hoc live analysis** (no project): the coordinators' prompts read the *project's* profile,
+  and the live dialog's own animal choice does not reach `live_calibration_coordinator` (its
+  `run_live_calibration` receives only the perspective), so an ad-hoc rodent run still sees
+  "aquarium" in those prompts. Threading the model through `run_live_calibration` is the fix.
 - The `zebrafish`-labelled model choice `Zebrafish (aquarium)` (`behavioral_config_widget.py`) is the
   *name of the animal model* and stays. `global_model_configuration_panel.py` already maps the
   stored weight target `aquarium` to "Arena" (the precedent), and its help sentence still says
   "aquarium or zebrafish".
-- `project_overview.py:503` keeps `🐟 Subject {label}` only as the fallback of `subject.get("label", …)`;
-  `ValidationManager` always supplies the label (migrated).
 - Multi-aquarium-only text (`Aquarium {number}` canvas labels, delete-aquarium menus, sequential
   coordinators) is reachable only for two-arena videos; Barnes refuses multi-aquarium.
 
@@ -184,7 +184,7 @@ whose first argument matches `aquari|fish|🐟|tank`). Notes:
 - `ui/dialogs/zone_calibration_dialog.py:118` — You will draw the aquarium polygon manually
 - `ui/dialogs/zone_reuse_dialog.py:85` — Zones have already been defined. ⏎  ⏎ Do you want to reuse them for this recording? ⏎ (Use this if the aqua...
 
-### Other UI components (25)
+### Other UI components (24)
 
 - `ui/components/arduino_bindings_panel.py:155` — Aquarium
 - `ui/components/arduino_bindings_panel.py:172` — Aquarium:
@@ -197,8 +197,7 @@ whose first argument matches `aquari|fish|🐟|tank`). Notes:
 - `ui/components/menu_manager.py:222` — Automated behavioral tracking and analysis ⏎ for research with Danio rerio (zebrafish) ⏎  ⏎ Computer vision...
 - `ui/components/menu_manager.py:480` — This video holds data from {count} separate aquarium(s). ⏎  ⏎ ⚠️ WARNING: Removing the video permanently de...
 - `ui/components/menu_manager.py:489` — This video holds data from {count} separate aquarium(s). ⏎  ⏎ ⚠️ Removing this item affects the data of ALL...
-- `ui/components/project_overview.py:503` — 🐟 Subject {label}
-- `ui/components/project_views/report_tree_builder.py:639` — Aquarium {number}
+- `ui/components/project_views/report_tree_builder.py:648` — Aquarium {number}
 - `ui/components/project_views/reports_tree_manager.py:313` — 🗑️ Delete Aquarium (drawing + data)...
 - `ui/components/project_views/reports_tree_manager.py:317` — 🐟 Delete Animal (keep aquarium)...
 - `ui/components/project_views/reports_tree_manager.py:335` — Delete Aquarium
@@ -212,21 +211,10 @@ whose first argument matches `aquari|fish|🐟|tank`). Notes:
 - `ui/components/zone_context_panel.py:321` — Aquarium model: {value}
 - `ui/ui_coordinator.py:775` — Detecting aquarium: frame {frame}/{total}
 
-### Coordinators (not owned by stage 3) (32)
+### Coordinators (21)
 
 - `coordinators/_single_video_mixin.py:108` — Aquarium {number} has no subject defined. Configure the aquariums before processing.
 - `coordinators/_video_selection_mixin.py:173` — The main aquarium polygon has not been defined
-- `coordinators/dialog_coordinator.py:203` — The main aquarium polygon has not been defined. ⏎  ⏎ The main arena is required for an accurate analysis. ⏎...
-- `coordinators/dialog_coordinator.py:235` — Please: ⏎ 1. Use 'Detect Aquarium (Auto)' or ⏎ 2. Draw the main polygon manually ⏎ 3. Then come back to add...
-- `coordinators/live_calibration_coordinator.py:915` — Aquarium Detected
-- `coordinators/live_calibration_coordinator.py:916` — Aquarium detected successfully! ⏎  ⏎ You can adjust the vertices or add ROIs. ⏎ Click 'Finish' when you are...
-- `coordinators/live_calibration_coordinator.py:945` — Could not detect the aquarium automatically. ⏎  ⏎ You will be taken to the zones tab to draw it manually.
-- `coordinators/live_calibration_coordinator.py:997` — Draw the Aquarium
-- `coordinators/live_calibration_coordinator.py:998` — Draw the aquarium polygon and ROIs (if needed). ⏎  ⏎ Click 'Finish' when you are ready.
-- `coordinators/live_calibration_coordinator.py:1056` — The main aquarium polygon has not been defined. ⏎  ⏎ Defining the arena before starting the recording is re...
-- `coordinators/live_calibration_coordinator.py:1077` — Please: ⏎ 1. Use the live camera to calibrate ⏎ 2. Use 'Detect Aquarium (Auto)' or ⏎ 3. Draw the main polyg...
-- `coordinators/live_calibration_coordinator.py:1160` — Detecting the aquarium...
-- `coordinators/live_calibration_coordinator.py:1554` — Could not detect the aquarium automatically. ⏎  ⏎ The captured image was loaded for manual drawing. ⏎ Pleas...
 - `coordinators/model_diagnostics_coordinator.py:957` —   - [MASK WITHOUT BOX] Probable Aquarium, approx. BBox: [{x_min}, {y_min}, {x_max}, {y_max}], Area: {area},...
 - `coordinators/model_diagnostics_coordinator.py:1002` —   Masks without a bounding box (possible aquariums):
 - `coordinators/multi_aquarium_coordinator.py:495` — Aquarium not detected
@@ -247,7 +235,7 @@ whose first argument matches `aquari|fish|🐟|tank`). Notes:
 - `coordinators/video_processing_coordinator.py:1028` — Aquarium {number}
 - `coordinators/video_processing_coordinator.py:1037` — Video '{video}' has aquariums with no subject defined: ⏎  ⏎ {aquariums} ⏎  ⏎ Configure the aquariums before...
 
-### Core services / recording / detection (not owned by stage 3) (27)
+### Core services / recording / detection (27)
 
 - `core/detection/multi_aquarium_detector.py:1196` — Aquarium {number}
 - `core/project/project_workflow_service.py:129` — The detection mode (det) for animals is only compatible with 1 animal per aquarium. ⏎ Current configuration...

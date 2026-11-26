@@ -8309,10 +8309,6 @@ _load_registry()"
         description: "outras especies mantem Aquarium nos rotulos de metadados"
         find: '    AnimalModel.OTHER: (("aquarium", "arena"),),'
         replace: "    AnimalModel.OTHER: (),"
-      - id: display-frame-ignores-animal
-        description: "prepare_for_display ignora o animal"
-        find: "                rename_map[col] = _ANIMAL_DISPLAY_OVERRIDES.get(animal_model, {}).get("
-        replace: "                rename_map[col] = _ANIMAL_DISPLAY_OVERRIDES.get(AnimalModel.ZEBRAFISH, {}).get("
 
   animal_terms_word_reporter:
     source: src/zebtrack/analysis/reporters/word_reporter.py
@@ -8327,16 +8323,6 @@ _load_registry()"
         description: "a linha de metrica do Word ignora o animal"
         find: "row_cells[0].text = display_column_name(column_name, animal_model)"
         replace: "row_cells[0].text = display_column_name(column_name)"
-
-  animal_terms_excel_reporter:
-    source: src/zebtrack/analysis/reporters/excel_reporter.py
-    tests:
-      - tests/analysis/reporters/test_excel_reporter.py
-    mutations:
-      - id: excel-header-ignores-animal
-        description: "o cabecalho do Excel ignora o animal"
-        find: '            animal_model=animal_model_of_config(getattr(self._ctx, "behavioral_config", None)),'
-        replace: "            animal_model=animal_model_of_config(None),"
 
   animal_terms_zone_controls:
     source: src/zebtrack/ui/components/zone_controls.py
@@ -8491,8 +8477,8 @@ _load_registry()"
     mutations:
       - id: subject-label-ignores-animal
         description: "o no de sujeito ignora o animal do projeto"
-        find: '                animal_model_of(getattr(self.project_manager, "project_data", None)),'
-        replace: "                None,"
+        find: '        return animal_model_of(getattr(self.project_manager, "project_data", None))'
+        replace: "        return AnimalModel.ZEBRAFISH"
 
   animal_terms_tooltip:
     source: src/zebtrack/ui/wizard/tooltip.py
@@ -8503,3 +8489,63 @@ _load_registry()"
         description: "set_help_text deixa de trocar o texto da dica"
         find: "        tooltip.text = text"
         replace: "        pass"
+
+  animal_terms_dialog_coordinator:
+    source: src/zebtrack/coordinators/dialog_coordinator.py
+    tests:
+      - tests/coordinators/test_dialog_coordinator.py
+    mutations:
+      - id: arena-question-ignores-animal
+        description: "a pergunta de arena nao definida ignora o animal"
+        find: "                    animal_model_of_project_manager(self.project_manager),\n                ),"
+        replace: "                    None,\n                ),"
+      - id: define-steps-ignore-animal
+        description: "os passos para definir a arena ignoram o animal"
+        find: "                                        animal_model_of_project_manager(self.project_manager),"
+        replace: "                                        None,"
+
+  animal_terms_live_calibration_coordinator:
+    source: src/zebtrack/coordinators/live_calibration_coordinator.py
+    tests:
+      - tests/coordinators/test_live_calibration_coordinator.py
+    mutations:
+      - id: animal-always-legacy
+        description: "o coordenador sempre le o animal como legado"
+        find: "        return animal_model_of_project_manager(self.project_manager)"
+        replace: "        return AnimalModel.ZEBRAFISH"
+      - id: draw-title-ignores-animal
+        description: "o titulo de desenhar a arena ignora o animal"
+        find: '                        title=term("calibration.draw_title", self._animal_model()),'
+        replace: '                        title=term("calibration.draw_title"),'
+      - id: draw-message-ignores-animal
+        description: "a mensagem de desenhar a arena ignora o animal"
+        find: '                        message=term("calibration.draw_message", self._animal_model()),'
+        replace: '                        message=term("calibration.draw_message"),'
+      - id: missing-arena-question-ignores-animal
+        description: "a pergunta de arena nao definida ignora o animal"
+        find: '                term("calibration.arena_missing_live", self._animal_model()),'
+        replace: '                term("calibration.arena_missing_live"),'
+      - id: steps-ignore-animal
+        description: "os passos com o botao Detectar ignoram o animal"
+        find: '                                    "calibration.define_arena_steps_live", self._animal_model()'
+        replace: '                                    "calibration.define_arena_steps_live", None'
+
+  animal_terms_project_overview:
+    source: src/zebtrack/ui/components/project_overview.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: fallback-label-ignores-animal
+        description: "o rotulo de reserva do sujeito ignora o animal"
+        find: '                                hierarchy_data.get("animal_model"),'
+        replace: "                                None,"
+
+  animal_terms_validation_manager:
+    source: src/zebtrack/ui/components/validation_manager.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: hierarchy-drops-the-animal
+        description: "a hierarquia deixa de carregar o animal do projeto"
+        find: '        return {"groups": groups_list, "animal_model": animal.value}'
+        replace: '        return {"groups": groups_list, "animal_model": None}'

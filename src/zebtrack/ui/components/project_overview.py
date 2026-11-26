@@ -10,6 +10,7 @@ from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.terminology import term
 
 log = structlog.get_logger()
 
@@ -500,7 +501,11 @@ class ProjectOverviewWidget(BaseWidget):
                         parent=day_id,
                         text=subject.get(
                             "label",
-                            _("🐟 Subject {label}").format(label=subject["id"]),
+                            term(
+                                "subject.label",
+                                hierarchy_data.get("animal_model"),
+                                label=subject["id"],
+                            ),
                         ),
                         values=(subject.get("status", ""), subject.get("data", "")),
                     )

@@ -1762,3 +1762,63 @@ def test_a_crash_on_the_tk_side_still_ends_the_calibration_with_false():
 
     assert _calibrate(coordinator, stabilization_frames=4, show_preview=True) is False
     assert coordinator.calibration_in_progress is False
+
+
+class TestArenaWordingFollowsTheAnimalModel:
+    """Barnes v8.1 stage 3: the calibration prompts name what the project studies."""
+
+    @staticmethod
+    def _coordinator(animal: str | None) -> Any:
+        from zebtrack.ui.terminology import term  # noqa: F401  (import check)
+
+        coordinator = _make_coordinator()
+        coordinator.project_manager.project_data = (  # type: ignore[attr-defined]
+            {"behavioral_config": {"animal_model": animal}} if animal else {}
+        )
+        return coordinator
+
+    @staticmethod
+    def _info_messages(coordinator: Any) -> list[Any]:
+        return [
+            call.args[0].data
+            for call in coordinator.event_bus.publish.call_args_list
+            if call.args[0].type is UIEvents.UI_SHOW_INFO
+        ]
+
+    @pytest.mark.parametrize(
+        ("animal", "title", "noun"),
+        [(None, "Draw the Aquarium", "aquarium"), ("rodent", "Draw the Arena", "arena")],
+    )
+    def test_the_manual_drawing_prompt(self, animal, title, noun):
+        coordinator = self._coordinator(animal)
+        coordinator._wait_for_zone_confirmation = MagicMock(return_value=True)  # type: ignore[method-assign]
+
+        assert coordinator._manual_tail(True) is True
+
+        (info,) = self._info_messages(coordinator)
+        assert info.title == title
+        assert info.message.startswith(f"Draw the {noun} polygon")
+
+    @pytest.mark.parametrize("animal", [None, "rodent", "other"])
+    def test_the_prompt_that_quotes_the_button_quotes_its_own_button(self, animal):
+        from zebtrack.ui.terminology import term
+
+        coordinator = self._coordinator(animal)
+        coordinator.view = MagicMock()
+        coordinator.view.dialog_manager.ask_ok_cancel.return_value = True
+        coordinator.project_manager.get_zone_data.return_value = None  # type: ignore[attr-defined]
+
+        assert coordinator._ensure_zones_non_live() is False
+
+        question = coordinator.view.dialog_manager.ask_ok_cancel.call_args.args[1]
+        (info,) = self._info_messages(coordinator)
+        assert f"'{term('zones.detect_button', animal)}'" in info.message
+        assert ("aquarium" in question) == (animal is None)
+
+    def test_without_a_project_the_text_is_legacy(self):
+        coordinator = _make_coordinator()  # project_data is a MagicMock, not a mapping
+        coordinator.project_manager = None  # type: ignore[assignment]
+
+        from zebtrack.core.services.experiment_profile import AnimalModel
+
+        assert coordinator._animal_model() is AnimalModel.ZEBRAFISH

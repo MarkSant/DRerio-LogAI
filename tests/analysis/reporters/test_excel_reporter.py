@@ -112,24 +112,31 @@ class TestExcelReporter:
         spy.assert_called_once()
 
 
-class TestAquariumColumnHeaderFollowsTheAnimalModel:
-    """Barnes v8.1 stage 3: the ``aquarium_id`` column reads "Arena" for a rodent run."""
+class TestExportedHeadersDoNotFollowTheAnimalModel:
+    """Hub review: exported headers are a contract.
+
+    ``analysis_service.aggregate_summaries`` concatenates xlsx files by header, so an old
+    "Aquarium" file and a new "Arena" file would split into two half-empty columns.
+    """
 
     @staticmethod
-    def _headers(ctx, tmp_path, animal):
-        ctx.tidy_data = ctx.tidy_data.assign(aquarium_id=0)
+    def _workbook(ctx, tmp_path, animal):
+        ctx.tidy_data = ctx.tidy_data.assign(aquarium_id=0, aquarium_perspective="lateral")
         ctx.behavioral_config = {"animal_model": animal} if animal else {}
         output = tmp_path / f"{animal or 'legacy'}.xlsx"
         ExcelReporter(ctx).export_summary(output)
-        return list(pd.read_excel(output).columns)
+        return pd.read_excel(output, sheet_name=None)
 
-    def test_legacy_and_zebrafish_keep_the_aquarium_header(self, reporter_ctx, tmp_path):
-        assert "Aquarium" in self._headers(reporter_ctx, tmp_path, None)
-        assert "Aquarium" in self._headers(reporter_ctx, tmp_path, "zebrafish")
+    @pytest.mark.parametrize("animal", ["zebrafish", "rodent", "other"])
+    def test_every_sheet_header_row_equals_the_legacy_one(self, reporter_ctx, tmp_path, animal):
+        legacy = self._workbook(reporter_ctx, tmp_path, None)
+        other = self._workbook(reporter_ctx, tmp_path, animal)
 
-    def test_a_rodent_run_reads_arena_and_loses_nothing_else(self, reporter_ctx, tmp_path):
-        legacy = self._headers(reporter_ctx, tmp_path, None)
-        rodent = self._headers(reporter_ctx, tmp_path, "rodent")
+        assert list(other) == list(legacy)  # same sheet names, same order
+        for name, frame in legacy.items():
+            assert list(other[name].columns) == list(frame.columns), name
 
-        assert "Arena" in rodent and "Aquarium" not in rodent
-        assert [h for h in rodent if h != "Arena"] == [h for h in legacy if h != "Aquarium"]
+    def test_the_aquarium_column_keeps_its_legacy_header_for_a_rodent(self, reporter_ctx, tmp_path):
+        headers = list(self._workbook(reporter_ctx, tmp_path, "rodent")["Sheet1"].columns)
+
+        assert "Aquarium" in headers and "Arena" not in headers

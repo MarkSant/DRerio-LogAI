@@ -18714,7 +18714,7 @@ msgid ""
 "\n"
 "💡 Tip: if you are unsure, start with 1 and add more videos later."
 msgstr ""
-"🎬 Número de Arenas (Vídeos)\n"
+"🎬 Número de arenas (Vídeos)\n"
 "\n"
 "Quantos vídeos independentes serão analisados neste projeto.\n"
 "\n"
@@ -18757,7 +18757,7 @@ msgid ""
 "\n"
 "💡 Tip: for several animals, prefer segmentation (seg) in the model selection step."
 msgstr ""
-"🐾 Animais por Arena\n"
+"🐾 Animais por arena\n"
 "\n"
 "Quantos animais estarão presentes em CADA vídeo/arena.\n"
 "\n"
@@ -18819,7 +18819,7 @@ msgstr "  • Peso da arena: {weight}"
 
 #: src/zebtrack/ui/terminology.py
 msgid "Arena Perspective *"
-msgstr "Perspectiva da Arena *"
+msgstr "Perspectiva da arena *"
 
 #: src/zebtrack/ui/terminology.py
 msgid "Select how the camera sees the arena:"
@@ -18913,7 +18913,7 @@ msgstr ""
 
 #: src/zebtrack/ui/terminology.py
 msgid "Animals/arena:"
-msgstr "Animais/Arena:"
+msgstr "Animais/arena:"
 
 #: src/zebtrack/ui/terminology.py
 msgid "Number of animals inside each arena."
@@ -18929,7 +18929,7 @@ msgstr "O número de arenas e de animais deve ser >= 1"
 
 #: src/zebtrack/ui/terminology.py
 msgid "Number of Arenas:"
-msgstr "Número de Arenas:"
+msgstr "Número de arenas:"
 
 #: src/zebtrack/ui/terminology.py
 msgid ""
@@ -18939,7 +18939,7 @@ msgid ""
 "• 1: standard analysis.\n"
 "• 2: lets you draw two arenas and process them together."
 msgstr ""
-"Número de Arenas\n"
+"Número de arenas\n"
 "\n"
 "Define se o vídeo contém 1 ou 2 arenas independentes.\n"
 "• 1: Análise padrão.\n"
@@ -18947,7 +18947,7 @@ msgstr ""
 
 #: src/zebtrack/ui/terminology.py
 msgid "Animals per Arena:"
-msgstr "Animais por Arena:"
+msgstr "Animais por arena:"
 
 #: src/zebtrack/ui/terminology.py
 msgid ""
@@ -18957,7 +18957,7 @@ msgid ""
 "• 1: enables the tracker optimized for a single subject.\n"
 "• >1: requires Segmentation (seg) mode to avoid ID swaps."
 msgstr ""
-"Animais por Arena\n"
+"Animais por arena\n"
 "\n"
 "Quantidade de animais em cada arena.\n"
 "• 1: Ativa o rastreador otimizado para sujeito único.\n"
@@ -18965,7 +18965,7 @@ msgstr ""
 
 #: src/zebtrack/ui/terminology.py
 msgid "Arena Configuration"
-msgstr "Configuração das Arenas"
+msgstr "Configuração das arenas"
 
 #: src/zebtrack/ui/terminology.py
 msgid "Assign groups and identifiers to each arena"
@@ -19010,3 +19010,121 @@ msgstr "🐀 Cobaias"
 #: src/zebtrack/ui/terminology.py
 msgid "🐾 Subjects"
 msgstr "🐾 Cobaias"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"The main arena polygon has not been defined.\n"
+"\n"
+"The main arena is required for an accurate analysis.\n"
+"Do you want to define it now, before processing?"
+msgstr ""
+"O polígono principal da arena não foi definido.\n"
+"\n"
+"É necessário definir a arena principal para análise precisa.\n"
+"Deseja definir agora antes de processar?"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Please:\n"
+"1. Use 'Detect Arena (Auto)' or\n"
+"2. Draw the main polygon manually\n"
+"3. Then come back to add videos"
+msgstr ""
+"Por favor:\n"
+"1. Use 'Detectar Arena (Auto)' ou\n"
+"2. Desenhe manualmente o polígono principal\n"
+"3. Depois volte para adicionar vídeos"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"The main arena polygon has not been defined.\n"
+"\n"
+"Defining the arena before starting the recording is recommended.\n"
+"Do you want to define it now?"
+msgstr ""
+"O polígono principal da arena não foi definido.\n"
+"\n"
+"É recomendado definir a arena antes de iniciar gravação.\n"
+"Deseja definir agora?"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Please:\n"
+"1. Use the live camera to calibrate\n"
+"2. Use 'Detect Arena (Auto)' or\n"
+"3. Draw the main polygon manually\n"
+"4. Then come back to start the recording"
+msgstr ""
+"Por favor:\n"
+"1. Use a câmera ao vivo para calibrar\n"
+"2. Use 'Detectar Arena (Auto)' ou\n"
+"3. Desenhe manualmente o polígono principal\n"
+"4. Depois volte para iniciar a gravação"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Detecting the arena..."
+msgstr "Detectando a arena..."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Arena Detected"
+msgstr "Arena Detectada"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Arena detected successfully!\n"
+"\n"
+"You can adjust the vertices or add ROIs.\n"
+"Click 'Finish' when you are ready."
+msgstr ""
+"Arena detectada com sucesso!\n"
+"\n"
+"Você pode ajustar os vértices ou adicionar ROIs.\n"
+"Clique em 'Concluir' quando estiver pronto."
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Could not detect the arena automatically.\n"
+"\n"
+"You will be taken to the zones tab to draw it manually."
+msgstr ""
+"Não foi possível detectar a arena automaticamente.\n"
+"\n"
+"Você será levado para a aba de zonas para desenhar manualmente."
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Could not detect the arena automatically.\n"
+"\n"
+"The captured image was loaded for manual drawing.\n"
+"Please use the 'Main Polygon' tool to define the arena."
+msgstr ""
+"Não foi possível detectar a arena automaticamente.\n"
+"\n"
+"A imagem capturada foi carregada para desenho manual.\n"
+"Por favor, use a ferramenta 'Polígono Principal' para definir a arena."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Draw the Arena"
+msgstr "Desenhe a Arena"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Draw the arena polygon and ROIs (if needed).\n"
+"\n"
+"Click 'Finish' when you are ready."
+msgstr ""
+"Desenhe o polígono da arena e ROIs (se necessário).\n"
+"\n"
+"Clique em 'Concluir' quando estiver pronto."
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐟 {label}"
+msgstr "🐟 {label}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐀 {label}"
+msgstr "🐀 {label}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐾 {label}"
+msgstr "🐾 {label}"

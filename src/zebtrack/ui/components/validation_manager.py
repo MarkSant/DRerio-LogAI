@@ -289,7 +289,9 @@ class ValidationManager:
                 }
             )
 
-        return {"groups": groups_list}
+        # The animal model rides along so the overview widget (which knows no project)
+        # words its fallback subject label with the right emoji.
+        return {"groups": groups_list, "animal_model": animal.value}
 
     def check_live_project_calibration(self) -> None:
         """Check if Live project needs calibration and prompt user automatically.

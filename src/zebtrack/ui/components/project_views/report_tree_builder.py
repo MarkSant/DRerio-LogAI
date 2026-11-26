@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 import structlog
 
+from zebtrack.core.services.experiment_profile import AnimalModel
 from zebtrack.i18n import _
 from zebtrack.ui.terminology import animal_model_of, term
 from zebtrack.utils.report_files import find_block_partial_report_files
@@ -320,6 +321,10 @@ class ReportTreeBuilder:
                 "file_path": str(file_path),
             }
 
+    def _animal_model(self) -> AnimalModel:
+        """Animal model of the open project (zebrafish when there is none); wording only."""
+        return animal_model_of(getattr(self.project_manager, "project_data", None))
+
     def _insert_subject_node(
         self,
         tree: Any,
@@ -353,7 +358,7 @@ class ReportTreeBuilder:
             iid=subject_node_id,
             text=term(
                 "subject.label",
-                animal_model_of(getattr(self.project_manager, "project_data", None)),
+                self._animal_model(),
                 label=subject_label,
             ),
             values=("", "", "", "", "", ""),
@@ -428,7 +433,11 @@ class ReportTreeBuilder:
             parent,
             "end",
             iid=video_node_id,
-            text=f"🐟 {subject_label}",
+            text=term(
+                "subject.video_node",
+                self._animal_model(),
+                label=subject_label,
+            ),
             values=(
                 col_arena,
                 col_rois,

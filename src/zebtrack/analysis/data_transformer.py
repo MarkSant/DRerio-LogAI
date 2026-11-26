@@ -173,9 +173,12 @@ DISPLAY_COLUMN_MAPPING = {
     "day": "Day",
 }
 
-#: Display names an animal model words differently from ``DISPLAY_COLUMN_MAPPING``
-#: (zebrafish and legacy projects keep the mapping above untouched). Display only:
-#: the internal column key (``aquarium_id``, ADR-012) never changes.
+#: Word-report display names an animal model words differently from
+#: ``DISPLAY_COLUMN_MAPPING`` (zebrafish and legacy keep the mapping above). Word
+#: ONLY: the exported xlsx/csv headers are a contract (``aggregate_summaries``
+#: concatenates files by header) and never depend on the animal model, so
+#: ``prepare_for_display`` does not read this table. The internal key
+#: (``aquarium_id``, ADR-012) never changes either.
 _ANIMAL_DISPLAY_OVERRIDES: dict[AnimalModel, dict[str, str]] = {
     AnimalModel.RODENT: {"aquarium_id": "Arena"},
     AnimalModel.OTHER: {"aquarium_id": "Arena"},
@@ -957,7 +960,6 @@ class DataTransformer:
         df: pd.DataFrame,
         height_cm: float | None = None,
         num_zones: int | None = None,
-        animal_model: AnimalModel = AnimalModel.ZEBRAFISH,
     ) -> pd.DataFrame:
         """Prepare DataFrame for human-readable display (Excel/Word).
 
@@ -967,7 +969,6 @@ class DataTransformer:
             df: Standardized tidy dataframe (internal keys)
             height_cm: Optional aquarium height for Geotaxis ranges
             num_zones: Optional number of Geotaxis zones
-            animal_model: Animal model the display names follow (zebrafish = legacy).
 
         Returns:
             pd.DataFrame: DataFrame with formatted column names
@@ -1013,9 +1014,7 @@ class DataTransformer:
         for col in display_df.columns:
             # Check explicit mapping first
             if col in DISPLAY_COLUMN_MAPPING:
-                rename_map[col] = _ANIMAL_DISPLAY_OVERRIDES.get(animal_model, {}).get(
-                    col, DISPLAY_COLUMN_MAPPING[col]
-                )
+                rename_map[col] = DISPLAY_COLUMN_MAPPING[col]
             else:
                 # Handle Dynamic ROI columns (e.g., time_in_ROI1 -> Time In ROI1 (s))
                 # Identify prefix matches from DYNAMIC_PREFIX_MAPPINGS logic

@@ -29,7 +29,10 @@ from zebtrack.ui.terminology import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOCALES = REPO_ROOT / "src" / "zebtrack" / "locales"
-NEW_PAIRS = LOCALES / "_pairs" / "barnes-animal-terms.json"
+NEW_PAIR_FILES = sorted((LOCALES / "_pairs").glob("barnes-animal-terms*.json"))
+#: Keys whose legacy text used to be an f-string (``f"🐟 {subject}"``), so its msgid is new
+#: with this stage; the rendered zebrafish text is unchanged (a pure placeholder).
+LEGACY_TEXT_WAS_NOT_A_MSGID = {"subject.video_node"}
 ALL_KEYS = term_keys()
 
 
@@ -84,7 +87,12 @@ class TestEveryKeyForEveryAnimalModel:
             if variants(key)[AnimalModel.OTHER] != variants(key)[AnimalModel.RODENT]
         }
 
-        assert differing == {"zones.active_frame", "subject.label", "subject.list_title"}
+        assert differing == {
+            "zones.active_frame",
+            "subject.label",
+            "subject.list_title",
+            "subject.video_node",
+        }
 
 
 class TestZebrafishIsTodaysText:
@@ -101,9 +109,11 @@ class TestZebrafishIsTodaysText:
         # The zebrafish variant is the ORIGINAL msgid: it is in the catalogue before this
         # change (so it is not one of the new pairs) and its translation is untouched.
         legacy = variants(key)[AnimalModel.ZEBRAFISH]
-        new_pairs = json.loads(NEW_PAIRS.read_text(encoding="utf-8"))
+        new_pairs: dict[str, str] = {}
+        for pair_file in NEW_PAIR_FILES:
+            new_pairs.update(json.loads(pair_file.read_text(encoding="utf-8")))
 
-        assert legacy not in new_pairs
+        assert (legacy in new_pairs) == (key in LEGACY_TEXT_WAS_NOT_A_MSGID)
         assert _pt_catalogue().get(legacy), f"{key}: legacy msgid has no pt_BR translation"
 
     def test_no_profile_and_zebrafish_and_the_legacy_default_agree(self) -> None:
@@ -151,7 +161,14 @@ class TestQuotedButtonsStayInStep:
 
     @pytest.mark.parametrize("model", list(AnimalModel))
     @pytest.mark.parametrize(
-        "key", ["zones.no_frame", "zones.no_arena_live_prompt", "zones.no_arena_live_steps"]
+        "key",
+        [
+            "zones.no_frame",
+            "zones.no_arena_live_prompt",
+            "zones.no_arena_live_steps",
+            "coordinator.define_arena_steps_videos",
+            "calibration.define_arena_steps_live",
+        ],
     )
     def test_the_quoted_label_is_the_buttons_own(self, key: str, model: AnimalModel) -> None:
         button = term("zones.detect_button", model)

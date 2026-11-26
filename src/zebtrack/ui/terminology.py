@@ -39,6 +39,7 @@ __all__ = [
     "AnimalLike",
     "animal_model_of",
     "animal_model_of_gui",
+    "animal_model_of_project_manager",
     "term",
     "term_keys",
     "variants",
@@ -90,6 +91,15 @@ def animal_model_of(
     return resolve_experiment_profile(project_data, behavioral_config).animal_model
 
 
+def animal_model_of_project_manager(project_manager: Any) -> AnimalModel:
+    """The animal model of ``project_manager``'s open project (legacy when none).
+
+    For the coordinators, which hold the project manager directly. Anything that
+    is not a mapping (no manager, no project, a test double) reads as no project.
+    """
+    return animal_model_of(getattr(project_manager, "project_data", None))
+
+
 def animal_model_of_gui(gui: Any) -> AnimalModel:
     """The animal model of the project the main window has open (legacy when none).
 
@@ -97,8 +107,7 @@ def animal_model_of_gui(gui: Any) -> AnimalModel:
     of the profile looks; anything that is not a mapping reads as no project.
     """
     controller = getattr(gui, "controller", None)
-    project_manager = getattr(controller, "project_manager", None)
-    return animal_model_of(getattr(project_manager, "project_data", None))
+    return animal_model_of_project_manager(getattr(controller, "project_manager", None))
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +313,114 @@ def _entries() -> dict[str, Callable[[], _Entry]]:
                 "The configuration is saved automatically."
             ),
         ),
+        # -- Coordinators: arena detection / definition prompts -----------------------
+        "coordinator.arena_missing_batch": lambda: _Entry(
+            _(
+                "The main aquarium polygon has not been defined.\n\n"
+                "The main arena is required for an accurate analysis.\n"
+                "Do you want to define it now, before processing?"
+            ),
+            _(
+                "The main arena polygon has not been defined.\n\n"
+                "The main arena is required for an accurate analysis.\n"
+                "Do you want to define it now, before processing?"
+            ),
+        ),
+        "coordinator.define_arena_steps_videos": lambda: _Entry(
+            _(
+                "Please:\n"
+                "1. Use 'Detect Aquarium (Auto)' or\n"
+                "2. Draw the main polygon manually\n"
+                "3. Then come back to add videos"
+            ),
+            _(
+                "Please:\n"
+                "1. Use 'Detect Arena (Auto)' or\n"
+                "2. Draw the main polygon manually\n"
+                "3. Then come back to add videos"
+            ),
+        ),
+        "calibration.arena_missing_live": lambda: _Entry(
+            _(
+                "The main aquarium polygon has not been defined.\n\n"
+                "Defining the arena before starting the recording is recommended.\n"
+                "Do you want to define it now?"
+            ),
+            _(
+                "The main arena polygon has not been defined.\n\n"
+                "Defining the arena before starting the recording is recommended.\n"
+                "Do you want to define it now?"
+            ),
+        ),
+        "calibration.define_arena_steps_live": lambda: _Entry(
+            _(
+                "Please:\n"
+                "1. Use the live camera to calibrate\n"
+                "2. Use 'Detect Aquarium (Auto)' or\n"
+                "3. Draw the main polygon manually\n"
+                "4. Then come back to start the recording"
+            ),
+            _(
+                "Please:\n"
+                "1. Use the live camera to calibrate\n"
+                "2. Use 'Detect Arena (Auto)' or\n"
+                "3. Draw the main polygon manually\n"
+                "4. Then come back to start the recording"
+            ),
+        ),
+        "calibration.detecting_status": lambda: _Entry(
+            _("Detecting the aquarium..."),
+            _("Detecting the arena..."),
+        ),
+        "calibration.detected_title": lambda: _Entry(
+            _("Aquarium Detected"),
+            _("Arena Detected"),
+        ),
+        "calibration.detected_message": lambda: _Entry(
+            _(
+                "Aquarium detected successfully!\n\n"
+                "You can adjust the vertices or add ROIs.\n"
+                "Click 'Finish' when you are ready."
+            ),
+            _(
+                "Arena detected successfully!\n\n"
+                "You can adjust the vertices or add ROIs.\n"
+                "Click 'Finish' when you are ready."
+            ),
+        ),
+        "calibration.detect_failed_zones": lambda: _Entry(
+            _(
+                "Could not detect the aquarium automatically.\n\n"
+                "You will be taken to the zones tab to draw it manually."
+            ),
+            _(
+                "Could not detect the arena automatically.\n\n"
+                "You will be taken to the zones tab to draw it manually."
+            ),
+        ),
+        "calibration.detect_failed_manual": lambda: _Entry(
+            _(
+                "Could not detect the aquarium automatically.\n\n"
+                "The captured image was loaded for manual drawing.\n"
+                "Please use the 'Main Polygon' tool to define the arena."
+            ),
+            _(
+                "Could not detect the arena automatically.\n\n"
+                "The captured image was loaded for manual drawing.\n"
+                "Please use the 'Main Polygon' tool to define the arena."
+            ),
+        ),
+        "calibration.draw_title": lambda: _Entry(
+            _("Draw the Aquarium"),
+            _("Draw the Arena"),
+        ),
+        "calibration.draw_message": lambda: _Entry(
+            _(
+                "Draw the aquarium polygon and ROIs (if needed).\n\n"
+                "Click 'Finish' when you are ready."
+            ),
+            _("Draw the arena polygon and ROIs (if needed).\n\nClick 'Finish' when you are ready."),
+        ),
         # -- Ad-hoc dialogs (live analysis, single video) ----------------------------
         "live.count_label": lambda: _Entry(
             _("No. of aquariums:"),
@@ -415,6 +532,11 @@ def _entries() -> dict[str, Callable[[], _Entry]]:
             _("🐟 Subject {label}"),
             _("🐀 Subject {label}"),
             _("🐾 Subject {label}"),
+        ),
+        "subject.video_node": lambda: _Entry(
+            _("🐟 {label}"),
+            _("🐀 {label}"),
+            _("🐾 {label}"),
         ),
         "subject.list_title": lambda: _Entry(
             _("🐟 Subjects"),
