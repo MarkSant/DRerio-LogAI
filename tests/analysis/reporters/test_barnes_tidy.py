@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 import pytest
 from tests.analysis.reporters.barnes_report_builders import (
@@ -152,7 +154,7 @@ def test_visits_by_distance_resolves_int_and_str_keys_and_missing_means_zero_whe
 
 
 def test_a_none_latency_is_never_rendered_as_zero():
-    metrics = {
+    metrics: dict[str, Any] = {
         "status": "ok",
         "entry_latency_s": None,
         "entry_censored": None,

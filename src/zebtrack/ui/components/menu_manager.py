@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from tkinter import Menu, Toplevel, messagebox, ttk
 from typing import TYPE_CHECKING, Any
@@ -594,7 +595,7 @@ class MenuManager:
         for choice in choices:
             submenu.add_command(
                 label=("✔ " if choice.selected else "    ") + choice.label,
-                command=lambda value=choice.value: set_strategy(video_path, value),
+                command=partial(set_strategy, video_path, choice.value),
             )
         menu.add_cascade(label=_("🐀 Search strategy (Barnes)"), menu=submenu)
 

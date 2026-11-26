@@ -693,7 +693,11 @@ def test_partial_word_report_has_barnes_results_per_animal_and_aggregates(tmp_pa
     dialog._write_partial_report_word(output, "partial.xlsx", parsed, all_data, unified_df)
 
     document = Document(output)
-    headings = [p.text for p in document.paragraphs if p.style.name.startswith("Heading")]
+    headings = [
+        p.text
+        for p in document.paragraphs
+        if p.style is not None and p.style.name.startswith("Heading")
+    ]
     assert "Barnes Maze Results per Animal" in headings
     assert "Barnes Maze Results" in headings
     rows = {
@@ -738,7 +742,11 @@ def test_partial_report_of_a_generic_block_has_no_barnes_content(tmp_path):
     dialog = _build_partial_report_dialog(tmp_path)
     document = _write_partial_word(tmp_path, dialog)
 
-    headings = [p.text for p in document.paragraphs if p.style.name.startswith("Heading")]
+    headings = [
+        p.text
+        for p in document.paragraphs
+        if p.style is not None and p.style.name.startswith("Heading")
+    ]
 
     assert not [h for h in headings if "Barnes" in h]
 

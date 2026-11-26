@@ -283,7 +283,7 @@ def test_a_generic_project_has_no_strategy_menu_and_cannot_be_written(project_da
     correction, project = _correction([{"path": "a.mp4"}], project_data)
 
     assert correction.choices("a.mp4") == []
-    assert correction.apply("a.mp4", "direct") is False
+    assert correction.set_override("a.mp4", "direct") is False
     assert project.saves == 0
 
 
@@ -293,14 +293,14 @@ def test_an_unknown_or_multi_aquarium_video_is_not_offered():
 
     assert correction.choices("missing.mp4") == []
     assert correction.choices("multi.mp4") == []
-    assert correction.apply("multi.mp4", "direct") is False
+    assert correction.set_override("multi.mp4", "direct") is False
 
 
 def test_applying_a_strategy_writes_the_protocol_input_and_saves_once():
     entry = {"path": "a.mp4", "protocol_inputs": {"barnes": {"trial_type": "probe"}}}
     correction, project = _correction([entry])
 
-    assert correction.apply("a.mp4", "random") is True
+    assert correction.set_override("a.mp4", "random") is True
 
     assert entry["protocol_inputs"] == {
         "barnes": {"trial_type": "probe", "strategy_override": "random"}
@@ -316,8 +316,8 @@ def test_clearing_removes_only_the_correction_and_empty_blocks():
     only = {"path": "b.mp4", "protocol_inputs": {"barnes": {"strategy_override": "serial"}}}
     correction, project = _correction([both, only])
 
-    assert correction.apply("a.mp4", None) is True
-    assert correction.apply("b.mp4", None) is True
+    assert correction.set_override("a.mp4", None) is True
+    assert correction.set_override("b.mp4", None) is True
 
     assert both["protocol_inputs"] == {"barnes": {"trial_type": "probe"}}
     assert "protocol_inputs" not in only
@@ -328,7 +328,7 @@ def test_an_unknown_token_is_refused_and_nothing_is_saved():
     entry = {"path": "a.mp4"}
     correction, project = _correction([entry])
 
-    assert correction.apply("a.mp4", "wandering") is False
+    assert correction.set_override("a.mp4", "wandering") is False
 
     assert "protocol_inputs" not in entry
     assert project.saves == 0
@@ -338,12 +338,12 @@ def test_a_failed_save_restores_the_previous_correction():
     entry = {"path": "a.mp4", "protocol_inputs": {"barnes": {"strategy_override": "serial"}}}
     correction, project = _correction([entry], fail_save=True)
 
-    assert correction.apply("a.mp4", "random") is False
+    assert correction.set_override("a.mp4", "random") is False
     assert entry["protocol_inputs"] == {"barnes": {"strategy_override": "serial"}}
 
     fresh = {"path": "b.mp4"}
     correction, _project = _correction([fresh], fail_save=True)
-    assert correction.apply("b.mp4", "direct") is False
+    assert correction.set_override("b.mp4", "direct") is False
     assert "protocol_inputs" not in fresh
     assert project.saves == 1
 
@@ -353,7 +353,7 @@ def test_videos_are_found_by_path_so_repeated_ids_stay_apart():
     day2 = {"path": "Dia_2/R4.mp4", "experiment_id": "R4"}
     correction, _project = _correction([day1, day2])
 
-    correction.apply("Dia_2/R4.mp4", "serial")
+    correction.set_override("Dia_2/R4.mp4", "serial")
 
     assert "protocol_inputs" not in day1
     assert day2["protocol_inputs"] == {"barnes": {"strategy_override": "serial"}}

@@ -915,7 +915,7 @@ class BarnesStrategyCorrection:
             ),
         ]
 
-    def apply(self, video_path: Path | str, value: str | None) -> bool:
+    def set_override(self, video_path: Path | str, value: str | None) -> bool:
         """Store (or, with ``None``, clear) the override and save the project.
 
         Returns ``False`` when nothing was stored: not a Barnes video, an unknown token,

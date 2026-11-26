@@ -50,18 +50,18 @@ class TestBarnesStrategyCorrectionWiring:
 
     def test_a_saved_correction_tells_the_user_to_regenerate(self):
         manager, dialogs = self._manager()
-        manager._strategy_correction.apply.return_value = True
+        manager._strategy_correction.set_override.return_value = True
         manager._strategy_correction.regenerate_message.return_value = "Regenerate it"
 
         manager._handle_set_strategy("a.mp4", "serial")
 
-        manager._strategy_correction.apply.assert_called_once_with("a.mp4", "serial")
+        manager._strategy_correction.set_override.assert_called_once_with("a.mp4", "serial")
         dialogs.show_info.assert_called_once_with("Search strategy", "Regenerate it")
         dialogs.show_error.assert_not_called()
 
     def test_a_failed_save_is_an_error_not_a_silent_success(self):
         manager, dialogs = self._manager()
-        manager._strategy_correction.apply.return_value = False
+        manager._strategy_correction.set_override.return_value = False
 
         manager._handle_set_strategy("a.mp4", None)
 

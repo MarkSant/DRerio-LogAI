@@ -233,7 +233,7 @@ class ReportsTreeManager:
 
     def _handle_set_strategy(self, video_path: Path | str, value: str | None) -> None:
         """Store the researcher's search-strategy correction and say how to apply it."""
-        if self._strategy_correction.apply(video_path, value):
+        if self._strategy_correction.set_override(video_path, value):
             self.dialog_manager.show_info(
                 _("Search strategy"), self._strategy_correction.regenerate_message(value)
             )

@@ -7658,3 +7658,361 @@ _load_registry()"
         description: "Barnes deixa de guardar o intervalo anterior"
         find: "if self._interval_before_barnes is None:"
         replace: "if False:"
+
+  # --- Barnes v8.1 barnes-reports (#633): tidy columns, Word section, sheet, aggregates, correction ---
+  barnes_reports_data_transformer:
+    source: src/zebtrack/analysis/data_transformer.py
+    tests:
+      - tests/analysis/reporters/test_barnes_tidy.py
+      - tests/analysis/reporters/test_barnes_individual_report.py
+    mutations:
+      - id: barnes-columns-not-appended
+        description: "as colunas barnes_* deixam de entrar no tidy"
+        find: 'combined_data.update(barnes_columns(report, behavioral_config))'
+        replace: 'pass'
+      - id: not-ok-reads-metrics-anyway
+        description: "um resultado indisponivel passa a preencher colunas (visitas viram 0)"
+        find: 'if status != "ok":'
+        replace: 'if False:'
+      - id: missing-distance-not-zero
+        description: "distancia sem visita deixa de valer 0 num ensaio calculado"
+        find: 'if value is None and column.startswith("barnes_visits_d"):'
+        replace: 'if False:'
+      - id: status-column-empty
+        description: "barnes_status deixa de ser preenchido"
+        find: 'values["barnes_status"] = status'
+        replace: 'pass'
+      - id: int-keyed-histogram-unread
+        description: "o histograma com chaves int (em memoria) deixa de ser lido"
+        find: 'if segment.isdigit() and int(segment) in node:'
+        replace: 'if False:'
+      - id: generic-gets-visits-sheet
+        description: "um projeto generico passa a ganhar a aba barnes_visits"
+        find: 'if barnes_columns(report, behavioral_config) == {}:'
+        replace: 'if False:'
+      - id: failed-trial-has-visits
+        description: "a sequencia de visitas e lida mesmo com status diferente de ok"
+        find: 'sequence = metrics.get("visit_sequence") if metrics.get("status") == "ok" else None'
+        replace: 'sequence = metrics.get("visit_sequence")'
+      - id: registry-never-consulted
+        description: "o spec do protocolo nunca e consultado"
+        find: 'return get_protocol(profile.protocol)'
+        replace: 'return None'
+      - id: visits-display-name-lost
+        description: "barnes_visits_dNN perde o nome de exibicao"
+        find: 'return _BARNES_VISITS_DISPLAY.format(distance=int(visits_match.group(1)))'
+        replace: 'return col_name'
+
+  barnes_reports_barnes_section:
+    source: src/zebtrack/analysis/reporters/barnes_section.py
+    tests:
+      - tests/analysis/reporters/test_barnes_individual_report.py
+    mutations:
+      - id: section-for-any-protocol
+        description: "a secao Barnes aparece para qualquer protocolo registrado"
+        find: 'if spec is None or spec.zone_assistant != ASSISTANT_ID:'
+        replace: 'if spec is None or spec.zone_assistant == ASSISTANT_ID:'
+      - id: censored-latency-not-marked
+        description: "latencia censurada deixa de ser marcada como limite inferior"
+        find: 'if censored:'
+        replace: 'if False:'
+      - id: manual-strategy-not-marked
+        description: "a estrategia corrigida deixa de ser marcada"
+        find: 'if metrics.get("strategy_source") == "manual":'
+        replace: 'if False:'
+      - id: probe-shows-entry-row
+        description: "o ensaio de sonda passa a mostrar a latencia de entrada"
+        find: 'probe = metrics.get("trial_type") == "probe"'
+        replace: 'probe = False'
+      - id: unavailable-draws-table
+        description: "um resultado indisponivel tenta montar a tabela de metricas"
+        find: 'if status != "ok":'
+        replace: 'if False:'
+      - id: none-count-is-zero
+        description: "contagem ausente vira 0"
+        find: 'return _NOT_AVAILABLE if value is None else str(int(value))'
+        replace: 'return str(int(value or 0))'
+      - id: none-latency-is-zero
+        description: "latencia ausente vira 0.00 s"
+        find: |-
+          return _("N/A")
+              if censored:
+        replace: |-
+          return "0.00 s"
+              if censored:
+
+  barnes_reports_excel_reporter:
+    source: src/zebtrack/analysis/reporters/excel_reporter.py
+    tests:
+      - tests/analysis/reporters/test_barnes_individual_report.py
+    mutations:
+      - id: visits-never-computed
+        description: "a aba barnes_visits nunca e montada"
+        find: 'visits = self._barnes_visits_frame()'
+        replace: 'visits = None'
+      - id: visits-sheet-not-written
+        description: "a aba barnes_visits e montada mas nao escrita"
+        find: 'if visits is not None:'
+        replace: 'if False:'
+      - id: only-barnes-uses-single-sheet-path
+        description: "so a ausencia de por_animal decide a escrita de uma aba"
+        find: 'if per_animal is None and visits is None:'
+        replace: 'if per_animal is None:'
+
+  barnes_reports_word_reporter:
+    source: src/zebtrack/analysis/reporters/word_reporter.py
+    tests:
+      - tests/analysis/reporters/test_barnes_individual_report.py
+    mutations:
+      - id: section-never-appended
+        description: "a secao Barnes nunca entra no Word"
+        find: 'if barnes_metrics is not None:'
+        replace: 'if False:'
+      - id: thigmotaxis-plot-not-suppressed
+        description: "a figura de tigmotaxia volta para o Barnes"
+        find: 'if GenericReportSection.THIGMOTAXIS not in suppressed:'
+        replace: 'if True:'
+      - id: barnes-columns-repeat-in-summary
+        description: "as colunas Barnes repetem na tabela generica de metricas"
+        find: 'df = df.drop(columns=[c for c in df.columns if c.startswith(BARNES_COLUMN_PREFIX)])'
+        replace: 'pass'
+      - id: thigmotaxis-rows-not-suppressed
+        description: "as linhas de tigmotaxia voltam para o Barnes"
+        find: 'if GenericReportSection.THIGMOTAXIS in suppressed:'
+        replace: 'if False:'
+      - id: geotaxis-rows-not-suppressed
+        description: "as linhas de geotaxia voltam para o Barnes"
+        find: 'if GenericReportSection.GEOTAXIS in suppressed:'
+        replace: 'if False:'
+
+  barnes_reports_visualization:
+    source: src/zebtrack/analysis/visualization_generator.py
+    tests:
+      - tests/analysis/reporters/test_barnes_individual_report.py
+    mutations:
+      - id: hole-count-colour-ignored
+        description: "o buraco visitado nao se distingue do nao visitado"
+        find: 'fill = "0.88" if count == 0 else plt.get_cmap("Blues")(0.3 + 0.7 * count / peak)'
+        replace: 'fill = "0.88"'
+      - id: target-not-outlined
+        description: "o buraco alvo perde o contorno destacado"
+        find: 'is_target = offset == 0'
+        replace: 'is_target = False'
+      - id: quadrant-too-narrow
+        description: "o quadrante sombreado perde meio buraco por lado"
+        find: 'half_width = (quadrant_half_holes + 0.5) * 360.0 / n_holes'
+        replace: 'half_width = quadrant_half_holes * 360.0 / n_holes'
+      - id: negative-offsets-wrap-wrongly
+        description: "offsets anti-horarios deixam de ser negativos no anel"
+        find: 'offset = index if index <= half else index - n_holes'
+        replace: 'offset = index'
+      - id: target-marker-not-gold
+        description: "a visita alvo perde o destaque na trajetoria"
+        find: '"facecolor": "gold" if is_target else "white",'
+        replace: '"facecolor": "white",'
+      - id: target-visits-not-found
+        description: "nenhuma visita e reconhecida como alvo na trajetoria"
+        find: 'target = {str(v.get("roi")) for v in visit_sequence if v.get("is_target")}'
+        replace: 'target = set()'
+      - id: visit-orders-not-joined
+        description: "ordens de visitas repetidas ao mesmo buraco deixam de se juntar"
+        find: 'orders_by_roi.setdefault(str(visit.get("roi")), []).append(str(visit.get("order")))'
+        replace: 'orders_by_roi[str(visit.get("roi"))] = [str(visit.get("order"))]'
+
+  barnes_reports_aggregates:
+    source: src/zebtrack/analysis/reporters/barnes_aggregates.py
+    tests:
+      - tests/analysis/reporters/test_barnes_aggregates.py
+    mutations:
+      - id: failed-trials-enter-curves
+        description: "ensaios sem status ok entram nas curvas"
+        find: 'mask = internal["barnes_status"].astype("string") == "ok"'
+        replace: 'mask = internal["barnes_status"].astype("string") != "ok"'
+      - id: trial-type-not-filtered
+        description: "treino e sonda se misturam nas curvas"
+        find: 'mask &= internal["barnes_trial_type"].astype("string") == trial_type'
+        replace: 'pass'
+      - id: censored-counted-as-observed
+        description: "a media observada inclui as latencias censuradas"
+        find: '"mean_observed": _mean(values.where(~censored)),'
+        replace: '"mean_observed": _mean(values),'
+      - id: censored-count-lost
+        description: "o numero de ensaios censurados deixa de ser contado"
+        find: '"n_censored": int((censored & present).sum()),'
+        replace: '"n_censored": 0,'
+      - id: sem-population-std
+        description: "o EPM usa o desvio padrao populacional"
+        find: 'return float(values.std(ddof=1) / math.sqrt(len(values)))'
+        replace: 'return float(values.std(ddof=0) / math.sqrt(len(values)))'
+      - id: sem-of-one-trial-defined
+        description: "o EPM de um unico ensaio deixa de ser indefinido"
+        find: 'if len(values) < 2:'
+        replace: 'if len(values) < 1:'
+      - id: first-hole-distance-signed
+        description: "a distancia do primeiro buraco passa a ter sinal"
+        find: 'values = values.abs()'
+        replace: 'pass'
+      - id: strategy-fraction-is-count
+        description: "a fracao de estrategia vira contagem"
+        find: '"fraction": n / total,'
+        replace: '"fraction": n,'
+      - id: display-names-not-mapped-back
+        description: "nomes de exibicao nao voltam aos nomes internos"
+        find: 'if column in inverse:'
+        replace: 'if False:'
+      - id: days-sorted-as-text
+        description: "dias deixam de ser ordenados naturalmente"
+        find: 'return (float(match.group()) if match else math.inf, text)'
+        replace: 'return (0.0, text)'
+      - id: one-day-gets-curve-figure
+        description: "a figura de curvas aparece com um unico dia"
+        find: 'if with_figures and curves["day"].nunique(dropna=True) > 1:'
+        replace: 'if with_figures:'
+      - id: censored-point-not-flagged
+        description: "o ponto com ensaios censurados deixa de ser marcado"
+        find: 'if row["n_censored"] > 0 and not math.isnan(row["mean"]):'
+        replace: 'if False:'
+      - id: per-animal-censoring-unmarked
+        description: "a latencia censurada por animal deixa de ser marcada"
+        find: 'if censored is True or str(censored).lower() == "true":'
+        replace: 'if False:'
+      - id: per-animal-correction-unmarked
+        description: "a estrategia corrigida por animal deixa de ser marcada"
+        find: 'return _("{strategy} (corrected)").format(strategy=label) if source == "manual" else label'
+        replace: 'return label'
+      - id: generic-frame-gets-aggregates
+        description: "um quadro generico recebe a secao de agregados"
+        find: |-
+          if not is_barnes_frame(df):
+                  return False
+              frame = to_internal_columns(df)
+              document.add_heading(_("Barnes Maze Results"), level=2)
+        replace: |-
+          frame = to_internal_columns(df)
+              document.add_heading(_("Barnes Maze Results"), level=2)
+      - id: generic-frame-gets-per-animal
+        description: "um quadro generico recebe a tabela por animal"
+        find: |-
+          if not is_barnes_frame(df):
+                  return False
+              frame = to_internal_columns(df)
+              document.add_heading(_("Barnes Maze Results per Animal"), level=2)
+        replace: |-
+          frame = to_internal_columns(df)
+              document.add_heading(_("Barnes Maze Results per Animal"), level=2)
+
+  barnes_reports_project_reporter:
+    source: src/zebtrack/analysis/reporters/project_reporter.py
+    tests:
+      - tests/analysis/reporters/test_project_reporter_extended.py
+    mutations:
+      - id: barnes-aggregates-not-rendered
+        description: "o relatorio de projeto nao mostra os agregados Barnes"
+        find: 'render_barnes_aggregates(document, aggregated_df)'
+        replace: 'pass'
+      - id: thigmotaxis-stats-kept
+        description: "estatisticas de tigmotaxia voltam para o Barnes"
+        find: 'if GenericReportSection.THIGMOTAXIS in suppressed:'
+        replace: 'if False:'
+      - id: geotaxis-stats-kept
+        description: "estatisticas de geotaxia voltam para o Barnes"
+        find: 'if GenericReportSection.GEOTAXIS in suppressed:'
+        replace: 'if False:'
+      - id: generic-loses-suppression-guard
+        description: "um quadro generico passa a ter secoes suprimidas"
+        find: 'if not is_barnes_frame(aggregated_df):'
+        replace: 'if is_barnes_frame(aggregated_df):'
+
+  barnes_reports_unified_mixin:
+    source: src/zebtrack/coordinators/_unified_report_mixin.py
+    tests:
+      - tests/coordinators/test_unified_report.py
+    mutations:
+      - id: barnes-means-in-descriptive-stats
+        description: "as colunas barnes_ voltam para a estatistica descritiva generica"
+        find: 'exclude_prefixes = ("validation_", "roi_color_", "barnes_")'
+        replace: 'exclude_prefixes = ("validation_", "roi_color_")'
+      - id: aggregate-sheets-not-written
+        description: "as abas de agregados Barnes nao sao escritas no xlsx unificado"
+        find: 'for sheet_name, sheet in barnes_sheets(final_df).items():'
+        replace: 'for sheet_name, sheet in {}.items():'
+
+  barnes_reports_block_dialog:
+    source: src/zebtrack/ui/dialogs/block_detail_dialog.py
+    tests:
+      - tests/ui/dialogs/test_block_detail_dialog.py
+    mutations:
+      - id: barnes-columns-in-block-means
+        description: "colunas Barnes entram nas medias por animal do relatorio parcial"
+        find: 'and not str(col).startswith("Barnes ")'
+        replace: 'and True'
+      - id: per-animal-table-missing
+        description: "o relatorio parcial perde a tabela Barnes por animal"
+        find: 'render_barnes_per_animal(document, unified_df)'
+        replace: 'pass'
+      - id: block-aggregates-missing
+        description: "o relatorio parcial perde os agregados Barnes do bloco"
+        find: 'render_barnes_aggregates(document, unified_df, group_col="grupo", day_col="dia")'
+        replace: 'pass'
+      - id: partial-sheets-not-written
+        description: "as abas de agregados Barnes nao entram no xlsx parcial"
+        find: 'sheet.to_excel(writer, sheet_name=sheet_name, index=False)'
+        replace: 'pass'
+
+  barnes_reports_strategy_correction:
+    source: src/zebtrack/ui/components/project_views/report_tree_builder.py
+    tests:
+      - tests/ui/components/test_report_tree_builder_status_counts.py
+    mutations:
+      - id: generic-project-offered-correction
+        description: "um projeto generico passa a oferecer a correcao"
+        find: 'if resolve_experiment_profile(project_data).protocol is not ProtocolId.BARNES:'
+        replace: 'if False:'
+      - id: multi-aquarium-offered-correction
+        description: "video multi-aquario passa a oferecer a correcao"
+        find: 'if not isinstance(entry, dict) or entry.get("multi_aquarium_outputs"):'
+        replace: 'if not isinstance(entry, dict):'
+      - id: unknown-token-written
+        description: "um token de estrategia desconhecido e gravado"
+        find: 'if value is not None and value not in {s.value for s in SearchStrategy}:'
+        replace: 'if False:'
+      - id: failed-save-not-rolled-back
+        description: "um salvamento que falha deixa a mudanca em memoria"
+        find: 'write(previous)'
+        replace: 'pass'
+      - id: automatic-never-selected
+        description: "a opcao Automatica nunca aparece marcada"
+        find: 'StrategyChoice(_("Automatic"), None, current is None),'
+        replace: 'StrategyChoice(_("Automatic"), None, False),'
+      - id: clearing-writes-instead
+        description: "limpar a correcao grava em vez de remover"
+        find: 'if token is None:'
+        replace: 'if False:'
+      - id: project-not-saved
+        description: "a correcao nao persiste o projeto"
+        find: 'self.project_manager.save_project()'
+        replace: 'pass'
+
+  barnes_reports_menu_manager:
+    source: src/zebtrack/ui/components/menu_manager.py
+    tests:
+      - tests/ui/components/test_menu_manager.py
+    mutations:
+      - id: current-strategy-not-marked
+        description: "a estrategia atual deixa de aparecer marcada no menu"
+        find: 'label=("✔ " if choice.selected else "    ") + choice.label,'
+        replace: 'label="    " + choice.label,'
+      - id: menu-added-without-callbacks
+        description: "o submenu e montado mesmo sem callbacks"
+        find: 'if choices_for is None or set_strategy is None:'
+        replace: 'if False:'
+
+  barnes_reports_reports_tree_manager:
+    source: src/zebtrack/ui/components/project_views/reports_tree_manager.py
+    tests:
+      - tests/ui/components/test_reports_tree_manager_extended.py
+    mutations:
+      - id: failed-save-reported-as-success
+        description: "uma falha ao salvar a correcao vira mensagem de sucesso"
+        find: 'if self._strategy_correction.apply(video_path, value):'
+        replace: 'if True:'

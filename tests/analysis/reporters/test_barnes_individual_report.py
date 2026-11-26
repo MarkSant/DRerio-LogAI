@@ -8,11 +8,13 @@ assertions read the produced files, not the reporter's internals.
 from __future__ import annotations
 
 import io
+import math
 from pathlib import Path
 
 import pandas as pd
 import pytest
 from docx import Document
+from matplotlib.patches import Wedge
 from tests.analysis.reporters.barnes_report_builders import (
     BARNES_CONFIG,
     barnes_context,
@@ -40,7 +42,11 @@ def _docx_text(path: Path) -> str:
 
 
 def _headings(path: Path) -> list[str]:
-    return [p.text for p in Document(str(path)).paragraphs if p.style.name.startswith("Heading")]
+    return [
+        p.text
+        for p in Document(str(path)).paragraphs
+        if p.style is not None and p.style.name.startswith("Heading")
+    ]
 
 
 def _word(context, tmp_path: Path) -> Path:
@@ -308,9 +314,9 @@ def test_the_numbered_trajectory_labels_each_visited_hole_with_its_orders():
         labels = sorted(t.get_text() for t in fig.axes[0].texts)
         assert labels == ["1,3", "2", "4"]
         target = next(t for t in fig.axes[0].texts if t.get_text() == "4")
-        assert target.get_bbox_patch().get_facecolor()[:3] == pytest.approx(
-            (1.0, 0.843, 0.0), abs=0.01
-        )
+        patch = target.get_bbox_patch()
+        assert patch is not None
+        assert patch.get_facecolor()[:3] == pytest.approx((1.0, 0.843, 0.0), abs=0.01)
     finally:
         plt.close(fig)
 
@@ -343,3 +349,125 @@ def test_the_word_figures_are_real_pngs(tmp_path):
     assert all(blob.startswith(b"\x89PNG") for blob in images)
     assert BARNES_CONFIG["protocol"] == "barnes"
     assert io.BytesIO(images[0]).getbuffer().nbytes > 1000
+
+
+def _diagram_text_positions(metrics) -> dict[str, tuple[float, float]]:
+    """Where each visit-order label sits on the ring diagram (axes coordinates)."""
+    from matplotlib import pyplot as plt
+
+    context = barnes_context(scripted_rat(0))
+    fig = context.viz_generator.generate_barnes_hole_diagram(None, metrics, quadrant_half_holes=2)
+    try:
+        # the visit orders sit OUTSIDE the ring (radius 1); the counts sit on it
+        return {
+            t.get_text(): t.get_position()
+            for t in fig.axes[0].texts
+            if math.hypot(*t.get_position()) > 1.05
+        }
+    finally:
+        plt.close(fig)
+
+
+def _visit(order: int, offset: int) -> dict:
+    return {"order": order, "offset": offset, "roi": f"h{offset}", "is_target": offset == 0}
+
+
+def test_the_ring_puts_the_target_on_top_and_clockwise_offsets_on_the_right():
+    metrics = {
+        "n_holes": 18,
+        "visit_sequence": [_visit(1, 0), _visit(2, 3), _visit(3, -3), _visit(4, 9)],
+    }
+
+    at = _diagram_text_positions(metrics)
+
+    target, clockwise, counter, opposite = at["1"], at["2"], at["3"], at["4"]
+    assert target[0] == pytest.approx(0.0, abs=1e-9)
+    assert target[1] > 0  # the target is at the top
+    assert clockwise[0] > 0 > counter[0]  # +3 is on the right (clockwise), -3 on the left
+    assert clockwise[0] == pytest.approx(-counter[0])
+    assert opposite[0] == pytest.approx(0.0, abs=1e-9)
+    assert opposite[1] < 0  # the opposite hole is at the bottom
+
+
+def test_the_shaded_quadrant_spans_the_target_and_two_holes_each_side():
+    from matplotlib import pyplot as plt
+
+    context = barnes_context(scripted_rat(0))
+    metrics = {"n_holes": 18, "visit_sequence": [_visit(1, 0)]}
+
+    fig = context.viz_generator.generate_barnes_hole_diagram(None, metrics, quadrant_half_holes=2)
+
+    try:
+        [wedge] = [p for p in fig.axes[0].patches if isinstance(p, Wedge)]
+        assert wedge.theta2 - wedge.theta1 == pytest.approx(5 * 360 / 18)  # 5 holes
+        assert (wedge.theta1 + wedge.theta2) / 2 == pytest.approx(90.0)  # centred on the top
+    finally:
+        plt.close(fig)
+
+
+def test_the_target_marker_on_the_trajectory_is_gold_and_decoys_are_white():
+    from matplotlib import pyplot as plt
+
+    context = barnes_context(scripted_rat(2, 0))
+    visits = context.report["protocol_metrics"]["visit_sequence"]
+
+    fig = context.viz_generator.generate_barnes_trajectory_plot(None, None, visits)
+
+    try:
+        boxes = {t.get_text(): t.get_bbox_patch() for t in fig.axes[0].texts}
+        decoy, target = boxes["1"], boxes["2"]
+        assert decoy is not None
+        assert target is not None
+        assert decoy.get_facecolor()[:3] == pytest.approx((1.0, 1.0, 1.0))
+        assert target.get_facecolor()[:3] != pytest.approx((1.0, 1.0, 1.0))
+    finally:
+        plt.close(fig)
+
+
+def test_a_failed_trial_never_leaks_a_visit_sequence_into_the_sheet(tmp_path):
+    context = barnes_context(scripted_rat(3, 2, 0))
+    visits = context.report["protocol_metrics"]["visit_sequence"]
+    assert visits  # there is something to leak
+    context.report["protocol_metrics"] = {
+        "status": "error",
+        "protocol": "barnes",
+        "version": 1,
+        "reason": "exception",
+        "visit_sequence": visits,
+    }
+    out = tmp_path / "summary.xlsx"
+
+    ExcelReporter(context).export_summary(out)
+
+    assert pd.read_excel(out, sheet_name=EXCEL_VISITS_SHEET).empty
+
+
+def test_a_missing_value_is_na_and_never_zero_in_the_word_table(tmp_path):
+    context = barnes_context(
+        scripted_rat(3, 2, 0), protocol_inputs={"barnes": {"trial_type": "probe"}}
+    )
+    context.report["protocol_metrics"].update(
+        encounter_latency_s=None,
+        encounter_censored=None,
+        primary_errors=None,
+        total_errors=None,
+        perseverative_errors=None,
+        probe_first_hole_score=None,
+        probe_attempts_to_target=None,
+        probe_first_error_latency_s=None,
+        probe_first_hole_offset=None,
+    )
+
+    rows = _barnes_rows(_word(context, tmp_path))
+
+    for label in (
+        "Encounter latency (first nose poke in the escape hole)",
+        "Primary errors (before the first encounter)",
+        "Total errors",
+        "Perseverative errors",
+        "First hole visited (offset from the target)",
+        "First hole score",
+        "Latency to the first error",
+        "Attempts until the target",
+    ):
+        assert rows[label] == "N/A", label
