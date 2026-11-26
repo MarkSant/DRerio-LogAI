@@ -21,7 +21,11 @@ from zebtrack.analysis.perspective_utils import (
     normalize_aquarium_perspective as _normalize_aquarium_perspective,
 )
 from zebtrack.analysis.roi import ROIAnalyzer
-from zebtrack.core.services.experiment_profile import ProtocolId, resolve_experiment_profile
+from zebtrack.core.services.experiment_profile import (
+    AnimalModel,
+    ProtocolId,
+    resolve_experiment_profile,
+)
 
 if TYPE_CHECKING:
     from zebtrack.analysis.protocols.base import ProtocolSpec
@@ -31,8 +35,11 @@ __all__ = [
     "WINDOW_COLUMNS",
     "DataTransformer",
     "active_protocol_spec",
+    "animal_model_of_config",
     "barnes_columns",
     "barnes_visits_frame",
+    "display_column_name",
+    "display_metadata_label",
     "window_columns",
 ]
 
@@ -165,6 +172,50 @@ DISPLAY_COLUMN_MAPPING = {
     "subject": "Subject",
     "day": "Day",
 }
+
+#: Display names an animal model words differently from ``DISPLAY_COLUMN_MAPPING``
+#: (zebrafish and legacy projects keep the mapping above untouched). Display only:
+#: the internal column key (``aquarium_id``, ADR-012) never changes.
+_ANIMAL_DISPLAY_OVERRIDES: dict[AnimalModel, dict[str, str]] = {
+    AnimalModel.RODENT: {"aquarium_id": "Arena"},
+    AnimalModel.OTHER: {"aquarium_id": "Arena"},
+}
+
+#: Internal-key fragments that read as another noun for a non-zebrafish animal.
+#: Applied to the KEY (``num_aquariums`` -> ``num_arenas``), never to displayed text.
+_ANIMAL_KEY_WORDS: dict[AnimalModel, tuple[tuple[str, str], ...]] = {
+    AnimalModel.RODENT: (("aquarium", "arena"),),
+    AnimalModel.OTHER: (("aquarium", "arena"),),
+}
+
+
+def animal_model_of_config(behavioral_config: Mapping[str, Any] | None) -> AnimalModel:
+    """The animal model of a run's behavioural configuration (zebrafish when absent)."""
+    return resolve_experiment_profile(behavioral_config=behavioral_config).animal_model
+
+
+def display_column_name(column: str, animal_model: AnimalModel = AnimalModel.ZEBRAFISH) -> str:
+    """Display name of an internal column; ``DISPLAY_COLUMN_MAPPING`` unless the animal words it.
+
+    Falls back to the title-cased key, as the Word summary table always did.
+    """
+    override = _ANIMAL_DISPLAY_OVERRIDES.get(animal_model, {}).get(column)
+    if override is not None:
+        return override
+    return DISPLAY_COLUMN_MAPPING.get(column, column.replace("_", " ").title())
+
+
+def display_metadata_label(key: str, animal_model: AnimalModel = AnimalModel.ZEBRAFISH) -> str:
+    """Label of a metadata key in the Word report: ``num_aquariums`` -> ``Num Aquariums``.
+
+    Zebrafish (and legacy) projects get the raw key title-cased, byte for byte as
+    before; another animal model first re-words the aquarium fragment of the KEY
+    (``Num Arenas``). The key itself is a persistence contract and is untouched.
+    """
+    for old, new in _ANIMAL_KEY_WORDS.get(animal_model, ()):
+        key = key.replace(old, new)
+    return key.replace("_", " ").title()
+
 
 # Dynamic prefix mappings for Portuguese → English translation of ROI-specific columns
 DYNAMIC_PREFIX_MAPPINGS = (
@@ -904,6 +955,7 @@ class DataTransformer:
         df: pd.DataFrame,
         height_cm: float | None = None,
         num_zones: int | None = None,
+        animal_model: AnimalModel = AnimalModel.ZEBRAFISH,
     ) -> pd.DataFrame:
         """Prepare DataFrame for human-readable display (Excel/Word).
 
@@ -913,6 +965,7 @@ class DataTransformer:
             df: Standardized tidy dataframe (internal keys)
             height_cm: Optional aquarium height for Geotaxis ranges
             num_zones: Optional number of Geotaxis zones
+            animal_model: Animal model the display names follow (zebrafish = legacy).
 
         Returns:
             pd.DataFrame: DataFrame with formatted column names
@@ -958,7 +1011,9 @@ class DataTransformer:
         for col in display_df.columns:
             # Check explicit mapping first
             if col in DISPLAY_COLUMN_MAPPING:
-                rename_map[col] = DISPLAY_COLUMN_MAPPING[col]
+                rename_map[col] = _ANIMAL_DISPLAY_OVERRIDES.get(animal_model, {}).get(
+                    col, DISPLAY_COLUMN_MAPPING[col]
+                )
             else:
                 # Handle Dynamic ROI columns (e.g., time_in_ROI1 -> Time In ROI1 (s))
                 # Identify prefix matches from DYNAMIC_PREFIX_MAPPINGS logic

@@ -110,3 +110,26 @@ class TestExcelReporter:
             )
 
         spy.assert_called_once()
+
+
+class TestAquariumColumnHeaderFollowsTheAnimalModel:
+    """Barnes v8.1 stage 3: the ``aquarium_id`` column reads "Arena" for a rodent run."""
+
+    @staticmethod
+    def _headers(ctx, tmp_path, animal):
+        ctx.tidy_data = ctx.tidy_data.assign(aquarium_id=0)
+        ctx.behavioral_config = {"animal_model": animal} if animal else {}
+        output = tmp_path / f"{animal or 'legacy'}.xlsx"
+        ExcelReporter(ctx).export_summary(output)
+        return list(pd.read_excel(output).columns)
+
+    def test_legacy_and_zebrafish_keep_the_aquarium_header(self, reporter_ctx, tmp_path):
+        assert "Aquarium" in self._headers(reporter_ctx, tmp_path, None)
+        assert "Aquarium" in self._headers(reporter_ctx, tmp_path, "zebrafish")
+
+    def test_a_rodent_run_reads_arena_and_loses_nothing_else(self, reporter_ctx, tmp_path):
+        legacy = self._headers(reporter_ctx, tmp_path, None)
+        rodent = self._headers(reporter_ctx, tmp_path, "rodent")
+
+        assert "Arena" in rodent and "Aquarium" not in rodent
+        assert [h for h in rodent if h != "Arena"] == [h for h in legacy if h != "Aquarium"]

@@ -29,6 +29,7 @@ from zebtrack.settings import (
 )
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus_v2 import EventBusV2
+from zebtrack.ui.terminology import term
 from zebtrack.ui.wizard.models import AquariumPerspective, GeotaxisMode
 
 log = structlog.get_logger()
@@ -183,6 +184,11 @@ class BehavioralConfigWidget(BaseWidget):
         self.protocol_combo: ttk.Combobox | None = None
         self.trial_type_combo: ttk.Combobox | None = None
         self._trial_type_row: ttk.Frame | None = None
+        # Labels whose wording follows the animal model (ui/terminology).
+        self._perspective_frame: ttk.LabelFrame | None = None
+        self._perspective_help_label: ttk.Label | None = None
+        self._thigmotaxis_help_label: ttk.Label | None = None
+        self._zones_split_label: ttk.Label | None = None
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
@@ -276,16 +282,20 @@ class BehavioralConfigWidget(BaseWidget):
 
     def _build_perspective_section(self) -> None:
         """Build the aquarium perspective selection section."""
-        perspective_frame = ttk.LabelFrame(self, text=_("Aquarium Perspective *"), padding=5)
+        perspective_frame = ttk.LabelFrame(
+            self, text=term("behavioral.perspective_title"), padding=5
+        )
         perspective_frame.pack(fill="x", pady=(0, 10))
+        self._perspective_frame = perspective_frame
 
         # Description
         desc_label = ttk.Label(
             perspective_frame,
-            text=_("Select how the camera sees the aquarium:"),
+            text=term("behavioral.perspective_help"),
             wraplength=500,
         )
         desc_label.pack(fill="x", pady=(0, 5))
+        self._perspective_help_label = desc_label
 
         # Combobox for perspective selection
         perspective_values = [
@@ -328,10 +338,11 @@ class BehavioralConfigWidget(BaseWidget):
         # Description
         desc_label = ttk.Label(
             thigmotaxis_frame,
-            text=_("Distance threshold for considering the fish close to the aquarium walls:"),
+            text=term("behavioral.thigmotaxis_help"),
             wraplength=500,
         )
         desc_label.pack(fill="x", pady=(0, 5))
+        self._thigmotaxis_help_label = desc_label
 
         # Spinbox for distance threshold
         input_frame = ttk.Frame(thigmotaxis_frame)
@@ -423,7 +434,8 @@ class BehavioralConfigWidget(BaseWidget):
         zones_row1 = ttk.Frame(self.zones_frame)
         zones_row1.pack(fill="x", pady=(0, 5))
 
-        ttk.Label(zones_row1, text=_("Split the aquarium into:")).pack(side="left", padx=(0, 5))
+        self._zones_split_label = ttk.Label(zones_row1, text=term("behavioral.zones_split"))
+        self._zones_split_label.pack(side="left", padx=(0, 5))
 
         self.num_zones_spinbox = ttk.Spinbox(
             zones_row1,
@@ -601,8 +613,25 @@ class BehavioralConfigWidget(BaseWidget):
             self.max_speed_var.set(defaults.max_plausible_speed_cm_s)
             self.thigmotaxis_distance_var.set(defaults.thigmotaxis_distance_cm)
 
+    def _apply_terms(self) -> None:
+        """Word the arena/animal labels for the current animal model (display only).
+
+        The ``aquarium_perspective`` key and every other value stay as they are
+        (ADR-012); a zebrafish or legacy profile gets today's text.
+        """
+        model = AnimalModel(self.animal_model_var.get())
+        if self._perspective_frame is not None:
+            self._perspective_frame.configure(text=term("behavioral.perspective_title", model))
+        if self._perspective_help_label is not None:
+            self._perspective_help_label.configure(text=term("behavioral.perspective_help", model))
+        if self._thigmotaxis_help_label is not None:
+            self._thigmotaxis_help_label.configure(text=term("behavioral.thigmotaxis_help", model))
+        if self._zones_split_label is not None:
+            self._zones_split_label.configure(text=term("behavioral.zones_split", model))
+
     def _refresh_profile_combos(self) -> None:
         """Show the combos' labels for the current tokens (no-op when hidden)."""
+        self._apply_terms()
         if self.animal_model_combo:
             self.animal_model_combo.set(
                 self._label_of(animal_model_choices(), self.animal_model_var.get())
@@ -641,6 +670,7 @@ class BehavioralConfigWidget(BaseWidget):
                 )
         if self.perspective_combo:
             self.perspective_combo.configure(state="disabled" if forced is not None else "readonly")
+        self._apply_terms()
         self._on_perspective_changed()
 
     def set_protocol_param(self, name: str, value: Any) -> None:

@@ -40,6 +40,7 @@ from zebtrack.ui.components.behavioral_config_widget import (
     animal_model_choices,
     protocol_choices,
 )
+from zebtrack.ui.terminology import term
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
@@ -342,22 +343,13 @@ class DiscoveryStep(WizardStep):
 
         glossary_text = Label(
             glossary_frame,
-            text=_(
-                "• Parquet: an efficient file format for storing data\n\n"
-                "• Arena: the area of the tank where the animals move "
-                "(a bounding polygon)\n\n"
-                "• ROI (Region of Interest): specific regions such as 'Centre', "
-                "'Edge', 'Escape Zone'\n\n"
-                "• Trajectory: frame-by-frame coordinates of the animals' "
-                "movement\n\n"
-                "Importing this data from previous analyses avoids "
-                "reprocessing."
-            ),
+            text=term("discovery.glossary", self._animal_model()),
             fg="gray",
             justify="left",
             font=("TkDefaultFont", 9),
         )
         glossary_text.pack(anchor="w")
+        self._glossary_text = glossary_text
 
         # Update UI state
         self._on_project_type_change()
@@ -446,6 +438,9 @@ class DiscoveryStep(WizardStep):
             self.animal_model_combo.configure(state="disabled" if forced else "readonly")
         if self.protocol_combo is not None:
             self.protocol_combo.set(self._label_for(protocol_choices(), profile.protocol.value))
+        glossary = getattr(self, "_glossary_text", None)
+        if glossary is not None:
+            glossary.configure(text=term("discovery.glossary", profile.animal_model))
         if hasattr(self, "profile_hint_label"):
             self.profile_hint_label.configure(
                 text=(

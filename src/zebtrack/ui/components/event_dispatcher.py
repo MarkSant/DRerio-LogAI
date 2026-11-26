@@ -17,6 +17,7 @@ from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.sentinels import no_day_label, no_group_label, not_reported_label
+from zebtrack.ui.terminology import animal_model_of
 
 if TYPE_CHECKING:
     from zebtrack.ui.gui import ApplicationGUI
@@ -1171,8 +1172,24 @@ class EventDispatcher:
             return False
         return resolve_experiment_profile(project_data).protocol is ProtocolId.BARNES
 
+    def refresh_animal_terminology(self) -> None:
+        """Word the Zones tab's arena controls for the open project's animal model.
+
+        Display only (ui/terminology); a zebrafish or legacy project, or no project
+        at all, keeps today's text. Runs wherever the Barnes button is refreshed,
+        i.e. on project open and on every zone-list update.
+        """
+        gui = self.gui
+        controls = getattr(gui, "zone_controls", None) if gui is not None else None
+        setter = getattr(controls, "set_animal_model", None)
+        if not callable(setter):
+            return
+        project_data = getattr(self._barnes_project_manager(), "project_data", None)
+        setter(animal_model_of(project_data if isinstance(project_data, Mapping) else None))
+
     def refresh_barnes_assistant_visibility(self) -> None:
         """Show the Zones tab's Barnes assistant button only for a Barnes project."""
+        self.refresh_animal_terminology()
         gui = self.gui
         controls = getattr(gui, "zone_controls", None) if gui is not None else None
         setter = getattr(controls, "set_barnes_assistant_visible", None)

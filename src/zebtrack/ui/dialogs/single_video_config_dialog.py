@@ -7,6 +7,7 @@ Extracted from gui.py for better modularity.
 from pathlib import Path
 from tkinter import (
     BooleanVar,
+    Label,
     StringVar,
     filedialog,
     messagebox,
@@ -22,8 +23,9 @@ from zebtrack.core.services.experiment_profile import AnimalModel, ExperimentPro
 from zebtrack.i18n import _
 from zebtrack.settings import DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
+from zebtrack.ui.terminology import term
 from zebtrack.ui.wizard.models import BARNES_ANALYSIS_INTERVAL_FRAMES
-from zebtrack.ui.wizard.tooltip import create_help_label
+from zebtrack.ui.wizard.tooltip import create_help_label, set_help_text
 
 if TYPE_CHECKING:
     from zebtrack.ui.event_bus_v2 import EventBusV2
@@ -119,6 +121,11 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         # profile's animal model swaps them for its own numbers and back.
         self._freezing_baseline = (float(freeze_thresh_default), float(freeze_dur_default))
         self._profile_animal = AnimalModel.ZEBRAFISH
+        # Rows whose wording follows the animal model (ui/terminology).
+        self._count_label: ttk.Label | None = None
+        self._count_help: Label | None = None
+        self._animals_label: ttk.Label | None = None
+        self._animals_help: Label | None = None
         #: The analysis interval before Barnes pinned it to one frame (None: not pinned).
         self._interval_before_barnes: str | None = None
         self.smoothing_window_var = StringVar(value=smoothing_window_default)
@@ -197,35 +204,19 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         dim_frame.columnconfigure(2, weight=1)
 
         # Num Aquariums
-        ttk.Label(dim_frame, text=_("Number of Aquariums:")).grid(
-            row=0, column=0, sticky="w", padx=(5, 2), pady=2
-        )
-        create_help_label(
-            dim_frame,
-            _(
-                "Number of Aquariums\n\n"
-                "Sets whether the video contains 1 or 2 independent arenas (e.g. tanks).\n"
-                "• 1: standard analysis.\n"
-                "• 2: lets you draw two arenas and process them together."
-            ),
-        ).grid(row=0, column=1, padx=2)
+        self._count_label = ttk.Label(dim_frame, text=term("single.count_label"))
+        self._count_label.grid(row=0, column=0, sticky="w", padx=(5, 2), pady=2)
+        self._count_help = create_help_label(dim_frame, term("single.count_help"))
+        self._count_help.grid(row=0, column=1, padx=2)
         ttk.Entry(dim_frame, textvariable=self.num_aquariums_var, width=8).grid(
             row=0, column=2, sticky="w", padx=5
         )
 
         # Animals per aquarium
-        ttk.Label(dim_frame, text=_("Animals per Aquarium:")).grid(
-            row=1, column=0, sticky="w", padx=(5, 2), pady=2
-        )
-        create_help_label(
-            dim_frame,
-            _(
-                "Animals per Aquarium\n\n"
-                "How many animals are in each arena.\n"
-                "• 1: enables the tracker optimized for a single subject.\n"
-                "• >1: requires Segmentation (seg) mode to avoid ID swaps."
-            ),
-        ).grid(row=1, column=1, padx=2)
+        self._animals_label = ttk.Label(dim_frame, text=term("single.animals_label"))
+        self._animals_label.grid(row=1, column=0, sticky="w", padx=(5, 2), pady=2)
+        self._animals_help = create_help_label(dim_frame, term("single.animals_help"))
+        self._animals_help.grid(row=1, column=1, padx=2)
         ttk.Entry(dim_frame, textvariable=self.animals_per_aquarium_var, width=8).grid(
             row=1, column=2, sticky="w", padx=5
         )
@@ -535,6 +526,18 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
 
         return main_frame
 
+    def _apply_terms(self) -> None:
+        """Word the arena/animal rows for the current animal model (display only)."""
+        model = self._profile_animal
+        if self._count_label is not None:
+            self._count_label.configure(text=term("single.count_label", model))
+        if self._count_help is not None:
+            set_help_text(self._count_help, term("single.count_help", model))
+        if self._animals_label is not None:
+            self._animals_label.configure(text=term("single.animals_label", model))
+        if self._animals_help is not None:
+            set_help_text(self._animals_help, term("single.animals_help", model))
+
     def _on_profile_changed(self, profile: ExperimentProfile) -> None:
         """Follow the experiment profile: the animal's freezing numbers, Barnes interval.
 
@@ -547,6 +550,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             velocity, duration = freezing_defaults(profile.animal_model, *self._freezing_baseline)
             self.freeze_thresh_var.set(str(velocity))
             self.freeze_dur_var.set(str(duration))
+        self._apply_terms()
         if profile.protocol is ProtocolId.BARNES:
             if self._interval_before_barnes is None:
                 self._interval_before_barnes = self.analysis_interval_var.get()

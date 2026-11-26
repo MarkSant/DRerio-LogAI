@@ -18692,3 +18692,321 @@ msgstr "🐀 Estratégia de busca (Barnes)"
 
 #~ msgid "Stopping..."
 #~ msgstr "Parando..."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Number of arenas (videos):"
+msgstr "Número de arenas (vídeos):"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"🎬 Number of Arenas (Videos)\n"
+"\n"
+"How many independent videos will be analyzed in this project.\n"
+"\n"
+"• Each arena = 1 separate video\n"
+"• LIVE project: typically 1 (a single recording)\n"
+"• PRE-RECORDED project: may be several videos\n"
+"\n"
+"Examples:\n"
+"  • 1 arena: a single experiment/recording\n"
+"  • 6 arenas: 6 different recordings (e.g. 3 groups x 2 days)\n"
+"  • 24 arenas: a full battery of experiments\n"
+"\n"
+"💡 Tip: if you are unsure, start with 1 and add more videos later."
+msgstr ""
+"🎬 Número de Arenas (Vídeos)\n"
+"\n"
+"Quantos vídeos independentes serão analisados neste projeto.\n"
+"\n"
+"• Cada arena = 1 vídeo separado\n"
+"• Projeto LIVE: Tipicamente 1 (gravação única)\n"
+"• Projeto PRÉ-GRAVADO: Pode ser múltiplos vídeos\n"
+"\n"
+"Exemplos:\n"
+"  • 1 arena: Um único experimento/gravação\n"
+"  • 6 arenas: 6 gravações diferentes (ex: 3 grupos x 2 dias)\n"
+"  • 24 arenas: Bateria completa de experimentos\n"
+"\n"
+"💡 Dica: Se não tiver certeza, comece com 1 e adicione mais vídeos depois."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Animals per arena:"
+msgstr "Animais por arena:"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"🐾 Animals per Arena\n"
+"\n"
+"How many animals will be present in EACH video/arena.\n"
+"\n"
+"Impact on the analysis:\n"
+"  • 1 animal: simplified individual tracking\n"
+"    → Ideal for: individual behavioural studies\n"
+"    → Recommended method: detection (det)\n"
+"\n"
+"  • 2-5 animals: moderate multi-animal tracking\n"
+"    → Ideal for: social interaction, small-group behaviour\n"
+"    → Recommended method: segmentation (seg)\n"
+"\n"
+"  • 6+ animals: group tracking (e.g. a large social group)\n"
+"    → Ideal for: group dynamics, collective behaviour\n"
+"    → Recommended method: segmentation (seg) with high confidence\n"
+"\n"
+"⚠️ IMPORTANT: this value must be the SAME for every video in the project.\n"
+"If you have videos with different animal counts, create separate projects.\n"
+"\n"
+"💡 Tip: for several animals, prefer segmentation (seg) in the model selection step."
+msgstr ""
+"🐾 Animais por Arena\n"
+"\n"
+"Quantos animais estarão presentes em CADA vídeo/arena.\n"
+"\n"
+"Impacto na Análise:\n"
+"  • 1 animal: Rastreamento individual simplificado\n"
+"    → Ideal para: Estudos comportamentais individuais\n"
+"    → Método recomendado: Detecção (det)\n"
+"\n"
+"  • 2-5 animais: Rastreamento multi-animal moderado\n"
+"    → Ideal para: Interações sociais, comportamento de grupo pequeno\n"
+"    → Método recomendado: Segmentação (seg)\n"
+"\n"
+"  • 6+ animais: Rastreamento de grupo (ex.: um grupo social grande)\n"
+"    → Ideal para: Dinâmica de grupo, comportamento coletivo\n"
+"    → Método recomendado: Segmentação (seg) com alta confiança\n"
+"\n"
+"⚠️ IMPORTANTE: Este valor deve ser o MESMO para todos os vídeos do projeto.\n"
+"Se você tem vídeos com números diferentes de animais, crie projetos separados.\n"
+"\n"
+"💡 Dica: Para múltiplos animais, prefira segmentação (seg) no passo de seleção de modelo."
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"• Parquet: an efficient file format for storing data\n"
+"\n"
+"• Arena: the area where the animals move, such as a table or a box (a bounding polygon)\n"
+"\n"
+"• ROI (Region of Interest): specific regions such as 'Centre', 'Edge', 'Escape Zone'\n"
+"\n"
+"• Trajectory: frame-by-frame coordinates of the animals' movement\n"
+"\n"
+"Importing this data from previous analyses avoids reprocessing."
+msgstr ""
+"• Parquet: Formato de arquivo eficiente para armazenar dados\n"
+"\n"
+"• Arena: Área onde os animais se movem, como uma mesa ou uma caixa (polígono delimitador)\n"
+"\n"
+"• ROI (Region of Interest): Regiões específicas como 'Centro', 'Borda', 'Zona de Escape'\n"
+"\n"
+"• Trajetória: Coordenadas frame-a-frame do movimento dos animais\n"
+"\n"
+"Importar esses dados de análises anteriores evita o reprocessamento."
+
+#: src/zebtrack/ui/terminology.py
+msgid "  • Arenas: {count}"
+msgstr "  • Arenas: {count}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "  • Animals per arena: {count}"
+msgstr "  • Animais por arena: {count}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "  • Arena method: {method}"
+msgstr "  • Método da arena: {method}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "  • Arena weight: {weight}"
+msgstr "  • Peso da arena: {weight}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Arena Perspective *"
+msgstr "Perspectiva da Arena *"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Select how the camera sees the arena:"
+msgstr "Selecione como a câmera visualiza a arena:"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Distance threshold for considering the animal close to the arena walls:"
+msgstr "Distância limite para considerar o animal próximo às paredes da arena:"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Split the arena into:"
+msgstr "Dividir a arena em:"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Detect Arena (Auto)"
+msgstr "Detectar Arena (Auto)"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐀 Active Arena"
+msgstr "🐀 Arena Ativa"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐾 Active Arena"
+msgstr "🐾 Arena Ativa"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Arena 1 (Left)"
+msgstr "Arena 1 (Esquerda)"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Arena 2 (Right)"
+msgstr "Arena 2 (Direita)"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Sequential (2 passes, 1 arena at a time)"
+msgstr "Sequencial (2 passagens, 1 arena por vez)"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Sequential: processes the whole video for each arena separately"
+msgstr "Sequencial: processa o vídeo completo para cada arena separadamente"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Could not load a frame. Please load a video or use 'Detect Arena (Auto)' first."
+msgstr "Não foi possível carregar um frame. Por favor, carregue um vídeo ou use 'Detectar Arena (Auto)' primeiro."
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"No main arena has been defined for this live project.\n"
+"\n"
+"Do you want to set the calibration up automatically now?\n"
+"\n"
+"• The Zone Configuration tab will open\n"
+"• You can use 'Detect Arena (Auto)' or draw manually\n"
+"• The configuration is saved automatically"
+msgstr ""
+"Nenhuma arena principal foi definida para este projeto ao vivo.\n"
+"\n"
+"Deseja configurar a calibração automaticamente agora?\n"
+"\n"
+"• Será aberta a aba de Configuração de Zonas\n"
+"• Você pode usar 'Detectar Arena (Auto)' ou desenhar manualmente\n"
+"• A configuração será salva automaticamente"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Set the main arena up using:\n"
+"\n"
+"1. 'Detect Arena (Auto)' - for automatic detection\n"
+"2. 'Draw Main Polygon' - for manual drawing\n"
+"\n"
+"The configuration is saved automatically."
+msgstr ""
+"Configure a arena principal usando:\n"
+"\n"
+"1. 'Detectar Arena (Auto)' - Para detecção automática\n"
+"2. 'Desenhar Polígono Principal' - Para desenho manual\n"
+"\n"
+"A configuração será salva automaticamente."
+
+#: src/zebtrack/ui/terminology.py
+msgid "No. of arenas:"
+msgstr "Nº de arenas:"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Live analysis handles ONE arena at a time.\n"
+"For multiple arenas, create a live project."
+msgstr ""
+"A análise ao vivo trata UMA arena por vez.\n"
+"Para várias arenas, crie um projeto ao vivo."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Animals/arena:"
+msgstr "Animais/Arena:"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Number of animals inside each arena."
+msgstr "Quantidade de animais dentro de cada arena."
+
+#: src/zebtrack/ui/terminology.py
+msgid "ℹ️ Live analysis covers ONE arena at a time. To record several arenas at once, create a live project."
+msgstr "ℹ️ A análise ao vivo cobre UMA arena por vez. Para gravar várias arenas ao mesmo tempo, crie um projeto ao vivo."
+
+#: src/zebtrack/ui/terminology.py
+msgid "The number of arenas and animals must be >= 1"
+msgstr "O número de arenas e de animais deve ser >= 1"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Number of Arenas:"
+msgstr "Número de Arenas:"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Number of Arenas\n"
+"\n"
+"Sets whether the video contains 1 or 2 independent arenas.\n"
+"• 1: standard analysis.\n"
+"• 2: lets you draw two arenas and process them together."
+msgstr ""
+"Número de Arenas\n"
+"\n"
+"Define se o vídeo contém 1 ou 2 arenas independentes.\n"
+"• 1: Análise padrão.\n"
+"• 2: Permite desenhar duas arenas e processá-las em conjunto."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Animals per Arena:"
+msgstr "Animais por Arena:"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Animals per Arena\n"
+"\n"
+"How many animals are in each arena.\n"
+"• 1: enables the tracker optimized for a single subject.\n"
+"• >1: requires Segmentation (seg) mode to avoid ID swaps."
+msgstr ""
+"Animais por Arena\n"
+"\n"
+"Quantidade de animais em cada arena.\n"
+"• 1: Ativa o rastreador otimizado para sujeito único.\n"
+"• >1: Exige o modo de Segmentação (seg) para evitar trocas de ID."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Arena Configuration"
+msgstr "Configuração das Arenas"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Assign groups and identifiers to each arena"
+msgstr "Atribua grupos e identificadores para cada arena"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Found {count} matches in the file name,\n"
+"but only 2 arenas are supported.\n"
+"\n"
+"Using the first 2 matches."
+msgstr ""
+"Encontradas {count} correspondências no nome do arquivo,\n"
+"mas apenas 2 arenas são suportadas.\n"
+"\n"
+"Usando as 2 primeiras correspondências."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Arena {number} ({position})"
+msgstr "Arena {number} ({position})"
+
+#: src/zebtrack/ui/terminology.py
+msgid "The group of Arena {number} cannot be empty"
+msgstr "Grupo da Arena {number} não pode estar vazio"
+
+#: src/zebtrack/ui/terminology.py
+msgid "The subject of Arena {number} cannot be empty"
+msgstr "Sujeito da Arena {number} não pode estar vazio"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐀 Subject {label}"
+msgstr "🐀 Sujeito {label}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐾 Subject {label}"
+msgstr "🐾 Sujeito {label}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐀 Subjects"
+msgstr "🐀 Cobaias"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐾 Subjects"
+msgstr "🐾 Cobaias"

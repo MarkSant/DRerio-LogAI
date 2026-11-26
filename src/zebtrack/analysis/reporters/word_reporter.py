@@ -22,9 +22,11 @@ from docxtpl import DocxTemplate
 
 from zebtrack.analysis.data_transformer import (
     BARNES_COLUMN_PREFIX,
-    DISPLAY_COLUMN_MAPPING,
     WINDOW_COLUMNS,
     active_protocol_spec,
+    animal_model_of_config,
+    display_column_name,
+    display_metadata_label,
 )
 from zebtrack.analysis.protocols.base import GenericReportSection
 from zebtrack.analysis.reporters.barnes_section import append_barnes_section, barnes_metrics_of
@@ -206,10 +208,12 @@ class WordReporter:
             "parquet_files",
             "multi_aquarium_outputs",
         }
+        animal_model = animal_model_of_config(getattr(ctx, "behavioral_config", None))
         for key, value in (ctx.metadata or {}).items():
             if key in _internal_metadata_keys:
                 continue
-            document.add_paragraph(f"{key.replace('_', ' ').title()}: {value}")
+            # Display label only: the key stays the persisted one (ADR-012).
+            document.add_paragraph(f"{display_metadata_label(key, animal_model)}: {value}")
         progress_callback(1 / total_steps, _("Metadata added"))
 
         self._append_analysis_window_note(document)
@@ -268,10 +272,7 @@ class WordReporter:
 
         for column_name in df.columns:
             row_cells = table.add_row().cells
-            formatted_name = DISPLAY_COLUMN_MAPPING.get(
-                column_name, column_name.replace("_", " ").title()
-            )
-            row_cells[0].text = formatted_name
+            row_cells[0].text = display_column_name(column_name, animal_model)
 
             value = df[column_name].iloc[0]
             if pd.isna(value):

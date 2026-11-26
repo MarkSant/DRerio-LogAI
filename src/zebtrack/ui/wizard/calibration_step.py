@@ -21,10 +21,11 @@ from tkinter import (
 from typing import TYPE_CHECKING, Any
 
 from zebtrack.analysis.protocols.barnes.contract import parse_barnes_params
-from zebtrack.core.services.experiment_profile import ExperimentProfile, ProtocolId
+from zebtrack.core.services.experiment_profile import AnimalModel, ExperimentProfile, ProtocolId
 from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.i18n import _
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
+from zebtrack.ui.terminology import term
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
 from zebtrack.ui.wizard.models import BARNES_ANALYSIS_INTERVAL_FRAMES
@@ -93,6 +94,11 @@ class CalibrationStep(WizardStep):
         self._height_row: Frame | None = None
         self._table_row: Frame | None = None
         self._analysis_entry: Entry | None = None
+        # Rows whose wording follows the animal model (ui/terminology).
+        self._count_label: Label | None = None
+        self._animals_label: Label | None = None
+        self._count_tip: ToolTip | None = None
+        self._animals_tip: ToolTip | None = None
 
     def build_ui(self):
         """Build calibration UI - horizontal 2-column layout for better space usage."""
@@ -139,56 +145,27 @@ class CalibrationStep(WizardStep):
         aquarium_row = Frame(video_frame)
         aquarium_row.pack(fill="x", pady=3)
 
-        Label(aquarium_row, text=_("Number of aquariums (videos):"), width=30, anchor="w").pack(
-            side="left"
+        # The wording of these two rows follows the animal model (ui/terminology);
+        # ``_apply_terms`` re-words them when the profile changes.
+        self._count_label = Label(
+            aquarium_row, text=term("calibration.count_label"), width=30, anchor="w"
         )
+        self._count_label.pack(side="left")
         aquarium_entry = Entry(aquarium_row, textvariable=self.num_aquariums_var, width=10)
         aquarium_entry.pack(side="left", padx=(5, 0))
-        ToolTip(
-            aquarium_entry,
-            _(
-                "🎬 Number of Aquariums (Videos)\n\n"
-                "How many independent videos will be analyzed in this project.\n\n"
-                "• Each aquarium = 1 separate video\n"
-                "• LIVE project: typically 1 (a single recording)\n"
-                "• PRE-RECORDED project: may be several videos\n\n"
-                "Examples:\n"
-                "  • 1 aquarium: a single experiment/recording\n"
-                "  • 6 aquariums: 6 different recordings (e.g. 3 groups x 2 days)\n"
-                "  • 24 aquariums: a full battery of experiments\n\n"
-                "💡 Tip: if you are unsure, start with 1 and add more videos later."
-            ),
-        )
+        self._count_tip = ToolTip(aquarium_entry, term("calibration.count_help"))
 
         # Animals per aquarium
         animals_row = Frame(video_frame)
         animals_row.pack(fill="x", pady=3)
 
-        Label(animals_row, text=_("Animals per aquarium:"), width=30, anchor="w").pack(side="left")
+        self._animals_label = Label(
+            animals_row, text=term("calibration.animals_label"), width=30, anchor="w"
+        )
+        self._animals_label.pack(side="left")
         animals_entry = Entry(animals_row, textvariable=self.animals_per_aquarium_var, width=10)
         animals_entry.pack(side="left", padx=(5, 0))
-        ToolTip(
-            animals_entry,
-            _(
-                "🐾 Animals per Aquarium\n\n"
-                "How many animals will be present in EACH video/aquarium.\n\n"
-                "Impact on the analysis:\n"
-                "  • 1 animal: simplified individual tracking\n"
-                "    → Ideal for: individual behavioural studies\n"
-                "    → Recommended method: detection (det)\n\n"
-                "  • 2-5 animals: moderate multi-animal tracking\n"
-                "    → Ideal for: social interaction, small-group behaviour\n"
-                "    → Recommended method: segmentation (seg)\n\n"
-                "  • 6+ animals: group tracking (e.g. a zebrafish shoal)\n"
-                "    → Ideal for: group dynamics, collective behaviour\n"
-                "    → Recommended method: segmentation (seg) with high confidence\n\n"
-                "⚠️ IMPORTANT: this value must be the SAME for every video in the project.\n"
-                "If you have videos with different animal counts, "
-                "create separate projects.\n\n"
-                "💡 Tip: for several animals, prefer segmentation (seg) in the "
-                "model selection step."
-            ),
-        )
+        self._animals_tip = ToolTip(animals_entry, term("calibration.animals_help"))
 
         # Physical dimensions
         dimensions_frame = LabelFrame(
@@ -397,6 +374,7 @@ class CalibrationStep(WizardStep):
         default), and the analysis interval is pinned to one frame. Any other
         protocol shows the usual fields.
         """
+        self._apply_terms(profile.animal_model)
         barnes = profile.protocol is ProtocolId.BARNES
         if self._width_row is None or self._height_row is None or self._table_row is None:
             return
@@ -425,6 +403,21 @@ class CalibrationStep(WizardStep):
         if self._analysis_entry is not None:
             self._analysis_entry.configure(state="disabled" if barnes else "normal")
         self._barnes_active = barnes
+
+    def _apply_terms(self, animal_model: AnimalModel) -> None:
+        """Word the video-count and animals rows for the project's animal model.
+
+        Display only: the variables behind them stay ``num_aquariums`` and
+        ``animals_per_aquarium`` (ADR-012).
+        """
+        if self._count_label is not None:
+            self._count_label.configure(text=term("calibration.count_label", animal_model))
+        if self._animals_label is not None:
+            self._animals_label.configure(text=term("calibration.animals_label", animal_model))
+        if self._count_tip is not None:
+            self._count_tip.text = term("calibration.count_help", animal_model)
+        if self._animals_tip is not None:
+            self._animals_tip.text = term("calibration.animals_help", animal_model)
 
     def _is_barnes(self) -> bool:
         widget = self.behavioral_config_widget

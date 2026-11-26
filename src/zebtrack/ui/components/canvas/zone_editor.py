@@ -24,6 +24,7 @@ from zebtrack.ui import payloads
 from zebtrack.ui.components.roi_name_validation import RoiNameError, validate_roi_name
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.sentinels import is_main_arena_row, main_arena_row_label
+from zebtrack.ui.terminology import animal_model_of_gui, term
 
 if TYPE_CHECKING:
     from zebtrack.core.services.zone_context_service import ZoneContextService
@@ -250,10 +251,7 @@ class ZoneEditor:
             if not self.canvas_manager.load_video_frame_to_canvas():
                 self.dialog_manager.show_error(
                     _("Error"),
-                    _(
-                        "Could not load a frame. Please load a video or use "
-                        "'Detect Aquarium (Auto)' first."
-                    ),
+                    term("zones.no_frame", animal_model_of_gui(self.gui)),
                 )
                 return False
 

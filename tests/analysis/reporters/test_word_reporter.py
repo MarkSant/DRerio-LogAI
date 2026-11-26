@@ -371,3 +371,53 @@ class TestAnalysisWindowSection:
         WordReporter(ctx).export_individual_report(out)
 
         assert "(censored)" in _doc_text(out)
+
+
+class TestMetadataLabelsFollowTheAnimalModel:
+    """Barnes v8.1 stage 3: the Word metadata block names the arena for a rodent."""
+
+    @staticmethod
+    def _export(ctx, tmp_path: Path, animal: str | None) -> str:
+        ctx.metadata = {
+            **(ctx.metadata or {}),
+            "num_aquariums": 1,
+            "animals_per_aquarium": 1,
+            "aquarium_width_cm": 40.0,
+        }
+        ctx.behavioral_config = {"animal_model": animal} if animal else {}
+        out = tmp_path / f"{animal or 'legacy'}.docx"
+        WordReporter(ctx).export_individual_report(out)
+        return _doc_text(out)
+
+    def test_a_legacy_project_keeps_the_raw_labels(self, reporter_ctx, tmp_path: Path) -> None:
+        text = self._export(reporter_ctx, tmp_path, None)
+
+        assert "Num Aquariums: 1" in text
+        assert "Animals Per Aquarium: 1" in text
+        assert "Aquarium Width Cm: 40.0" in text
+
+    def test_a_zebrafish_project_keeps_the_raw_labels(self, reporter_ctx, tmp_path: Path) -> None:
+        text = self._export(reporter_ctx, tmp_path, "zebrafish")
+
+        assert "Num Aquariums: 1" in text
+
+    def test_a_rodent_project_names_the_arena(self, reporter_ctx, tmp_path: Path) -> None:
+        text = self._export(reporter_ctx, tmp_path, "rodent")
+
+        assert "Num Arenas: 1" in text
+        assert "Animals Per Arena: 1" in text
+        assert "Arena Width Cm: 40.0" in text
+        assert "Aquarium" not in text.split(_("Metrics Summary"))[0]
+
+    def test_the_metric_rows_are_the_same_for_every_animal(
+        self, reporter_ctx, tmp_path: Path
+    ) -> None:
+        legacy = self._export(reporter_ctx, tmp_path, None)
+        rodent = self._export(reporter_ctx, tmp_path, "rodent")
+
+        def rows(text: str) -> list[str]:
+            return text.split(_("Metrics Summary"))[1].splitlines()
+
+        assert [r for r in rows(rodent) if "Total Distance" in r] == [
+            r for r in rows(legacy) if "Total Distance" in r
+        ]

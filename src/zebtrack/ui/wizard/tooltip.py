@@ -6,6 +6,7 @@ Simple tooltip implementation for providing contextual help.
 
 import tkinter as tk
 from tkinter import Label
+from weakref import WeakKeyDictionary
 
 
 class ToolTip:
@@ -93,6 +94,10 @@ class ToolTip:
             self.tooltip_window = None
 
 
+#: Tooltip of every help label, so its text can be replaced later.
+_HELP_TOOLTIPS: "WeakKeyDictionary[Label, ToolTip]" = WeakKeyDictionary()
+
+
 def create_help_label(parent, text: str) -> Label:
     """
     Create a help label with question mark icon and tooltip.
@@ -116,7 +121,18 @@ def create_help_label(parent, text: str) -> Label:
         font=("Segoe UI", 10, "bold"),
     )
 
-    # Add tooltip
-    ToolTip(help_label, text)
+    # Add tooltip (kept so ``set_help_text`` can re-word it when the animal model changes)
+    _HELP_TOOLTIPS[help_label] = ToolTip(help_label, text)
 
     return help_label
+
+
+def set_help_text(help_label: Label, text: str) -> None:
+    """Replace the tooltip text of a label made by :func:`create_help_label`.
+
+    Used by screens whose vocabulary follows the animal model (``ui/terminology``).
+    A label that was not made by ``create_help_label`` is left alone.
+    """
+    tooltip = _HELP_TOOLTIPS.get(help_label)
+    if tooltip is not None:
+        tooltip.text = text

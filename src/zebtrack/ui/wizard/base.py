@@ -8,6 +8,8 @@ interface methods for UI building, validation, and data management.
 from tkinter import Frame, Widget
 from typing import Any
 
+from zebtrack.core.services.experiment_profile import AnimalModel
+from zebtrack.ui.terminology import animal_model_of
 from zebtrack.ui.wizard.enums import WizardStepID
 
 
@@ -47,6 +49,14 @@ class WizardStep(Frame):
         super().__init__(parent)
         self.wizard_data = wizard_data
         self.step_id: WizardStepID | None = None  # Set by subclass
+
+    def _animal_model(self) -> AnimalModel:
+        """The animal model the wizard has collected so far (zebrafish until chosen).
+
+        Display wording only (``ui/terminology``); read through the single profile
+        resolver from the Discovery step's ``behavioral_analysis`` block.
+        """
+        return animal_model_of(behavioral_config=self.wizard_data.get("behavioral_analysis"))
 
     def build_ui(self):
         """

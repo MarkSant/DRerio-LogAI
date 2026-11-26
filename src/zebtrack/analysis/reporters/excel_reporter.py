@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import structlog
 
-from zebtrack.analysis.data_transformer import barnes_visits_frame
+from zebtrack.analysis.data_transformer import animal_model_of_config, barnes_visits_frame
 
 if TYPE_CHECKING:
     from zebtrack.analysis.reporters.reporter_context import ReporterContext
@@ -72,7 +72,10 @@ class ExcelReporter:
 
         # Apply display formatting
         data_to_export = self._ctx.data_transformer.prepare_for_display(
-            data_to_export, height_cm, num_zones
+            data_to_export,
+            height_cm,
+            num_zones,
+            animal_model=animal_model_of_config(getattr(self._ctx, "behavioral_config", None)),
         )
 
         fmt = "csv" if str(path).lower().endswith(".csv") else "excel"

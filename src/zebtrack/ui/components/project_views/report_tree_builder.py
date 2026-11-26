@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import structlog
 
 from zebtrack.i18n import _
+from zebtrack.ui.terminology import animal_model_of, term
 from zebtrack.utils.report_files import find_block_partial_report_files
 
 if TYPE_CHECKING:
@@ -350,7 +351,11 @@ class ReportTreeBuilder:
             parent,
             "end",
             iid=subject_node_id,
-            text=_("🐟 Subject {label}").format(label=subject_label),
+            text=term(
+                "subject.label",
+                animal_model_of(getattr(self.project_manager, "project_data", None)),
+                label=subject_label,
+            ),
             values=("", "", "", "", "", ""),
             open=True,
         )

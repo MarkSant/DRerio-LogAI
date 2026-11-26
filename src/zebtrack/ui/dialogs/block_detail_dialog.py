@@ -35,6 +35,7 @@ from zebtrack.core.services.session_duration_resolver import (
 )
 from zebtrack.i18n import _
 from zebtrack.ui.background_task import run_in_background
+from zebtrack.ui.terminology import animal_model_of, term
 from zebtrack.utils.report_files import find_summary_excel_file, has_summary_excel_output
 
 if TYPE_CHECKING:
@@ -225,7 +226,10 @@ class BlockDetailDialog(Toplevel):
 
         Label(
             list_frame,
-            text=_("🐟 Subjects"),
+            text=term(
+                "subject.list_title",
+                animal_model_of(getattr(self.project_manager, "project_data", None)),
+            ),
             font=("Segoe UI", 11, "bold"),
         ).pack(anchor="w", pady=(0, 10))
 

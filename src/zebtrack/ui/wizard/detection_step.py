@@ -22,6 +22,7 @@ import structlog
 from zebtrack.core.project.project_manager import ProjectManager
 from zebtrack.core.services.pattern_match import finditer_values, search_value
 from zebtrack.i18n import _
+from zebtrack.ui.terminology import term
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.custom_regex_dialog import CustomRegexDialog
@@ -897,7 +898,9 @@ class DetectionStep(WizardStep):
                 else None
             )
             if aquarium_label:
-                lines.append(_("  • Aquarium method: {method}").format(method=aquarium_label))
+                lines.append(
+                    term("wizard.arena_method_summary", self._animal_model(), method=aquarium_label)
+                )
             if animal_label:
                 lines.append(_("  • Animal method: {method}").format(method=animal_label))
 
@@ -905,7 +908,11 @@ class DetectionStep(WizardStep):
         animal_weight = weight_assignments.get("animal")
         if aquarium_weight or animal_weight:
             if aquarium_weight:
-                lines.append(_("  • Aquarium weight: {weight}").format(weight=aquarium_weight))
+                lines.append(
+                    term(
+                        "wizard.arena_weight_summary", self._animal_model(), weight=aquarium_weight
+                    )
+                )
             if animal_weight:
                 lines.append(_("  • Animal weight: {weight}").format(weight=animal_weight))
 

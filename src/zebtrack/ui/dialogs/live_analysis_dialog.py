@@ -47,8 +47,9 @@ from zebtrack.settings import DEFAULT_MAX_PLAUSIBLE_SPEED_CM_S
 from zebtrack.ui.background_task import run_in_background
 from zebtrack.ui.components.analysis_window_panel import AnalysisWindowPanel, SpecBuildError
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
+from zebtrack.ui.terminology import term
 from zebtrack.ui.wizard.models import BARNES_ANALYSIS_INTERVAL_FRAMES
-from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
+from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label, set_help_text
 
 log = structlog.get_logger()
 
@@ -215,6 +216,12 @@ class LiveAnalysisDialog(Dialog):
         # profile's animal model swaps them for its own numbers and back.
         self._freezing_baseline = (float(freeze_thresh_default), float(freeze_dur_default))
         self._profile_animal = AnimalModel.ZEBRAFISH
+        # Rows whose wording follows the animal model (ui/terminology).
+        self._count_label: ttk.Label | None = None
+        self._count_help: Label | None = None
+        self._animals_label: ttk.Label | None = None
+        self._animals_help: Label | None = None
+        self._one_arena_notice: Label | None = None
         #: The analysis interval before Barnes pinned it to one frame (None: not pinned).
         self._interval_before_barnes: int | None = None
 
@@ -571,16 +578,10 @@ class LiveAnalysisDialog(Dialog):
         # multi-aquário do pipeline nunca é alcançado. Aceitar "2" aqui
         # produzia um campo validado que não mudava nada — pior que dizer que
         # a função não existe. Multi-aquário requer um projeto.
-        ttk.Label(adv_frame, text=_("No. of aquariums:")).grid(
-            row=2, column=0, padx=(5, 2), pady=5, sticky="w"
-        )
-        create_help_label(
-            adv_frame,
-            _(
-                "Live analysis handles ONE aquarium at a time.\n"
-                "For multiple aquariums, create a live project."
-            ),
-        ).grid(row=2, column=1, padx=2)
+        self._count_label = ttk.Label(adv_frame, text=term("live.count_label"))
+        self._count_label.grid(row=2, column=0, padx=(5, 2), pady=5, sticky="w")
+        self._count_help = create_help_label(adv_frame, term("live.count_help"))
+        self._count_help.grid(row=2, column=1, padx=2)
         Spinbox(
             adv_frame,
             from_=1,
@@ -590,12 +591,10 @@ class LiveAnalysisDialog(Dialog):
             state="disabled",
         ).grid(row=2, column=2, padx=5, sticky="w")
 
-        ttk.Label(adv_frame, text=_("Animals/aquarium:")).grid(
-            row=2, column=3, padx=(15, 2), pady=5, sticky="w"
-        )
-        create_help_label(adv_frame, _("Number of animals inside each aquarium.")).grid(
-            row=2, column=4, padx=2
-        )
+        self._animals_label = ttk.Label(adv_frame, text=term("live.animals_label"))
+        self._animals_label.grid(row=2, column=3, padx=(15, 2), pady=5, sticky="w")
+        self._animals_help = create_help_label(adv_frame, term("live.animals_help"))
+        self._animals_help.grid(row=2, column=4, padx=2)
         Spinbox(
             adv_frame, from_=1, to=100, textvariable=self.animals_per_aquarium_var, width=8
         ).grid(row=2, column=5, padx=5, sticky="w")
@@ -662,15 +661,13 @@ class LiveAnalysisDialog(Dialog):
 
         # Aviso VISÍVEL (não só no tooltip): o campo desabilitado sozinho parece
         # defeito. Vários animais no MESMO aquário continuam suportados.
-        Label(
+        self._one_arena_notice = Label(
             adv_frame,
-            text=_(
-                "ℹ️ Live analysis covers ONE aquarium at a time. "
-                "To record several aquariums at once, create a live project."
-            ),
+            text=term("live.one_arena_notice"),
             fg="gray",
             justify="left",
-        ).grid(row=4, column=0, columnspan=6, padx=5, pady=(0, 5), sticky="w")
+        )
+        self._one_arena_notice.grid(row=4, column=0, columnspan=6, padx=5, pady=(0, 5), sticky="w")
 
         # --- Behavioral Analysis Widget (New) ---
         behavior_frame = ttk.LabelFrame(container, text=_("Behavioural Analysis"), padding=10)
@@ -722,6 +719,20 @@ class LiveAnalysisDialog(Dialog):
 
         return self.camera_combo
 
+    def _apply_terms(self) -> None:
+        """Word the arena/animal rows for the current animal model (display only)."""
+        model = self._profile_animal
+        if self._count_label is not None:
+            self._count_label.configure(text=term("live.count_label", model))
+        if self._count_help is not None:
+            set_help_text(self._count_help, term("live.count_help", model))
+        if self._animals_label is not None:
+            self._animals_label.configure(text=term("live.animals_label", model))
+        if self._animals_help is not None:
+            set_help_text(self._animals_help, term("live.animals_help", model))
+        if self._one_arena_notice is not None:
+            self._one_arena_notice.configure(text=term("live.one_arena_notice", model))
+
     def _on_profile_changed(self, profile: ExperimentProfile) -> None:
         """Follow the experiment profile: the animal's freezing numbers, Barnes interval.
 
@@ -734,6 +745,7 @@ class LiveAnalysisDialog(Dialog):
             velocity, duration = freezing_defaults(profile.animal_model, *self._freezing_baseline)
             self.freeze_thresh_var.set(velocity)
             self.freeze_dur_var.set(duration)
+        self._apply_terms()
         if profile.protocol is ProtocolId.BARNES:
             if self._interval_before_barnes is None:
                 self._interval_before_barnes = int(self.analysis_interval_var.get())
@@ -999,7 +1011,7 @@ class LiveAnalysisDialog(Dialog):
             aquarium_height = float(self.aquarium_height_var.get())
 
             if num_aquariums < 1 or animals_per_aquarium < 1:
-                raise ValueError(_("The number of aquariums and animals must be >= 1"))
+                raise ValueError(term("live.count_error", self._profile_animal))
             if aquarium_width <= 0 or aquarium_height <= 0:
                 raise ValueError(_("The arena dimensions must be positive"))
 
