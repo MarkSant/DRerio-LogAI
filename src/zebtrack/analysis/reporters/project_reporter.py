@@ -19,6 +19,8 @@ from docx.enum.section import WD_ORIENT
 from docx.shared import Inches, Mm
 
 from zebtrack.analysis.data_transformer import DISPLAY_COLUMN_MAPPING, DataTransformer
+from zebtrack.analysis.protocols.base import GenericReportSection
+from zebtrack.analysis.reporters.barnes_aggregates import is_barnes_frame, render_barnes_aggregates
 from zebtrack.analysis.visualization_generator import VisualizationGenerator
 
 log = structlog.get_logger(__name__)
@@ -105,35 +107,7 @@ def export_project_report(
     # Descriptive statistics by group
     document.add_heading("Descriptive Statistics by Group", level=2)
 
-    metrics_of_interest = [
-        "total_distance_cm",
-        "mean_speed_cm_s",
-        "max_speed_cm_s",
-        "tortuosity",
-        "mean_angular_velocity_deg_s",
-        "max_angular_velocity_deg_s",
-        "sharp_turns_count",
-        "total_roi_entries",
-        "video_duration_s",
-        "total_frames_analyzed",
-        "geotaxis_bottom_zones_pct",
-        "thigmotaxis_time_near_wall_pct",
-    ]
-
-    for col in aggregated_df.columns:
-        if col.startswith("geotaxis_zone_") and col.endswith("_pct"):
-            metrics_of_interest.append(col)
-
-    available_metrics = [m for m in metrics_of_interest if m in aggregated_df.columns]
-
-    for col in aggregated_df.columns:
-        if col not in available_metrics:
-            if (
-                (col.startswith("time_in_") and "_s" in col)
-                or (col.startswith("entries_in_"))
-                or (col.startswith("geotaxis_zone_") and "_pct" in col)
-            ):
-                available_metrics.append(col)
+    available_metrics = _descriptive_metric_names(aggregated_df)
 
     if not available_metrics:
         document.add_paragraph("No metrics available for descriptive statistics.")
@@ -165,6 +139,10 @@ def export_project_report(
 
     _render_comparative_boxplots(document, aggregated_df)
 
+    # Barnes protocol: learning curves, strategy distribution, probe comparison.
+    # Nothing is written for a generic project.
+    render_barnes_aggregates(document, aggregated_df)
+
     # Before the pivot table, which switches the section to landscape.
     if experiment_notes is not None and not experiment_notes.empty:
         _render_experiment_notes(document, experiment_notes)
@@ -175,6 +153,70 @@ def export_project_report(
 
     file_path = f"{output_path}.docx"
     document.save(file_path)
+
+
+def _descriptive_metric_names(aggregated_df: pd.DataFrame) -> list[str]:
+    """The metric columns of "Descriptive Statistics by Group" present in the frame."""
+    metrics_of_interest = [
+        "total_distance_cm",
+        "mean_speed_cm_s",
+        "max_speed_cm_s",
+        "tortuosity",
+        "mean_angular_velocity_deg_s",
+        "max_angular_velocity_deg_s",
+        "sharp_turns_count",
+        "total_roi_entries",
+        "video_duration_s",
+        "total_frames_analyzed",
+        "geotaxis_bottom_zones_pct",
+        "thigmotaxis_time_near_wall_pct",
+    ]
+
+    # A protocol swaps the zebrafish list for its own (ADR-014): the generic
+    # metrics that stay, minus the sections its spec suppresses. A generic project
+    # keeps the list above untouched.
+    suppressed = _suppressed_sections(aggregated_df)
+    if GenericReportSection.THIGMOTAXIS in suppressed:
+        metrics_of_interest = [m for m in metrics_of_interest if not m.startswith("thigmotaxis_")]
+    if GenericReportSection.GEOTAXIS in suppressed:
+        metrics_of_interest = [m for m in metrics_of_interest if not m.startswith("geotaxis_")]
+
+    for col in aggregated_df.columns:
+        if col.startswith("geotaxis_zone_") and col.endswith("_pct"):
+            if GenericReportSection.GEOTAXIS not in suppressed:
+                metrics_of_interest.append(col)
+
+    available_metrics = [m for m in metrics_of_interest if m in aggregated_df.columns]
+
+    for col in aggregated_df.columns:
+        if col not in available_metrics:
+            if (
+                (col.startswith("time_in_") and "_s" in col)
+                or (col.startswith("entries_in_"))
+                or (
+                    col.startswith("geotaxis_zone_")
+                    and "_pct" in col
+                    and GenericReportSection.GEOTAXIS not in suppressed
+                )
+            ):
+                available_metrics.append(col)
+    return available_metrics
+
+
+def _suppressed_sections(aggregated_df: pd.DataFrame) -> frozenset[GenericReportSection]:
+    """Generic sections the frame's protocol omits (empty for a generic frame).
+
+    A project report has no configuration, only the aggregated frame; a Barnes
+    project's summaries always carry the ``barnes_*`` columns, so that is how the
+    protocol is recognised.
+    """
+    if not is_barnes_frame(aggregated_df):
+        return frozenset()
+    from zebtrack.analysis.protocols.registry import get_protocol
+    from zebtrack.core.services.experiment_profile import ProtocolId
+
+    spec = get_protocol(ProtocolId.BARNES)
+    return frozenset() if spec is None else spec.suppressed_report_sections
 
 
 def _render_experiment_notes(document: Any, notes_df: pd.DataFrame) -> None:

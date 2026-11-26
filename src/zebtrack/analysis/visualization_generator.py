@@ -7,7 +7,7 @@ Extracted from reporter.py as part of Phase 2 refactoring (Task 2.5).
 """
 
 import io
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, cast
@@ -1208,6 +1208,142 @@ class VisualizationGenerator:
             ax.text(0.5, 0.5, f"Error generating plot: {e!s}", ha="center", va="center")
 
         ax.set_title(f"Geotaxis - {self.metadata.get('experiment_id', 'Unknown')}")
+        return fig
+
+    def generate_barnes_trajectory_plot(
+        self,
+        ax: Axes | None = None,
+        video_path: Path | str | None = None,
+        visit_sequence: Sequence[Mapping[str, Any]] = (),
+    ) -> Figure:
+        """The trajectory with every hole visit numbered in order (Barnes maze).
+
+        Draws :meth:`generate_trajectory_plot` and puts the visit ``order`` on the
+        hole ROI it belongs to; a hole visited more than once shows every order
+        ("2,5"), and the escape hole is highlighted. ``visit_sequence`` is
+        ``report["protocol_metrics"]["visit_sequence"]``. A visit whose ROI the
+        analyser does not have is left unmarked rather than placed at a guess.
+        """
+        fig = self.generate_trajectory_plot(ax, video_path)
+        axes = cast(Axes, fig.axes[0] if ax is None else ax)
+        rois = self.r_analyzer.rois if self.r_analyzer else {}
+        orders_by_roi: dict[str, list[str]] = {}
+        for visit in visit_sequence:
+            orders_by_roi.setdefault(str(visit.get("roi")), []).append(str(visit.get("order")))
+        target = {str(v.get("roi")) for v in visit_sequence if v.get("is_target")}
+        for roi_name, orders in orders_by_roi.items():
+            roi = rois.get(roi_name)
+            geometry = None if roi is None else self._roi_geometry_to_cm(roi)
+            if geometry is None:
+                continue
+            centre = geometry.centroid
+            is_target = roi_name in target
+            axes.annotate(
+                ",".join(orders),
+                xy=(centre.x, centre.y),
+                ha="center",
+                va="center",
+                fontsize=8,
+                fontweight="bold",
+                color="black",
+                bbox={
+                    "boxstyle": "circle,pad=0.25",
+                    "facecolor": "gold" if is_target else "white",
+                    "edgecolor": "darkred" if is_target else "black",
+                    "linewidth": 1.5 if is_target else 0.8,
+                },
+                zorder=5,
+            )
+        axes.set_title(f"Trajectory and hole visits - {self.metadata.get('experiment_id', '')}")
+        return fig
+
+    def generate_barnes_hole_diagram(
+        self,
+        ax: Axes | None = None,
+        protocol_metrics: Mapping[str, Any] | None = None,
+        quadrant_half_holes: int = 2,
+    ) -> Figure:
+        """The holes of the table as a ring: visits per hole and their order.
+
+        The escape hole is at the top and offsets grow clockwise, as everywhere in
+        the Barnes contract (offsets are relative to the target, so diagrams of
+        different days are comparable). Each hole is filled by its number of
+        visits (a grey hole was never visited), labelled with that count, and the
+        visit orders sit outside the ring. The target quadrant is shaded. Works
+        from the metrics alone: no ROI geometry is read.
+        """
+        metrics = protocol_metrics or {}
+        n_holes = int(metrics.get("n_holes") or 0)
+        fig_obj = ax.get_figure() if ax else plt.figure(figsize=(6.5, 6.5))
+        fig = cast(Figure, fig_obj)
+        axes = ax or fig.add_subplot(111)
+        axes.clear()
+        axes.set_aspect("equal")
+        axes.axis("off")
+        axes.set_title(f"Hole visits - {self.metadata.get('experiment_id', '')}")
+        if n_holes < 3:
+            axes.text(0.5, 0.5, "No hole layout", ha="center", va="center")
+            return fig
+
+        sequence = [v for v in metrics.get("visit_sequence") or [] if isinstance(v, Mapping)]
+        counts: dict[int, int] = {}
+        orders: dict[int, list[int]] = {}
+        for visit in sequence:
+            offset = int(visit.get("offset") or 0)
+            counts[offset] = counts.get(offset, 0) + 1
+            orders.setdefault(offset, []).append(int(visit.get("order") or 0))
+        peak = max(counts.values(), default=1)
+
+        ring = 1.0
+        spacing = 2.0 * np.pi * ring / n_holes
+        radius = min(0.42 * spacing, 0.16)
+        half_width = (quadrant_half_holes + 0.5) * 360.0 / n_holes
+        axes.add_patch(
+            patches.Wedge(
+                (0.0, 0.0),
+                ring + 3.2 * radius,
+                90.0 - half_width,
+                90.0 + half_width,
+                facecolor="gold",
+                alpha=0.22,
+                edgecolor="none",
+            )
+        )
+        axes.add_patch(patches.Circle((0.0, 0.0), ring + 3.2 * radius, fill=False, ec="0.6"))
+        half = n_holes // 2
+        for index in range(n_holes):
+            offset = index if index <= half else index - n_holes
+            angle = 2.0 * np.pi * offset / n_holes
+            cx, cy = ring * np.sin(angle), ring * np.cos(angle)
+            count = counts.get(offset, 0)
+            fill = "0.88" if count == 0 else plt.get_cmap("Blues")(0.3 + 0.7 * count / peak)
+            is_target = offset == 0
+            axes.add_patch(
+                patches.Circle(
+                    (cx, cy),
+                    radius,
+                    facecolor=fill,
+                    edgecolor="darkred" if is_target else "0.35",
+                    linewidth=2.6 if is_target else 0.9,
+                    zorder=3,
+                )
+            )
+            if count:
+                axes.text(cx, cy, str(count), ha="center", va="center", fontsize=9, zorder=4)
+            if offset in orders:
+                axes.text(
+                    (ring + 2.0 * radius) * np.sin(angle),
+                    (ring + 2.0 * radius) * np.cos(angle),
+                    ",".join(str(o) for o in orders[offset]),
+                    ha="center",
+                    va="center",
+                    fontsize=7,
+                    color="0.2",
+                )
+        axes.text(0.0, 0.0, "target at top", ha="center", va="center", fontsize=9, color="0.4")
+        limit = ring + 4.0 * radius
+        axes.set_xlim(-limit, limit)
+        axes.set_ylim(-limit, limit)
         return fig
 
     @staticmethod

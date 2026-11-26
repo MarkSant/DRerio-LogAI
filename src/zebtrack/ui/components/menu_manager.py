@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from tkinter import Menu, Toplevel, messagebox, ttk
 from typing import TYPE_CHECKING, Any
@@ -574,6 +575,30 @@ class MenuManager:
                     )
                 )
 
+    @staticmethod
+    def _add_strategy_correction_menu(
+        menu: Menu, video_path: Path | str, callbacks: dict[str, Callable[..., Any]]
+    ) -> None:
+        """Barnes-maze submenu to correct the automatic search strategy of a video.
+
+        The callbacks decide whether the video qualifies (``strategy_choices`` is empty
+        for any project that is not Barnes), so a generic project's menu is unchanged.
+        """
+        choices_for = callbacks.get("strategy_choices")
+        set_strategy = callbacks.get("set_strategy")
+        if choices_for is None or set_strategy is None:
+            return
+        choices = choices_for(video_path)
+        if not choices:
+            return
+        submenu = Menu(menu, tearoff=0)
+        for choice in choices:
+            submenu.add_command(
+                label=("✔ " if choice.selected else "    ") + choice.label,
+                command=partial(set_strategy, video_path, choice.value),
+            )
+        menu.add_cascade(label=_("🐀 Search strategy (Barnes)"), menu=submenu)
+
     def show_processing_reports_context_menu(
         self,
         video_path: Path | str,
@@ -621,6 +646,7 @@ class MenuManager:
             label=_("🔄 Edit Group / Day / Subjects"),
             command=lambda: self._edit_video_metadata(str(video_path)),
         )
+        self._add_strategy_correction_menu(menu, video_path, callbacks)
         menu.add_separator()
 
         # 1. Targeted Delete (if clicked specific column and asset exists)

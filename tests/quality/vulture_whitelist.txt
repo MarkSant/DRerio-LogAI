@@ -173,9 +173,6 @@ src/zebtrack/ui/components/project_views/report_generator_actions.py::variable::
 src/zebtrack/ui/components/roi_template_manager.py::unreachable_code::ROITemplateManager._validate_template_file.<unreachable after return>
 
 [contract-ahead] Barnes v8.1 stage-0 contract (docs/tasks/v8.1/barnes/CONTRACTS.md) published BEFORE the stage-1 fronts that call it; each entry goes stale -- and must be deleted -- when its front lands, so this section only empties (TASK-088)
-src/zebtrack/analysis/protocols/base.py::variable::ProtocolSpec.suppressed_report_sections
-src/zebtrack/analysis/protocols/base.py::variable::ProtocolSpec.tidy_columns
-src/zebtrack/analysis/protocols/base.py::variable::ProtocolSpec.zone_assistant
 
 [baseline] baseline of 2026-11-19, not reviewed one by one: candidate dead code at 60% confidence (write-only attributes, unused payload classes, methods no caller names). Deleting is the maintainer's decision (register A2-08)
 src/zebtrack/analysis/analysis_service.py::attribute::AnalysisService.metrics_cache
