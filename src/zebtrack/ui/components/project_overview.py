@@ -503,7 +503,7 @@ class ProjectOverviewWidget(BaseWidget):
                             "label",
                             term(
                                 "subject.label",
-                                hierarchy_data.get("animal_model"),
+                                hierarchy_data.get("terms_model"),
                                 label=subject["id"],
                             ),
                         ),

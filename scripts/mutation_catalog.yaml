@@ -8537,7 +8537,7 @@ _load_registry()"
     mutations:
       - id: fallback-label-ignores-animal
         description: "o rotulo de reserva do sujeito ignora o animal"
-        find: '                                hierarchy_data.get("animal_model"),'
+        find: '                                hierarchy_data.get("terms_model"),'
         replace: "                                None,"
 
   animal_terms_validation_manager:
@@ -8547,5 +8547,5 @@ _load_registry()"
     mutations:
       - id: hierarchy-drops-the-animal
         description: "a hierarquia deixa de carregar o animal do projeto"
-        find: '        return {"groups": groups_list, "animal_model": animal.value}'
-        replace: '        return {"groups": groups_list, "animal_model": None}'
+        find: '        return {"groups": groups_list, "terms_model": animal.value}'
+        replace: '        return {"groups": groups_list, "terms_model": None}'

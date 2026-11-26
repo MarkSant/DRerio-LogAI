@@ -518,7 +518,7 @@ class TestOverviewSubjectFallback:
             ]
         }
         if animal is not None:
-            hierarchy["animal_model"] = animal
+            hierarchy["terms_model"] = animal
         overview.populate_tree_with_hierarchy(hierarchy, {})
         tree = overview.project_overview_tree
         group = tree.get_children()[0]
@@ -552,4 +552,4 @@ class TestOverviewSubjectFallback:
             controller=SimpleNamespace(project_manager=project_manager)
         )
 
-        assert manager.prepare_overview_hierarchy_for_widget([])["animal_model"] == "rodent"
+        assert manager.prepare_overview_hierarchy_for_widget([])["terms_model"] == "rodent"
