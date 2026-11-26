@@ -499,11 +499,11 @@ def test_a_visited_hole_is_filled_darker_the_more_it_was_visited():
 
     try:
         holes = [p for p in fig.axes[0].patches if isinstance(p, Circle)]
-        by_offset = {}
+        by_offset: dict[int, tuple[float, float, float]] = {}
         for hole in holes[1:]:  # the first circle is the outer ring
             x, y = hole.center
             angle = math.atan2(x, y)  # clockwise from the top
-            by_offset[round(angle * 18 / (2 * math.pi))] = hole.get_facecolor()[:3]
+            by_offset[round(angle * 18 / (2 * math.pi))] = tuple(hole.get_facecolor()[:3])  # type: ignore[assignment]
         never, once, thrice = by_offset[5], by_offset[2], by_offset[3]
         assert never == pytest.approx((0.88, 0.88, 0.88))
         assert once != pytest.approx(never)
