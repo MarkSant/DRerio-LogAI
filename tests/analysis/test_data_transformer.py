@@ -1138,6 +1138,7 @@ class TestAnimalDisplayNames:
 
         assert display_column_name("aquarium_id") == "Aquarium"
         assert display_column_name("aquarium_id", AnimalModel.RODENT) == "Arena"
+        assert display_column_name("aquarium_id", AnimalModel.OTHER) == "Arena"
         assert display_column_name("total_distance_cm", AnimalModel.RODENT) == "Total Distance (cm)"
         assert display_column_name("some_unmapped_key", AnimalModel.OTHER) == "Some Unmapped Key"
 

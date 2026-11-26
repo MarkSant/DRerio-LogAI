@@ -8256,3 +8256,250 @@ _load_registry()"
         description: "uma falha ao salvar a correcao vira mensagem de sucesso"
         find: 'if self._strategy_correction.set_override(video_path, value):'
         replace: 'if True:'
+
+  # --- Barnes v8.1 animal-terms (#633): the interface vocabulary follows the animal model ---
+  animal_terms_terminology:
+    source: src/zebtrack/ui/terminology.py
+    tests:
+      - tests/ui/test_terminology.py
+    mutations:
+      - id: zebrafish-reads-the-neutral-text
+        description: "zebrafish deixa de receber o texto legado"
+        find: "        if model is AnimalModel.ZEBRAFISH:"
+        replace: "        if model is AnimalModel.RODENT:"
+      - id: other-ignores-its-own-variant
+        description: "outras especies ignoram a variante propria (emoji)"
+        find: "        if model is AnimalModel.OTHER and self.other is not None:"
+        replace: "        if False:"
+      - id: no-profile-reads-neutral
+        description: "projeto sem perfil deixa de ser zebrafish"
+        find: "        return AnimalModel.ZEBRAFISH"
+        replace: "        return AnimalModel.RODENT"
+      - id: format-arguments-ignored
+        description: "os argumentos de formatacao deixam de ser aplicados"
+        find: "    return text.format(**fmt) if fmt else text"
+        replace: "    return text"
+      - id: gui-helper-ignores-the-project
+        description: "o auxiliar da janela ignora o projeto aberto"
+        find: '    return animal_model_of(getattr(project_manager, "project_data", None))'
+        replace: "    return animal_model_of(None)"
+
+  animal_terms_data_transformer:
+    source: src/zebtrack/analysis/data_transformer.py
+    tests:
+      - tests/analysis/test_data_transformer.py
+    mutations:
+      - id: column-override-ignored
+        description: "o nome de coluna por animal deixa de valer"
+        find: "    if override is not None:"
+        replace: "    if False:"
+      - id: other-animal-keeps-aquarium-column
+        description: "outras especies mantem a coluna Aquarium"
+        find: '    AnimalModel.OTHER: {"aquarium_id": "Arena"},'
+        replace: "    AnimalModel.OTHER: {},"
+      - id: metadata-key-not-reworded
+        description: "a chave de metadados nao e reescrita para o animal"
+        find: "    for old, new in _ANIMAL_KEY_WORDS.get(animal_model, ()):"
+        replace: "    for old, new in ():"
+      - id: other-animal-keeps-aquarium-key-word
+        description: "outras especies mantem Aquarium nos rotulos de metadados"
+        find: '    AnimalModel.OTHER: (("aquarium", "arena"),),'
+        replace: "    AnimalModel.OTHER: (),"
+      - id: display-frame-ignores-animal
+        description: "prepare_for_display ignora o animal"
+        find: "                rename_map[col] = _ANIMAL_DISPLAY_OVERRIDES.get(animal_model, {}).get("
+        replace: "                rename_map[col] = _ANIMAL_DISPLAY_OVERRIDES.get(AnimalModel.ZEBRAFISH, {}).get("
+
+  animal_terms_word_reporter:
+    source: src/zebtrack/analysis/reporters/word_reporter.py
+    tests:
+      - tests/analysis/reporters/test_word_reporter.py
+    mutations:
+      - id: metadata-label-ignores-animal
+        description: "o rotulo de metadados do Word ignora o animal"
+        find: "display_metadata_label(key, animal_model)"
+        replace: "display_metadata_label(key)"
+      - id: metric-row-ignores-animal
+        description: "a linha de metrica do Word ignora o animal"
+        find: "row_cells[0].text = display_column_name(column_name, animal_model)"
+        replace: "row_cells[0].text = display_column_name(column_name)"
+
+  animal_terms_excel_reporter:
+    source: src/zebtrack/analysis/reporters/excel_reporter.py
+    tests:
+      - tests/analysis/reporters/test_excel_reporter.py
+    mutations:
+      - id: excel-header-ignores-animal
+        description: "o cabecalho do Excel ignora o animal"
+        find: '            animal_model=animal_model_of_config(getattr(self._ctx, "behavioral_config", None)),'
+        replace: "            animal_model=animal_model_of_config(None),"
+
+  animal_terms_zone_controls:
+    source: src/zebtrack/ui/components/zone_controls.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: detect-button-not-reworded
+        description: "o botao de detectar nao acompanha o animal"
+        find: '                auto_detect.configure(text=term("zones.detect_button", animal_model))'
+        replace: "                pass"
+      - id: active-frame-not-reworded
+        description: "o quadro Arena ativa nao acompanha o animal"
+        find: '                    text=term("zones.active_frame", animal_model)'
+        replace: '                    text=term("zones.active_frame")'
+      - id: left-radio-not-reworded
+        description: "o radio da esquerda nao acompanha o animal"
+        find: '                self.aquarium_radio_1.configure(text=term("zones.radio_left", animal_model))'
+        replace: "                pass"
+      - id: right-radio-not-reworded
+        description: "o radio da direita nao acompanha o animal"
+        find: '                self.aquarium_radio_2.configure(text=term("zones.radio_right", animal_model))'
+        replace: "                pass"
+      - id: sequential-radio-not-reworded
+        description: "o radio sequencial nao acompanha o animal"
+        find: '                self.sequential_radio.configure(text=term("zones.sequential_radio", animal_model))'
+        replace: "                pass"
+      - id: sequential-help-not-reworded
+        description: "a ajuda sequencial nao acompanha o animal"
+        find: '                    text=term("zones.sequential_help", animal_model)'
+        replace: '                    text=term("zones.sequential_help")'
+
+  animal_terms_event_dispatcher:
+    source: src/zebtrack/ui/components/event_dispatcher.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: zones-tab-always-legacy
+        description: "a aba de zonas sempre recebe o animal legado"
+        find: "        setter(animal_model_of(project_data if isinstance(project_data, Mapping) else None))"
+        replace: "        setter(animal_model_of(None))"
+      - id: terms-not-refreshed-with-the-barnes-button
+        description: "a atualizacao do botao Barnes deixa de atualizar o vocabulario"
+        find: "        self.refresh_animal_terminology()"
+        replace: "        pass"
+
+  animal_terms_calibration_step:
+    source: src/zebtrack/ui/wizard/calibration_step.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: profile-change-does-not-reword
+        description: "mudar o perfil nao reescreve os rotulos da calibracao"
+        find: "        self._apply_terms(profile.animal_model)"
+        replace: "        pass"
+      - id: count-label-not-reworded
+        description: "o rotulo do numero de arenas nao acompanha o animal"
+        find: '            self._count_label.configure(text=term("calibration.count_label", animal_model))'
+        replace: "            pass"
+      - id: animals-label-not-reworded
+        description: "o rotulo de animais por arena nao acompanha o animal"
+        find: '            self._animals_label.configure(text=term("calibration.animals_label", animal_model))'
+        replace: "            pass"
+      - id: count-tooltip-not-reworded
+        description: "a dica do numero de arenas nao acompanha o animal"
+        find: '            self._count_tip.text = term("calibration.count_help", animal_model)'
+        replace: "            pass"
+      - id: animals-tooltip-not-reworded
+        description: "a dica de animais por arena nao acompanha o animal"
+        find: '            self._animals_tip.text = term("calibration.animals_help", animal_model)'
+        replace: "            pass"
+
+  animal_terms_behavioral_config_widget:
+    source: src/zebtrack/ui/components/behavioral_config_widget.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: combos-refresh-does-not-reword
+        description: "escolher o animal nao reescreve os rotulos do widget"
+        find: "\"\"\"\n        self._apply_terms()\n        if self.animal_model_combo:"
+        replace: "\"\"\"\n        if self.animal_model_combo:"
+      - id: perspective-title-not-reworded
+        description: "o titulo da perspectiva nao acompanha o animal"
+        find: '            self._perspective_frame.configure(text=term("behavioral.perspective_title", model))'
+        replace: "            pass"
+      - id: thigmotaxis-help-not-reworded
+        description: "a ajuda da tigmotaxia nao acompanha o animal"
+        find: '            self._thigmotaxis_help_label.configure(text=term("behavioral.thigmotaxis_help", model))'
+        replace: "            pass"
+      - id: zones-split-not-reworded
+        description: "o rotulo de divisao de zonas nao acompanha o animal"
+        find: '            self._zones_split_label.configure(text=term("behavioral.zones_split", model))'
+        replace: "            pass"
+      - id: locks-do-not-reword
+        description: "travar o protocolo nao reescreve os rotulos"
+        find: "        self._apply_terms()\n        self._on_perspective_changed()"
+        replace: "        self._on_perspective_changed()"
+
+  animal_terms_live_analysis_dialog:
+    source: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: profile-change-does-not-reword
+        description: "mudar o perfil nao reescreve os rotulos do dialogo ao vivo"
+        find: "        self._apply_terms()\n"
+        replace: ""
+      - id: count-error-ignores-animal
+        description: "a mensagem de erro de contagem ignora o animal"
+        find: 'raise ValueError(term("live.count_error", self._profile_animal))'
+        replace: 'raise ValueError(term("live.count_error"))'
+      - id: notice-not-reworded
+        description: "o aviso de uma arena por vez nao acompanha o animal"
+        find: '            self._one_arena_notice.configure(text=term("live.one_arena_notice", model))'
+        replace: "            pass"
+      - id: tooltip-not-reworded
+        description: "a dica de contagem nao acompanha o animal"
+        find: '            set_help_text(self._count_help, term("live.count_help", model))'
+        replace: "            pass"
+
+  animal_terms_single_video_config_dialog:
+    source: src/zebtrack/ui/dialogs/single_video_config_dialog.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: profile-change-does-not-reword
+        description: "mudar o perfil nao reescreve os rotulos do dialogo de video unico"
+        find: "        self._apply_terms()\n"
+        replace: ""
+      - id: count-help-not-reworded
+        description: "a dica de contagem nao acompanha o animal"
+        find: '            set_help_text(self._count_help, term("single.count_help", model))'
+        replace: "            pass"
+      - id: animals-label-not-reworded
+        description: "o rotulo de animais nao acompanha o animal"
+        find: '            self._animals_label.configure(text=term("single.animals_label", model))'
+        replace: "            pass"
+
+  animal_terms_aquarium_assignment_dialog:
+    source: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: title-ignores-animal
+        description: "o titulo do dialogo ignora o animal"
+        find: '        super().__init__(parent, term("assignment.title", animal_model))'
+        replace: '        super().__init__(parent, term("assignment.title"))'
+      - id: group-error-ignores-animal
+        description: "a mensagem de grupo vazio ignora o animal"
+        find: '                raise ValueError(term("assignment.group_empty", self._animal_model, number=i + 1))'
+        replace: '                raise ValueError(term("assignment.group_empty", None, number=i + 1))'
+
+  animal_terms_report_tree_builder:
+    source: src/zebtrack/ui/components/project_views/report_tree_builder.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: subject-label-ignores-animal
+        description: "o no de sujeito ignora o animal do projeto"
+        find: '                animal_model_of(getattr(self.project_manager, "project_data", None)),'
+        replace: "                None,"
+
+  animal_terms_tooltip:
+    source: src/zebtrack/ui/wizard/tooltip.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: help-text-not-replaced
+        description: "set_help_text deixa de trocar o texto da dica"
+        find: "        tooltip.text = text"
+        replace: "        pass"

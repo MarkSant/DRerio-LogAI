@@ -132,8 +132,6 @@ class ZoneControlsWidget(BaseWidget):
         self.parallel_radio: ttk.Radiobutton | None = None
         self.sequential_radio: ttk.Radiobutton | None = None
         self.sequential_help_label: ttk.Label | None = None
-        # Animal model the arena wording follows (``set_animal_model``).
-        self._animal_model: AnimalModel = AnimalModel.ZEBRAFISH
 
         if isinstance(parent, ttk.Widget):
             super().__init__(parent, event_bus=event_bus, **kwargs)
@@ -1019,7 +1017,6 @@ class ZoneControlsWidget(BaseWidget):
         profile (``EventDispatcher``) calls this. Idempotent; a zebrafish or
         legacy project keeps today's text. Persisted keys are untouched (ADR-012).
         """
-        self._animal_model = animal_model
         try:
             auto_detect = getattr(self, "auto_detect_button", None)
             if auto_detect is not None:
