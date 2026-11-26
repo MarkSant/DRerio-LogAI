@@ -21,7 +21,7 @@ behavioral_config=None) -> ExperimentProfile`. Reading the keys anywhere else fa
 |---|---|---|---|
 | `animal_model` | `str` | `zebrafish`, `rodent`, `other` (`AnimalModel`) | `zebrafish` |
 | `protocol` | `str` | `generic`, `barnes` (`ProtocolId`) | `generic` |
-| `protocol_params` | `dict[str, dict]` | `{<protocol>: {...}}`, e.g. `{"barnes": {"n_holes": 20}}` | absent |
+| `protocol_params` | `dict[str, dict]` | `{<protocol>: {...}}`, e.g. `{"barnes": {"n_holes": 18}}` | absent |
 
 - Precedence, **per key**: the run's `behavioral_config` > `project_data["behavioral_config"]`
   (or the legacy `behavioral_analysis` block when `behavioral_config` is absent) > default. A key
@@ -156,7 +156,7 @@ Module: `analysis/protocols/barnes/contract.py`.
 |---|---|---|
 | `toca` | `TARGET_ROI` (= `core/conditions/presets.BARNES_BURROW_ROI`) | the escape hole |
 | `quadrante_alvo` | `QUADRANT_ROI` | target sector |
-| `buraco_+01` … `buraco_+09`, `buraco_-01` … `buraco_-09` | `hole_roi_name(offset, n)` | decoys, sign always written, two digits |
+| `buraco_+01` … `buraco_+0k`, `buraco_-01` … `buraco_-0k` (`k` = 8 for 18 holes, 9 for 20) | `hole_roi_name(offset, n)` | decoys, sign always written, two digits |
 | `buraco_oposto` | `OPPOSITE_HOLE_ROI` | opposite hole (even `n` only) |
 
 - Stored order = `expected_roi_names(n_holes)`: `quadrante_alvo`, `toca`, `+01..+k`, `-01..-k`,
@@ -179,7 +179,7 @@ its default with a warning; unknown keys are ignored.
 
 | Field | Default | Unit / range | Used by |
 |---|---|---|---|
-| `n_holes` | 20 | 3–99 | all |
+| `n_holes` | 18 | 3–99 | all (see the note below the table) |
 | `table_diameter_cm` | 184.0 | cm, > 0 | wizard (mirrors it into `aquarium_width_cm`/`aquarium_height_cm`), sanity checks |
 | `quadrant_half_holes` | 2 | ≥ 0, `2k+1 ≤ n_holes` | arena, metrics |
 | `hole_roi_dilation` | 1.25 | 1–3 | arena |
@@ -201,6 +201,24 @@ its default with a warning; unknown keys are ignored.
 | `strategy_serial_max_center_crossings` | 1 | | metrics |
 | `strategy_adjacent_max_step` | 2 | holes (circular) | metrics |
 
+**Hole count (user decision, 2026-11-25).** The lab's current table (raw videos of 2024-10-04)
+has **18** holes; the 2020 protocol photos show a 20-hole table. With 18, the protocol's probe rule
+"target = 1, +1 per hole, opposite = 10" is exact (`d` max 9). Therefore:
+
+- `n_holes` defaults to **18** and records the table of the PROJECT (it also fixes the tidy
+  `barnes_*` columns, which must not vary between videos).
+- The arena assistant DETECTS the count on each video's background (fits 18 and 20 and keeps the
+  better snap), shows it and lets the user override it. When the detected count differs from the
+  project's `n_holes`, it asks before updating `protocol_params.barnes.n_holes` for the project
+  (through the profile's single write path) — never silently.
+- The metrics use the EFFECTIVE count `infer_n_holes(roi_names) -> int | None` (contract helper):
+  from the Barnes hole names present, `2k + 2` with `buraco_oposto`, `2k + 1` without it, where `k`
+  is the largest `|offset|` of the `buraco_±NN` names. `None` (no Barnes hole names) →
+  `layout_unresolved`. When it differs from `params.n_holes`, the layout uses the effective count
+  and a translated warning is added; the tidy columns stay on `params.n_holes` (a distance with no
+  column is reported only in `protocol_metrics`).
+- `probe_score_cap` stays 10.
+
 ### 3.3 `BarnesVideoInputs` — `video_entry["protocol_inputs"]["barnes"]`
 
 `{"trial_type": "training" | "probe" | None, "strategy_override": "direct" | "serial" | "random" |
@@ -217,7 +235,7 @@ so nothing may REQUIRE it: the metrics rebuild the layout from names + polygons.
 ```json
 {
   "schema": 1,
-  "n_holes": 20,
+  "n_holes": 18,
   "target_abs_index": 3,
   "source": "snapped",
   "table": {"center_px": [320.0, 214.0], "semi_axes_px": [238.0, 212.0], "angle_deg": 0.0},
@@ -328,6 +346,9 @@ registration of `BARNES_SPEC` in `registry._builtin_specs()`.
   hook answers `multi_aquarium` itself (§2.1).
 - **Layout rebuild:** hole centres = ROI polygon centroids; ring ellipse = `cv2.fitEllipse` of the
   hole centres; centre disk = the ring ellipse scaled by `center_radius_ratio` about its centre.
+  The hole count used to parse the names, compute offsets and distances is the EFFECTIVE count
+  `infer_n_holes(roi_names)` (§3.2 note); a Barnes name drawn more than once: the first ROI in
+  stored order is used, with a warning.
 - **t0** (`t_start_s`, absolute on the `timestamp` clock): `window.start.t_s` when the window
   started (`start_source="window"`); else the first trajectory timestamp
   (`start_source="recording"`) plus a warning. **Trial end** = `min(window stop t_s or last
@@ -337,12 +358,17 @@ registration of `BARNES_SPEC` in `registry._builtin_specs()`.
   `visit_min_cover` and closes after `visit_exit_frames` consecutive frames below it, both
   back-dated; a frame without a detection counts as below. With `visit_max_speed_cm_s` set, a
   visit also needs one covered frame below that speed. A visit already open at t0 starts at t0.
-  Only visits that start in `[t0, trial end)` count.
+  Only visits that start in `[t0, trial end)` count. A frame gap counts
+  `round(Δframe / median Δframe) − 1` processed frames without detection. With
+  `visit_max_speed_cm_s` set, a candidate with no measurable speed on any covered frame is dropped
+  and counted in a warning.
 - **Encounter:** first visit to `toca`. `encounter_latency_s` = its start − t0; none →
   `max_trial_s` with `encounter_censored=True`.
 - **Entry** (training only; never re-detected in the metrics, ADR-011):
   - `window.stop.reason == "burrow_entry"` → `entry_latency_s = stop.t_s - t0`,
-    `entry_censored=False`, `entry_source="window"`;
+    `entry_censored=False`, `entry_source="window"`, unless `stop.t_s − t0` exceeds
+    `max_trial_s`: then `max_trial_s`, `True`, `"censored"` (an entry exactly at the ceiling is
+    still measured);
   - else, if `window.spec` contains a node of kind `burrow_entry` → `max_trial_s`,
     `entry_censored=True`, `entry_source="censored"`;
   - else → `None`, `entry_censored=None`, `entry_source="unavailable"` plus a warning;
@@ -355,9 +381,10 @@ registration of `BARNES_SPEC` in `registry._builtin_specs()`.
   from the subject centre (`x_center_px`/`y_center_px`, else bbox centre) with `pixelcm_x/y`, not
   counting jumps across gaps longer than `behavioral_analyzer.gap_threshold_s` (same rule as
   `distancia_total_cm`); `None` when the event did not happen.
-- **Quadrant:** `target_quadrant_time_s` = `roi_analyzer.get_time_spent_in_rois()["quadrante_alvo"]
-  ["seconds"]` (the report's rule, already window-restricted; it matches the generic ROI table);
-  `target_quadrant_time_pct` = that / (trial end − t0) × 100.
+- **Quadrant:** `target_quadrant_time_s` =
+  `roi_analyzer.get_time_spent_in_rois(t0, trial_end)["quadrante_alvo"]["seconds"]` (the report's
+  rule, measured over the TRIAL); `target_quadrant_time_pct` = that / (trial end − t0) × 100. It
+  equals the generic ROI table only when window and trial coincide.
 - **Sequence and histogram:** `visit_sequence` lists every counted visit in time order with
   `VISIT_FIELDS` (times relative to t0; `t_exit_s`/`dwell_s` `None` when still open at the trial
   end); `visits_by_distance` = `{d: count}` for every `d` in `0..n/2` (all keys present, ints).
@@ -389,7 +416,7 @@ Keys in order: `contract.METRICS_KEYS` (30 keys); visit entries: `contract.VISIT
 ```json
 {
   "status": "ok", "protocol": "barnes", "version": 1, "reason": null,
-  "trial_type": "training", "n_holes": 20, "t_start_s": 12.4, "start_source": "window",
+  "trial_type": "training", "n_holes": 18, "t_start_s": 12.4, "start_source": "window",
   "encounter_latency_s": 38.1, "encounter_censored": false,
   "entry_latency_s": 41.7, "entry_censored": false, "entry_source": "window",
   "primary_errors": 2, "total_errors": 3, "perseverative_errors": 1,

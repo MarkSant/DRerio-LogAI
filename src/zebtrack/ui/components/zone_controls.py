@@ -437,6 +437,16 @@ class ZoneControlsWidget(BaseWidget):
         )
         self.conclude_video_btn.pack(side="left", fill="x", expand=True, padx=2, pady=2)
 
+        # Barnes arena assistant (#633). Built but NOT packed: only a project whose
+        # experiment profile says ``protocol = barnes`` shows it, and the widget
+        # does not know the project -- ``set_barnes_assistant_visible`` is called
+        # by whoever resolved the profile (EventDispatcher).
+        self.barnes_assistant_button = ttk.Button(
+            btn_container,
+            text=_("🕳 Barnes assistant…"),
+            command=self._on_barnes_assistant_clicked,
+        )
+
         # Stabilization frames entry - compact version
         stabilization_frame = ttk.Frame(actions_frame)
         stabilization_frame.pack(fill="x", pady=2, anchor="w")
@@ -991,6 +1001,35 @@ class ZoneControlsWidget(BaseWidget):
             UIEvents.ZONE_PROCESSING_MODE_CHANGED,
             {"sequential": sequential, "apply_to_all": apply_to_all},
         )
+
+    def _on_barnes_assistant_clicked(self) -> None:
+        """Ask for the Barnes arena assistant (handled by EventDispatcher)."""
+        self.emit_event(UIEvents.ZONE_BARNES_ASSISTANT_OPEN, payloads.EmptyPayload())
+
+    def set_barnes_assistant_visible(self, visible: bool) -> None:
+        """Show the Barnes assistant button only for a Barnes project.
+
+        Packed just before "Finish and Save Project" so the drawing actions keep
+        their order. Idempotent.
+        """
+        button = getattr(self, "barnes_assistant_button", None)
+        if button is None:
+            return
+        try:
+            if visible:
+                if not button.winfo_manager():
+                    button.pack(
+                        side="left",
+                        fill="x",
+                        expand=True,
+                        padx=2,
+                        pady=2,
+                        before=self.conclude_video_btn,
+                    )
+            else:
+                button.pack_forget()
+        except tk.TclError:
+            log.debug("zone_controls.barnes_assistant_visibility.suppressed", exc_info=True)
 
     def _on_draw_main_polygon_clicked(self) -> None:
         """Handle draw main polygon button click."""

@@ -69,11 +69,13 @@ def _spec(compute) -> ProtocolSpec:
     )
 
 
-def test_no_protocol_is_built_in_before_its_front_registers_it(monkeypatch):
+def test_barnes_is_the_only_built_in_protocol(monkeypatch):
+    from zebtrack.analysis.protocols.barnes.spec import BARNES_SPEC
+
     monkeypatch.setattr(registry, "_registry", None)
 
-    assert registered_protocols() == ()
-    assert get_protocol(ProtocolId.BARNES) is None
+    assert registered_protocols() == (ProtocolId.BARNES,)
+    assert get_protocol(ProtocolId.BARNES) is BARNES_SPEC
     assert get_protocol(ProtocolId.GENERIC) is None
 
 

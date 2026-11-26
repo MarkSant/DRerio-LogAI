@@ -27,7 +27,7 @@ returned in :attr:`ExperimentProfile.warnings`.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
@@ -46,6 +46,7 @@ __all__ = [
     "ProtocolId",
     "forced_animal_model",
     "resolve_experiment_profile",
+    "set_protocol_param",
 ]
 
 logger = structlog.get_logger()
@@ -261,4 +262,50 @@ def resolve_experiment_profile(
         protocol_params=protocol_params,
         declared_protocol=declared_protocol,
         warnings=tuple(warnings),
+    )
+
+
+def set_protocol_param(
+    project_data: MutableMapping[str, Any], protocol: ProtocolId, key: str, value: Any
+) -> None:
+    """The one write path of a project-level protocol parameter (ADR-014).
+
+    Writes ``protocol_params[<protocol>][key] = value`` into the block
+    :func:`resolve_experiment_profile` reads: ``behavioral_config`` when the
+    project has one, else the legacy ``behavioral_analysis`` block, else a new
+    ``behavioral_config``. Missing or malformed intermediate blocks are replaced
+    by empty ones. In place; the caller persists the project.
+
+    Raises:
+        ValueError: ``protocol`` is ``generic`` (it has no parameters).
+    """
+    if protocol is ProtocolId.GENERIC:
+        raise ValueError("the generic protocol has no parameters")
+    if _PROJECT_BLOCK_KEY in project_data or not isinstance(
+        project_data.get(_LEGACY_BLOCK_KEY), MutableMapping
+    ):
+        block_key = _PROJECT_BLOCK_KEY
+    else:
+        block_key = _LEGACY_BLOCK_KEY
+    block = project_data.get(block_key)
+    if not isinstance(block, MutableMapping):
+        block = {}
+        project_data[block_key] = block
+    params = block.get(PROTOCOL_PARAMS_KEY)
+    if not isinstance(params, MutableMapping):
+        params = {}
+        block[PROTOCOL_PARAMS_KEY] = params
+    own = params.get(protocol.value)
+    if not isinstance(own, MutableMapping):
+        own = {}
+        params[protocol.value] = own
+    previous = own.get(key)
+    own[key] = value
+    logger.info(
+        "experiment_profile.protocol_param.set",
+        protocol=protocol.value,
+        key=key,
+        previous=repr(previous),
+        value=repr(value),
+        block=block_key,
     )

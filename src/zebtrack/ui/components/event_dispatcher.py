@@ -4,7 +4,8 @@ Handles both Core-side dispatching (routing commands to orchestrators)
 and UI-side dispatching (routing UI updates to widgets).
 """
 
-from collections.abc import Callable
+import os
+from collections.abc import Callable, Mapping
 from dataclasses import fields, is_dataclass
 from pathlib import Path
 from tkinter import TclError
@@ -965,6 +966,19 @@ class EventDispatcher:
         gui = self._require_gui()
         event_bus = self.event_bus
 
+        # Barnes arena assistant (#633): the button only shows for a Barnes
+        # project, re-checked whenever a project opens or the zone list redraws.
+        event_bus.subscribe(UIEvents.ZONE_BARNES_ASSISTANT_OPEN, self._open_barnes_assistant)
+        event_bus.subscribe(
+            UIEvents.PROJECT_OPENED,
+            lambda d: self._run_on_ui_thread(self.refresh_barnes_assistant_visibility),
+        )
+        event_bus.subscribe(
+            UIEvents.UI_UPDATE_ZONE_LIST,
+            lambda d: self._run_on_ui_thread(self.refresh_barnes_assistant_visibility),
+        )
+        self.refresh_barnes_assistant_visibility()
+
         # Drawing Actions
         event_bus.subscribe(
             UIEvents.ZONE_AUTO_DETECT_CLICKED,
@@ -1133,6 +1147,213 @@ class EventDispatcher:
         event_bus.subscribe(
             UIEvents.ANALYSIS_WINDOW_STATE_CHANGED,
             self._on_analysis_window_state_changed,
+        )
+
+    # ------------------------------------------------------------------
+    # Barnes arena assistant (#633)
+    # ------------------------------------------------------------------
+
+    def _barnes_project_manager(self) -> Any | None:
+        gui = self.gui
+        controller = getattr(gui, "controller", None) if gui is not None else None
+        return getattr(controller, "project_manager", None) if controller is not None else None
+
+    def _is_barnes_project(self) -> bool:
+        """The ONE question the button asks: does the profile say ``barnes``?"""
+        from zebtrack.core.services.experiment_profile import (
+            ProtocolId,
+            resolve_experiment_profile,
+        )
+
+        project_manager = self._barnes_project_manager()
+        project_data = getattr(project_manager, "project_data", None)
+        if not isinstance(project_data, Mapping):
+            return False
+        return resolve_experiment_profile(project_data).protocol is ProtocolId.BARNES
+
+    def refresh_barnes_assistant_visibility(self) -> None:
+        """Show the Zones tab's Barnes assistant button only for a Barnes project."""
+        gui = self.gui
+        controls = getattr(gui, "zone_controls", None) if gui is not None else None
+        setter = getattr(controls, "set_barnes_assistant_visible", None)
+        if not callable(setter):
+            return
+        setter(self._is_barnes_project())
+
+    @staticmethod
+    def _barnes_target_video(project_manager: Any, gui: Any) -> str | None:
+        """The video (or live snapshot) whose zones the Zones tab is editing.
+
+        Live projects keep their zones under the reference-frame key, as
+        ``MultiAquariumCoordinator.save_manual_arena`` does.
+        """
+        target: str | None = None
+        if project_manager.get_project_type() == "live":
+            target = (
+                project_manager.get_last_zone_video() or project_manager.get_active_zone_video()
+            )
+        else:
+            target = project_manager.get_active_zone_video() or getattr(
+                gui, "pending_single_video_path", None
+            )
+        return str(target) if target else None
+
+    @staticmethod
+    def _barnes_video_label(video: Mapping[str, Any]) -> str:
+        """Display label of a project video: group / day / subject / file name."""
+        raw = video.get("metadata")
+        metadata: Mapping[str, Any] = raw if isinstance(raw, Mapping) else {}
+        parts = [str(metadata[key]) for key in ("group", "day", "subject") if metadata.get(key)]
+        parts.append(Path(str(video.get("path", ""))).name)
+        return " / ".join(parts)
+
+    def _barnes_detect_table(self, video_path: Path | str) -> list[tuple[float, float]] | None:
+        """Run the Zones tab's own arena auto-detection and return the outline.
+
+        Goes through ``ZONE_AUTO_DETECT`` (one arena), i.e. the same
+        ``MultiAquariumCoordinator.run_aquarium_detection`` the "Detect" button
+        reaches; that path saves the outline as the video's arena. The detection
+        reports nothing back, so the arena is compared before and after: an
+        UNCHANGED outline means nothing was detected (a stale arena is never
+        presented as a detection).
+        """
+        gui = self._require_gui()
+        project_manager = self._barnes_project_manager()
+        if project_manager is None:
+            return None
+        controls = getattr(gui, "zone_controls", None)
+        frames_var = getattr(controls, "stabilization_frames_var", None)
+        try:
+            frames = max(1, int(frames_var.get())) if frames_var is not None else 10
+        except (TypeError, ValueError):
+            frames = 10
+
+        def arena() -> list[tuple[float, float]]:
+            polygon = project_manager.get_zone_data(video_path, fallback_to_global=False).polygon
+            return [(float(p[0]), float(p[1])) for p in polygon]
+
+        before = arena()
+        self.publish_event(
+            UIEvents.ZONE_AUTO_DETECT,
+            payloads.ZoneAutoDetectPayload(
+                video_path=os.fspath(video_path),
+                stabilization_frames=frames,
+                expected_count=1,
+            ),
+        )
+        after = arena()
+        if not after or after == before:
+            self.log.info("event_dispatcher.barnes_assistant.table_not_detected")
+            return None
+        return after
+
+    def _open_barnes_assistant(self, _data: payloads.EventPayload) -> None:
+        """Handle ``ZONE_BARNES_ASSISTANT_OPEN``: open the assistant on the shown frame."""
+        from zebtrack.analysis.protocols.barnes.contract import (
+            LAYOUT_METADATA_KEY,
+            BarnesLayout,
+            parse_barnes_params,
+            parse_barnes_video_inputs,
+        )
+        from zebtrack.analysis.protocols.base import (
+            protocol_inputs_for,
+            protocol_inputs_of_entry,
+        )
+        from zebtrack.core.detection.barnes_geometry import (
+            BarnesGeometryError,
+            ellipse_from_polygon,
+        )
+        from zebtrack.core.services.experiment_profile import (
+            ProtocolId,
+            resolve_experiment_profile,
+        )
+        from zebtrack.ui.dialogs.barnes_layout_dialog import (
+            BarnesAssistantInputs,
+            BarnesLayoutDialog,
+            OtherVideo,
+        )
+
+        gui = self._require_gui()
+        project_manager = self._barnes_project_manager()
+        if project_manager is None or not self._is_barnes_project():
+            self.refresh_barnes_assistant_visibility()
+            gui.dialog_manager.show_warning(
+                _("Barnes assistant"),
+                _("The Barnes assistant is only available in a Barnes-maze project."),
+            )
+            return
+        canvas_manager = getattr(gui, "canvas_manager", None)
+        frame = getattr(canvas_manager, "_raw_bg_image", None) or getattr(
+            gui, "_original_image", None
+        )
+        target = self._barnes_target_video(project_manager, gui)
+        if frame is None or not target:
+            gui.dialog_manager.show_warning(
+                _("Barnes assistant"),
+                _("Load a video frame (or the camera snapshot) in the Zones tab first."),
+            )
+            return
+
+        profile = resolve_experiment_profile(project_manager.project_data)
+        params, param_warnings = parse_barnes_params(profile.protocol_params)
+        for warning in param_warnings:
+            self.log.warning("event_dispatcher.barnes_assistant.param_warning", warning=warning)
+
+        zone_data = project_manager.get_zone_data(target, fallback_to_global=False)
+        cached = BarnesLayout.from_metadata((zone_data.metadata or {}).get(LAYOUT_METADATA_KEY))
+        initial_table = None
+        if cached is None and len(zone_data.polygon) >= 4:
+            try:
+                initial_table = ellipse_from_polygon(
+                    [(float(p[0]), float(p[1])) for p in zone_data.polygon]
+                )
+            except BarnesGeometryError:
+                self.log.info("event_dispatcher.barnes_assistant.arena_not_an_ellipse")
+
+        entry = project_manager.find_video_entry(path=target)
+        video_inputs, _input_warnings = parse_barnes_video_inputs(
+            protocol_inputs_for(protocol_inputs_of_entry(entry), ProtocolId.BARNES)
+        )
+        trial_type = video_inputs.trial_type.value if video_inputs.trial_type else None
+
+        is_live = project_manager.get_project_type() == "live"
+        is_snapshot = Path(target).suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp", ".tif"}
+        target_key = os.path.normcase(os.path.abspath(target))
+        others: list[OtherVideo] = []
+        if not is_live:
+            for video in project_manager.get_all_videos() or []:
+                path = video.get("path") if isinstance(video, Mapping) else None
+                if not path or os.path.normcase(os.path.abspath(str(path))) == target_key:
+                    continue
+                if not os.path.isfile(str(path)):
+                    continue
+                others.append(OtherVideo(path=str(path), label=self._barnes_video_label(video)))
+
+        inputs = BarnesAssistantInputs(
+            video_path=target,
+            frame=frame,
+            params=params,
+            background_source=target if os.path.isfile(target) else None,
+            initial_table=initial_table,
+            cached_layout=cached,
+            trial_type=trial_type,
+            trial_type_editable=entry is not None,
+            other_videos=tuple(others),
+            can_detect_table=not (is_live or is_snapshot),
+        )
+        self.log.info(
+            "event_dispatcher.barnes_assistant.open",
+            video=Path(target).name,
+            cached=cached is not None,
+            others=len(others),
+        )
+        if self.event_bus is None:
+            return
+        BarnesLayoutDialog(
+            gui.root,
+            self.event_bus,
+            inputs,
+            detect_table=self._barnes_detect_table,
         )
 
     def _on_class_roles_changed(self, data: payloads.EventPayload) -> None:
