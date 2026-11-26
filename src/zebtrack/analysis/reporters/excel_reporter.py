@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import structlog
 
+from zebtrack.analysis.data_transformer import barnes_visits_frame
+
 if TYPE_CHECKING:
     from zebtrack.analysis.reporters.reporter_context import ReporterContext
 
@@ -75,8 +77,9 @@ class ExcelReporter:
 
         fmt = "csv" if str(path).lower().endswith(".csv") else "excel"
         per_animal = self._per_animal_frame()
+        visits = self._barnes_visits_frame()
         if fmt == "excel":
-            if per_animal is None:
+            if per_animal is None and visits is None:
                 # ``sheet_name`` explícito nos DOIS ramos: o nome da aba
                 # principal é contrato com quem lê o arquivo, não pode depender
                 # de um default futuro do pandas.
@@ -86,7 +89,14 @@ class ExcelReporter:
             else:
                 with pd.ExcelWriter(path, engine="openpyxl") as writer:
                     data_to_export.to_excel(writer, sheet_name=MAIN_SHEET_NAME, index=False)
-                    per_animal.to_excel(writer, sheet_name=PER_ANIMAL_SHEET_NAME, index=False)
+                    if per_animal is not None:
+                        per_animal.to_excel(writer, sheet_name=PER_ANIMAL_SHEET_NAME, index=False)
+                    if visits is not None:
+                        from zebtrack.analysis.protocols.barnes.contract import (
+                            EXCEL_VISITS_SHEET,
+                        )
+
+                        visits.to_excel(writer, sheet_name=EXCEL_VISITS_SHEET, index=False)
         else:
             data_to_export.to_csv(path, index=False)
 
@@ -95,6 +105,27 @@ class ExcelReporter:
             path=str(path),
             format=fmt,
             per_animal_rows=0 if per_animal is None else len(per_animal),
+            barnes_visit_rows=None if visits is None else len(visits),
+        )
+
+    def _barnes_visits_frame(self) -> pd.DataFrame | None:
+        """The ``barnes_visits`` sheet of a Barnes project; ``None`` for any other.
+
+        Unlike ``por_animal`` it is written even when empty: for a Barnes trial a
+        header-only sheet answers "no hole was visited", while a missing sheet
+        would read as "the Barnes metrics were not computed".
+        """
+        ctx = self._ctx
+        tidy = getattr(ctx, "tidy_data", None)
+        experiment_id = (
+            str(tidy["experiment_id"].iloc[0])
+            if tidy is not None and "experiment_id" in tidy.columns and len(tidy)
+            else str((ctx.metadata or {}).get("experiment_id", ""))
+        )
+        return barnes_visits_frame(
+            getattr(ctx, "report", None) or {},
+            getattr(ctx, "behavioral_config", None),
+            experiment_id,
         )
 
     def _per_animal_frame(self) -> pd.DataFrame | None:

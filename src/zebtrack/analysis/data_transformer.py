@@ -32,6 +32,7 @@ __all__ = [
     "DataTransformer",
     "active_protocol_spec",
     "barnes_columns",
+    "barnes_visits_frame",
     "window_columns",
 ]
 
@@ -326,6 +327,33 @@ def barnes_columns(
             value = 0
         values[column] = value
     return values
+
+
+def barnes_visits_frame(
+    report: Mapping[str, Any],
+    behavioral_config: Mapping[str, Any] | None,
+    experiment_id: str,
+) -> pd.DataFrame | None:
+    """The ``barnes_visits`` sheet: one row per hole visit (CONTRACTS section 8).
+
+    ``None`` for a project that is not Barnes: the sheet is written only for
+    Barnes, and then even when empty (a header-only sheet says "no visits", a
+    missing one would say "nothing was computed"). A report whose metrics are not
+    ``ok`` has no visit sequence, so the frame is empty.
+    """
+    if barnes_columns(report, behavioral_config) == {}:
+        return None
+    from zebtrack.analysis.protocols.barnes.contract import EXCEL_VISIT_COLUMNS, VISIT_FIELDS
+    from zebtrack.analysis.protocols.base import PROTOCOL_METRICS_KEY
+
+    metrics = report.get(PROTOCOL_METRICS_KEY) or {}
+    sequence = metrics.get("visit_sequence") if metrics.get("status") == "ok" else None
+    rows = [
+        {"experiment_id": experiment_id, **{field: visit.get(field) for field in VISIT_FIELDS}}
+        for visit in (sequence or [])
+        if isinstance(visit, Mapping)
+    ]
+    return pd.DataFrame(rows, columns=list(EXCEL_VISIT_COLUMNS))
 
 
 def _rgb_to_color_name(rgb_tuple):
