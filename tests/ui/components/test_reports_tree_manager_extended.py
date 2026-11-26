@@ -35,3 +35,36 @@ class TestReportsTreeManagerExtended2:
 
         mgr_fallback = ReportsTreeManager(gui, dialog_manager=None)
         assert mgr_fallback.dialog_manager is gui.dialog_manager
+
+
+class TestBarnesStrategyCorrectionWiring:
+    """The right-click action: saves through the correction object and tells the user."""
+
+    @staticmethod
+    def _manager():
+        gui = MagicMock()
+        dialogs = MagicMock()
+        manager = ReportsTreeManager(gui, dialog_manager=dialogs)
+        manager._strategy_correction = MagicMock()
+        return manager, dialogs
+
+    def test_a_saved_correction_tells_the_user_to_regenerate(self):
+        manager, dialogs = self._manager()
+        manager._strategy_correction.apply.return_value = True
+        manager._strategy_correction.regenerate_message.return_value = "Regenerate it"
+
+        manager._handle_set_strategy("a.mp4", "serial")
+
+        manager._strategy_correction.apply.assert_called_once_with("a.mp4", "serial")
+        dialogs.show_info.assert_called_once_with("Search strategy", "Regenerate it")
+        dialogs.show_error.assert_not_called()
+
+    def test_a_failed_save_is_an_error_not_a_silent_success(self):
+        manager, dialogs = self._manager()
+        manager._strategy_correction.apply.return_value = False
+
+        manager._handle_set_strategy("a.mp4", None)
+
+        dialogs.show_error.assert_called_once()
+        assert "left unchanged" in dialogs.show_error.call_args.args[1]
+        dialogs.show_info.assert_not_called()

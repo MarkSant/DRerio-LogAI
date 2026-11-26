@@ -22,7 +22,10 @@ from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.components.project_views.report_asset_actions import ReportAssetActions
 from zebtrack.ui.components.project_views.report_generator_actions import ReportGeneratorActions
-from zebtrack.ui.components.project_views.report_tree_builder import ReportTreeBuilder
+from zebtrack.ui.components.project_views.report_tree_builder import (
+    BarnesStrategyCorrection,
+    ReportTreeBuilder,
+)
 from zebtrack.ui.dialogs.project_video_import_dialog import BatchVideoMetadataDialog
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
@@ -95,6 +98,8 @@ class ReportsTreeManager:
             processing_reports_widget=widget_getter(),
             tree_metadata=self._tree_metadata,
         )
+
+        self._strategy_correction = BarnesStrategyCorrection(project_manager_getter=pm_getter)
 
         self._generator = ReportGeneratorActions(
             project_manager_getter=pm_getter,
@@ -212,6 +217,9 @@ class ReportsTreeManager:
         callbacks = {
             "delete_asset": self._assets.delete_video_asset,
             "delete_choice": self._assets.choose_video_delete_action,
+            # Barnes projects only: the menu shows nothing when the choices are empty.
+            "strategy_choices": self._strategy_correction.choices,
+            "set_strategy": self._handle_set_strategy,
         }
 
         self.gui.menu_manager.show_processing_reports_context_menu(
@@ -221,6 +229,18 @@ class ReportsTreeManager:
             y,
             callbacks,
             asset_availability=asset_availability,
+        )
+
+    def _handle_set_strategy(self, video_path: Path | str, value: str | None) -> None:
+        """Store the researcher's search-strategy correction and say how to apply it."""
+        if self._strategy_correction.apply(video_path, value):
+            self.dialog_manager.show_info(
+                _("Search strategy"), self._strategy_correction.regenerate_message(value)
+            )
+            return
+        self.dialog_manager.show_error(
+            _("Search strategy"),
+            _("The search strategy could not be saved; the project was left unchanged."),
         )
 
     def _show_report_file_context_menu(self, metadata: dict[str, Any], x: int, y: int) -> None:
