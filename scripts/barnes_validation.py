@@ -2295,9 +2295,9 @@ def _render_offset(block: Mapping[str, Any]) -> list[str]:
                 "max",
                 "5th pct",
                 "95th pct",
-                "|≤0.5 s|",
-                "|≤1 s|",
-                "|≤2 s|",
+                "within 0.5 s",
+                "within 1 s",
+                "within 2 s",
             ],
             [
                 [
