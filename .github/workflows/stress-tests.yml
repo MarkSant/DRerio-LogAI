@@ -402,11 +402,21 @@ jobs:
   #
   # --jobs 4 matches the runner's 4 vCPUs. Without it the v8 catalogue
   # (70 blocks, ~390 pytest processes at ~8 s each on this runner) would not
-  # fit in the 45 minutes. Each mutant runs in a private copy of the tree.
+  # fit in the job limit. Each mutant runs in a private copy of the tree.
   mutation-catalogue:
     name: Curated Mutation Catalogue (--all)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Timing (#736). Run 45740487197 (2026-11-26) had 970 mutants KILLED when the
+    # old 45-minute limit cancelled it: the step began at 02:11:30 and the last
+    # verdict printed at 02:54, ~43 min => ~2.65 s per mutant at --jobs 4,
+    # baselines included. The catalogue now has 1470 mutations:
+    #   1470 x 2.65 s ~= 65 min, plus ~12 min of setup (apt, poetry, torch) ~= 77 min.
+    # 120 minutes leaves ~1.5x headroom, i.e. room for ~700 more mutations, and
+    # stays near the ~2 h a single nightly job should take: past that, shard by
+    # block with `--module` instead of raising this again.
+    # The run step has its own limit (105 min) so that hitting it FAILS the step
+    # instead of cancelling the job: the report upload and the issue step still run.
+    timeout-minutes: 120
 
     steps:
       - name: Checkout code
@@ -445,6 +455,7 @@ jobs:
         run: poetry run python scripts/compile_translations.py
 
       - name: Run the curated mutation catalogue
+        timeout-minutes: 105
         run: |
           poetry run python scripts/mutation_check.py \
             --all --jobs 4 --json mutation-catalogue.json
@@ -462,20 +473,40 @@ jobs:
         # Scheduled runs only, so cancelling a manual run by hand files nothing.
         if: failure() || (cancelled() && github.event_name == 'schedule')
         uses: actions/github-script@v8
+        env:
+          JOB_STATUS: ${{ job.status }}
         with:
           script: |
+            const fs = require('fs');
             const fileNightlyIssue = require('./.github/scripts/file_nightly_issue.js');
+            // The runner writes the JSON report only when it finishes. No report
+            // means it never reached a verdict (timeout, cancel, crash): that says
+            // NOTHING about survivors (#736 reported a timeout as survivors for 4 nights).
+            const finished = fs.existsSync('mutation-catalogue.json');
+            const incomplete = process.env.JOB_STATUS === 'cancelled' || !finished;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const header = `## Curated mutation catalogue\n\n` +
+                           `**Workflow:** ${context.workflow}\n` +
+                           `**Run:** ${context.runNumber}\n` +
+                           `**Commit:** ${context.sha}\n\n`;
+            const body = incomplete
+              ? header +
+                `The run did NOT finish: it was cancelled, timed out or crashed before the ` +
+                `runner wrote its report, so no verdict exists and this is not evidence of ` +
+                `survivors. Read the job log; if it is the time limit, the catalogue outgrew ` +
+                `the timeout (see the arithmetic next to timeout-minutes in stress-tests.yml ` +
+                `and docs/testing/MUTATION_BASELINE.md).\n\n[View workflow run](${runUrl})`
+              : header +
+                `A mutation survived, or the run could not be trusted (exit 1 or 2). Each ` +
+                `survivor is a missing test: add the test, never delete the mutation ` +
+                `(docs/testing/MUTATION_BASELINE.md).\n\n` +
+                `The per-mutation verdicts are in the \`mutation-catalogue-report\` artifact.\n\n` +
+                `[View workflow run](${runUrl})`;
             await fileNightlyIssue({
               github, context, core,
-              title: 'Nightly Mutation Catalogue Failed - surviving mutations',
-              body: `## Curated mutation catalogue\n\n` +
-                    `**Workflow:** ${context.workflow}\n` +
-                    `**Run:** ${context.runNumber}\n` +
-                    `**Commit:** ${context.sha}\n\n` +
-                    `A mutation survived, or the run could not be trusted. Each survivor is a ` +
-                    `missing test: add the test, never delete the mutation ` +
-                    `(docs/testing/MUTATION_BASELINE.md).\n\n` +
-                    `The per-mutation verdicts are in the \`mutation-catalogue-report\` artifact.\n\n` +
-                    `[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+              title: incomplete
+                ? 'Nightly Mutation Catalogue Did Not Finish - timeout or cancelled'
+                : 'Nightly Mutation Catalogue Failed - surviving mutations',
+              body,
               labels: ['stress-test-failure', 'needs-investigation', 'test-quality'],
             });

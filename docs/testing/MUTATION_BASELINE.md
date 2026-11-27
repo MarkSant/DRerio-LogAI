@@ -234,9 +234,34 @@ The PR #629 log gives the serial cost on the runner itself: 149 processes in 121
 Its diff against `main` selects 61 blocks in full (288 mutants), plus the runner sample for the
 other 9 blocks: ~367 processes, ~2970 s serially, so **~16 min** at 3.15×, inside the step's 20.
 If the runner's 4 vCPUs are two SMT cores the speedup will be lower; if the step comes close to
-the limit, raising it to 30 still fits the job's 45 minutes (the steps before it took 12 min
+the limit, raising it to 30 still fits the nightly job's limit (the steps before it took 12 min
 in that run). The limit was left at 20 because none of these numbers comes from a run on the
 GitHub runner itself.
+
+### Nightly timing (#736)
+
+The nightly job ran with a 45-minute limit while the catalogue grew to 1470 mutations. Run
+45740487197 (2026-11-26) was **cancelled** by the limit with 970 mutants already KILLED and no
+survivor; the runner writes its JSON report only at the end, so no artifact existed and the
+failure step reported it as "survived, or the run could not be trusted". Issue #736 was reopened
+every night on that false premise.
+
+Pace measured on that run (`--jobs 4`, 4 vCPUs): the step started at 02:11:30 and printed its
+970th verdict at ~02:54, so **~2.65 s per mutant**, baselines included.
+
+| | Value |
+| --- | --- |
+| Catalogue | 1470 mutations |
+| Run step estimate | 1470 × 2.65 s ≈ 65 min |
+| Setup (apt, poetry, torch) | ≈ 12 min |
+| Job `timeout-minutes` | 120 (≈ 1.5× headroom, room for ~700 more mutations) |
+| Run step `timeout-minutes` | 105, so a timeout FAILS the step and the artifact and issue steps still run |
+
+Beyond ~2 h, shard the job with a matrix over `--module` blocks instead of raising the limit again.
+
+The failure issue now says which case it is: **"Did Not Finish - timeout or cancelled"** when the
+job was cancelled or no report was written (no verdict, nothing about survivors), and
+**"Failed - surviving mutations"** only when a report exists.
 
 ## Rules
 
