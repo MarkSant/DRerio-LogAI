@@ -21,6 +21,7 @@ from zebtrack.analysis.analysis_window_service import WindowResolution
 from zebtrack.analysis.data_transformer import DataTransformer
 from zebtrack.analysis.models import AnalysisResult
 from zebtrack.analysis.roi import ROI
+from zebtrack.analysis.time_base import TimeBase
 from zebtrack.analysis.visualization_generator import VisualizationGenerator
 from zebtrack.i18n import LOCALES_DIR as LOCALES_DIR  # re-exported for callers
 from zebtrack.i18n import REPORTER_DOMAIN, translate
@@ -102,6 +103,8 @@ class ReporterContext:
         analysis: AnalysisResult | None = None,
         # Analysis window (ADR-011), from resolve_analysis_window
         window: WindowResolution | None = None,
+        # Time base of the recording, from resolve_recording_time_base
+        time_base: TimeBase | None = None,
         # Per-protocol inputs of this video (ADR-014), from protocol_inputs_of_entry
         protocol_inputs: Mapping[str, Any] | None = None,
         # Set only by the multi-aquarium summary (ADR-014)
@@ -134,6 +137,9 @@ class ReporterContext:
             behavioral_config: Behavioural config dict (optional)
             analysis: AnalysisResult DTO (RECOMMENDED)
             window: Analysis window to apply (``None`` = whole recording)
+            time_base: The recording's time base, resolved by the caller with
+                the ``3c`` heartbeat / ledger (``None`` = measured on the
+                trajectory's own timestamps)
             protocol_inputs: Per-protocol inputs of this video, forwarded to
                 ``AnalysisService.run_full_analysis`` (``None`` = none)
             aquarium_id: Aquarium of a multi-aquarium summary (``None`` otherwise)
@@ -195,6 +201,7 @@ class ReporterContext:
             smoothing_polyorder=smoothing_polyorder,
             behavioral_config=behavioral_config,
             window=window,
+            time_base=time_base,
             protocol_inputs=protocol_inputs,
             aquarium_id=aquarium_id,
         )

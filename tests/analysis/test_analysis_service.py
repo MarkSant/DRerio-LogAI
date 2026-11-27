@@ -1,10 +1,17 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
 from zebtrack.analysis.analysis_service import AnalysisService, mask_sidecar_in_local_space
 from zebtrack.analysis.analysis_window_service import WindowBound, WindowResolution
+from zebtrack.analysis.time_base import (
+    SOURCE_HEARTBEAT,
+    SOURCE_LEDGER,
+    SOURCE_TRAJECTORY,
+    TimeBase,
+)
 from zebtrack.settings import Settings, load_settings
 
 
@@ -562,6 +569,118 @@ def test_the_screening_can_be_disabled(settings_obj: Settings):
     assert report["validacao"]["estatisticas"]["unique_tracks"] == 3
 
 
+def _clock(source: str, *, duration_s: float, median_dt: float, warnings=()) -> TimeBase:
+    return TimeBase(
+        fps_sampling=1.0 / median_dt,
+        fps_video=1.0 / median_dt,
+        duration_s=duration_s,
+        t_first=0.0,
+        t_last=duration_s - median_dt,
+        median_dt=median_dt,
+        source=source,
+        warnings=tuple(warnings),
+    )
+
+
+def _rat_and_one_row_glitch() -> pd.DataFrame:
+    """10 s of a rat at 10 fps plus a one-row id 2: 0.1 s by the trajectory's own clock."""
+    frames = range(100)
+    rat = _moving_track(frames, [f / 10 for f in frames], 1, 100.0)
+    glitch = _moving_track([30], [3.0], 2, 300.0)
+    return pd.concat([rat, glitch]).sort_values("frame").reset_index(drop=True)
+
+
+class TestThreadedTimeBase:
+    """``run_full_analysis(time_base=...)``: one clock, resolved by the caller."""
+
+    def test_a_heartbeat_base_dates_the_report_and_the_validator(self, settings_obj: Settings):
+        # The 3c says the session lasted 42 s; the subject was seen for 10 s.
+        clock = _clock(SOURCE_HEARTBEAT, duration_s=42.0, median_dt=0.1)
+
+        report = _run(settings_obj, _rat_and_one_row_glitch(), fps=10.0, time_base=clock)
+
+        assert report["comportamento_geral"]["duracao_video_s"] == pytest.approx(42.0)
+        assert report["validacao"]["estatisticas"]["duration_s"] == pytest.approx(42.0)
+
+    def test_a_ledger_base_is_a_recording_clock_too(self, settings_obj: Settings):
+        clock = _clock(SOURCE_LEDGER, duration_s=33.0, median_dt=0.1)
+
+        report = _run(settings_obj, _rat_and_one_row_glitch(), fps=10.0, time_base=clock)
+
+        assert report["comportamento_geral"]["duracao_video_s"] == pytest.approx(33.0)
+
+    def test_a_recording_clock_is_not_resolved_again(self, settings_obj: Settings):
+        clock = _clock(SOURCE_HEARTBEAT, duration_s=42.0, median_dt=0.1)
+
+        with (
+            patch(
+                "zebtrack.analysis.analysis_service.resolve_time_base",
+                side_effect=AssertionError("re-resolved a time base the caller handed down"),
+            ),
+            patch(
+                "zebtrack.analysis.trajectory_validator.resolve_time_base",
+                side_effect=AssertionError("the validator re-resolved the time base"),
+            ),
+        ):
+            report = _run(settings_obj, _rat_and_one_row_glitch(), fps=10.0, time_base=clock)
+
+        assert report["comportamento_geral"]["duracao_video_s"] == pytest.approx(42.0)
+
+    def test_the_subject_screening_uses_the_recording_clock(self, settings_obj: Settings):
+        """A one-row track lasts one sampling interval OF THE RECORDING.
+
+        At the heartbeat's 0.6 s interval it reaches the 0.5 s minimum and stays;
+        measured on the trajectory (0.1 s) it is screened out.
+        """
+        clock = _clock(SOURCE_HEARTBEAT, duration_s=60.0, median_dt=0.6)
+
+        threaded = _run(settings_obj, _rat_and_one_row_glitch(), fps=10.0, time_base=clock)
+        own = _run(settings_obj, _rat_and_one_row_glitch(), fps=10.0)
+
+        assert threaded["validacao"]["estatisticas"]["unique_tracks"] == 2
+        assert own["validacao"]["estatisticas"]["unique_tracks"] == 1
+
+    def test_a_trajectory_base_is_measured_on_the_screened_trajectory(self, settings_obj: Settings):
+        """No 3c, no ledger: the report is the one ``time_base=None`` gives, unchanged."""
+        bogus = _clock(SOURCE_TRAJECTORY, duration_s=999.0, median_dt=0.6)
+
+        threaded = _run(settings_obj, _rat_and_one_row_glitch(), fps=10.0, time_base=bogus)
+        own = _run(settings_obj, _rat_and_one_row_glitch(), fps=10.0)
+
+        assert threaded["comportamento_geral"]["duracao_video_s"] == pytest.approx(10.0)
+        assert threaded["validacao"]["estatisticas"]["unique_tracks"] == 1
+        assert threaded["validacao"] == own["validacao"]
+        for key in ("duracao_video_s", "distancia_total_cm", "total_frames_analisados"):
+            assert threaded["comportamento_geral"][key] == own["comportamento_geral"][key]
+
+    def test_the_handed_down_warnings_reach_the_report(self, settings_obj: Settings):
+        clock = _clock(SOURCE_HEARTBEAT, duration_s=10.0, median_dt=0.1, warnings=["clock caveat"])
+
+        report = _run(settings_obj, _rat_and_one_row_glitch(), fps=10.0, time_base=clock)
+
+        assert report["validacao"]["avisos"].count("clock caveat") == 1
+
+    def test_the_dto_forwards_the_time_base(self, settings_obj: Settings):
+        service = AnalysisService(settings_obj=settings_obj)
+
+        result = service.run_full_analysis_as_dto(
+            trajectory_df=_walk(),
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=400,
+            arena_polygon_px=_ARENA,
+            rois=[],
+            fps=10.0,
+            metadata={"experiment_id": "W"},
+            roi_colors={},
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=1.0,
+            time_base=_clock(SOURCE_HEARTBEAT, duration_s=77.0, median_dt=0.1),
+        )
+
+        assert result.report["comportamento_geral"]["duracao_video_s"] == pytest.approx(77.0)
+
+
 def test_two_real_animals_stay_two(settings_obj: Settings):
     report = _run(settings_obj, _two_animals(), fps=10.0)
 
@@ -1026,6 +1145,32 @@ class TestProtocolMetricsHook:
         # The SAME list as the report's warnings: an append reaches the document.
         assert context.warnings is report["validacao"]["avisos"]
         assert "from the protocol" in report["validacao"]["avisos"]
+
+    def test_the_protocol_is_dated_by_the_handed_down_3c_clock(
+        self, settings_obj: Settings, monkeypatch
+    ):
+        """Barnes latencies use the SAME clock as the rest of the report."""
+        seen = []
+
+        def compute(context):
+            seen.append(context)
+            return {"status": "ok", "protocol": "barnes", "version": 1, "reason": None}
+
+        self._install(monkeypatch, compute)
+        clock = _clock(SOURCE_HEARTBEAT, duration_s=90.0, median_dt=0.101)
+
+        report = _run(
+            settings_obj,
+            _walk(),
+            fps=10.0,
+            behavioral_config={"protocol": "barnes"},
+            protocol_inputs={"barnes": {"trial_type": "probe"}},
+            time_base=clock,
+        )
+
+        (context,) = seen
+        assert context.time_base is clock
+        assert report["comportamento_geral"]["duracao_video_s"] == pytest.approx(90.0)
 
     def test_the_dto_forwards_the_inputs(self, settings_obj: Settings, monkeypatch):
         seen = []

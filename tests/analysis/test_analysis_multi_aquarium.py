@@ -14,6 +14,7 @@ import pytest
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.models import AnalysisResult
 from zebtrack.analysis.reporters import export_multi_aquarium_reports
+from zebtrack.analysis.time_base import SOURCE_HEARTBEAT, TimeBase
 from zebtrack.core.detection import AquariumData
 
 
@@ -117,6 +118,31 @@ class TestAnalysisServiceMultiAquarium:
         assert isinstance(results, dict)
         assert 0 in results
         assert 1 in results
+
+    def test_each_aquarium_is_dated_by_its_own_time_base(self, mock_settings, dual_aquarium_data):
+        """Every aquarium has its own ``3c``; its time base reaches its own analysis."""
+        service = AnalysisService(settings_obj=mock_settings)
+        clock = TimeBase(
+            fps_sampling=9.9,
+            fps_video=9.9,
+            duration_s=60.0,
+            t_first=0.0,
+            t_last=59.9,
+            median_dt=0.1,
+            source=SOURCE_HEARTBEAT,
+        )
+
+        with patch.object(service, "run_full_analysis_as_dto") as run:
+            service.run_multi_aquarium_analysis(
+                aquarium_data_map=dual_aquarium_data, fps=30.0, time_bases={1: clock}
+            )
+
+        by_aquarium = {
+            call.kwargs["metadata"]["aquarium_id"]: call.kwargs["time_base"]
+            for call in run.call_args_list
+        }
+        # Aquarium 0 has no entry: measured on its own trajectory.
+        assert by_aquarium == {0: None, 1: clock}
 
     def test_results_contain_analysis_result_or_none(self, mock_settings, dual_aquarium_data):
         """Test that results are AnalysisResult instances or None."""

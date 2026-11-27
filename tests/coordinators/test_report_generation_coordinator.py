@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tests.helpers.object_sidecar_files import write_heartbeat_sidecar
 from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
 from zebtrack.core.project.project_manager import ProjectManager
 from zebtrack.core.state_manager import StateManager
@@ -773,6 +774,158 @@ class TestRealTimeBase:
         )
 
         assert time_base.source == "trajectory_timestamps"
+
+
+def _vfr_beats(n: int = 99) -> np.ndarray:
+    """~9.9 fps variable frame rate: alternating 0.09 s / 0.112 s gaps, ~9.9 s long."""
+    gaps = np.where(np.arange(n - 1) % 2 == 0, 0.09, 0.112)
+    return np.concatenate([[0.0], np.cumsum(gaps)])
+
+
+def _real_report_coordinator(mock_state_manager, mock_project_manager, mock_event_bus):
+    from zebtrack.analysis.analysis_service import AnalysisService
+    from zebtrack.settings import load_settings
+
+    settings = load_settings()
+    return ReportGenerationCoordinator(
+        state_manager=mock_state_manager,
+        project_manager=mock_project_manager,
+        settings_obj=settings,
+        event_bus=mock_event_bus,
+        analysis_service=AnalysisService(settings_obj=settings),
+    )
+
+
+class TestObjectSidecarTimeBase:
+    """The 3c heartbeat next to the trajectory dates every report path."""
+
+    def test_the_heartbeat_beats_the_trajectory_pts(self, coordinator, tmp_path):
+        trajectory = tmp_path / "3_CoordMovimento_S1.parquet"
+        write_heartbeat_sidecar(trajectory, _vfr_beats())
+
+        _df, time_base = coordinator._resolve_report_time_base(
+            _ten_fps_trajectory(50), trajectory, fallback_fps=30.0
+        )
+
+        assert time_base.source == "objects_heartbeat"
+        assert time_base.fps_video == pytest.approx(98 / _vfr_beats()[-1])
+        assert coordinator._report_fps(time_base, 30.0) == pytest.approx(time_base.fps_video)
+
+    def test_the_heartbeat_beats_the_ledger_but_the_trajectory_is_still_retimed(
+        self, coordinator, tmp_path
+    ):
+        _ledger_frame(list(50.0 + np.arange(10) / 20.0)).to_parquet(
+            tmp_path / "6_FrameLedger_S1.parquet", index=False
+        )
+        anchor = {"t0_perf": 50.0, "t0_wall": 1_700_000_000.0}
+        (tmp_path / "6_FrameLedger_S1_anchor.json").write_text(json.dumps(anchor), encoding="utf-8")
+        trajectory = tmp_path / "3_CoordMovimento_S1.parquet"
+        write_heartbeat_sidecar(trajectory, np.arange(40) / 20.0, frames=range(1, 41))
+        df = pd.DataFrame({"timestamp": np.arange(10) * 1.0, "frame": np.arange(1, 11)})
+
+        retimed, time_base = coordinator._resolve_report_time_base(
+            df, trajectory, fallback_fps=30.0
+        )
+
+        assert time_base.source == "objects_heartbeat"
+        assert time_base.duration_s == pytest.approx(2.0)
+        assert retimed["timestamp"].tolist() == pytest.approx(list(np.arange(10) / 20.0))
+
+    @patch("os.path.exists", return_value=True)
+    @patch("os.makedirs")
+    def test_standard_report_is_dated_by_the_heartbeat(
+        self, _mkdirs, _exists, mock_state_manager, mock_project_manager, mock_event_bus, tmp_path
+    ):
+        """Real analysis: the subject was seen for 5 s of a ~10 s variable-rate session."""
+        coordinator = _real_report_coordinator(
+            mock_state_manager, mock_project_manager, mock_event_bus
+        )
+        _wire_standard_report(coordinator, mock_project_manager, _ten_fps_trajectory(50))
+        mock_project_manager.resolve_results_directory.return_value = str(tmp_path)
+        beats = _vfr_beats()
+        write_heartbeat_sidecar(tmp_path / "3_CoordMovimento_exp1.parquet", beats)
+        export = coordinator._export_individual_outputs
+        assert isinstance(export, MagicMock)
+
+        coordinator._generate_standard_report("video.mp4", "exp1", {}, {})
+
+        result = export.call_args.args[0]
+        # (t_last - t_first) + the heartbeat's median interval, not the 5 s of PTS.
+        expected = beats[-1] + 0.101
+        assert result.report["comportamento_geral"]["duracao_video_s"] == pytest.approx(expected)
+        assert result.report["validacao"]["estatisticas"]["duration_s"] == pytest.approx(expected)
+        assert result.calibration_params.fps == pytest.approx(98 / beats[-1])
+
+    @patch("os.path.exists", return_value=True)
+    @patch("os.makedirs")
+    def test_standard_report_without_a_sidecar_is_unchanged(
+        self, _mkdirs, _exists, mock_state_manager, mock_project_manager, mock_event_bus, tmp_path
+    ):
+        coordinator = _real_report_coordinator(
+            mock_state_manager, mock_project_manager, mock_event_bus
+        )
+        _wire_standard_report(coordinator, mock_project_manager, _ten_fps_trajectory(50))
+        mock_project_manager.resolve_results_directory.return_value = str(tmp_path)
+        export = coordinator._export_individual_outputs
+        assert isinstance(export, MagicMock)
+
+        coordinator._generate_standard_report("video.mp4", "exp1", {}, {})
+
+        result = export.call_args.args[0]
+        assert result.report["comportamento_geral"]["duracao_video_s"] == pytest.approx(5.0)
+        assert result.calibration_params.fps == pytest.approx(10.0)
+
+    def test_multi_aquarium_report_hands_its_own_heartbeat_down(self, coordinator, tmp_path):
+        trajectory = tmp_path / "3_CoordMovimento_exp_aquarium_1.parquet"
+        trajectory.write_text("read through the mocked _read_trajectory")
+        write_heartbeat_sidecar(trajectory, np.arange(200) / 20.0)
+        coordinator._read_trajectory = MagicMock(return_value=_ten_fps_trajectory())
+        coordinator._build_aquarium_report_base = MagicMock(return_value="base")
+        coordinator._export_individual_outputs = MagicMock()
+        coordinator._prepare_background_image = MagicMock(return_value=None)
+        coordinator.analysis_service = MagicMock()
+        out_info = {"results_dir": str(tmp_path), "parquet_files": {"trajectory": str(trajectory)}}
+
+        coordinator._process_single_aquarium_in_multi(
+            "path", "exp_id", {}, 0, out_info, None, {}, 30.0, 100, 100, {}
+        )
+
+        kwargs = coordinator.analysis_service.run_full_analysis_as_dto.call_args.kwargs
+        assert kwargs["time_base"].source == "objects_heartbeat"
+        assert kwargs["time_base"].duration_s == pytest.approx(10.0)
+        assert kwargs["fps"] == pytest.approx(20.0)
+
+    def test_summary_context_gets_the_heartbeat(self, coordinator, tmp_path):
+        traj_p = tmp_path / "3_CoordMovimento_exp1_aquarium_1.parquet"
+        traj_p.write_text("data")
+        write_heartbeat_sidecar(traj_p, np.arange(100) / 5.0)
+        aquarium = MagicMock(id=0, polygon=[], roi_polygons=[], roi_names=[], roi_colors=[])
+        coordinator.project_manager.project_data = {"calibration": {}}
+        coordinator._read_trajectory = MagicMock(return_value=_ten_fps_trajectory())
+        coordinator._prepare_summary_geometry = MagicMock(
+            return_value=(10.0, 10.0, [], 100, [], {}, None)
+        )
+        out_info = {"results_dir": str(tmp_path), "parquet_files": {"trajectory": str(traj_p)}}
+        entry: dict[str, Any] = {"multi_aquarium_outputs": {"0": {"parquet_files": {}}}}
+
+        with (
+            patch("zebtrack.analysis.reporters.ReporterContext") as context,
+            patch("zebtrack.analysis.reporters.ParquetSummaryReporter"),
+        ):
+            coordinator._process_one_aquarium_summary(
+                entry,
+                "exp1",
+                "v.mp4",
+                0,
+                out_info,
+                MagicMock(aquariums=[aquarium]),
+                coordinator.settings,
+                [],
+            )
+
+        kwargs = context.call_args.kwargs
+        assert kwargs["time_base"].source == "objects_heartbeat"
+        assert kwargs["fps"] == pytest.approx(5.0)
 
 
 _RESOLVE = "zebtrack.coordinators.report_generation_coordinator.resolve_analysis_window"

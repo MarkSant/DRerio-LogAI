@@ -12,6 +12,7 @@ from zebtrack.analysis.analysis_service import (
 )
 from zebtrack.analysis.analysis_window_service import resolve_analysis_window
 from zebtrack.analysis.protocols import protocol_inputs_of_entry
+from zebtrack.analysis.time_base import RECORDING_CLOCK_SOURCES, resolve_recording_time_base
 from zebtrack.i18n import _
 from zebtrack.ui import payloads as payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -391,10 +392,13 @@ class AnalysisControlViewModel:
                 # Load DataFrame using Service (efficient loading)
                 df = self.analysis_service.load_trajectory_dataframe(parquet_path)
 
-                # Run Analysis via DTO
-                # Note: Assume 30 FPS if not available, or retrieve from video metadata.
-                # Ideally, FPS should be stored in parquet metadata or project entry.
+                # Run Analysis via DTO. The entry's fps (30 when unknown) is only
+                # the fallback: the ``3c`` heartbeat next to the trajectory, when
+                # it exists, dates the recording and gives its real rate.
                 fps = entry.get("fps", 30.0)
+                time_base = resolve_recording_time_base(df, parquet_path, fallback_fps=float(fps))
+                if time_base.source in RECORDING_CLOCK_SOURCES and time_base.fps_video:
+                    fps = float(time_base.fps_video)
 
                 # Get Calibration
                 pixelcm_x = 1.0
@@ -497,6 +501,7 @@ class AnalysisControlViewModel:
                     behavioral_config=params.get("behavioral_config"),
                     mask_sidecar_path=resolve_mask_sidecar(parquet_path),
                     window=window,
+                    time_base=time_base,
                     protocol_inputs=protocol_inputs_of_entry(
                         entry if isinstance(entry, dict) else None
                     ),

@@ -26,6 +26,7 @@ from zebtrack.core.services.roi_rule_resolver import resolve_roi_rule
 from zebtrack.i18n import _
 
 if TYPE_CHECKING:
+    from zebtrack.analysis.time_base import TimeBase
     from zebtrack.core.detection import MultiAquariumZoneData
     from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
     from zebtrack.core.main_view_model import MainViewModel
@@ -439,6 +440,7 @@ class LiveAnalysisPostProcessorMixin:
 
         aquarium_data_map: dict[int, tuple[pd.DataFrame, Any]] = {}
         windows: dict[int, Any] = {}
+        time_bases: dict[int, TimeBase | None] = {}
         warnings_by_aquarium: dict[int, list[str]] = {}
         total_frames = 0
         total_detections = 0
@@ -465,7 +467,7 @@ class LiveAnalysisPostProcessorMixin:
             # ``fps`` is rebound on purpose: the recording's own rate, measured on
             # the shared ledger, replaces the camera's nominal value (same rule as
             # the single-aquarium path) and is the same for every aquarium.
-            df, fps, time_warnings = self._retime_live_trajectory(
+            df, fps, time_warnings, time_bases[aq_id] = self._retime_live_trajectory(
                 df, output["trajectory_path"], ledger_dir=ledger_dir, ledger_base=ledger_base
             )
             rois, _roi_colors = self._build_live_rois(
@@ -521,6 +523,7 @@ class LiveAnalysisPostProcessorMixin:
             smoothing_polyorder=params["smoothing_polyorder"],
             behavioral_config=params["behavioral_config"],
             windows=windows,
+            time_bases=time_bases,
         )
         for aq_id, result in results_by_aquarium.items():
             if result is not None:
@@ -732,7 +735,9 @@ class LiveAnalysisPostProcessorMixin:
                 # with the capture instant of its 6_FrameLedger before analysing
                 # (in memory only; the Parquet is untouched), and take the fps
                 # from the recording rather than the camera's nominal value.
-                df, fps, time_warnings = self._retime_live_trajectory(df, trajectory_file)
+                df, fps, time_warnings, time_base = self._retime_live_trajectory(
+                    df, trajectory_file
+                )
 
                 zone_data = self.project_manager.get_zone_data()
                 arena_polygon = zone_data.polygon or []
@@ -782,6 +787,7 @@ class LiveAnalysisPostProcessorMixin:
                     behavioral_config=params["behavioral_config"],
                     video_path=str(video_path),
                     window=window,
+                    time_base=time_base,
                     # From the session video's registered entry, by path
                     # (ADR-014); none for an unregistered session.
                     protocol_inputs=self._live_protocol_inputs(
@@ -1069,7 +1075,7 @@ class LiveAnalysisPostProcessorMixin:
         *,
         ledger_dir: Path | None = None,
         ledger_base: str | None = None,
-    ) -> tuple[pd.DataFrame, float, list[str]]:
+    ) -> tuple[pd.DataFrame, float, list[str], TimeBase]:
         """Re-date a live trajectory on the capture clock of its frame ledger.
 
         Same rule as ``ReportGenerationCoordinator`` (F1): ``timestamp`` becomes
@@ -1085,11 +1091,13 @@ class LiveAnalysisPostProcessorMixin:
         Returns:
             The (possibly) re-timed frame, the fps to analyse it with (the
             recording's own rate when it can be measured, else the camera's
-            nominal fps) and the clock warnings to put in the report.
+            nominal fps), the clock warnings to put in the report, and the time
+            base itself — ``3c`` heartbeat of this trajectory > ledger >
+            re-timed trajectory — which ``run_full_analysis`` dates the report by.
         """
         from zebtrack.analysis.time_base import (
             TIME_WARNINGS_ATTR,
-            resolve_time_base,
+            resolve_recording_time_base,
             retime_from_ledger,
         )
         from zebtrack.core.recording.frame_ledger import load_anchor, load_ledger
@@ -1108,7 +1116,9 @@ class LiveAnalysisPostProcessorMixin:
             anchor = load_anchor(Path(trajectory_file).parent, base) if rows else {}
         retimed = retime_from_ledger(df, rows, anchor)
         warnings = [str(w) for w in retimed.attrs.get(TIME_WARNINGS_ATTR, [])]
-        time_base = resolve_time_base(retimed, ledger=rows or None, fallback_fps=fallback_fps)
+        time_base = resolve_recording_time_base(
+            retimed, trajectory_file, ledger=rows or None, fallback_fps=fallback_fps
+        )
         fps = (
             float(time_base.fps_video)
             if time_base.fps_video and time_base.fps_video > 0
@@ -1121,7 +1131,7 @@ class LiveAnalysisPostProcessorMixin:
             ledger_rows=len(rows),
             warnings=len(warnings),
         )
-        return retimed, fps, warnings
+        return retimed, fps, warnings, time_base
 
     def _show_completion_message(
         self,

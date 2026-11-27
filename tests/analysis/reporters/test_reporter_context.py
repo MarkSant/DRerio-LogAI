@@ -144,6 +144,30 @@ class TestReporterContextWindow:
         assert ctx.b_analyzer.window_bounds == (0.5, 2.0)
         assert ctx.tidy_data["window_duration_s"].iloc[0] == pytest.approx(1.5)
 
+    def test_the_time_base_reaches_the_analysis(
+        self, reporter_trajectory_df, reporter_rois, reporter_mock_settings
+    ):
+        """The batch runner hands the 3c time base through the legacy constructor."""
+        from zebtrack.analysis.time_base import SOURCE_HEARTBEAT, TimeBase
+
+        clock = TimeBase(
+            fps_sampling=9.9,
+            fps_video=9.9,
+            duration_s=321.0,
+            t_first=0.0,
+            t_last=320.9,
+            median_dt=0.1,
+            source=SOURCE_HEARTBEAT,
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            ctx = ReporterContext(
+                **_legacy_kwargs(reporter_trajectory_df, reporter_rois, reporter_mock_settings),
+                time_base=clock,
+            )
+
+        assert ctx.report["comportamento_geral"]["duracao_video_s"] == pytest.approx(321.0)
+
     def test_no_window_keeps_status_none(
         self, reporter_trajectory_df, reporter_rois, reporter_mock_settings
     ):
