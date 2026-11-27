@@ -211,13 +211,26 @@ def test_get_properties_is_thread_safe(camera_and_mock, monkeypatch):
 
 
 def test_reconnect_abort_still_stops_when_the_driver_release_fails(camera_and_mock):
-    """F2 pragma review: a failing release on give-up must still stop the thread."""
+    """F2 pragma review: a failing release on give-up must still stop the thread.
+
+    The abort runs ON the reader thread, as it does in production (only
+    ``_attempt_reconnect`` calls it). Called from the test thread instead, it
+    raced a ``read()`` already in flight, which set ``_frame_available`` back to
+    True after the abort had cleared it — a flaky failure in the nightly 3x run.
+    """
     camera, mock_vc = camera_and_mock
     mock_vc.isOpened.side_effect = itertools.repeat(True)
     mock_vc.release.side_effect = cv2.error("driver refused release")
 
-    camera._handle_reconnect_abort()
+    def give_up_from_the_reader_thread():
+        camera._handle_reconnect_abort()
+        return (False, None)
 
+    mock_vc.read.side_effect = give_up_from_the_reader_thread
+
+    camera._thread.join(timeout=2.0)
+
+    assert mock_vc.release.called, "the abort must have tried to release the driver"
     assert camera._stopped.is_set()
     assert camera._reconnect_state_ready.is_set()
     assert camera._frame_available is False
