@@ -159,7 +159,11 @@ jobs:
             suite: core
 
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 75
+    # 120 min: the ceiling a FULL mutation catalogue needs (#735). A change to
+    # tests/conftest.py forces every block (1470 mutants x ~2.65 s at --jobs 4,
+    # measured in #740, ~= 65 min), on top of ~15 min of setup + the core suite.
+    # Only such a change takes that long; an ordinary PR finishes far earlier.
+    timeout-minutes: 120
     env:
       PYTHONUTF8: 1
     steps:
@@ -381,7 +385,13 @@ jobs:
       # so a large PR selects almost the whole catalogue. The TASK-087 squash
       # (#717) selected 226 of 272 blocks and was cut at 30 min with ~200 done
       # (--jobs 4). A normal PR selects a handful of blocks and is unaffected.
-      # The steps before this one take ~13 min; the job limit (75) covers both.
+      #
+      # 90 min (#735): a change to tests/conftest.py (_SCOPE_FORCING_PATHS)
+      # runs the WHOLE catalogue by design -- the root conftest's autouse
+      # fixtures run under every mutant. 1470 mutants x ~2.65 s each at
+      # --jobs 4 (#740) ~= 65 min; 50 cut #742 off with every verdict so far
+      # KILLED. Only conftest changes reach this; the job limit (120) covers
+      # the ~15 min of steps before this one as well.
       #
       # No xvfb-run wrapper (#724): the runner selects gui-marked tests too
       # (-m "", -n0) and, with no DISPLAY, starts one private Xvfb per worker
@@ -393,7 +403,7 @@ jobs:
         if: runner.os == 'Linux' && matrix.suite == 'core'
         run: |
           poetry run python scripts/mutation_check.py --changed-since HEAD^ --jobs 4
-        timeout-minutes: 50
+        timeout-minutes: 90
 
       - name: "Run GUI tests (Linux - with xvfb)"
         if: runner.os == 'Linux' && matrix.suite == 'gui'
