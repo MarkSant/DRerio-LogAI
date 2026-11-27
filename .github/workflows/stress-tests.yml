@@ -118,10 +118,18 @@ jobs:
   memory-leak-detection:
     name: Memory Leak Detection
     runs-on: ubuntu-latest
-    # Setup takes ~4 min and the suite ~42 min under memray, which tracks every
-    # allocation. At 45 the first fully passing run (43428147257) was cancelled at
-    # 99% with 7987 passed and 0 failed. 75 leaves room for the suite to grow.
-    timeout-minutes: 75
+    # Timing (#741). Run 374 (45926639906, 2026-11-27) was CANCELLED by the old
+    # 75-minute limit with 9792 tests passed and 0 failed: the pytest step began at
+    # 02:11:46 and the last test line printed at 03:24:29, 72.7 min in, at 88 % of
+    # the 11080 selected tests => ~83 min for the whole suite under memray, which
+    # tracks every allocation (the pace has doubled since the 42 min measured when
+    # the limit was 45). Setup before pytest is ~3 min. With ~10 % growth:
+    #   3 + 83 x 1.1 ~= 94 min.
+    # 140 minutes leaves ~1.5x headroom. Past ~2 h a single nightly job is the wrong
+    # shape: shard by test directory instead of raising this again.
+    # The run step has its own limit (125 min) so that hitting it FAILS the step
+    # instead of cancelling the job: the artifact uploads and the issue step still run.
+    timeout-minutes: 140
 
     steps:
       - name: Checkout code
@@ -180,6 +188,7 @@ jobs:
 
       - name: Run tests with memory profiling
         id: profiled-run
+        timeout-minutes: 125
         # continue-on-error so the artifacts below are still collected; the
         # outcome is enforced by the explicit gate after them.
         run: |
@@ -229,20 +238,38 @@ jobs:
         # Scheduled runs only, so cancelling a manual run by hand files nothing.
         if: failure() || (cancelled() && github.event_name == 'schedule')
         uses: actions/github-script@v8
+        env:
+          JOB_STATUS: ${{ job.status }}
         with:
           script: |
+            const fs = require('fs');
             const fileNightlyIssue = require('./.github/scripts/file_nightly_issue.js');
+            // pytest writes the JUnit XML only when the session ends. No file means
+            // it was killed (step or job timeout, cancel, crash) before a verdict:
+            // that says nothing about a leak or a failing test (#741).
+            const finished = fs.existsSync('memory-leak-results.xml');
+            const incomplete = process.env.JOB_STATUS === 'cancelled' || !finished;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const header = `**Workflow:** ${context.workflow}\n` +
+                           `**Run:** ${context.runNumber}\n` +
+                           `**Commit:** ${context.sha}\n\n` +
+                           `[View workflow run](${runUrl})\n\n`;
+            const body = incomplete
+              ? `## The profiled test run did not finish\n\n` + header +
+                `It was cancelled, timed out or crashed before pytest wrote its report, so ` +
+                `no verdict exists: this is NOT evidence of a leak or of a failing test. If ` +
+                `it is the time limit, the suite outgrew it (see the arithmetic next to ` +
+                `timeout-minutes in stress-tests.yml).`
+              : `## The profiled test run did not pass\n\n` + header +
+                `The suite under pytest --memray finished with failures. This does NOT ` +
+                `by itself mean a memory leak was measured: read the log first, then ` +
+                `the memray-results tarball.`;
             await fileNightlyIssue({
               github, context, core,
-              title: 'Nightly memory profiling run failed',
-              body: `## The profiled test run did not pass\n\n` +
-                    `**Workflow:** ${context.workflow}\n` +
-                    `**Run:** ${context.runNumber}\n` +
-                    `**Commit:** ${context.sha}\n\n` +
-                    `[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n\n` +
-                    `The suite under pytest --memray failed or timed out. This does NOT ` +
-                    `by itself mean a memory leak was measured: read the log first, then ` +
-                    `the memray-results tarball.`,
+              title: incomplete
+                ? 'Nightly memory profiling run did not finish - timeout or cancelled'
+                : 'Nightly memory profiling run failed',
+              body,
               labels: ['stress-test-failure', 'needs-investigation'],
             });
 
