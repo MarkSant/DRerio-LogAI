@@ -6,12 +6,14 @@ from typing import Any, ClassVar
 
 import structlog
 
+from zebtrack.core.services.experiment_profile import AnimalModel
 from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.dialogs.project_video_import_dialog import VideoMetadataDialog
 from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.terminology import term
 
 log = structlog.get_logger()
 
@@ -129,6 +131,7 @@ class ZoneControlsWidget(BaseWidget):
         self.processing_mode_frame: ttk.Frame | None = None
         self.parallel_radio: ttk.Radiobutton | None = None
         self.sequential_radio: ttk.Radiobutton | None = None
+        self.sequential_help_label: ttk.Label | None = None
 
         if isinstance(parent, ttk.Widget):
             super().__init__(parent, event_bus=event_bus, **kwargs)
@@ -399,7 +402,7 @@ class ZoneControlsWidget(BaseWidget):
         # Auto-detect button
         self.auto_detect_button = ttk.Button(
             btn_container,
-            text=_("Detect Aquarium (Auto)"),
+            text=term("zones.detect_button"),
             command=self._on_auto_detect_clicked,
         )
         self.auto_detect_button.pack(side="left", fill="x", expand=True, padx=2, pady=2)
@@ -437,6 +440,16 @@ class ZoneControlsWidget(BaseWidget):
         )
         self.conclude_video_btn.pack(side="left", fill="x", expand=True, padx=2, pady=2)
 
+        # Barnes arena assistant (#633). Built but NOT packed: only a project whose
+        # experiment profile says ``protocol = barnes`` shows it, and the widget
+        # does not know the project -- ``set_barnes_assistant_visible`` is called
+        # by whoever resolved the profile (EventDispatcher).
+        self.barnes_assistant_button = ttk.Button(
+            btn_container,
+            text=_("🕳 Barnes assistant…"),
+            command=self._on_barnes_assistant_clicked,
+        )
+
         # Stabilization frames entry - compact version
         stabilization_frame = ttk.Frame(actions_frame)
         stabilization_frame.pack(fill="x", pady=2, anchor="w")
@@ -473,7 +486,7 @@ class ZoneControlsWidget(BaseWidget):
         )
 
         self.aquarium_selector_frame = ttk.LabelFrame(
-            parent, text=_("🐟 Active Aquarium"), padding=5
+            parent, text=term("zones.active_frame"), padding=5
         )
         # Initially hidden (never packed here): ``show_aquarium_selector`` packs
         # it once 2 aquariums are detected.
@@ -484,7 +497,7 @@ class ZoneControlsWidget(BaseWidget):
 
         self.aquarium_radio_1 = ttk.Radiobutton(
             radio_container,
-            text=_("Aquarium 1 (Left)"),
+            text=term("zones.radio_left"),
             variable=self.active_aquarium_var,
             value=0,
             command=self._on_aquarium_selected,
@@ -493,7 +506,7 @@ class ZoneControlsWidget(BaseWidget):
 
         self.aquarium_radio_2 = ttk.Radiobutton(
             radio_container,
-            text=_("Aquarium 2 (Right)"),
+            text=term("zones.radio_right"),
             variable=self.active_aquarium_var,
             value=1,
             command=self._on_aquarium_selected,
@@ -526,7 +539,7 @@ class ZoneControlsWidget(BaseWidget):
 
         self.sequential_radio = ttk.Radiobutton(
             self.processing_mode_frame,
-            text=_("Sequential (2 passes, 1 aquarium at a time)"),
+            text=term("zones.sequential_radio"),
             variable=self.sequential_processing_var,
             value=True,
             command=self._on_processing_mode_changed,
@@ -542,12 +555,13 @@ class ZoneControlsWidget(BaseWidget):
         self.apply_to_all_checkbox.pack(anchor="w", padx=(10, 0), pady=(5, 0))
 
         # Help text
-        ttk.Label(
+        self.sequential_help_label = ttk.Label(
             self.processing_mode_frame,
-            text=_("Sequential: processes the whole video for each aquarium separately"),
+            text=term("zones.sequential_help"),
             font=("TkDefaultFont", 8),
             foreground="gray",
-        ).pack(anchor="w", padx=(10, 0), pady=(2, 0))
+        )
+        self.sequential_help_label.pack(anchor="w", padx=(10, 0), pady=(2, 0))
 
     def _build_interactive_buttons(self) -> None:
         """Build the interactive editing buttons (initially hidden).
@@ -991,6 +1005,63 @@ class ZoneControlsWidget(BaseWidget):
             UIEvents.ZONE_PROCESSING_MODE_CHANGED,
             {"sequential": sequential, "apply_to_all": apply_to_all},
         )
+
+    def _on_barnes_assistant_clicked(self) -> None:
+        """Ask for the Barnes arena assistant (handled by EventDispatcher)."""
+        self.emit_event(UIEvents.ZONE_BARNES_ASSISTANT_OPEN, payloads.EmptyPayload())
+
+    def set_animal_model(self, animal_model: AnimalModel) -> None:
+        """Word the arena controls for the project's animal model (display only).
+
+        The widget does not know the project: whoever resolved the experiment
+        profile (``EventDispatcher``) calls this. Idempotent; a zebrafish or
+        legacy project keeps today's text. Persisted keys are untouched (ADR-012).
+        """
+        try:
+            auto_detect = getattr(self, "auto_detect_button", None)
+            if auto_detect is not None:
+                auto_detect.configure(text=term("zones.detect_button", animal_model))
+            if self.aquarium_selector_frame is not None:
+                self.aquarium_selector_frame.configure(
+                    text=term("zones.active_frame", animal_model)
+                )
+            if self.aquarium_radio_1 is not None:
+                self.aquarium_radio_1.configure(text=term("zones.radio_left", animal_model))
+            if self.aquarium_radio_2 is not None:
+                self.aquarium_radio_2.configure(text=term("zones.radio_right", animal_model))
+            if self.sequential_radio is not None:
+                self.sequential_radio.configure(text=term("zones.sequential_radio", animal_model))
+            if self.sequential_help_label is not None:
+                self.sequential_help_label.configure(
+                    text=term("zones.sequential_help", animal_model)
+                )
+        except tk.TclError:
+            log.debug("zone_controls.animal_terms.suppressed", exc_info=True)
+
+    def set_barnes_assistant_visible(self, visible: bool) -> None:
+        """Show the Barnes assistant button only for a Barnes project.
+
+        Packed just before "Finish and Save Project" so the drawing actions keep
+        their order. Idempotent.
+        """
+        button = getattr(self, "barnes_assistant_button", None)
+        if button is None:
+            return
+        try:
+            if visible:
+                if not button.winfo_manager():
+                    button.pack(
+                        side="left",
+                        fill="x",
+                        expand=True,
+                        padx=2,
+                        pady=2,
+                        before=self.conclude_video_btn,
+                    )
+            else:
+                button.pack_forget()
+        except tk.TclError:
+            log.debug("zone_controls.barnes_assistant_visibility.suppressed", exc_info=True)
 
     def _on_draw_main_polygon_clicked(self) -> None:
         """Handle draw main polygon button click."""

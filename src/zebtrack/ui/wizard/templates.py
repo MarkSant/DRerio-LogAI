@@ -14,9 +14,18 @@ from typing import Any
 import structlog
 from pydantic import ValidationError
 
+from zebtrack.analysis.protocols.registry import get_protocol
 from zebtrack.core.conditions import WindowSpec
 from zebtrack.core.conditions.presets import external_trigger_preset
 from zebtrack.core.detection.class_roles import parse_class_roles
+from zebtrack.core.services.experiment_profile import (
+    ANIMAL_MODEL_KEY,
+    PROTOCOL_KEY,
+    PROTOCOL_PARAMS_KEY,
+    ExperimentProfile,
+    ProtocolId,
+    resolve_experiment_profile,
+)
 from zebtrack.i18n import _
 from zebtrack.paths import repo_root
 
@@ -34,6 +43,7 @@ TEMPLATE_SCHEMA_VERSION = 5
 NOTE_EXTERNAL_TRIGGER_CONVERTED = "external_trigger_converted"
 NOTE_ANALYSIS_WINDOW_DROPPED = "analysis_window_dropped"
 NOTE_CLASS_ROLES_DROPPED = "class_roles_dropped"
+NOTE_EXPERIMENT_PROFILE_NORMALISED = "experiment_profile_normalised"
 
 #: Template block that mirrors ``project_data["model_overrides"]`` (persistence
 #: contract — the same keys a project stores, so a template can be written by
@@ -134,6 +144,18 @@ def template_model_overrides(wizard_data: Mapping[str, Any]) -> dict[str, Any] |
     return None
 
 
+def protocol_window_spec(profile: ExperimentProfile) -> dict[str, Any] | None:
+    """The analysis window a protocol proposes for its projects, as stored JSON.
+
+    ``None`` for the generic profile and for a protocol whose spec declares no
+    preset (or is not registered yet): the wizard then leaves the window alone.
+    """
+    spec = get_protocol(profile.protocol)
+    if spec is None or spec.window_preset is None:
+        return None
+    return spec.window_preset(profile.protocol_params).model_dump(mode="json", by_alias=True)
+
+
 def _template_schema_version(template: Mapping[str, Any]) -> int:
     """The template's declared schema; a missing or garbled value counts as v1."""
     raw = template.get("schema_version")
@@ -173,6 +195,7 @@ def migrate_template(template: Mapping[str, Any]) -> tuple[dict[str, Any], tuple
     version = _template_schema_version(template)
     notes = _migrate_analysis_window(migrated, version)
     notes.extend(_migrate_model_overrides(migrated, version))
+    notes.extend(_migrate_experiment_profile(migrated))
     return migrated, tuple(notes)
 
 
@@ -216,6 +239,37 @@ def _migrate_model_overrides(migrated: dict[str, Any], version: int) -> list[str
     return []
 
 
+def _migrate_experiment_profile(migrated: dict[str, Any]) -> list[str]:
+    """Normalise the experiment profile a template carries in ``behavioral_analysis``.
+
+    The profile (ADR-014) rides inside ``behavioral_analysis``, so no schema bump
+    is needed: a template saved before it has no keys and loads as generic
+    zebrafish, exactly as before. Reading goes through the single resolver, so a
+    token this version does not know (a template written by a newer one) is
+    replaced by the one every analysis path would use, with a note, instead of
+    reaching the wizard's combos. A Barnes template also carries what the
+    protocol forces: the top-down view and an analysis interval of one frame.
+    """
+    block = migrated.get("behavioral_analysis")
+    if not isinstance(block, Mapping):
+        return []
+    if not any(key in block for key in (ANIMAL_MODEL_KEY, PROTOCOL_KEY, PROTOCOL_PARAMS_KEY)):
+        return []
+    profile = resolve_experiment_profile(behavioral_config=block)
+    normalised = dict(block)
+    normalised[ANIMAL_MODEL_KEY] = profile.animal_model.value
+    normalised[PROTOCOL_KEY] = profile.protocol.value
+    normalised.pop(PROTOCOL_PARAMS_KEY, None)
+    if profile.protocol_params:
+        normalised[PROTOCOL_PARAMS_KEY] = {profile.protocol.value: dict(profile.protocol_params)}
+    if profile.protocol is ProtocolId.BARNES:
+        normalised["aquarium_perspective"] = "top_down"
+        normalised["geotaxis_enabled"] = False
+        migrated["analysis_interval_frames"] = 1
+    migrated["behavioral_analysis"] = normalised
+    return [NOTE_EXPERIMENT_PROFILE_NORMALISED] if profile.warnings else []
+
+
 def template_migration_note_text(note: str) -> str:
     """User-facing sentence for a :func:`migrate_template` note."""
     texts = {
@@ -231,6 +285,11 @@ def template_migration_note_text(note: str) -> str:
         NOTE_CLASS_ROLES_DROPPED: _(
             "The template's class roles could not be read and were dropped: the roles "
             "of the weight's classes will be resolved automatically."
+        ),
+        NOTE_EXPERIMENT_PROFILE_NORMALISED: _(
+            "The template's experiment profile held a value this version does not "
+            "recognise; it was replaced by the closest valid one. Check the animal "
+            "model and the protocol in the first step."
         ),
     }
     return texts.get(note, note)

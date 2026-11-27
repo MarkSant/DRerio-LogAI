@@ -10,7 +10,7 @@ import datetime
 import glob
 import math
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -19,6 +19,8 @@ import pandas as pd
 import structlog
 
 from zebtrack.analysis.analysis_service import resolve_sharp_turn_threshold
+from zebtrack.analysis.protocols import protocol_inputs_of_entry
+from zebtrack.core.services.experiment_profile import resolve_experiment_profile
 from zebtrack.core.services.live_calibration_scale import resolve_live_pixel_per_cm
 from zebtrack.core.services.roi_rule_resolver import resolve_roi_rule
 from zebtrack.i18n import _
@@ -155,6 +157,30 @@ class LiveAnalysisPostProcessorMixin:
             if candidates:
                 return candidates[0]
         return output_dir / "live_recording.mp4"
+
+    def _live_protocol_inputs(
+        self, video_path: Path | str, behavioral_config: Mapping[str, Any] | None
+    ) -> Mapping[str, Any]:
+        """Per-protocol inputs of the session video's project entry (ADR-014).
+
+        Looked up by PATH only (no stem fallback: a longitudinal project repeats a
+        basename across days). A session that is not registered (ad-hoc live, or
+        a project that registers the video after this analysis) has no inputs, so
+        every protocol falls back to its project-level defaults; that is worth a
+        warning only when the profile asks for a protocol.
+        """
+        finder = getattr(self.project_manager, "find_video_entry", None)
+        entry = finder(path=str(video_path)) if callable(finder) else None
+        if isinstance(entry, dict):
+            return protocol_inputs_of_entry(entry)
+        profile = resolve_experiment_profile(behavioral_config=behavioral_config)
+        if not profile.is_generic:
+            log.warning(
+                "live_post_analysis.protocol_inputs.no_entry",
+                video=str(video_path),
+                protocol=profile.declared_protocol or profile.protocol.value,
+            )
+        return protocol_inputs_of_entry(None)
 
     def _resolve_post_analysis_scale(self) -> tuple[float, float, bool]:
         """Resolve ``(pixelcm_x, pixelcm_y, is_calibrated)`` for the post-analysis.
@@ -762,6 +788,11 @@ class LiveAnalysisPostProcessorMixin:
                     video_path=str(video_path),
                     window=window,
                     time_base=time_base,
+                    # From the session video's registered entry, by path
+                    # (ADR-014); none for an unregistered session.
+                    protocol_inputs=self._live_protocol_inputs(
+                        video_path, params["behavioral_config"]
+                    ),
                 )
 
                 # Clock warnings (no ledger, partial ledger) go into the report.

@@ -296,3 +296,271 @@ msgstr ""
 #: src/zebtrack/analysis/reporters/word_reporter.py:678
 msgid "Validation details added"
 msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "A censored latency (≥) means the event did not happen before the end of the trial: the value is the trial ceiling, a lower bound, not a measurement."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Animal"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Attempts to target"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Attempts until the target"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Barnes Maze Results"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Barnes Maze Results per Animal"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Day"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Direct"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Encounter latency (first nose poke in the escape hole)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Encounter latency (s)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Entry latency (four paws in)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Entry latency (s)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "First error latency (s)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "First hole distance"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "First hole score"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "First hole visited (offset from the target)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Fraction of trials"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Group"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Hole visits"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Latency to the first error"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Learning curves"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Learning curves (mean ± SEM; hollow = censored trials, k/n)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "More than one animal was tracked; the Barnes metrics need a single animal."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Multi-aquarium videos are analysed one arena at a time; the Barnes metrics were not computed."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "N/A (no hole was visited)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "No Barnes trial with computed metrics is in this report."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Not applicable (probe trial: there is no escape box)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Not measured (the analysis window has no burrow-entry rule)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Path to the encounter"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Path to the entry"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Perseverative errors"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Primary errors"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Primary errors (before the first encounter)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Probe"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Probe trial"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Probe trial by group (mean ± SEM)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Random"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Search strategy"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Search strategy by group and day"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "See the validation appendix for the details."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Serial"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Status: {status}"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Strategy features"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Target quadrant time (%)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "The Barnes metrics are unavailable."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "The Barnes metrics failed with an error."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "The Barnes protocol is not available in this version."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "The configured protocol is not known to this version."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "The hole layout could not be read from the ROI names: the escape hole or some decoy holes are missing."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "The video has no ROIs; the Barnes metrics need the hole ROIs."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "There is no trajectory inside the trial to measure."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Time in the target quadrant"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Total errors"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Training"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Training trials, mean ± SEM per group and day. A censored latency (the event did not happen before the end of the trial) is counted at the trial ceiling: it is a lower bound, not a measurement. The number of censored trials is shown next to each latency."
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Trajectory and hole visits"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Trial"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Trial type"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Trials"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "Visits by hole distance (distance: visits): {pairs}"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "[{censored}/{n} censored]"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "errors before the target: {errors}; centre crossings: {crossings}; adjacent transitions: {fraction}"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "{strategy} (automatic)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "{strategy} (corrected)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "{strategy} (manually corrected; automatic result: {auto})"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_section.py
+msgid "≥ {value:.2f} s (censored)"
+msgstr ""
+
+#: src/zebtrack/analysis/reporters/barnes_aggregates.py
+msgid "(no group)"
+msgstr ""

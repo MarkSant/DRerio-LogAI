@@ -6,6 +6,49 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-19] Labirinto de Barnes de ponta a ponta (#633) + perfil do experimento
+
+__ID:__ TASK-088
+__Agent:__ Claude Code (Opus 5.5) — hub + sub-sessões em worktrees
+__Status:__ In progress 🚧 (estágios 0–3 mesclados na branch de integração; estágio 4 em curso)
+__Branch:__ integração `claude/barnes-maze-arena-automation-68f138` (a partir de `main`, 45293944);
+cada sessão trabalha na sua própria branch, mesclada pelo hub com aprovação do usuário.
+__Description:__
+Métricas do protocolo de Barnes do laboratório (latência de encontro × entrada, erros primários e
+totais, estratégia de busca, probe), assistente de arena com os 20 buracos e o quadrante-alvo,
+e o "perfil do experimento" (modelo animal + protocolo) que tira o app da suposição
+zebrafish-em-aquário. Plano: [`docs/tasks/v8.1/barnes/PLAN.md`](../v8.1/barnes/PLAN.md);
+contratos: [`CONTRACTS.md`](../v8.1/barnes/CONTRACTS.md); decisão:
+[ADR-014](../v8.1/ADR-014-experiment-profile-and-protocols.md).
+
+Frentes (uma sessão cada):
+
+- [x] Estágio 0 — `barnes-contracts`: perfil do experimento, camada de protocolos, contrato do
+  Barnes, gancho `report["protocol_metrics"]` e `protocol_inputs` nos caminhos de análise.
+- [x] Estágio 1 — `exp-profile` (wizard/widget), `barnes-arena` (assistente de arena),
+  `barnes-entry` (encontro × entrada no motor de condições), `barnes-metrics` (métricas).
+- [x] Estágio 2 — `barnes-reports` (relatórios individual/parcial/unificado),
+  `barnes-validation` (comparação com as planilhas do laboratório).
+- [x] Estágio 3 — `animal-terms` (vocabulário da interface por modelo animal).
+- [ ] Estágio 4 — integração no hub: documentação, gates completos, PR para `main`.
+
+Decisões do usuário registradas no caminho: a mesa atual do laboratório tem __18__ buracos (vídeos
+brutos de 2024; as fotos de 2020 mostram 20) — padrão 18, contagem detectada por vídeo pelo
+assistente e inferida dos nomes das ROIs pelas métricas; exceção temporária `[contract-ahead]` na
+whitelist do vulture (já esvaziada); estratégia automática com correção manual.
+
+Pendências do usuário: exportar as planilhas do laboratório (ver
+[`VALIDATION.md`](../v8.1/barnes/VALIDATION.md)) e rodar a calibração; confirmar com o laboratório
+a fórmula do score do probe (`min(d+1, 10)`), os padrões provisórios do roedor (congelamento
+2,0 cm/s por 1,0 s) e as palavras da interface ("arena"/"mesa", "animal"/"rato").
+
+Deixado para depois (registrado): histerese no cruzamento do centro (estratégia); referência de
+tamanho do rato puxada por quadros pequenos e caixa inflada pela cauda (#651) na detecção de
+entrada; ~130 textos de aquário/peixe ainda não migrados (inventário em
+[`TERMINOLOGY.md`](../v8.1/barnes/TERMINOLOGY.md)); o relatório unificado não conhece o perfil e
+mantém o cabeçalho "Aquarium"; `ReportGenerationCoordinator` não passa o sidecar `3c` a
+`resolve_time_base`; peso de pose (nariz/base da cauda) para encontro e entrada.
+
 ### [2026-11-14] Campanha de cobertura (`plugins/`, `utils/`) e auditoria de pontas soltas
 
 __ID:__ TASK-087

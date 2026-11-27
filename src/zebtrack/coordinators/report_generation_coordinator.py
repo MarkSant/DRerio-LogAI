@@ -27,6 +27,7 @@ from zebtrack.analysis.analysis_window_service import (
     WindowResolution,
     resolve_analysis_window,
 )
+from zebtrack.analysis.protocols import protocol_inputs_of_entry
 from zebtrack.analysis.roi import ROI
 from zebtrack.analysis.roi_builder import build_roi_from_polygon, build_rois_from_zone_polygons
 from zebtrack.analysis.time_base import (
@@ -465,6 +466,9 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             behavioral_config=params.get("behavioral_config"),
             window=window,
             time_base=time_base,
+            # Multi-aquarium: no per-video protocol inputs; the hook reports a
+            # non-generic protocol as unavailable (ADR-014).
+            aquarium_id=aq_id,
         )
 
         report_base = self._build_aquarium_report_base(aq_metadata, aq_id)
@@ -594,6 +598,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             mask_sidecar_path=self._masks_in_report_space(traj_path, (off_x, off_y)),
             window=window,
             time_base=time_base,
+            protocol_inputs=protocol_inputs_of_entry(entry),
         )
 
         report_paths = self._export_individual_outputs(analysis_result, str(results_path), exp_id)
@@ -857,6 +862,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             settings_obj=settings,
             window=window,
             time_base=time_base,
+            aquarium_id=aq_id,
         )
 
         os.makedirs(aq_results_dir, exist_ok=True)
@@ -951,6 +957,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 settings_obj=settings,
                 window=window,
                 time_base=time_base,
+                protocol_inputs=protocol_inputs_of_entry(video),
             )
 
             os.makedirs(res_dir, exist_ok=True)

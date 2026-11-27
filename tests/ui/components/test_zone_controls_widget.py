@@ -317,3 +317,43 @@ def test_a_live_panel_still_shows_the_banner(tkinter_root, event_bus):
     tkinter_root.update()
 
     assert widget.has_pending_live_session() is False
+
+
+@pytest.mark.gui
+def test_barnes_assistant_button_is_hidden_until_a_barnes_project(widget):
+    assert widget.barnes_assistant_button.winfo_manager() == ""
+
+
+@pytest.mark.gui
+def test_barnes_assistant_button_sits_before_finish_and_save(widget):
+    widget.set_barnes_assistant_visible(True)
+    widget.set_barnes_assistant_visible(True)  # idempotent
+
+    assert widget.barnes_assistant_button.winfo_manager() == "pack"
+    siblings = widget.barnes_assistant_button.master.pack_slaves()
+    assert siblings.count(widget.barnes_assistant_button) == 1
+    assert siblings.index(widget.barnes_assistant_button) == (
+        siblings.index(widget.conclude_video_btn) - 1
+    )
+
+    widget.set_barnes_assistant_visible(False)
+    assert widget.barnes_assistant_button.winfo_manager() == ""
+
+
+@pytest.mark.gui
+def test_barnes_assistant_button_asks_for_the_assistant(widget, event_bus):
+    widget.set_barnes_assistant_visible(True)
+    widget.barnes_assistant_button.invoke()
+
+    event, payload = event_bus.publish.call_args.args
+    assert event is UIEvents.ZONE_BARNES_ASSISTANT_OPEN
+    assert isinstance(payload, payloads.EmptyPayload)
+
+
+@pytest.mark.gui
+def test_barnes_assistant_visibility_survives_a_destroyed_button(widget):
+    widget.barnes_assistant_button.destroy()
+
+    widget.set_barnes_assistant_visible(True)  # a TclError is swallowed and logged
+
+    assert not widget.barnes_assistant_button.winfo_exists()

@@ -6,17 +6,30 @@ replacing plain dictionaries with validated models that ensure data integrity.
 """
 
 import re
+from collections.abc import Mapping
 from enum import StrEnum
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Any, Literal
 
 import structlog
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_validator
 
+from zebtrack.core.services.experiment_profile import (
+    ANIMAL_MODEL_KEY,
+    PROTOCOL_KEY,
+    AnimalModel,
+    ProtocolId,
+    forced_animal_model,
+    resolve_experiment_profile,
+)
 from zebtrack.i18n import _
 from zebtrack.settings import MAX_PLAUSIBLE_SPEED_LIMIT_CM_S, THIGMOTAXIS_MAX_DISTANCE_CM
 
 log = structlog.get_logger()
+
+#: The Barnes protocol needs every frame: the encounter and the burrow entry last
+#: a fraction of a second, and the recordings run at ~10 fps (CONTRACTS §9).
+BARNES_ANALYSIS_INTERVAL_FRAMES = 1
 
 # =============================================================================
 # Behavioral Analysis Enums and Models
@@ -46,13 +59,54 @@ class GeotaxisMode(StrEnum):
     ZONES = "zones"
 
 
+def _degrade_animal_model(value: Any) -> Any:
+    """An unknown animal model reads as ``other``, as in every analysis path."""
+    if isinstance(value, AnimalModel):
+        return value
+    return resolve_experiment_profile(behavioral_config={ANIMAL_MODEL_KEY: value}).animal_model
+
+
+def _degrade_protocol(value: Any) -> Any:
+    """An unknown protocol reads as ``generic``, as in every analysis path."""
+    if isinstance(value, ProtocolId):
+        return value
+    return resolve_experiment_profile(behavioral_config={PROTOCOL_KEY: value}).protocol
+
+
+def _degrade_protocol_params(value: Any) -> Any:
+    """Keep each protocol's parameters block that is a mapping; anything else is dropped."""
+    if not isinstance(value, Mapping):
+        return {}
+    return {str(name): dict(block) for name, block in value.items() if isinstance(block, Mapping)}
+
+
 class BehavioralAnalysisData(BaseModel):
     """Configuration for behavioral analysis metrics.
 
     Controls thigmotaxis (wall preference) and geotaxis (bottom preference) parameters.
     Geotaxis is only available for lateral perspective views.
+
+    It also carries the experiment profile (ADR-014): the animal model, the
+    protocol and the protocol's own parameters. The model ignores unknown keys,
+    so a profile key without a field here would vanish on validation. A bad token
+    DEGRADES (unknown animal model -> ``other``, unknown protocol -> ``generic``)
+    instead of failing a wizard that merely loaded an old or foreign template.
     """
 
+    animal_model: Annotated[AnimalModel, BeforeValidator(_degrade_animal_model)] = Field(
+        default=AnimalModel.ZEBRAFISH,
+        description="What is being studied; a protocol may force it (Barnes: rodent)",
+    )
+    protocol: Annotated[ProtocolId, BeforeValidator(_degrade_protocol)] = Field(
+        default=ProtocolId.GENERIC,
+        description="Behavioural protocol that drives the zones, window and metrics",
+    )
+    protocol_params: Annotated[
+        dict[str, dict[str, Any]], BeforeValidator(_degrade_protocol_params)
+    ] = Field(
+        default_factory=dict,
+        description="Parameters of each protocol, e.g. {'barnes': {'table_diameter_cm': 184}}",
+    )
     aquarium_perspective: AquariumPerspective = Field(
         default=AquariumPerspective.TOP_DOWN,
         description="Camera perspective/view angle of the aquarium",
@@ -101,7 +155,13 @@ class BehavioralAnalysisData(BaseModel):
 
     @model_validator(mode="after")
     def validate_geotaxis_settings(self) -> "BehavioralAnalysisData":
-        """Validate geotaxis settings based on perspective and mode."""
+        """Apply what the protocol forces, then validate geotaxis by perspective and mode."""
+        # A protocol that is only run with one animal model and view imposes them.
+        forced = forced_animal_model(self.protocol)
+        if forced is not None:
+            object.__setattr__(self, "animal_model", forced)
+            object.__setattr__(self, "aquarium_perspective", AquariumPerspective.TOP_DOWN)
+
         # Geotaxis requires lateral perspective
         if self.aquarium_perspective == AquariumPerspective.TOP_DOWN:
             # Force disable geotaxis for top-down perspective

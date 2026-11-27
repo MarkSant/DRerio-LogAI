@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import structlog
 
+from zebtrack.core.services.experiment_profile import AnimalModel
 from zebtrack.i18n import _
+from zebtrack.ui.terminology import animal_model_of, term
 from zebtrack.utils.report_files import find_block_partial_report_files
 
 if TYPE_CHECKING:
@@ -319,6 +321,10 @@ class ReportTreeBuilder:
                 "file_path": str(file_path),
             }
 
+    def _animal_model(self) -> AnimalModel:
+        """Animal model of the open project (zebrafish when there is none); wording only."""
+        return animal_model_of(getattr(self.project_manager, "project_data", None))
+
     def _insert_subject_node(
         self,
         tree: Any,
@@ -350,7 +356,11 @@ class ReportTreeBuilder:
             parent,
             "end",
             iid=subject_node_id,
-            text=_("🐟 Subject {label}").format(label=subject_label),
+            text=term(
+                "subject.label",
+                self._animal_model(),
+                label=subject_label,
+            ),
             values=("", "", "", "", "", ""),
             open=True,
         )
@@ -423,7 +433,11 @@ class ReportTreeBuilder:
             parent,
             "end",
             iid=video_node_id,
-            text=f"🐟 {subject_label}",
+            text=term(
+                "subject.video_node",
+                self._animal_model(),
+                label=subject_label,
+            ),
             values=(
                 col_arena,
                 col_rois,
@@ -834,3 +848,151 @@ def compute_project_status_counts(pm: Any) -> dict[str, int]:
     counts["pending"] = max(0, total - beyond_pending)
 
     return counts
+
+
+#: "No override was stored" (distinct from a stored ``None``).
+_ABSENT: Any = object()
+
+
+class StrategyChoice(NamedTuple):
+    """One entry of the "Search strategy" menu of a Barnes video."""
+
+    label: str
+    #: The ``SearchStrategy`` token to store; ``None`` clears the correction.
+    value: str | None
+    selected: bool
+
+
+class BarnesStrategyCorrection:
+    """Manual correction of the automatic search strategy of one video (#633).
+
+    The strategy is computed automatically; the researcher may override it per video.
+    The override is a per-video protocol input (``video_entry["protocol_inputs"]``),
+    written ONLY through ``set_protocol_input`` / ``clear_protocol_input`` and found by
+    the video PATH (never by experiment id: a longitudinal project repeats ids across
+    days). It takes effect when the video's report or summary is regenerated, which is
+    what :meth:`regenerate_message` tells the user.
+    """
+
+    def __init__(self, *, project_manager_getter: Any) -> None:
+        self._project_manager_getter = project_manager_getter
+
+    @property
+    def project_manager(self) -> ProjectManager:
+        if callable(self._project_manager_getter):
+            return self._project_manager_getter()
+        return self._project_manager_getter
+
+    def _entry(self, video_path: Path | str) -> dict | None:
+        """The video's project entry in a Barnes project; ``None`` when not applicable.
+
+        A multi-aquarium video is left out: the Barnes metrics are not computed for it
+        (CONTRACTS 2.1), so there is nothing to correct.
+        """
+        from zebtrack.core.services.experiment_profile import ProtocolId, resolve_experiment_profile
+
+        project_manager = self.project_manager
+        project_data = getattr(project_manager, "project_data", None)
+        if not isinstance(project_data, dict):
+            return None
+        if resolve_experiment_profile(project_data).protocol is not ProtocolId.BARNES:
+            return None
+        entry = project_manager.find_video_entry(path=video_path)
+        if not isinstance(entry, dict) or entry.get("multi_aquarium_outputs"):
+            return None
+        return entry
+
+    def _current(self, entry: dict) -> str | None:
+        from zebtrack.analysis.protocols.barnes.contract import parse_barnes_video_inputs
+        from zebtrack.analysis.protocols.base import protocol_inputs_for, protocol_inputs_of_entry
+        from zebtrack.core.services.experiment_profile import ProtocolId
+
+        inputs, _warnings = parse_barnes_video_inputs(
+            protocol_inputs_for(protocol_inputs_of_entry(entry), ProtocolId.BARNES)
+        )
+        return inputs.strategy_override.value if inputs.strategy_override else None
+
+    def choices(self, video_path: Path | str) -> list[StrategyChoice]:
+        """The menu entries for ``video_path``; empty when the video is not a Barnes one."""
+        from zebtrack.analysis.protocols.barnes.contract import SearchStrategy
+
+        entry = self._entry(video_path)
+        if entry is None:
+            return []
+        current = self._current(entry)
+        labels = {
+            SearchStrategy.DIRECT: _("Direct"),
+            SearchStrategy.SERIAL: _("Serial"),
+            SearchStrategy.RANDOM: _("Random"),
+        }
+        return [
+            StrategyChoice(_("Automatic"), None, current is None),
+            *(
+                StrategyChoice(labels[strategy], strategy.value, current == strategy.value)
+                for strategy in SearchStrategy
+            ),
+        ]
+
+    def set_override(self, video_path: Path | str, value: str | None) -> bool:
+        """Store (or, with ``None``, clear) the override and save the project.
+
+        Returns ``False`` when nothing was stored: not a Barnes video, an unknown token,
+        or a failed save. A failed save puts the previous value back, so the project in
+        memory never disagrees with the one on disk.
+        """
+        from zebtrack.analysis.protocols.barnes.contract import SearchStrategy
+        from zebtrack.analysis.protocols.base import (
+            clear_protocol_input,
+            protocol_inputs_for,
+            protocol_inputs_of_entry,
+            set_protocol_input,
+        )
+        from zebtrack.core.services.experiment_profile import ProtocolId
+
+        entry = self._entry(video_path)
+        if entry is None:
+            return False
+        if value is not None and value not in {s.value for s in SearchStrategy}:
+            log.warning("report_tree.strategy_override.unknown_token", value=value)
+            return False
+
+        # The EXACT stored value (even a malformed token the parser would drop), or
+        # nothing at all: a failed save must leave the entry as it was found.
+        stored = protocol_inputs_for(protocol_inputs_of_entry(entry), ProtocolId.BARNES)
+        previous = stored.get("strategy_override", _ABSENT)
+
+        def write(token: Any) -> None:
+            if token is None or token is _ABSENT:
+                # Also removes the Barnes block when it ends up empty.
+                clear_protocol_input(entry, ProtocolId.BARNES, "strategy_override")
+            else:
+                set_protocol_input(entry, ProtocolId.BARNES, "strategy_override", token)
+
+        write(value)
+        try:
+            self.project_manager.save_project()
+        # except Exception justified: the save can fail for any I/O reason; whatever it
+        # is, the in-memory change must not outlive a save that did not happen.
+        except Exception:
+            log.error(
+                "report_tree.strategy_override.save_failed", video=str(video_path), exc_info=True
+            )
+            write(previous)
+            return False
+        log.info(
+            "report_tree.strategy_override.saved", video=str(video_path), strategy=value or "auto"
+        )
+        return True
+
+    @staticmethod
+    def regenerate_message(value: str | None) -> str:
+        """What to tell the user after a successful change."""
+        if value is None:
+            return _(
+                "The manual correction was removed. Regenerate the report of this video "
+                "to show the automatic search strategy again."
+            )
+        return _(
+            "The search strategy was saved as corrected. Regenerate the report (and the "
+            "summary) of this video for the correction to appear."
+        )

@@ -117,3 +117,43 @@ class TestProjectReporterExtended:
                     assert 1 in res
                     assert "session1_Control_1_summary.xlsx" in res[0]["summary_path"]
                     assert "session1_Treatment_2_report.docx" in res[1]["report_path"]
+
+
+class TestProjectReportProtocolMetricLists:
+    """The zebtrack metric list is the generic one; a protocol drops what its spec suppresses."""
+
+    @staticmethod
+    def _frame(*, barnes: bool) -> pd.DataFrame:
+        from tests.analysis.reporters.barnes_report_builders import tidy_row
+
+        rows = []
+        for subject in ("1", "2"):
+            row = tidy_row("CTL", "Dia_1", subject) if barnes else {"group_id": "CTL"}
+            row.update(
+                total_distance_cm=100.0,
+                thigmotaxis_time_near_wall_pct=40.0,
+                geotaxis_bottom_zones_pct=30.0,
+                geotaxis_zone_0_pct=30.0,
+            )
+            rows.append(row)
+        return pd.DataFrame(rows)
+
+    def test_a_generic_project_keeps_the_thigmotaxis_and_geotaxis_statistics(self, tmp_path: Path):
+        export_project_report(self._frame(barnes=False), tmp_path / "generic")
+
+        text = _doc_text(tmp_path / "generic.docx")
+
+        assert "Statistics for Thigmotaxis Near Wall (%)" in text
+        assert "Statistics for Geotaxis Bottom Zones (%)" in text
+        assert "Barnes Maze Results" not in text
+
+    def test_a_barnes_project_drops_them_and_adds_its_own_section(self, tmp_path: Path):
+        export_project_report(self._frame(barnes=True), tmp_path / "barnes")
+
+        text = _doc_text(tmp_path / "barnes.docx")
+
+        assert "Statistics for Total Distance (cm)" in text
+        assert "Thigmotaxis" not in text
+        assert "Geotaxis" not in text
+        assert "Barnes Maze Results" in text
+        assert "Search strategy" in text

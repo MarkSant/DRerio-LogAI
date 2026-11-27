@@ -23,6 +23,7 @@ from zebtrack.analysis.data_transformer import (
     window_columns,
 )
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
+from zebtrack.core.services.experiment_profile import AnimalModel
 
 
 @pytest.fixture
@@ -1104,3 +1105,75 @@ def test_per_animal_table_carries_the_latency_flags(transformer):
     assert list(table.columns)[-2:] == ["latency_censored", "latency_present_at_start"]
     assert bool(table["latency_censored"].iloc[0]) is True
     assert bool(table["latency_present_at_start"].iloc[0]) is False
+
+
+# ---------------------------------------------------------------------------
+# Barnes v8.1 stage 3: display names that follow the animal model
+# ---------------------------------------------------------------------------
+
+
+class TestAnimalDisplayNames:
+    """Display only: the internal keys never change (ADR-012)."""
+
+    def test_zebrafish_and_legacy_keep_the_raw_title_cased_labels(self) -> None:
+        from zebtrack.analysis.data_transformer import display_metadata_label
+
+        assert display_metadata_label("num_aquariums") == "Num Aquariums"
+        assert display_metadata_label("animals_per_aquarium") == "Animals Per Aquarium"
+        assert display_metadata_label("aquarium_width_cm") == "Aquarium Width Cm"
+        assert display_metadata_label("num_aquariums", AnimalModel.ZEBRAFISH) == "Num Aquariums"
+
+    @pytest.mark.parametrize("model", [AnimalModel.RODENT, AnimalModel.OTHER])
+    def test_another_animal_gets_the_arena(self, model) -> None:
+        from zebtrack.analysis.data_transformer import display_metadata_label
+
+        assert display_metadata_label("num_aquariums", model) == "Num Arenas"
+        assert display_metadata_label("animals_per_aquarium", model) == "Animals Per Arena"
+        assert display_metadata_label("aquarium_perspective", model) == "Arena Perspective"
+        # a key with no aquarium in it reads the same for every animal
+        assert display_metadata_label("experiment_id", model) == "Experiment Id"
+
+    def test_column_names_keep_the_mapping_and_override_only_the_aquarium(self) -> None:
+        from zebtrack.analysis.data_transformer import display_column_name
+
+        assert display_column_name("aquarium_id") == "Aquarium"
+        assert display_column_name("aquarium_id", AnimalModel.RODENT) == "Arena"
+        assert display_column_name("aquarium_id", AnimalModel.OTHER) == "Arena"
+        assert display_column_name("total_distance_cm", AnimalModel.RODENT) == "Total Distance (cm)"
+        assert display_column_name("some_unmapped_key", AnimalModel.OTHER) == "Some Unmapped Key"
+        assert display_column_name("aquarium_perspective") == "Aquarium Perspective"
+        assert display_column_name("aquarium_perspective", AnimalModel.RODENT) == (
+            "Arena Perspective"
+        )
+
+    def test_the_exported_display_headers_never_follow_the_animal_model(self) -> None:
+        # Hub review: exported headers are a contract (aggregate_summaries concatenates
+        # xlsx files by header); only the Word report is re-worded.
+        import inspect
+
+        frame = pd.DataFrame({"aquarium_id": [0], "total_distance_cm": [1.5]})
+
+        shown = DataTransformer().prepare_for_display(frame)
+
+        assert list(shown.columns) == ["Aquarium", "Total Distance (cm)"]
+        assert list(frame.columns) == ["aquarium_id", "total_distance_cm"]  # input untouched
+        assert (
+            "animal_model" not in inspect.signature(DataTransformer.prepare_for_display).parameters
+        )
+
+    def test_the_mapping_itself_is_not_mutated(self) -> None:
+        from zebtrack.analysis.data_transformer import (
+            DISPLAY_COLUMN_MAPPING,
+            display_column_name,
+        )
+
+        assert display_column_name("aquarium_id", AnimalModel.RODENT) == "Arena"
+
+        assert DISPLAY_COLUMN_MAPPING["aquarium_id"] == "Aquarium"
+
+    def test_animal_model_of_config_reads_the_single_resolver(self) -> None:
+        from zebtrack.analysis.data_transformer import animal_model_of_config
+
+        assert animal_model_of_config(None) is AnimalModel.ZEBRAFISH
+        assert animal_model_of_config({"animal_model": "rodent"}) is AnimalModel.RODENT
+        assert animal_model_of_config({"protocol": "barnes"}) is AnimalModel.RODENT

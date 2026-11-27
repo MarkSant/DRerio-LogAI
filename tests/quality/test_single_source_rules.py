@@ -9,6 +9,12 @@ mechanical enough for an AST scan, and both were broken in production before:
   animal; until F2-R-001 the live completion dialog did exactly that (A4-02).
   The scan flags ``nunique()``, ``factorize``, ``len(... .unique())`` and
   ``.ngroups`` whenever the expression mentions ``track_id``.
+* **The experiment profile** (ADR-014) is read only by
+  ``core/services/experiment_profile.resolve_experiment_profile()``, and the
+  per-video ``protocol_inputs`` only by ``analysis/protocols/base.py``. The scan
+  flags a READ of those keys anywhere else: a subscript load or a
+  ``.get``/``.pop``/``.setdefault`` with the key as a string constant. Building a
+  dict literal that contains the key (what a UI hands the wizard) is not a read.
 * **Zones in report contexts** come from ``get_multi_aquarium_zone_data()``;
   ``get_zone_data()`` is the aquarium-0 shim. Reading ROI names through it
   dropped every ROI of aquarium 1 from the unified report (A4-01). The scan
@@ -105,6 +111,17 @@ ALLOWED_ZONE_SHIM_CALLS: dict[str, tuple[int, str]] = {
 }
 
 
+# --- rule (c): experiment profile and per-video protocol inputs (ADR-014) ---
+
+PROFILE_HOME = "src/zebtrack/core/services/experiment_profile.py"
+PROFILE_KEYS = frozenset({"animal_model", "protocol", "protocol_params"})
+PROTOCOL_INPUTS_HOME = "src/zebtrack/analysis/protocols/base.py"
+PROTOCOL_INPUTS_KEYS = frozenset({"protocol_inputs"})
+
+ALLOWED_PROFILE_READS: dict[str, tuple[int, str]] = {}
+ALLOWED_PROTOCOL_INPUT_READS: dict[str, tuple[int, str]] = {}
+
+
 # --- scanner -----------------------------------------------------------------
 
 
@@ -142,6 +159,29 @@ def counts_subjects(node: ast.AST) -> bool:
     if isinstance(node, ast.Attribute) and node.attr == "ngroups":
         return _mentions_track_id(node.value)
     return False
+
+
+_READ_METHODS = frozenset({"get", "pop", "setdefault"})
+
+
+def reads_key(keys: frozenset[str]) -> Detector:
+    """Detector of a READ of one of ``keys`` (subscript load or ``.get``-like call)."""
+
+    def detect(node: ast.AST) -> bool:
+        if isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Load):
+            key = node.slice
+            return isinstance(key, ast.Constant) and key.value in keys
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in _READ_METHODS
+            and node.args
+        ):
+            first = node.args[0]
+            return isinstance(first, ast.Constant) and first.value in keys
+        return False
+
+    return detect
 
 
 def calls_zone_shim(node: ast.AST) -> bool:
@@ -211,6 +251,22 @@ def _zone_shim_hits() -> Counter[str]:
     return find_calls(_python_files(REPORT_CONTEXT_PATHS), calls_zone_shim)
 
 
+def _package_files_except(home: str) -> list[Path]:
+    return [
+        path
+        for path in sorted(PACKAGE_ROOT.rglob("*.py"))
+        if path.resolve().relative_to(REPO_ROOT).as_posix() != home
+    ]
+
+
+def _profile_read_hits() -> Counter[str]:
+    return find_calls(_package_files_except(PROFILE_HOME), reads_key(PROFILE_KEYS))
+
+
+def _protocol_input_read_hits() -> Counter[str]:
+    return find_calls(_package_files_except(PROTOCOL_INPUTS_HOME), reads_key(PROTOCOL_INPUTS_KEYS))
+
+
 def _format(entries: dict[str, int]) -> str:
     return "\n".join(f"  {key} ({n})" for key, n in sorted(entries.items()))
 
@@ -234,11 +290,30 @@ def test_report_contexts_do_not_read_the_aquarium_zero_shim() -> None:
     )
 
 
+def test_the_experiment_profile_is_read_only_by_its_resolver() -> None:
+    extra, _ = violations(_profile_read_hits(), ALLOWED_PROFILE_READS)
+    assert not extra, (
+        "animal_model/protocol/protocol_params read outside "
+        "core/services/experiment_profile.py; use resolve_experiment_profile() (an "
+        "unknown token must degrade the same way everywhere):\n" + _format(extra)
+    )
+
+
+def test_protocol_inputs_are_read_only_through_the_protocol_layer() -> None:
+    extra, _ = violations(_protocol_input_read_hits(), ALLOWED_PROTOCOL_INPUT_READS)
+    assert not extra, (
+        "video_entry['protocol_inputs'] read outside analysis/protocols/base.py; use "
+        "protocol_inputs_of_entry() / set_protocol_input():\n" + _format(extra)
+    )
+
+
 @pytest.mark.parametrize(
     ("hits", "allowed"),
     [
         pytest.param(_subject_count_hits, ALLOWED_SUBJECT_COUNTS, id="subject-counts"),
         pytest.param(_zone_shim_hits, ALLOWED_ZONE_SHIM_CALLS, id="zone-shim"),
+        pytest.param(_profile_read_hits, ALLOWED_PROFILE_READS, id="profile-reads"),
+        pytest.param(_protocol_input_read_hits, ALLOWED_PROTOCOL_INPUT_READS, id="protocol-inputs"),
     ],
 )
 def test_allowlists_have_no_stale_entries(
@@ -250,8 +325,13 @@ def test_allowlists_have_no_stale_entries(
 
 @pytest.mark.parametrize(
     "allowed",
-    [ALLOWED_SUBJECT_COUNTS, ALLOWED_ZONE_SHIM_CALLS],
-    ids=["subject-counts", "zone-shim"],
+    [
+        ALLOWED_SUBJECT_COUNTS,
+        ALLOWED_ZONE_SHIM_CALLS,
+        ALLOWED_PROFILE_READS,
+        ALLOWED_PROTOCOL_INPUT_READS,
+    ],
+    ids=["subject-counts", "zone-shim", "profile-reads", "protocol-inputs"],
 )
 def test_every_allowance_states_its_reason(allowed: dict[str, tuple[int, str]]) -> None:
     assert all(count >= 1 and len(reason) >= 30 for count, reason in allowed.values())
@@ -319,3 +399,33 @@ def test_violations_counts_extra_calls_and_stale_allowances() -> None:
     hits = Counter({"a::f": 2, "b::g": 1})
     allowed = {"a::f": (1, "reason"), "c::h": (1, "reason")}
     assert violations(hits, allowed) == ({"a::f": 1, "b::g": 1}, {"c::h": 1})
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        'cfg["protocol"]',
+        'cfg.get("animal_model")',
+        'cfg.get("protocol_params", {})',
+        'cfg.pop("protocol")',
+        'cfg.setdefault("protocol", "generic")',
+        'project["behavioral_config"]["protocol"]',
+    ],
+)
+def test_reads_key_flags_every_read(expression: str, tmp_path: Path) -> None:
+    source = f"def f(cfg, project):\n    return {expression}\n"
+    assert _hits(source, reads_key(PROFILE_KEYS), tmp_path) == Counter({"mod.py::f": 1})
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'def f(cfg):\n    cfg["protocol"] = "barnes"\n',
+        'def f():\n    return {"protocol": "barnes", "animal_model": "rodent"}\n',
+        'def f(cfg):\n    return cfg.get("aquarium_perspective")\n',
+        'def f(win):\n    win.protocol("WM_DELETE_WINDOW", None)\n',
+        "def f(cfg, key):\n    return cfg.get(key)\n",
+    ],
+)
+def test_reads_key_ignores_writes_literals_and_other_keys(source: str, tmp_path: Path) -> None:
+    assert _hits(source, reads_key(PROFILE_KEYS), tmp_path) == Counter()

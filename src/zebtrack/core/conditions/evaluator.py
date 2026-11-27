@@ -19,6 +19,12 @@ Semantics (the contract the tests pin):
 - ``Sequence`` arms each stage on observations strictly later than the
   previous stage's confirmation, and restarts when ``within_s`` elapses
   between the first stage's instant and now.
+- ``BurrowEntry`` is two ``Persist`` runs (over the hole and small; vanished
+  into the hole) and fires with the earlier one, back-dated like ``Persist``,
+  with reason ``burrow_entry``. Its size reference — the running median of the
+  subject box area — is stream-wide state: it starts with the observation that
+  confirms START (the frames START back-dates over are not in it) and each
+  frame joins it only AFTER the levels were evaluated on that frame.
 - No re-arming: the first window wins.
 - START never met -> ``status="start_not_met"``. STOP never met -> ``finish``
   emits an ``end_of_stream`` STOP at the last observation, ``censored=True``
@@ -38,22 +44,28 @@ from zebtrack.core.conditions.model import (
     AllOf,
     AllOfLevel,
     AnyOfLevel,
+    BurrowEntry,
     ClassPresence,
     Delay,
     EndOfStream,
     External,
     FirstOf,
     FrameReached,
+    Hold,
+    LastSeenIn,
     LevelNode,
     Not,
     Persist,
     RoiEdge,
     RoiInside,
     Sequence,
+    SubjectOverRoi,
+    SubjectVisibleFraction,
     TimeReached,
     TriggerNode,
     WindowSpec,
     _normalize_class_name,
+    iter_nodes,
 )
 
 __all__ = [
@@ -76,6 +88,10 @@ _TIME_EPS = 1e-9
 #: Default gap limit, as a multiple of the median inter-observation interval.
 _DEFAULT_GAP_FACTOR = 3.0
 
+#: Tolerance for cover fractions: an intersection area over a box area that is
+#: "exactly half" geometrically can come out as ``0.49999999999999994``.
+_COVER_EPS = 1e-9
+
 WindowReason = Literal[
     "first_frame",
     "persist",
@@ -85,6 +101,7 @@ WindowReason = Literal[
     "delay",
     "external",
     "end_of_stream",
+    "burrow_entry",
 ]
 WindowStatus = Literal["pending", "complete", "start_not_met", "censored"]
 
@@ -112,6 +129,11 @@ class FrameObservation:
         external: External events delivered with this frame.
         t_wall: Wall-clock seconds, for ``TimeReached(clock="wall")``.
         aquarium_id: Aquarium this stream belongs to (one evaluator per aquarium).
+        subject_area_px: Area (px²) of the subject box chosen for this frame;
+            ``None`` when the subject was not detected.
+        subject_cover: ROI name -> ``area(box ∩ roi) / area(box)`` in ``(0, 1]``
+            for every ROI the box overlaps; a missing name reads as ``0.0``. Both
+            come from :mod:`zebtrack.core.conditions.subject_geometry`.
     """
 
     frame: int
@@ -121,6 +143,8 @@ class FrameObservation:
     external: tuple[ExternalEvent, ...] = ()
     t_wall: float | None = None
     aquarium_id: int | None = None
+    subject_area_px: float | None = None
+    subject_cover: Mapping[str, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,10 +208,19 @@ class _RunningMedian:
             return -self._low[0]
         return (-self._low[0] + self._high[0]) / 2.0
 
+    def __len__(self) -> int:
+        return len(self._low) + len(self._high)
+
 
 @dataclass(slots=True)
 class _Context:
-    """Stream-wide state every node may read during one ``step``."""
+    """Stream-wide state every node may read during one ``step``.
+
+    ``subject_size`` (the running median of the subject box area since START)
+    and ``last_detected`` (the latest observation WITH the subject) are updated
+    by :meth:`ConditionEvaluator.step` after the nodes ran, so on any frame they
+    describe the frames BEFORE it.
+    """
 
     roles: Mapping[str, frozenset[str]]
     prev: FrameObservation | None = None
@@ -195,6 +228,8 @@ class _Context:
     default_max_gap: float | None = None
     first_t_wall: float | None = None
     start: WindowEvent | None = None
+    subject_size: _RunningMedian | None = None
+    last_detected: FrameObservation | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,7 +243,7 @@ def _instant_key(fire: _Fire) -> tuple[float, int]:
     return (fire.t_s, fire.frame)
 
 
-_Level = Callable[[FrameObservation], bool]
+_Level = Callable[[FrameObservation, _Context], bool]
 
 
 def _compile_level(node: LevelNode, roles: Mapping[str, frozenset[str]]) -> _Level:
@@ -217,17 +252,57 @@ def _compile_level(node: LevelNode, roles: Mapping[str, frozenset[str]]) -> _Lev
     if isinstance(node, RoiInside):
         roi = node.roi
         if node.state == "inside":
-            return lambda obs: roi in obs.subject_rois
-        return lambda obs: roi not in obs.subject_rois
+            return lambda obs, ctx: roi in obs.subject_rois
+        return lambda obs, ctx: roi not in obs.subject_rois
+    if isinstance(node, SubjectOverRoi):
+        return _subject_over_roi(node.roi, node.min_cover)
+    if isinstance(node, SubjectVisibleFraction):
+        return _subject_visible_fraction(node.max_fraction, node.min_reference_frames)
+    if isinstance(node, LastSeenIn):
+        return _last_seen_in(node.roi, node.min_cover)
     if isinstance(node, Not):
         child = _compile_level(node.child, roles)
-        return lambda obs: not child(obs)
+        return lambda obs, ctx: not child(obs, ctx)
     children = tuple(_compile_level(c, roles) for c in node.children)
     if isinstance(node, AllOfLevel):
-        return lambda obs: all(c(obs) for c in children)
+        return lambda obs, ctx: all(c(obs, ctx) for c in children)
     if isinstance(node, AnyOfLevel):
-        return lambda obs: any(c(obs) for c in children)
+        return lambda obs, ctx: any(c(obs, ctx) for c in children)
     raise TypeError(f"Unknown level node: {type(node).__name__}")
+
+
+def _covers(cover: Mapping[str, float], roi: str, min_cover: float) -> bool:
+    return cover.get(roi, 0.0) >= min_cover - _COVER_EPS
+
+
+def _subject_over_roi(roi: str, min_cover: float) -> _Level:
+    def level(obs: FrameObservation, ctx: _Context) -> bool:
+        return obs.subject_area_px is not None and _covers(obs.subject_cover, roi, min_cover)
+
+    return level
+
+
+def _subject_visible_fraction(max_fraction: float, min_reference_frames: int) -> _Level:
+    def level(obs: FrameObservation, ctx: _Context) -> bool:
+        reference = ctx.subject_size
+        if ctx.start is None or obs.subject_area_px is None or reference is None:
+            return False
+        if len(reference) < min_reference_frames:
+            return False
+        median = reference.median()
+        return median is not None and obs.subject_area_px <= max_fraction * median
+
+    return level
+
+
+def _last_seen_in(roi: str, min_cover: float) -> _Level:
+    def level(obs: FrameObservation, ctx: _Context) -> bool:
+        last = ctx.last_detected
+        if obs.subject_area_px is not None or last is None:
+            return False
+        return _covers(last.subject_cover, roi, min_cover)
+
+    return level
 
 
 def _class_presence(node: ClassPresence, roles: Mapping[str, frozenset[str]]) -> _Level:
@@ -239,7 +314,7 @@ def _class_presence(node: ClassPresence, roles: Mapping[str, frozenset[str]]) ->
     min_count = node.min_count
     present = node.present
 
-    def level(obs: FrameObservation) -> bool:
+    def level(obs: FrameObservation, ctx: _Context) -> bool:
         count = 0
         for name in names:
             confidences = obs.classes.get(name, ())
@@ -290,7 +365,7 @@ class _Persist(_Trigger):
         if self._run is not None and gap_limit is not None and ctx.dt is not None:
             if ctx.dt > gap_limit:
                 self._run = None
-        if not self._level(obs):
+        if not self._level(obs, ctx):
             self._run = None
             return None
         if self._run is None:
@@ -384,6 +459,44 @@ class _External(_Trigger):
         return None
 
 
+class _BurrowEntry(_Trigger):
+    """Entry into ``roi``: the earlier of "over it and small" and "vanished into it"."""
+
+    def __init__(self, node: BurrowEntry, roles: Mapping[str, frozenset[str]]) -> None:
+        super().__init__()
+        over = SubjectOverRoi(roi=node.roi, min_cover=node.min_cover)
+        small = SubjectVisibleFraction(
+            max_fraction=node.max_visible_fraction,
+            min_reference_frames=node.min_reference_frames,
+        )
+        self._runs = (
+            _Persist(
+                Persist(
+                    level=AllOfLevel(children=(over, small)),
+                    hold=node.hold,
+                    max_gap_s=node.max_gap_s,
+                ),
+                roles,
+            ),
+            _Persist(
+                Persist(
+                    level=LastSeenIn(roi=node.roi, min_cover=node.min_cover),
+                    hold=Hold(seconds=node.absent_s),
+                    max_gap_s=node.max_gap_s,
+                ),
+                roles,
+            ),
+        )
+
+    def _feed(self, obs: FrameObservation, ctx: _Context) -> _Fire | None:
+        # Both runs see every frame (no short-circuit): each keeps its own run.
+        fires = [f for run in self._runs if (f := run.feed(obs, ctx)) is not None]
+        if not fires:
+            return None
+        first = min(fires, key=_instant_key)
+        return _Fire(first.frame, first.t_s, "burrow_entry")
+
+
 class _EndOfStream(_Trigger):
     """Never fires inside the stream; :meth:`ConditionEvaluator.finish` handles it."""
 
@@ -466,6 +579,8 @@ def _compile_trigger(node: TriggerNode, roles: Mapping[str, frozenset[str]]) -> 
         return _External(node)
     if isinstance(node, EndOfStream):
         return _EndOfStream()
+    if isinstance(node, BurrowEntry):
+        return _BurrowEntry(node, roles)
     if isinstance(node, FirstOf):
         return _FirstOf(node, roles)
     if isinstance(node, AllOf):
@@ -510,6 +625,11 @@ class ConditionEvaluator:
         self._dts = _RunningMedian()
         self._aquarium_id: int | None = None
         self._skipped = 0
+        # The size reference costs one float per detected frame: kept only when a
+        # node reads it (both are refused inside START).
+        self._tracks_subject_size = spec.stop is not None and any(
+            isinstance(node, BurrowEntry | SubjectVisibleFraction) for node in iter_nodes(spec.stop)
+        )
 
     @property
     def spec(self) -> WindowSpec:
@@ -568,8 +688,21 @@ class ConditionEvaluator:
 
         if ctx.dt is not None and ctx.dt > 0.0:
             self._dts.add(ctx.dt)
+        self._observe_subject(obs, ctx)
         self._last = obs
         return events
+
+    def _observe_subject(self, obs: FrameObservation, ctx: _Context) -> None:
+        """Fold this frame's subject into the stream state, AFTER the nodes ran."""
+        area = obs.subject_area_px
+        if area is None:
+            return
+        ctx.last_detected = obs
+        if not self._tracks_subject_size or ctx.start is None:
+            return
+        if ctx.subject_size is None:
+            ctx.subject_size = _RunningMedian()
+        ctx.subject_size.add(float(area))
 
     def finish(self) -> list[WindowEvent]:
         """Close the stream: an open window gets its ``end_of_stream`` STOP.

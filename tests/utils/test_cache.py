@@ -213,13 +213,17 @@ class TestTTLCacheExtended:
         assert cache.get("missing", default="def") == "def"
 
     def test_cache_expiration(self):
-        cache = TTLCache(ttl_seconds=0.05)
-        cache.set("key1", "val1")
-        assert cache.get("key1") == "val1"
+        # Fake monotonic clock: with a real 50 ms TTL, a loaded machine could let the
+        # TTL lapse between ``set`` and the first ``get`` and fail the live read.
+        with _frozen_clock() as clock:
+            cache = TTLCache(ttl_seconds=5.0)
+            cache.set("key1", "val1")
+            clock.now += 4.0
+            assert cache.get("key1") == "val1"
 
-        time.sleep(0.06)
-        assert cache.get("key1") is None
-        assert "key1" not in cache
+            clock.now += 2.0
+            assert cache.get("key1") is None
+            assert "key1" not in cache
 
     def test_cache_invalidate_and_clear(self):
         cache = TTLCache(ttl_seconds=10.0)

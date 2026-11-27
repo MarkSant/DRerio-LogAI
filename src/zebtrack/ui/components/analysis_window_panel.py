@@ -49,6 +49,7 @@ from zebtrack.core.conditions import (
     AllOf,
     AllOfLevel,
     AnyOfLevel,
+    BurrowEntry,
     ClassPresence,
     ClassTarget,
     ConditionNode,
@@ -58,19 +59,26 @@ from zebtrack.core.conditions import (
     FirstOf,
     FrameReached,
     Hold,
+    LastSeenIn,
     LevelNode,
     Not,
     Persist,
     RoiEdge,
     RoiInside,
     Sequence,
+    SubjectOverRoi,
+    SubjectVisibleFraction,
     TimeReached,
     TriggerNode,
     WindowSpec,
     iter_nodes,
     spec_hash,
 )
-from zebtrack.core.conditions.presets import BARNES_BURROW_ROI, barnes_maze_preset
+from zebtrack.core.conditions.presets import (
+    BARNES_BURROW_ROI,
+    barnes_maze_preset,
+    barnes_maze_preset_v1_arguments,
+)
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -86,6 +94,10 @@ RowKind = Literal[
     "hold",
     "roi_enter",
     "roi_exit",
+    "subject_over_roi",
+    "subject_small",
+    "last_seen_in",
+    "burrow_entry",
     "video_time",
     "frame",
     "delay_after_start",
@@ -102,19 +114,32 @@ OnStop = Literal["mark", "end_session"]
 
 #: Every line type, in the order the "Condition" dropdown lists them.
 ROW_KINDS: tuple[RowKind, ...] = get_args(RowKind)
-#: Lines that only make sense once the window has started.
-STOP_ONLY_KINDS: frozenset[RowKind] = frozenset({"delay_after_start", "end_of_video"})
-#: Lines that are levels (grouped into one ``Persist``), not triggers.
-LEVEL_KINDS: frozenset[RowKind] = frozenset({"class_present", "class_absent"})
-#: Lines whose ``target`` is required (class name or role, ROI name).
-TARGET_KINDS: frozenset[RowKind] = frozenset(
-    {"class_present", "class_absent", "roi_enter", "roi_exit"}
+#: Lines that only make sense once the window has started (the subject's usual
+#: size, which the burrow entry compares against, is measured from START on).
+STOP_ONLY_KINDS: frozenset[RowKind] = frozenset(
+    {"delay_after_start", "end_of_video", "subject_small", "burrow_entry"}
 )
+#: Class lines: a class name or a role.
+CLASS_KINDS: frozenset[RowKind] = frozenset({"class_present", "class_absent"})
+#: Lines that are levels (grouped into one ``Persist``), not triggers.
+LEVEL_KINDS: frozenset[RowKind] = CLASS_KINDS | {
+    "subject_over_roi",
+    "subject_small",
+    "last_seen_in",
+}
+#: Lines whose target is a ROI name.
+ROI_KINDS: frozenset[RowKind] = frozenset(
+    {"roi_enter", "roi_exit", "subject_over_roi", "last_seen_in", "burrow_entry"}
+)
+#: Lines whose ``target`` is required (class name or role, ROI name).
+TARGET_KINDS: frozenset[RowKind] = CLASS_KINDS | ROI_KINDS
 #: Lines that need a number, and lines where that number must be a whole number.
 NUMBER_REQUIRED_KINDS: frozenset[RowKind] = frozenset(
-    {"hold", "video_time", "frame", "delay_after_start"}
+    {"hold", "video_time", "frame", "delay_after_start", "subject_small"}
 )
-NUMBER_OPTIONAL_KINDS: frozenset[RowKind] = frozenset({"arduino"})
+NUMBER_OPTIONAL_KINDS: frozenset[RowKind] = frozenset(
+    {"arduino", "subject_over_roi", "last_seen_in"}
+)
 INTEGER_KINDS: frozenset[RowKind] = frozenset({"frame", "arduino"})
 
 
@@ -134,6 +159,10 @@ def row_kind_labels() -> dict[RowKind, str]:
         "hold": _("…held for (seconds or frames)"),
         "roi_enter": _("Subject enters ROI"),
         "roi_exit": _("Subject leaves ROI"),
+        "subject_over_roi": _("Subject is mostly over ROI"),
+        "subject_small": _("Subject looks small (fraction of its size)"),
+        "last_seen_in": _("Subject vanished, last seen over ROI"),
+        "burrow_entry": _("Subject enters the burrow ROI (not a touch)"),
         "video_time": _("Video time reaches"),
         "frame": _("Frame number reaches"),
         "delay_after_start": _("Time after the start"),
@@ -219,8 +248,13 @@ class ConditionRow:
         kind: Line type (see :data:`ROW_KINDS`).
         target: Class name (class lines) or ROI name (ROI lines); ignored otherwise.
         role: Class role instead of a class name (class lines only).
-        value: Seconds, frame number, hold amount or Arduino code, by kind.
+        value: Seconds, frame number, hold amount, Arduino code, cover or size
+            fraction, by kind.
         unit: Unit of a "held for" line.
+        node: The stored node of a line whose parameters do not all fit the
+            fields above ("looks small", "enters the burrow"); kept so a spec
+            round-trips through the editor without changing its hash. The line's
+            own fields win over it.
     """
 
     kind: RowKind
@@ -228,6 +262,7 @@ class ConditionRow:
     role: Role | None = None
     value: float | None = None
     unit: HoldUnit = "frames"
+    node: SubjectVisibleFraction | BurrowEntry | None = None
 
 
 @dataclass(frozen=True)
@@ -282,6 +317,9 @@ def _validation_type_messages() -> dict[str, str]:
         "too_short": _("Add at least one condition."),
         "start_refers_to_itself": _("'Time after the start' can only be used in Stop."),
         "start_uses_end_of_stream": _("'End of the video' can only be used in Stop."),
+        "start_uses_subject_size": _(
+            "The subject's size and the burrow entry can only be used in Stop."
+        ),
         "finite_number": _("The number must be finite."),
         "int_from_float": _("The number must be a whole number."),
     }
@@ -305,6 +343,10 @@ def friendly_validation_message(exc: ValidationError) -> str:
         elif error_type == "less_than_equal":
             text = _("The number must be at most {limit}.").format(
                 limit=format_number(float(ctx.get("le", 0)))
+            )
+        elif error_type == "less_than":
+            text = _("The number must be less than {limit}.").format(
+                limit=format_number(float(ctx.get("lt", 0)))
             )
         else:
             text = known.get(error_type, _("A value is not valid."))
@@ -341,9 +383,39 @@ def _hold(row: ConditionRow | None) -> Hold:
     return Hold(frames=int(row.value))
 
 
+def _level_node(row: ConditionRow) -> LevelNode:
+    """Level of one level line (class, over ROI, looks small, vanished over ROI)."""
+    if row.kind == "subject_over_roi":
+        if row.value is None:
+            return SubjectOverRoi(roi=row.target.strip())
+        return SubjectOverRoi(roi=row.target.strip(), min_cover=row.value)
+    if row.kind == "last_seen_in":
+        if row.value is None:
+            return LastSeenIn(roi=row.target.strip())
+        return LastSeenIn(roi=row.target.strip(), min_cover=row.value)
+    if row.kind == "subject_small":
+        base = row.node if isinstance(row.node, SubjectVisibleFraction) else None
+        reference = 10 if base is None else base.min_reference_frames
+        return SubjectVisibleFraction(
+            max_fraction=cast(float, row.value), min_reference_frames=reference
+        )
+    return ClassPresence(target=_class_target(row), present=row.kind == "class_present")
+
+
+def _burrow_entry(row: ConditionRow) -> BurrowEntry:
+    """The burrow-entry line: its stored parameters, on the line's ROI."""
+    if isinstance(row.node, BurrowEntry):
+        data = row.node.model_dump(mode="python")
+        data["roi"] = row.target.strip()
+        return BurrowEntry.model_validate(data)
+    return BurrowEntry(roi=row.target.strip())
+
+
 def _row_trigger(row: ConditionRow) -> TriggerNode:
-    """Trigger of a line that is neither a class line nor "held for"."""
+    """Trigger of a line that is neither a level line nor "held for"."""
     value = row.value
+    if row.kind == "burrow_entry":
+        return _burrow_entry(row)
     if row.kind == "roi_enter":
         return RoiEdge(roi=row.target.strip(), edge="enter")
     if row.kind == "roi_exit":
@@ -376,7 +448,7 @@ def check_row(row: ConditionRow, section: SectionName) -> None:
                 condition=row_kind_labels()[row.kind]
             )
         )
-    if row.kind in ("roi_enter", "roi_exit") and not row.target.strip():
+    if row.kind in ROI_KINDS and not row.target.strip():
         raise SpecBuildError(_("Choose an ROI."))
     if row.kind in NUMBER_REQUIRED_KINDS and row.value is None:
         raise SpecBuildError(_("Type a number."))
@@ -385,7 +457,7 @@ def check_row(row: ConditionRow, section: SectionName) -> None:
         raise SpecBuildError(_("The number must be a whole number."))
     try:
         if row.kind in LEVEL_KINDS:
-            _class_target(row)
+            _level_node(row)
         elif row.kind == "hold":
             _hold(row)
         else:
@@ -397,10 +469,7 @@ def check_row(row: ConditionRow, section: SectionName) -> None:
 def _class_group(
     level_rows: list[ConditionRow], hold_row: ConditionRow | None, combinator: Combinator
 ) -> Persist:
-    levels: list[LevelNode] = [
-        ClassPresence(target=_class_target(row), present=row.kind == "class_present")
-        for row in level_rows
-    ]
+    levels: list[LevelNode] = [_level_node(row) for row in level_rows]
     level: LevelNode
     if len(levels) == 1:
         level = levels[0]
@@ -497,6 +566,8 @@ def build_window_spec(
 
 def _row_for_trigger(node: TriggerNode) -> ConditionRow | None:
     """The line for a simple trigger; ``None`` when no line type expresses it."""
+    if isinstance(node, BurrowEntry):
+        return ConditionRow(kind="burrow_entry", target=node.roi, node=node)
     if isinstance(node, RoiEdge):
         kind: RowKind = "roi_enter" if node.edge == "enter" else "roi_exit"
         return ConditionRow(kind=kind, target=node.roi)
@@ -515,6 +586,23 @@ def _row_for_trigger(node: TriggerNode) -> ConditionRow | None:
     return None
 
 
+def _row_for_level(node: LevelNode) -> ConditionRow | None:
+    """The line for one level of a ``Persist`` group; ``None`` when no line expresses it."""
+    if isinstance(node, ClassPresence):
+        return ConditionRow(
+            kind="class_present" if node.present else "class_absent",
+            target=node.target.class_name or "",
+            role=node.target.role,
+        )
+    if isinstance(node, SubjectOverRoi):
+        return ConditionRow(kind="subject_over_roi", target=node.roi, value=node.min_cover)
+    if isinstance(node, LastSeenIn):
+        return ConditionRow(kind="last_seen_in", target=node.roi, value=node.min_cover)
+    if isinstance(node, SubjectVisibleFraction):
+        return ConditionRow(kind="subject_small", value=node.max_fraction, node=node)
+    return None
+
+
 def _rows_for_persist(node: Persist) -> tuple[list[ConditionRow], Combinator | None] | None:
     """Class lines (+ "held for") of a ``Persist`` and the combinator its level implies."""
     level = node.level
@@ -526,15 +614,10 @@ def _rows_for_persist(node: Persist) -> tuple[list[ConditionRow], Combinator | N
         presences, implied = level.children, "any_of"
     rows: list[ConditionRow] = []
     for presence in presences:
-        if not isinstance(presence, ClassPresence):
+        row = _row_for_level(presence)
+        if row is None:
             return None
-        rows.append(
-            ConditionRow(
-                kind="class_present" if presence.present else "class_absent",
-                target=presence.target.class_name or "",
-                role=presence.target.role,
-            )
-        )
+        rows.append(row)
     if node.hold.seconds is not None:
         rows.append(ConditionRow(kind="hold", value=node.hold.seconds, unit="seconds"))
     elif node.hold.frames is not None and node.hold.frames != 1:
@@ -640,6 +723,22 @@ def describe_level(node: LevelNode) -> str:
         if node.state == "inside":
             return _("the subject is inside ROI '{roi}'").format(roi=node.roi)
         return _("the subject is outside ROI '{roi}'").format(roi=node.roi)
+    if isinstance(node, SubjectOverRoi):
+        return _("at least {percent}% of the subject is over ROI '{roi}'").format(
+            percent=format_number(round(node.min_cover * 100, 1)), roi=node.roi
+        )
+    if isinstance(node, SubjectVisibleFraction):
+        return _(
+            "the subject looks at most {percent}% of its usual size "
+            "(median since the start, after {frames} detected frames)"
+        ).format(
+            percent=format_number(round(node.max_fraction * 100, 1)),
+            frames=node.min_reference_frames,
+        )
+    if isinstance(node, LastSeenIn):
+        return _("the subject is not visible and was last seen over ROI '{roi}'").format(
+            roi=node.roi
+        )
     if isinstance(node, Not):
         return _("not ({condition})").format(condition=describe_level(node.child))
     if isinstance(node, AllOfLevel):
@@ -649,6 +748,12 @@ def describe_level(node: LevelNode) -> str:
     return _("any of: {conditions}").format(
         conditions="; ".join(describe_level(child) for child in node.children)
     )
+
+
+def _describe_hold(hold: Hold) -> str:
+    if hold.seconds is not None:
+        return _("{seconds} s").format(seconds=format_number(hold.seconds))
+    return _("{frames} frame(s)").format(frames=hold.frames)
 
 
 def describe_trigger(node: TriggerNode) -> str:
@@ -690,6 +795,18 @@ def describe_trigger(node: TriggerNode) -> str:
         return _("the operator gives manual signal {code}").format(code=node.code)
     if isinstance(node, EndOfStream):
         return _("the video ends")
+    if isinstance(node, BurrowEntry):
+        return _(
+            "the subject enters ROI '{roi}' (not just a touch): {percent}% of it over the ROI "
+            "and at most {size}% of its usual size for {hold}, or not visible for {absent} s "
+            "after it was last seen there"
+        ).format(
+            roi=node.roi,
+            percent=format_number(round(node.min_cover * 100, 1)),
+            size=format_number(round(node.max_visible_fraction * 100, 1)),
+            hold=_describe_hold(node.hold),
+            absent=format_number(node.absent_s),
+        )
     items = "; ".join(describe_trigger(child) for child in node.children)
     if isinstance(node, FirstOf):
         return _("the first of: {conditions}").format(conditions=items)
@@ -732,11 +849,22 @@ def describe_window_spec(spec: WindowSpec | None) -> str:
 
 def describe_row(row: ConditionRow) -> str:
     """Detail column of a line in the table."""
-    if row.kind in LEVEL_KINDS:
+    if row.kind in CLASS_KINDS:
         if row.role is not None:
             return role_labels()[row.role]
         return row.target
-    if row.kind in ("roi_enter", "roi_exit"):
+    if row.kind in ("subject_over_roi", "last_seen_in"):
+        cover = 0.5 if row.value is None else row.value
+        return _("{roi} (≥ {percent}% of the box)").format(
+            roi=row.target, percent=format_number(round(cover * 100, 1))
+        )
+    if row.kind == "subject_small":
+        if row.value is None:
+            return ""
+        return _("≤ {percent}% of its usual size").format(
+            percent=format_number(round(row.value * 100, 1))
+        )
+    if row.kind in ROI_KINDS:
         return row.target
     if row.kind == "hold":
         if row.value is None:
@@ -784,7 +912,7 @@ def missing_class_names(spec: WindowSpec | None, available: Iterable[str]) -> li
 
 
 def referenced_roi_names(spec: WindowSpec | None) -> list[str]:
-    """ROI names a spec waits for (``RoiEdge``/``RoiInside``), in order of first appearance."""
+    """ROI names a spec waits for, in order of first appearance."""
     if spec is None:
         return []
     names: list[str] = []
@@ -792,7 +920,10 @@ def referenced_roi_names(spec: WindowSpec | None) -> list[str]:
         if root is None:
             continue
         for node in iter_nodes(cast(ConditionNode, root)):
-            if isinstance(node, RoiEdge | RoiInside) and node.roi not in names:
+            if (
+                isinstance(node, RoiEdge | RoiInside | SubjectOverRoi | LastSeenIn | BurrowEntry)
+                and node.roi not in names
+            ):
                 names.append(node.roi)
     return names
 
@@ -824,6 +955,99 @@ def match_roi_name(wanted: str, available: Iterable[str]) -> str:
         if name.strip().casefold() == folded:
             return name
     return wanted
+
+
+def is_barnes_project(project_data: Mapping[str, Any]) -> bool:
+    """Whether the project declares the Barnes-maze protocol (experiment profile)."""
+    from zebtrack.core.services.experiment_profile import ProtocolId, resolve_experiment_profile
+
+    return resolve_experiment_profile(project_data=project_data).protocol is ProtocolId.BARNES
+
+
+def barnes_v2_spec(
+    project_data: Mapping[str, Any],
+    roi_names: Iterable[str],
+    *,
+    k_frames: int | None = None,
+    max_s: float | None = None,
+    burrow_roi: str | None = None,
+) -> WindowSpec:
+    """The Barnes preset v2 with the project's own Barnes parameters (#633).
+
+    The entry thresholds and the trial ceiling come from
+    ``behavioral_config["protocol_params"]["barnes"]`` (bad values fall back to
+    their defaults, as everywhere else). ``k_frames``/``max_s``/``burrow_roi``
+    override them, so an update from v1 keeps what the researcher had set; the
+    burrow ROI takes the project's own spelling of ``toca``.
+    """
+    from zebtrack.analysis.protocols.barnes.contract import parse_barnes_params
+    from zebtrack.analysis.protocols.barnes.spec import barnes_window_preset
+    from zebtrack.core.services.experiment_profile import resolve_experiment_profile
+
+    profile = resolve_experiment_profile(project_data=project_data)
+    params, _warnings = parse_barnes_params(profile.protocol_params)
+    roi = burrow_roi if burrow_roi is not None else match_roi_name(BARNES_BURROW_ROI, roi_names)
+    # The same params -> preset mapping as the Barnes spec's window_preset.
+    return barnes_window_preset(params, k_frames=k_frames, max_s=max_s, burrow_roi=roi)
+
+
+def barnes_v2_update(
+    spec: WindowSpec | None, project_data: Mapping[str, Any], roi_names: Iterable[str]
+) -> WindowSpec | None:
+    """The v2 replacement the editor OFFERS for a stored v1 Barnes preset; else ``None``.
+
+    Only for a Barnes project whose window is exactly a v1 preset (edited windows
+    are the researcher's own and are left alone). The release hold, the ceiling
+    and the burrow ROI of v1 are kept; the v1 absence line is replaced by the
+    entry. Nothing is applied here: the panel loads it into the editor, unsaved.
+    """
+    arguments = barnes_maze_preset_v1_arguments(spec)
+    if arguments is None or not is_barnes_project(project_data):
+        return None
+    return barnes_v2_spec(
+        project_data,
+        roi_names,
+        k_frames=arguments["k_frames"],
+        max_s=arguments["max_s"],
+        burrow_roi=arguments["burrow_roi"],
+    )
+
+
+def barnes_v2_offer_text() -> str:
+    """Notice shown next to the "update to v2" button."""
+    return _(
+        "This window is the Barnes preset v1: it stops on the first TOUCH of the escape "
+        "hole. The v2 preset stops on the ENTRY (four paws in), so the time between the "
+        "encounter and the entry is analysed. Nothing changes until you update and Save."
+    )
+
+
+def barnes_v2_change_text(stored: WindowSpec | None) -> str:
+    """What the v1 -> v2 update changes, in words; ``""`` when ``stored`` is not v1.
+
+    v2 has no "rat absent" line of its own: the update REPLACES it (and v1's
+    touch line) with the burrow entry, so the researcher must see it go.
+    """
+    arguments = barnes_maze_preset_v1_arguments(stored)
+    if arguments is None:
+        return ""
+    if arguments["burrow_roi"] is None:
+        text = _(
+            "Updating replaces the Stop line \"'rat' is not visible, for {seconds} s\" "
+            "with the burrow entry; the Start condition and the {ceiling} s ceiling "
+            "are kept."
+        )
+    else:
+        text = _(
+            "Updating replaces the Stop lines \"'rat' is not visible, for {seconds} s\" "
+            "and \"the subject enters ROI '{roi}'\" (the first touch) with the burrow "
+            "entry; the Start condition and the {ceiling} s ceiling are kept."
+        )
+    return text.format(
+        seconds=format_number(arguments["absent_s"]),
+        ceiling=format_number(arguments["max_s"]),
+        roi=arguments["burrow_roi"],
+    )
 
 
 def missing_roi_warning(missing: Iterable[str]) -> str:
@@ -946,6 +1170,7 @@ class AnalysisWindowPanel(ttk.Frame):
         self._preview: ttk.Label | None = None
         self._notice: ttk.Label | None = None
         self._status: ttk.Label | None = None
+        self._v2_button: ttk.Button | None = None
         # The editor lives in its own window: expanded inline it is ~840 px tall,
         # more than the zone tab's left column can give without hiding the zone
         # controls above it. Only the summary stays in the column.
@@ -1013,6 +1238,10 @@ class AnalysisWindowPanel(ttk.Frame):
         ttk.Button(top, text=_("Edit conditions…"), command=self.open_editor).pack(side="left")
         ttk.Button(top, text=_("Barnes maze preset"), command=self.apply_barnes_preset).pack(
             side="left", padx=4
+        )
+        # Packed only while the stored window is a v1 Barnes preset (#633).
+        self._v2_button = ttk.Button(
+            top, text=_("Update to Barnes preset v2…"), command=self.apply_barnes_v2_update
         )
 
         self._status = ttk.Label(frame, text="", foreground="gray", wraplength=wrap)
@@ -1210,6 +1439,7 @@ class AnalysisWindowPanel(ttk.Frame):
         else:
             self.drafts = {"start": drafts[0], "stop": drafts[1]}
             self._show_notice(corrupt_spec_notice() if corrupt else "")
+        self._refresh_v2_offer()
         policy_spec = spec if spec is not None else WindowSpec()
         self.on_start_not_met.set(on_start_not_met_labels()[policy_spec.on_start_not_met])
         self.on_stop.set(on_stop_labels()[policy_spec.on_stop])
@@ -1243,10 +1473,11 @@ class AnalysisWindowPanel(ttk.Frame):
         text = self.row_target.get().strip()
         role = cast("Role | None", _label_to_token(role_labels(), text, None))
         unit = cast(HoldUnit, _label_to_token(hold_unit_labels(), self.row_unit.get(), "frames"))
-        if kind in LEVEL_KINDS:
+        if kind in CLASS_KINDS:
             return ConditionRow(kind=kind, target="" if role else text, role=role)
-        if kind in ("roi_enter", "roi_exit"):
-            return ConditionRow(kind=kind, target=text)
+        if kind in ROI_KINDS:
+            uses_number = kind in NUMBER_OPTIONAL_KINDS
+            return ConditionRow(kind=kind, target=text, value=number if uses_number else None)
         if kind == "hold":
             return ConditionRow(kind=kind, value=number, unit=unit)
         return ConditionRow(kind=kind, value=number)
@@ -1298,14 +1529,36 @@ class AnalysisWindowPanel(ttk.Frame):
     def apply_barnes_preset(self) -> None:
         """Fill the editor with the Barnes-maze preset (not saved until "Save").
 
-        The burrow line takes the project's own spelling of ``toca`` when one
-        exists; a project without it gets the line anyway, with a warning (#650).
+        A project that declares the Barnes protocol gets the v2 preset (stop on
+        the burrow ENTRY, #633) with its own Barnes parameters; any other window
+        (session editor, generic project) gets v1. The burrow line takes the
+        project's own spelling of ``toca`` when one exists; a project without it
+        gets the line anyway, with a warning (#650).
         """
         roi_names = self._roi_names()
-        spec = barnes_maze_preset(burrow_roi=match_roi_name(BARNES_BURROW_ROI, roi_names))
+        project_data = self._project_data()
+        if not self._session_only and is_barnes_project(project_data):
+            spec = barnes_v2_spec(project_data, roi_names)
+        else:
+            spec = barnes_maze_preset(burrow_roi=match_roi_name(BARNES_BURROW_ROI, roi_names))
+        self._load_preset(spec, roi_names)
+
+    def apply_barnes_v2_update(self) -> None:
+        """Load the v2 replacement of the stored v1 Barnes window (not saved until "Save")."""
+        roi_names = self._roi_names()
+        spec = barnes_v2_update(self._stored_spec, self._project_data(), roi_names)
+        if spec is None:
+            log.info("analysis_window_panel.barnes_v2_update.not_applicable")
+            self._refresh_v2_offer()
+            return
+        log.info("analysis_window_panel.barnes_v2_update.loaded", spec_hash=spec_hash(spec))
+        self._load_preset(spec, roi_names, note=barnes_v2_change_text(self._stored_spec))
+
+    def _load_preset(self, spec: WindowSpec, roi_names: list[str], *, note: str = "") -> None:
+        """Load ``spec`` into the editor; ``note`` opens the status line (what changed)."""
         drafts = drafts_from_spec(spec)
-        # The Barnes preset is always representable as editor lines: guaranteed by
-        # TestDraftsFromSpec.test_round_trip_is_exact (barnes_maze_preset case).
+        # Both Barnes presets are always representable as editor lines: guaranteed
+        # by TestDraftsFromSpec.test_round_trip_is_exact.
         assert drafts is not None
         self.drafts = {"start": drafts[0], "stop": drafts[1]}
         self.on_start_not_met.set(on_start_not_met_labels()[spec.on_start_not_met])
@@ -1324,8 +1577,12 @@ class AnalysisWindowPanel(ttk.Frame):
         missing_rois = missing_roi_names(spec, roi_names)
         if missing_rois:
             problems.append(missing_roi_warning(missing_rois))
+        if note and problems:
+            problems.insert(0, note)
         if problems:
             self._set_status(" ".join(problems), error=True)
+        elif note:
+            self._set_status(f"{note} {_('Review the lines, then Save.')}")
         elif self._session_only:
             self._set_status(_("Preset loaded. Review the lines."))
         else:
@@ -1378,6 +1635,7 @@ class AnalysisWindowPanel(ttk.Frame):
         self._stored_spec = spec
         self._dirty = False
         self._show_notice("")
+        self._refresh_v2_offer()
         self._update_preview()
         missing_rois = missing_roi_names(spec, self._roi_names())
         if missing_rois:
@@ -1472,12 +1730,12 @@ class AnalysisWindowPanel(ttk.Frame):
     def _on_kind_changed(self) -> None:
         kind = self.selected_kind()
         if self._target_combo is not None:
-            if kind in LEVEL_KINDS:
+            if kind in CLASS_KINDS:
                 names = self._class_names()
                 self._target_combo["values"] = [*role_labels().values(), *names]
                 # Free text until the class-role front wires the weight's names in.
                 self._target_combo.config(state="readonly" if names else "normal")
-            elif kind in ("roi_enter", "roi_exit"):
+            elif kind in ROI_KINDS:
                 self._target_combo["values"] = self._roi_names()
                 self._target_combo.config(state="readonly")
             else:
@@ -1505,6 +1763,21 @@ class AnalysisWindowPanel(ttk.Frame):
             "arduino": _("Code sent by the Arduino; leave blank to accept any code."),
             "manual": _("Fires when the operator gives the manual signal."),
             "end_of_video": _("Fires when the recording ends."),
+            "subject_over_roi": _(
+                "Fraction of the subject's box that must lie over the ROI (0 to 1; blank = 0.5)."
+            ),
+            "subject_small": _(
+                "Largest box size, as a fraction of the subject's usual size since the "
+                "start (between 0 and 1, e.g. 0.35)."
+            ),
+            "last_seen_in": _(
+                "Fraction of the last box seen that had to be over the ROI (0 to 1; blank = 0.5)."
+            ),
+            "burrow_entry": _(
+                "Fires when the subject goes INTO the ROI, not when it only touches it: "
+                "mostly over it and small for 0.5 s, or gone for 3 s after it was last "
+                "seen there. Back-dated to when that began."
+            ),
         }
         return hints.get(kind, "") if kind is not None else ""
 
@@ -1521,6 +1794,27 @@ class AnalysisWindowPanel(ttk.Frame):
         if not self.is_alive():
             return
         self._refresh_target_choices()
+
+    def barnes_v2_offered(self) -> bool:
+        """Whether the "update to Barnes preset v2" offer applies to the stored window."""
+        if self._session_only:
+            return False
+        return (
+            barnes_v2_update(self._stored_spec, self._project_data(), self._roi_names()) is not None
+        )
+
+    def _refresh_v2_offer(self) -> None:
+        button = self._v2_button
+        if button is None:
+            return
+        if self.barnes_v2_offered():
+            if not button.winfo_manager():
+                button.pack(side="left", padx=4)
+            self._show_notice(
+                f"{barnes_v2_offer_text()} {barnes_v2_change_text(self._stored_spec)}"
+            )
+        elif button.winfo_manager():
+            button.pack_forget()
 
     def _show_notice(self, text: str) -> None:
         if self._notice is None or self._preview is None:

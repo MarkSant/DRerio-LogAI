@@ -222,7 +222,16 @@ class TestPostAnalysisWiring:
     """``_on_session_complete`` → ``_run_post_analysis`` → reports."""
 
     def _run(
-        self, tmp_path, monkeypatch, *, project_data, analysis_params, ledger=True, beats=None
+        self,
+        tmp_path,
+        monkeypatch,
+        *,
+        project_data,
+        analysis_params,
+        ledger=True,
+        video_entry=None,
+        behavioral_config=None,
+        beats=None,
     ):
         from unittest.mock import patch
 
@@ -242,6 +251,8 @@ class TestPostAnalysisWiring:
         host = PostAnalysisHost(
             output_dir, project_data=project_data, analysis_params=analysis_params
         )
+        project_manager: Any = host.project_manager
+        project_manager.find_video_entry.return_value = video_entry
 
         analysis_result = SimpleNamespace(validation_warnings=[])
         analysis_service = MagicMock()
@@ -250,7 +261,7 @@ class TestPostAnalysisWiring:
             "freezing_min_duration": 1.0,
             "smoothing_window_length": 5,
             "smoothing_polyorder": 2,
-            "behavioral_config": {},
+            "behavioral_config": behavioral_config or {},
         }
         analysis_service.run_full_analysis_as_dto.return_value = analysis_result
         host._build_post_analysis_service = lambda: analysis_service  # type: ignore[method-assign]
@@ -268,6 +279,73 @@ class TestPostAnalysisWiring:
             host._on_session_complete(output_dir, keep_data=True)
 
         return host, analysis_service, analysis_result
+
+    def test_a_registered_session_hands_its_entry_inputs_to_the_analysis(
+        self, tmp_path, monkeypatch
+    ):
+        """ADR-014: the session video's project entry, found by path, feeds the hook."""
+        entry = {"path": "x.mp4", "protocol_inputs": {"barnes": {"trial_type": "probe"}}}
+        host, service, _result = self._run(
+            tmp_path,
+            monkeypatch,
+            project_data={"videos": []},
+            analysis_params={},
+            video_entry=entry,
+            behavioral_config={"protocol": "barnes"},
+        )
+
+        inputs = service.run_full_analysis_as_dto.call_args.kwargs["protocol_inputs"]
+        assert {name: dict(block) for name, block in inputs.items()} == {
+            "barnes": {"trial_type": "probe"}
+        }
+        session_video = str(host.current_output_dir / "live_recording.mp4")
+        project_manager: Any = host.project_manager
+        assert project_manager.find_video_entry.call_args_list[-1].kwargs == {"path": session_video}
+
+    def test_an_unregistered_barnes_session_has_no_inputs_and_warns(self, tmp_path, monkeypatch):
+        from structlog.testing import capture_logs
+
+        with capture_logs() as logs:
+            _host, service, _result = self._run(
+                tmp_path,
+                monkeypatch,
+                project_data={},
+                analysis_params={},
+                video_entry=None,
+                behavioral_config={"protocol": "barnes"},
+            )
+
+        assert dict(service.run_full_analysis_as_dto.call_args.kwargs["protocol_inputs"]) == {}
+        (event,) = [
+            log for log in logs if log["event"] == "live_post_analysis.protocol_inputs.no_entry"
+        ]
+        assert event["protocol"] == "barnes"
+
+    def test_an_unregistered_generic_session_has_no_inputs_and_stays_quiet(
+        self, tmp_path, monkeypatch
+    ):
+        from structlog.testing import capture_logs
+
+        with capture_logs() as logs:
+            _host, service, _result = self._run(
+                tmp_path, monkeypatch, project_data={}, analysis_params={}
+            )
+
+        assert dict(service.run_full_analysis_as_dto.call_args.kwargs["protocol_inputs"]) == {}
+        assert not [
+            log for log in logs if log["event"] == "live_post_analysis.protocol_inputs.no_entry"
+        ]
+
+    def test_the_session_params_are_not_a_source_of_inputs(self, tmp_path, monkeypatch):
+        """Only the registered entry counts; nothing writes inputs into the params."""
+        _host, service, _result = self._run(
+            tmp_path,
+            monkeypatch,
+            project_data={},
+            analysis_params={"protocol_inputs": {"barnes": {"trial_type": "probe"}}},
+        )
+
+        assert dict(service.run_full_analysis_as_dto.call_args.kwargs["protocol_inputs"]) == {}
 
     def test_keep_data_is_forwarded_to_stop_session(self, tmp_path, monkeypatch):
         """Sem isto, a heuristica dos 50%% marcaria ``.cancelled`` no meio do caminho."""

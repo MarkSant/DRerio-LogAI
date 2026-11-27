@@ -454,3 +454,53 @@ class TestHandleValidationError:
         )
         assert coord.handle_validation_error(val_other) is False
         mock_ui_coordinator.show_error.assert_called_once()
+
+
+class TestArenaWordingFollowsTheAnimalModel:
+    """Barnes v8.1 stage 3: the "define the arena" prompts name what the project studies."""
+
+    @staticmethod
+    def _run(dialog_coordinator, project_manager, ui_coordinator, event_bus, animal):
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        project_manager.project_data = (
+            {"behavioral_config": {"animal_model": animal}} if animal else {}
+        )
+        project_manager.get_active_zone_video.return_value = "video.mp4"
+        project_manager.get_multi_aquarium_zone_data.return_value = None
+        project_manager.get_zone_data.return_value = SimpleNamespace(polygon=[], roi_polygons=[])
+        project_manager.get_next_video.return_value = "video.mp4"
+        ui_coordinator.ask_ok_cancel.return_value = True
+
+        assert dialog_coordinator.validate_zones_with_ui() is False
+
+        question = ui_coordinator.ask_ok_cancel.call_args_list[0].args[1]
+        shown = [
+            call.args[0].data.message
+            for call in event_bus.publish.call_args_list
+            if call.args[0].type is UIEvents.UI_SHOW_INFO
+        ]
+        return question, shown[-1]
+
+    def test_a_legacy_project_keeps_the_aquarium_text(
+        self, dialog_coordinator, mock_project_manager, mock_ui_coordinator, mock_event_bus
+    ):
+        question, steps = self._run(
+            dialog_coordinator, mock_project_manager, mock_ui_coordinator, mock_event_bus, None
+        )
+
+        assert question.startswith("The main aquarium polygon has not been defined.")
+        assert "'Detect Aquarium (Auto)'" in steps
+
+    def test_a_rodent_project_names_the_arena_and_the_arena_button(
+        self, dialog_coordinator, mock_project_manager, mock_ui_coordinator, mock_event_bus
+    ):
+        from zebtrack.ui.terminology import term
+
+        question, steps = self._run(
+            dialog_coordinator, mock_project_manager, mock_ui_coordinator, mock_event_bus, "rodent"
+        )
+
+        assert question.startswith("The main arena polygon has not been defined.")
+        assert f"'{term('zones.detect_button', 'rodent')}'" in steps
+        assert "quarium" not in question + steps

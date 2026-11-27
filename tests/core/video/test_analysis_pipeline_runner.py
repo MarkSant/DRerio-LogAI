@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import threading
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import Mock
 
 import pandas as pd
@@ -557,6 +557,109 @@ class TestReportBehavioralConfig:
         assert ok is False
         assert seen["behavioral_config"]["aquarium_perspective"] == "top_down"
         assert seen["behavioral_config"]["thigmotaxis_distance_cm"] == 15.0
+
+
+@pytest.mark.unit
+class TestProtocolInputs:
+    """The video entry's per-protocol inputs reach the analysis (ADR-014)."""
+
+    _INPUTS: ClassVar[dict] = {"barnes": {"trial_type": "probe"}}
+
+    def test_inputs_come_from_the_project_entry(self, runner):
+        runner.project_manager.project_data = {"videos": []}
+        runner.project_manager.find_video_entry.return_value = {
+            "path": "v.mp4",
+            "protocol_inputs": self._INPUTS,
+        }
+
+        inputs = runner._video_protocol_inputs("v.mp4")
+
+        runner.project_manager.find_video_entry.assert_called_once_with(path="v.mp4")
+        assert {name: dict(block) for name, block in inputs.items()} == self._INPUTS
+
+    def test_without_a_project_there_are_none(self, runner):
+        runner.project_manager.project_data = None
+
+        assert dict(runner._video_protocol_inputs("v.mp4")) == {}
+        runner.project_manager.find_video_entry.assert_not_called()
+
+    def test_an_unregistered_video_has_none(self, runner):
+        runner.project_manager.project_data = {"videos": []}
+        runner.project_manager.find_video_entry.return_value = None
+
+        assert dict(runner._video_protocol_inputs("v.mp4")) == {}
+
+    def test_reporter_context_receives_them(self, runner, trajectory_df):
+        from unittest.mock import patch
+
+        sentinel = {"barnes": {"trial_type": "training"}}
+        with patch("zebtrack.core.video.analysis_pipeline_runner.ReporterContext") as context:
+            runner._create_reporter_instance(
+                filtered_df=trajectory_df,
+                metadata={},
+                calibration=SimpleNamespace(target_dims_px=(100, 100)),
+                arena_polygon_warped=[],
+                rois=[],
+                roi_colors={},
+                video_path="v.mp4",
+                pixelcm_x=1.0,
+                pixelcm_y=1.0,
+                sharp_turn_threshold=90.0,
+                freezing_threshold=1.5,
+                freezing_duration=1.0,
+                smoothing_window=5,
+                smoothing_polyorder=2,
+                protocol_inputs=sentinel,
+            )
+
+        assert context.call_args.kwargs["protocol_inputs"] is sentinel
+
+    def test_the_pipeline_hands_them_to_the_reporter(self, runner, trajectory_df):
+        import threading
+        from unittest.mock import patch
+
+        runner.settings = _behavioural_settings()
+        runner.settings_baseline = _behavioural_settings()
+        runner.project_manager.project_data = {
+            "calibration": {"aquarium_width_cm": 30.0, "aquarium_height_cm": 20.0},
+        }
+        runner.project_manager.find_video_entry.return_value = {
+            "path": "/v/exp1.mp4",
+            "protocol_inputs": self._INPUTS,
+        }
+        runner.project_manager.get_metadata_for_experiment.return_value = {"group_id": "G"}
+        runner.cancel_event = threading.Event()
+        runner.load_trajectory_dataframe = Mock(return_value=trajectory_df)
+        runner.ensure_arena_polygon = Mock(return_value=[(0, 0), (10, 0), (10, 10)])
+        seen: dict = {}
+
+        def fake_create(**kwargs):
+            seen.update(kwargs)
+            runner.cancel_event.set()
+            return Mock()
+
+        with (
+            patch.object(
+                runner,
+                "_prepare_analysis_calibration_context",
+                return_value=(Mock(), [(0, 0)], [], {}, 1.0, 1.0),
+            ),
+            patch.object(runner, "_resolve_analysis_window", return_value=None),
+            patch.object(runner, "_create_reporter_instance", side_effect=fake_create),
+        ):
+            runner._run_analysis_pipeline(
+                experiment_id="exp1",
+                video_path="/v/exp1.mp4",
+                results_dir="/r",
+                arena_polygon_px=[(0, 0), (10, 0), (10, 10)],
+                metadata_context={},
+                single_video_config=None,
+                progress_callback=None,
+                analysis_profile=None,
+            )
+
+        inputs = seen["protocol_inputs"]
+        assert {name: dict(block) for name, block in inputs.items()} == self._INPUTS
 
 
 # ---------------------------------------------------------------------------

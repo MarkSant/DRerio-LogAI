@@ -385,6 +385,28 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
   caminhos de início). Uma janela que espera o Arduino grava tudo desde já; o código só vira evento
   do motor.
 
+### 🐀 Perfil do experimento e protocolos (v8.1, ADR-014)
+
+- **`core/services/experiment_profile.resolve_experiment_profile()` é a leitura única** de
+  `behavioral_config["animal_model" | "protocol" | "protocol_params"]`; `set_protocol_param()` é a
+  escrita. Sem as chaves, o perfil é `zebrafish` + `generic` e tudo sai byte a byte como antes.
+  `tests/quality/test_single_source_rules.py` reprova leitura direta dessas chaves.
+- **`report["protocol_metrics"]` existe sempre** (`{"status": "none"}` no genérico). O protocolo
+  roda no fim de `run_full_analysis`, protegido: uma falha vira `error`/`unavailable` com aviso,
+  nunca derruba o relatório genérico. Multi-aquário com protocolo não genérico ⇒
+  `unavailable/multi_aquarium`. Dados por vídeo (`trial_type`, `strategy_override`) moram em
+  `video_entry["protocol_inputs"]` e só se leem/escrevem pelos helpers do contrato.
+- **Barnes: os NOMES das ROIs são o contrato** (`toca`, `quadrante_alvo`, `buraco_±NN`,
+  `buraco_oposto`, relativos à toca, horário positivo); `metadata["barnes_layout"]` é só cache. A
+  contagem de buracos que as métricas usam vem dos nomes (`infer_n_holes`), não do parâmetro; a
+  mesa atual do laboratório tem 18. Contrato completo: `docs/tasks/v8.1/barnes/CONTRACTS.md`.
+- **Entrada na toca ≠ encontro.** O preset Barnes v2 fecha a janela no `burrow_entry` (rato sobre
+  a toca e pequeno, ou sumido nela), não no `RoiEdge` do primeiro toque. A geometria do sujeito
+  (`subject_geometry.py`) é UMA para ao vivo e offline, e só é calculada quando a janela a lê.
+- **Vocabulário por animal só na EXIBIÇÃO** (`ui/terminology.term`): frase inteira por animal,
+  nunca substantivo traduzido interpolado (gênero em português). Chaves `aquarium_*`, pastas,
+  colunas e cabeçalhos exportados do `.xlsx` nunca mudam (ADR-012).
+
 ### 🧵 Threading & UI
 
 - **All UI updates from worker threads MUST use `root.after(0, ...)`** (Tkinter main thread only).

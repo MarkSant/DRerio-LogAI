@@ -31,6 +31,8 @@ boundingRect: Any
 warpPerspective: Any
 threshold: Any
 GaussianBlur: Any
+fitEllipse: Any
+ellipse2Poly: Any
 adaptiveThreshold: Any
 morphologyEx: Any
 convexHull: Any
@@ -75,3 +77,12 @@ CAP_FFMPEG: int
 LANCZOS: int
 setLogLevel: Any
 error: Any
+
+# Barnes arena assistant (barnes-arena, #633)
+connectedComponentsWithStats: Any
+ellipse: Any
+COLOR_BGRA2GRAY: int
+COLOR_GRAY2BGR: int
+CC_STAT_AREA: int
+CC_STAT_WIDTH: int
+CC_STAT_HEIGHT: int

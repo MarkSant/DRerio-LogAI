@@ -18,12 +18,29 @@ from tkinter import (
     StringVar,
     filedialog,
     messagebox,
+    ttk,
 )
 from tkinter import (
     font as tkfont,
 )
+from typing import Any
 
+from zebtrack.core.services.experiment_profile import (
+    ANIMAL_MODEL_KEY,
+    PROTOCOL_KEY,
+    PROTOCOL_PARAMS_KEY,
+    AnimalModel,
+    ExperimentProfile,
+    ProtocolId,
+    forced_animal_model,
+    resolve_experiment_profile,
+)
 from zebtrack.i18n import _
+from zebtrack.ui.components.behavioral_config_widget import (
+    animal_model_choices,
+    protocol_choices,
+)
+from zebtrack.ui.terminology import term
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID
@@ -33,6 +50,7 @@ from zebtrack.ui.wizard.templates import (
     TemplateManager,
     format_template_banner,
     migrate_template,
+    protocol_window_spec,
 )
 from zebtrack.ui.wizard.tooltip import ToolTip
 
@@ -45,6 +63,7 @@ class DiscoveryStep(WizardStep):
         1. Project type: Experimental (pre-recorded) vs Live
         2. Folder organization (if experimental)
         3. Existing parquet files
+        4. Experiment profile: animal model + protocol (ADR-014)
 
     Output:
         {
@@ -52,8 +71,14 @@ class DiscoveryStep(WizardStep):
             "has_folder_structure": bool,
             "folder_meaning": "experimental" | "organizational" | None,
             "has_parquets": bool,
-            "parquet_import_scope": "zones" | "all" | None
+            "parquet_import_scope": "zones" | "all" | None,
+            "behavioral_analysis": {"animal_model": ..., "protocol": ..., ...}
         }
+
+    The profile travels inside ``behavioral_analysis``, the dict the Calibration
+    step completes and the project persists as ``behavioral_config``. Choosing
+    Barnes also forces the top-down view and, when no window is set yet, the
+    protocol's window preset (the Calibration step pins the analysis interval).
     """
 
     def __init__(self, parent, wizard_data: dict):
@@ -65,6 +90,10 @@ class DiscoveryStep(WizardStep):
         self.project_type_var = StringVar(value=ProjectType.EXPERIMENTAL.value)
         self.folder_organization_var = IntVar(value=1)  # 1=experimental, 2=org, 3=none
         self.parquet_scope_var = IntVar(value=0)  # 0=none, 1=zones, 2=all
+        self.animal_model_var = StringVar(value=AnimalModel.ZEBRAFISH.value)
+        self.protocol_var = StringVar(value=ProtocolId.GENERIC.value)
+        self.animal_model_combo: ttk.Combobox | None = None
+        self.protocol_combo: ttk.Combobox | None = None
         self.template_manager = TemplateManager()
         self.template_info_var = StringVar(value="")
         self.template_info_label: Label | None = None
@@ -299,6 +328,9 @@ class DiscoveryStep(WizardStep):
             ),
         )
 
+        # Question 4: Experiment profile (full width, both project types)
+        self._build_profile_question()
+
         # Glossary / Help text explaining technical terms
         self.glossary_frame = LabelFrame(
             self.content_container,
@@ -311,28 +343,156 @@ class DiscoveryStep(WizardStep):
 
         glossary_text = Label(
             glossary_frame,
-            text=_(
-                "• Parquet: an efficient file format for storing data\n\n"
-                "• Arena: the area of the tank where the animals move "
-                "(a bounding polygon)\n\n"
-                "• ROI (Region of Interest): specific regions such as 'Centre', "
-                "'Edge', 'Escape Zone'\n\n"
-                "• Trajectory: frame-by-frame coordinates of the animals' "
-                "movement\n\n"
-                "Importing this data from previous analyses avoids "
-                "reprocessing."
-            ),
+            text=term("discovery.glossary", self._animal_model()),
             fg="gray",
             justify="left",
             font=("TkDefaultFont", 9),
         )
         glossary_text.pack(anchor="w")
+        self._glossary_text = glossary_text
 
         # Update UI state
         self._on_project_type_change()
 
         self.after(0, self._initialize_scroll_area)
         self._update_template_banner()
+
+    def _build_profile_question(self) -> None:
+        """Question 4: what is studied (animal model) and how (protocol)."""
+        self.q4_frame = LabelFrame(
+            self.content_container, text=_("4. Experiment Profile"), padx=10, pady=8
+        )
+        self.q4_frame.pack(fill="x", pady=(5, 0))
+
+        Label(
+            self.q4_frame,
+            text=_(
+                "Which animal is studied and which protocol is run? This decides the zone "
+                "assistant, the metrics and the reports."
+            ),
+            fg="gray",
+            justify="left",
+        ).pack(anchor="w", pady=(0, 6))
+
+        combos = Frame(self.q4_frame)
+        combos.pack(fill="x")
+
+        Label(combos, text=_("Animal model:"), width=14, anchor="w").grid(
+            row=0, column=0, sticky="w", pady=2
+        )
+        self.animal_model_combo = ttk.Combobox(
+            combos,
+            values=[label for label, _token in animal_model_choices()],
+            state="readonly",
+            width=28,
+        )
+        self.animal_model_combo.grid(row=0, column=1, sticky="w", padx=(5, 0), pady=2)
+        self.animal_model_combo.bind("<<ComboboxSelected>>", self._on_profile_change)
+
+        Label(combos, text=_("Protocol:"), width=14, anchor="w").grid(
+            row=1, column=0, sticky="w", pady=2
+        )
+        self.protocol_combo = ttk.Combobox(
+            combos,
+            values=[label for label, _token in protocol_choices()],
+            state="readonly",
+            width=28,
+        )
+        self.protocol_combo.grid(row=1, column=1, sticky="w", padx=(5, 0), pady=2)
+        self.protocol_combo.bind("<<ComboboxSelected>>", self._on_profile_change)
+
+        self.profile_hint_label = Label(self.q4_frame, text="", fg="gray", justify="left")
+        self.profile_hint_label.pack(anchor="w", pady=(6, 0))
+
+        self._show_profile(self._chosen_profile())
+
+    @staticmethod
+    def _label_for(choices: list[tuple[str, str]], token: str) -> str:
+        return next((label for label, value in choices if value == token), token)
+
+    @staticmethod
+    def _token_for(choices: list[tuple[str, str]], label: str, fallback: str) -> str:
+        return next((value for text, value in choices if text == label), fallback)
+
+    def _chosen_profile(self) -> ExperimentProfile:
+        """The profile the combos describe, resolved (Barnes forces the animal model)."""
+        animal = self.animal_model_var.get()
+        protocol = self.protocol_var.get()
+        if self.animal_model_combo is not None:
+            animal = self._token_for(animal_model_choices(), self.animal_model_combo.get(), animal)
+        if self.protocol_combo is not None:
+            protocol = self._token_for(protocol_choices(), self.protocol_combo.get(), protocol)
+        return resolve_experiment_profile(
+            behavioral_config={ANIMAL_MODEL_KEY: animal, PROTOCOL_KEY: protocol}
+        )
+
+    def _show_profile(self, profile: ExperimentProfile) -> None:
+        """Put ``profile`` in the combos; a forcing protocol locks the animal model."""
+        self.animal_model_var.set(profile.animal_model.value)
+        self.protocol_var.set(profile.protocol.value)
+        forced = forced_animal_model(profile.protocol)
+        if self.animal_model_combo is not None:
+            self.animal_model_combo.set(
+                self._label_for(animal_model_choices(), profile.animal_model.value)
+            )
+            self.animal_model_combo.configure(state="disabled" if forced else "readonly")
+        if self.protocol_combo is not None:
+            self.protocol_combo.set(self._label_for(protocol_choices(), profile.protocol.value))
+        glossary = getattr(self, "_glossary_text", None)
+        if glossary is not None:
+            glossary.configure(text=term("discovery.glossary", profile.animal_model))
+        if hasattr(self, "profile_hint_label"):
+            self.profile_hint_label.configure(
+                text=(
+                    _(
+                        "The Barnes maze is run with rodents: choosing it sets the animal "
+                        "model, the top-down view and the analysis interval for you."
+                    )
+                    if forced
+                    else ""
+                )
+            )
+
+    def _on_profile_change(self, _event=None) -> None:
+        """A combo changed: re-resolve, so Barnes locks the animal model to rodent."""
+        self._show_profile(self._chosen_profile())
+
+    def _profile_data(self) -> dict[str, Any]:
+        """Step output for the experiment profile, and what the protocol forces.
+
+        Returns the ``behavioral_analysis`` block (the previous one, completed with
+        the profile) plus the keys a protocol sets at the top level. What the
+        PREVIOUS choice forced is undone when it no longer applies.
+        """
+        profile = self._chosen_profile()
+        existing = self.wizard_data.get("behavioral_analysis")
+        block: dict[str, Any] = dict(existing) if isinstance(existing, dict) else {}
+        previous = resolve_experiment_profile(behavioral_config=block)
+
+        block[ANIMAL_MODEL_KEY] = profile.animal_model.value
+        block[PROTOCOL_KEY] = profile.protocol.value
+        if profile.protocol is not previous.protocol:
+            block.pop(PROTOCOL_PARAMS_KEY, None)
+        if profile.animal_model is not previous.animal_model:
+            # The animal's own defaults take over in the Calibration step; values
+            # saved for the previous animal must not outlive the choice.
+            block.pop("thigmotaxis_distance_cm", None)
+            block.pop("max_plausible_speed_cm_s", None)
+
+        data: dict[str, Any] = {"behavioral_analysis": block}
+        if profile.protocol is ProtocolId.BARNES:
+            block["aquarium_perspective"] = "top_down"
+            block["geotaxis_enabled"] = False
+            # The analysis interval is pinned by the Calibration step, which owns the
+            # field and remembers the value to restore when Barnes is left.
+            if not self.wizard_data.get("analysis_window"):
+                window = protocol_window_spec(profile)
+                if window is not None:
+                    data["analysis_window"] = window
+        elif previous.protocol is ProtocolId.BARNES:
+            if self.wizard_data.get("analysis_window") == protocol_window_spec(previous):
+                data["analysis_window"] = None
+        return data
 
     def _set_scroll(self, first, last):
         """yscrollcommand that hides the scrollbar when content fits.
@@ -388,8 +548,11 @@ class DiscoveryStep(WizardStep):
                 if isinstance(child, Radiobutton | Label):
                     child.configure(wraplength=column_target, justify="left")
 
-        # The glossary spans the full content width.
+        # The profile question and the glossary span the full content width.
         glossary_target = max(width - 60, 80)
+        for child in self.q4_frame.winfo_children():
+            if isinstance(child, Label):
+                child.configure(wraplength=glossary_target, justify="left")
         for child in self.glossary_frame.winfo_children():
             if isinstance(child, Radiobutton | Label):
                 child.configure(wraplength=glossary_target, justify="left")
@@ -517,6 +680,7 @@ class DiscoveryStep(WizardStep):
             else:
                 data["folder_meaning"] = None
 
+        data.update(self._profile_data())
         return data
 
     def set_data(self, data: dict):
@@ -548,6 +712,11 @@ class DiscoveryStep(WizardStep):
                 self.parquet_scope_var.set(3)
             else:
                 self.parquet_scope_var.set(0)
+
+        if isinstance(data.get("behavioral_analysis"), dict):
+            self._show_profile(
+                resolve_experiment_profile(behavioral_config=data["behavioral_analysis"])
+            )
 
         # Update UI visibility
         self._on_project_type_change()
@@ -681,6 +850,7 @@ class DiscoveryStep(WizardStep):
             "has_parquets": bool(parquet_scope),
             "has_folder_structure": self.wizard_data.get("has_folder_structure"),
             "folder_meaning": self.wizard_data.get("folder_meaning"),
+            "behavioral_analysis": self.wizard_data.get("behavioral_analysis"),
         }
 
         self.set_data(discovery_data)

@@ -1,21 +1,38 @@
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from zebtrack.core.conditions.presets import barnes_maze_preset, external_trigger_preset
+from zebtrack.core.services.experiment_profile import (
+    AnimalModel,
+    ProtocolId,
+    resolve_experiment_profile,
+)
+from zebtrack.ui.wizard import templates
 from zebtrack.ui.wizard.templates import (
     NOTE_ANALYSIS_WINDOW_DROPPED,
     NOTE_CLASS_ROLES_DROPPED,
+    NOTE_EXPERIMENT_PROFILE_NORMALISED,
     NOTE_EXTERNAL_TRIGGER_CONVERTED,
     TEMPLATE_SCHEMA_VERSION,
     TemplateManager,
+    builtin_templates_dir,
     format_template_banner,
     migrate_template,
+    protocol_window_spec,
     template_migration_note_text,
 )
+
+
+def _need(value):
+    """A widget the test just built must exist; narrows ``X | None`` for mypy."""
+    assert value is not None
+    return value
+
 
 _TRIGGER_WINDOW = external_trigger_preset().model_dump(mode="json", by_alias=True)
 
@@ -727,3 +744,246 @@ class TestBuiltinTemplateInstall:
         TemplateManager(templates_dir=user_dir, builtin_templates_dir=builtin_templates_dir())
 
         assert (user_dir / RODENT_TOP_DOWN_TEMPLATE).exists()
+
+
+class TestExperimentProfileInTemplates:
+    """ADR-014: the profile rides in ``behavioral_analysis``; no schema bump."""
+
+    def test_a_template_saved_before_the_profile_is_untouched(self):
+        template: dict[str, Any] = {
+            "schema_version": 5,
+            "behavioral_analysis": {"aquarium_perspective": "lateral", "geotaxis_enabled": True},
+            "analysis_interval_frames": 7,
+        }
+
+        migrated, notes = migrate_template(template)
+
+        assert migrated["behavioral_analysis"] == template["behavioral_analysis"]
+        assert migrated["analysis_interval_frames"] == 7
+        assert notes == ()
+
+    def test_a_template_without_a_behavioural_block_is_untouched(self):
+        migrated, notes = migrate_template({"schema_version": 5})
+
+        assert "behavioral_analysis" not in migrated
+        assert notes == ()
+
+    def test_a_valid_profile_round_trips_without_a_note(self):
+        block = {
+            "animal_model": "rodent",
+            "protocol": "generic",
+            "aquarium_perspective": "top_down",
+        }
+
+        migrated, notes = migrate_template({"schema_version": 5, "behavioral_analysis": block})
+
+        assert migrated["behavioral_analysis"]["animal_model"] == "rodent"
+        assert migrated["behavioral_analysis"]["protocol"] == "generic"
+        assert notes == ()
+
+    def test_unknown_tokens_are_replaced_and_noted(self):
+        block = {"animal_model": "dragon", "protocol": "stroop"}
+
+        migrated, notes = migrate_template({"schema_version": 5, "behavioral_analysis": block})
+
+        assert migrated["behavioral_analysis"]["animal_model"] == "other"
+        assert migrated["behavioral_analysis"]["protocol"] == "generic"
+        assert notes == (NOTE_EXPERIMENT_PROFILE_NORMALISED,)
+
+    def test_barnes_carries_what_the_protocol_forces(self):
+        block = {
+            "animal_model": "rodent",
+            "protocol": "barnes",
+            "aquarium_perspective": "lateral",
+            "geotaxis_enabled": True,
+            "protocol_params": {"barnes": {"table_diameter_cm": 150.0}},
+        }
+
+        migrated, notes = migrate_template(
+            {"schema_version": 5, "analysis_interval_frames": 10, "behavioral_analysis": block}
+        )
+
+        assert migrated["analysis_interval_frames"] == 1
+        migrated_block = migrated["behavioral_analysis"]
+        assert migrated_block["aquarium_perspective"] == "top_down"
+        assert migrated_block["geotaxis_enabled"] is False
+        assert migrated_block["protocol_params"] == {"barnes": {"table_diameter_cm": 150.0}}
+        assert notes == ()
+
+    def test_barnes_with_another_animal_is_corrected_and_noted(self):
+        block = {"animal_model": "zebrafish", "protocol": "barnes"}
+
+        migrated, notes = migrate_template({"schema_version": 5, "behavioral_analysis": block})
+
+        assert migrated["behavioral_analysis"]["animal_model"] == "rodent"
+        assert notes == (NOTE_EXPERIMENT_PROFILE_NORMALISED,)
+
+    def test_malformed_parameters_are_dropped(self):
+        block = {"protocol": "barnes", "protocol_params": "oops"}
+
+        migrated, _notes = migrate_template({"schema_version": 5, "behavioral_analysis": block})
+
+        assert "protocol_params" not in migrated["behavioral_analysis"]
+
+    def test_the_input_is_not_modified(self):
+        template = {
+            "schema_version": 5,
+            "behavioral_analysis": {"protocol": "barnes", "aquarium_perspective": "lateral"},
+        }
+
+        migrate_template(template)
+
+        assert template["behavioral_analysis"] == {
+            "protocol": "barnes",
+            "aquarium_perspective": "lateral",
+        }
+
+    def test_the_note_has_user_facing_text(self):
+        assert "experiment profile" in template_migration_note_text(
+            NOTE_EXPERIMENT_PROFILE_NORMALISED
+        )
+
+    def test_a_saved_profile_loads_back_unchanged(self, tmp_path: Path):
+        manager = TemplateManager(
+            templates_dir=tmp_path / "user", builtin_templates_dir=tmp_path / "none"
+        )
+        block = {
+            "animal_model": "rodent",
+            "protocol": "barnes",
+            "protocol_params": {"barnes": {"table_diameter_cm": 150.0}},
+            "aquarium_perspective": "top_down",
+        }
+        path = tmp_path / "t.json"
+        assert manager.save_template("t", {"behavioral_analysis": block}, destination_path=path)
+
+        loaded = manager.load_template_from_path(path)
+
+        assert loaded is not None
+        migrated, notes = migrate_template(loaded)
+        assert migrated["behavioral_analysis"]["protocol"] == "barnes"
+        assert migrated["behavioral_analysis"]["protocol_params"] == block["protocol_params"]
+        assert notes == ()
+
+
+class TestProtocolWindowSpec:
+    def test_generic_proposes_no_window(self):
+        profile = resolve_experiment_profile(behavioral_config={"protocol": "generic"})
+
+        assert protocol_window_spec(profile) is None
+
+    def test_a_protocol_without_a_spec_proposes_no_window(self, monkeypatch):
+        monkeypatch.setattr(templates, "get_protocol", lambda protocol: None)
+        profile = resolve_experiment_profile(behavioral_config={"protocol": "barnes"})
+
+        assert protocol_window_spec(profile) is None
+
+    def test_a_spec_without_a_preset_proposes_no_window(self, monkeypatch):
+        monkeypatch.setattr(
+            templates, "get_protocol", lambda protocol: SimpleNamespace(window_preset=None)
+        )
+        profile = resolve_experiment_profile(behavioral_config={"protocol": "barnes"})
+
+        assert protocol_window_spec(profile) is None
+
+    def test_the_preset_is_called_with_the_protocol_params_and_stored_as_json(self, monkeypatch):
+        seen: list = []
+
+        def preset(params):
+            seen.append(dict(params))
+            return barnes_maze_preset()
+
+        monkeypatch.setattr(
+            templates, "get_protocol", lambda protocol: SimpleNamespace(window_preset=preset)
+        )
+        profile = resolve_experiment_profile(
+            behavioral_config={
+                "protocol": "barnes",
+                "protocol_params": {"barnes": {"max_trial_s": 120}},
+            }
+        )
+
+        window = protocol_window_spec(profile)
+
+        assert window == barnes_maze_preset().model_dump(mode="json", by_alias=True)
+        assert seen == [{"max_trial_s": 120}]
+
+    def test_the_registered_barnes_spec_proposes_preset_v2(self):
+        """The real registry, no patch: a new Barnes project gets preset v2 (#633)."""
+        import json
+
+        from zebtrack.core.conditions.presets import barnes_maze_preset_v2
+
+        profile = resolve_experiment_profile(
+            behavioral_config={
+                "protocol": "barnes",
+                "protocol_params": {"barnes": {"max_trial_s": 180.0, "entry_hold_s": 1.0}},
+            }
+        )
+
+        window = protocol_window_spec(profile)
+
+        assert window == barnes_maze_preset_v2(max_s=180.0, entry_hold_s=1.0).model_dump(
+            mode="json", by_alias=True
+        )
+        assert "burrow_entry" in json.dumps(window)
+
+
+class TestBuiltinBarnesTemplate:
+    def _template(self) -> dict[str, Any]:
+        path = builtin_templates_dir() / "barnes_maze.json"
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def test_it_declares_the_barnes_profile_and_the_lab_table(self):
+        template = self._template()
+        profile = resolve_experiment_profile(behavioral_config=template["behavioral_analysis"])
+
+        assert template["builtin_id"] == "barnes_maze"
+        assert profile.protocol is ProtocolId.BARNES
+        assert profile.animal_model is AnimalModel.RODENT
+        assert profile.warnings == ()
+        assert profile.protocol_params["table_diameter_cm"] == 184.0
+        assert template["aquarium_width_cm"] == template["aquarium_height_cm"] == 184.0
+
+    def test_it_loads_without_migration_notes_and_with_what_barnes_forces(self):
+        migrated, notes = migrate_template(self._template())
+
+        assert notes == ()
+        assert migrated["analysis_interval_frames"] == 1
+        assert migrated["behavioral_analysis"]["aquarium_perspective"] == "top_down"
+        assert migrated["behavioral_analysis"]["geotaxis_enabled"] is False
+
+    def test_it_is_a_valid_current_schema_template(self):
+        assert self._template()["schema_version"] == TEMPLATE_SCHEMA_VERSION
+
+    def test_it_is_installed_for_a_new_user(self, tmp_path: Path):
+        manager = TemplateManager(
+            templates_dir=tmp_path / "user", builtin_templates_dir=builtin_templates_dir()
+        )
+
+        assert (tmp_path / "user" / "barnes_maze.json").exists()
+        assert "Barnes maze (rat)" in [entry["name"] for entry in manager.list_templates()]
+
+
+@pytest.mark.gui
+class TestDiscoveryAppliesAProfileTemplate:
+    @pytest.fixture(autouse=True)
+    def setup(self, wizard_dependencies):
+        self.root = wizard_dependencies["root"]
+
+    def test_loading_the_barnes_template_shows_and_locks_the_profile(self):
+        from zebtrack.ui.wizard.discovery_step import DiscoveryStep
+
+        wizard_data: dict = {}
+        step = DiscoveryStep(self.root, wizard_data)
+        step.build_ui()
+
+        step._apply_template_data(
+            json.loads((builtin_templates_dir() / "barnes_maze.json").read_text(encoding="utf-8")),
+            "barnes_maze.json",
+        )
+
+        assert _need(step.protocol_combo).get() == "Barnes maze (rodents)"
+        assert _need(step.animal_model_combo).get() == "Rodent (rat or mouse)"
+        assert str(_need(step.animal_model_combo).cget("state")) == "disabled"
+        assert wizard_data["behavioral_analysis"]["protocol"] == "barnes"
+        assert wizard_data["analysis_interval_frames"] == 1

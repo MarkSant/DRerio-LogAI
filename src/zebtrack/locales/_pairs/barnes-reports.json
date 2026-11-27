@@ -1,0 +1,12 @@
+{
+  "_comment": "Barnes v8.1 stage 2, front barnes-reports (#633): Barnes sections of the reports, strategy correction menu. Appended by hand to the .pot/.po (CONTRACTS section 10); kept here for the next full regeneration.",
+  "Automatic": "Automática",
+  "Direct": "Direta",
+  "Random": "Aleatória",
+  "Search strategy": "Estratégia de busca",
+  "Serial": "Serial",
+  "The manual correction was removed. Regenerate the report of this video to show the automatic search strategy again.": "A correção manual foi removida. Gere novamente o relatório deste vídeo para mostrar de novo a estratégia de busca automática.",
+  "The search strategy could not be saved; the project was left unchanged.": "Não foi possível salvar a estratégia de busca; o projeto foi mantido inalterado.",
+  "The search strategy was saved as corrected. Regenerate the report (and the summary) of this video for the correction to appear.": "A estratégia de busca foi salva como corrigida. Gere novamente o relatório (e o resumo) deste vídeo para a correção aparecer.",
+  "🐀 Search strategy (Barnes)": "🐀 Estratégia de busca (Barnes)"
+}

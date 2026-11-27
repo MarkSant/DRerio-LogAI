@@ -9,7 +9,7 @@ reporter classes.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -105,6 +105,10 @@ class ReporterContext:
         window: WindowResolution | None = None,
         # Time base of the recording, from resolve_recording_time_base
         time_base: TimeBase | None = None,
+        # Per-protocol inputs of this video (ADR-014), from protocol_inputs_of_entry
+        protocol_inputs: Mapping[str, Any] | None = None,
+        # Set only by the multi-aquarium summary (ADR-014)
+        aquarium_id: int | None = None,
     ):
         """Create ReporterContext.
 
@@ -136,6 +140,9 @@ class ReporterContext:
             time_base: The recording's time base, resolved by the caller with
                 the ``3c`` heartbeat / ledger (``None`` = measured on the
                 trajectory's own timestamps)
+            protocol_inputs: Per-protocol inputs of this video, forwarded to
+                ``AnalysisService.run_full_analysis`` (``None`` = none)
+            aquarium_id: Aquarium of a multi-aquarium summary (``None`` otherwise)
         """
         # Modern path: delegate to from_analysis
         if analysis is not None:
@@ -195,6 +202,8 @@ class ReporterContext:
             behavioral_config=behavioral_config,
             window=window,
             time_base=time_base,
+            protocol_inputs=protocol_inputs,
+            aquarium_id=aquarium_id,
         )
 
         # Analysis parameters

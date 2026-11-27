@@ -23,6 +23,15 @@ Clock (ADR-011, § Clocks)
     two decimation cadences, so counting frames is not a reliable measure of
     time; a ``Hold(frames=...)`` is accepted but warned about.
 
+Subject geometry
+    A spec with a burrow-entry node (``BurrowEntry``, ``SubjectOverRoi``,
+    ``SubjectVisibleFraction``, ``LastSeenIn``) needs the subject box's area and
+    its cover of each ROI. The pipeline hands :meth:`ConditionRuntime.step` the
+    SAME subject detections that decide ``subject_rois`` plus the ROI polygons
+    in the detector's frame space; the runtime turns them into geometry through
+    :mod:`zebtrack.core.conditions.subject_geometry`, the helper the offline
+    builder uses. Other specs skip the geometry entirely.
+
 External events
     Stamped by their producer (the Arduino reader thread right after
     ``readline()``, the Tk thread at the button click) with ``perf_counter`` and
@@ -36,14 +45,17 @@ from __future__ import annotations
 
 import queue
 import time
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal
 
+import numpy as np
 import structlog
 from pydantic import ValidationError
+from shapely.geometry import Polygon
+from shapely.geometry.base import BaseGeometry
 
 from zebtrack.core.conditions import (
     AnalysisWindowArtifact,
@@ -59,9 +71,16 @@ from zebtrack.core.conditions import (
     WindowSpec,
     artifact_path,
     iter_nodes,
+    spec_needs_subject_geometry,
+    subject_geometry_rois,
     write_artifact,
 )
 from zebtrack.core.conditions.model import _normalize_class_name
+from zebtrack.core.conditions.subject_geometry import (
+    observe_subject,
+    pick_subject_bbox,
+    prepare_rois,
+)
 from zebtrack.i18n import _
 
 __all__ = [
@@ -73,8 +92,13 @@ __all__ = [
     "parse_window_spec",
     "role_names_from_role_map",
     "spec_listens_to",
+    "spec_needs_subject_geometry",
     "window_phase_message",
 ]
+
+#: ``(roi name, polygon)``; the polygon is a shapely geometry or its vertices
+#: (``[[x, y], ...]``, as the detector stores ``scaled_roi_polygons``).
+RoiShape = tuple[str, Any]
 
 log = structlog.get_logger()
 
@@ -152,6 +176,41 @@ def spec_listens_to(spec: WindowSpec | None, source: ExternalSource) -> bool:
             if isinstance(node, External) and node.source == source:
                 return True
     return False
+
+
+def _roi_key(rois: Sequence[RoiShape]) -> tuple[tuple[object, ...], ...]:
+    """Cheap identity of a ROI set: the raw vertex bytes, never a shapely build.
+
+    The detector hands the same polygons every frame; building a shapely
+    ``Polygon`` (or serialising one) per ROI per analysed frame just to compare
+    them was the dominant per-frame cost. A shapely geometry is keyed by
+    identity (geometries are immutable).
+    """
+    key: list[tuple[object, ...]] = []
+    for name, polygon in rois:
+        if isinstance(polygon, BaseGeometry):
+            key.append((str(name), "geometry", id(polygon)))
+            continue
+        try:
+            vertices = np.asarray(polygon)
+        except (TypeError, ValueError):
+            key.append((str(name), "unusable", repr(polygon)))
+            continue
+        key.append((str(name), vertices.shape, vertices.dtype.str, vertices.tobytes()))
+    return tuple(key)
+
+
+def _roi_geometry(polygon: Any) -> BaseGeometry | None:
+    """A shapely geometry from a geometry or a vertex list; ``None`` when unusable."""
+    if isinstance(polygon, BaseGeometry):
+        return polygon
+    try:
+        vertices = np.asarray(polygon, dtype=np.float64)
+    except (TypeError, ValueError):
+        return None
+    if vertices.ndim != 2 or vertices.shape[0] < 3 or vertices.shape[1] != 2:
+        return None
+    return Polygon(vertices)
 
 
 def _uses_frame_holds(spec: WindowSpec) -> bool:
@@ -286,6 +345,13 @@ class ConditionRuntime:
             "arduino": spec_listens_to(spec, "arduino"),
             "manual": spec_listens_to(spec, "manual"),
         }
+        self._needs_geometry = spec_needs_subject_geometry(spec)
+        self._geometry_rois = subject_geometry_rois(spec)
+        # ROI polygons prepared once per distinct set (the detector re-scales
+        # them only when the zones change).
+        self._roi_key: tuple[tuple[object, ...], ...] | None = None
+        self._roi_shapes: tuple[tuple[str, BaseGeometry], ...] = ()
+        self._missing_inputs: tuple[str, ...] = ()
         if _uses_frame_holds(spec):
             log.warning(
                 "condition_runtime.frame_hold_in_live",
@@ -331,6 +397,23 @@ class ConditionRuntime:
         return self._listens.get(source, False)
 
     @property
+    def needs_subject_geometry(self) -> bool:
+        """Whether :meth:`step` uses ``subject_boxes``/``rois`` (else they are ignored)."""
+        return self._needs_geometry
+
+    @property
+    def missing_inputs(self) -> tuple[str, ...]:
+        """``roi:<name>`` the burrow-entry nodes need but the session's zones lack.
+
+        Filled at most once, on the first analysed frame after START that still
+        lacks one (the detector's zones are certainly loaded by then). Same
+        tokens as the offline ``inputs_missing`` (``missing_inputs``). Not written
+        into the artifact: its ``online`` keys are fixed by ADR-011, and the
+        analysis reports the same missing ROI as ``inputs_missing``.
+        """
+        return self._missing_inputs
+
+    @property
     def external_events(self) -> tuple[ExternalEvent, ...]:
         """Every external event offered so far, on the capture clock, in time order."""
         origin = self._origin
@@ -370,9 +453,25 @@ class ConditionRuntime:
         classes: Mapping[str, tuple[float, ...]],
         subject_rois: Iterable[str],
         t_wall: float | None = None,
+        subject_boxes: Sequence[Sequence[float]] = (),
+        rois: Sequence[RoiShape] = (),
     ) -> RuntimeUpdate:
-        """Feed one analysed frame, dated by its CAPTURE instant."""
+        """Feed one analysed frame, dated by its CAPTURE instant.
+
+        Args:
+            subject_boxes: The frame's subject detections, ``(x1, y1, x2, y2,
+                confidence, ...)`` — the ones that decided ``subject_rois``.
+            rois: ``(name, polygon)`` in the same pixel space as the boxes.
+                Both are read only when :attr:`needs_subject_geometry`.
+        """
         origin = self._resolve_origin(t_capture_perf)
+        area: float | None = None
+        cover: Mapping[str, float] = {}
+        if self._needs_geometry:
+            shapes = self._prepared(rois)
+            self._check_geometry_inputs(shapes)
+            geometry = observe_subject(pick_subject_bbox(subject_boxes), shapes, prepared=True)
+            area, cover = geometry.area_px, geometry.cover
         observation = FrameObservation(
             frame=int(frame),
             t_s=float(t_capture_perf) - origin,
@@ -380,6 +479,8 @@ class ConditionRuntime:
             subject_rois=frozenset(subject_rois),
             external=self._deliver_external(float(t_capture_perf), origin),
             t_wall=t_wall,
+            subject_area_px=area,
+            subject_cover=dict(cover),
         )
         events = tuple(self._evaluator.step(observation))
         return self._update(events, from_finish=False)
@@ -428,6 +529,44 @@ class ConditionRuntime:
         return path
 
     # -- internals -----------------------------------------------------------
+    def _prepared(self, rois: Sequence[RoiShape]) -> tuple[tuple[str, BaseGeometry], ...]:
+        """``rois`` as prepared shapely geometries, rebuilt only when they change."""
+        key = _roi_key(rois)
+        if key != self._roi_key:
+            shapes: list[tuple[str, BaseGeometry]] = []
+            for name, polygon in rois:
+                geometry = _roi_geometry(polygon)
+                if geometry is not None:
+                    shapes.append((str(name), geometry))
+            self._roi_key = key
+            self._roi_shapes = prepare_rois(shapes)
+            log.info(
+                "condition_runtime.subject_geometry.rois",
+                rois=[name for name, _shape in self._roi_shapes],
+            )
+        return self._roi_shapes
+
+    def _check_geometry_inputs(self, shapes: Sequence[tuple[str, BaseGeometry]]) -> None:
+        """Warn ONCE when the window is open and a ROI the entry needs is missing.
+
+        Without it the burrow entry can never fire and the trial silently ends
+        at the ceiling. Checked only after START: before it, the detector's
+        zones may still be loading, which is not a problem yet.
+        """
+        if self._missing_inputs or self._evaluator.result.start is None:
+            return
+        available = {name for name, _shape in shapes}
+        missing = tuple(f"roi:{name}" for name in self._geometry_rois if name not in available)
+        if not missing:
+            return
+        self._missing_inputs = missing
+        log.warning(
+            "condition_runtime.subject_geometry.inputs_missing",
+            missing=list(missing),
+            available=sorted(available),
+            hint="the burrow entry cannot fire without its ROI; the trial ends at the ceiling",
+        )
+
     def _resolve_origin(self, t_capture_perf: float) -> float:
         if self._origin is not None:
             return self._origin

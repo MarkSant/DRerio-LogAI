@@ -10,7 +10,7 @@ Phase 3: Massively expanded to include video processing orchestration (~500 line
 Now handles batch processing, single video processing, and all coordination logic.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -27,6 +27,16 @@ from zebtrack.analysis.behavioral_policy import (
 )
 from zebtrack.analysis.metrics_cache import MetricsCache
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
+from zebtrack.analysis.protocols import (
+    PROTOCOL_METRICS_KEY,
+    ProtocolContext,
+    ProtocolStatus,
+    UnavailableReason,
+    compute_protocol_metrics,
+    none_metrics,
+    protocol_inputs_for,
+    unavailable_metrics,
+)
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.analysis.time_base import RECORDING_CLOCK_SOURCES, TimeBase, resolve_time_base
 from zebtrack.analysis.track_significance import min_track_duration_from, screen_subjects
@@ -34,6 +44,7 @@ from zebtrack.analysis.trajectory_validator import (
     TrajectoryQualityValidator,
     count_unique_frames,
 )
+from zebtrack.core.services.experiment_profile import resolve_experiment_profile
 from zebtrack.core.services.roi_rule_resolver import RoiRuleConfig, resolve_roi_rule
 from zebtrack.i18n import _
 
@@ -290,6 +301,8 @@ class AnalysisService:
         mask_sidecar_path: str | Path | pd.DataFrame | None = None,
         window: WindowResolution | None = None,
         time_base: TimeBase | None = None,
+        protocol_inputs: Mapping[str, Any] | None = None,
+        aquarium_id: int | None = None,
     ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None, list, dict]:
         """
         Run a complete analysis pipeline on the given trajectory data.
@@ -339,6 +352,18 @@ class AnalysisService:
                 ``duracao_video_s``; a base from the trajectory's own
                 timestamps is re-measured on the screened trajectory, exactly
                 as when ``None`` is passed. Its warnings join the report's.
+            protocol_inputs: This video's per-protocol inputs, i.e.
+                :func:`zebtrack.analysis.protocols.protocol_inputs_of_entry` of its
+                video entry (``None`` when the video has no entry). The protocol is
+                read from ``behavioral_config`` through
+                :func:`zebtrack.core.services.experiment_profile.resolve_experiment_profile`;
+                its metrics land in ``report["protocol_metrics"]``, which is always
+                present (``{"status": "none"}`` for a generic project, ADR-014).
+            aquarium_id: The aquarium this trajectory belongs to, set ONLY by the
+                multi-aquarium paths (they carry no ``protocol_inputs``). A
+                non-generic protocol is then reported ``unavailable`` /
+                ``multi_aquarium``: every protocol so far assumes one arena per
+                video.
 
         Returns:
             A tuple containing:
@@ -607,10 +632,26 @@ class AnalysisService:
                     _("Geotaxis was requested but could not be computed: {error}").format(error=e)
                 )
 
+        protocol_args: dict[str, Any] = {
+            "trajectory_df": trajectory_df,
+            "rois": rois,
+            "arena_polygon_px": arena_polygon_px,
+            "pixelcm_x": pixelcm_x,
+            "pixelcm_y": pixelcm_y,
+            "window": window,
+            "time_base": time_base,
+            "behavioral_config": behavioral_config,
+            "protocol_inputs": protocol_inputs,
+            "aquarium_id": aquarium_id,
+            "b_analyzer": b_analyzer,
+            "validation_warnings": validation_warnings,
+        }
+
         # 3. If ROIs are provided, perform ROI analysis and append to the report
         # (the analyser was built above, from the resolved rule: the debounce
         # comes from the config and backdates, so filtering costs no bias).
         if r_analyzer is None:
+            self._attach_protocol_metrics(report, r_analyzer=None, **protocol_args)
             return report, b_analyzer, None, validation_warnings, validation_stats
 
         # A degradação de ``seg_overlap`` precisa entrar na lista ANTES de
@@ -654,7 +695,97 @@ class AnalysisService:
         }
         report["log_eventos"] = r_analyzer.get_event_log().to_dict("records")
 
+        self._attach_protocol_metrics(report, r_analyzer=r_analyzer, **protocol_args)
         return report, b_analyzer, r_analyzer, validation_warnings, validation_stats
+
+    @staticmethod
+    def _attach_protocol_metrics(
+        report: dict[str, Any],
+        *,
+        trajectory_df: pd.DataFrame,
+        rois: Sequence[ROI],
+        arena_polygon_px: Sequence[Sequence[float]],
+        pixelcm_x: float,
+        pixelcm_y: float,
+        window: WindowResolution | None,
+        time_base: TimeBase,
+        behavioral_config: Mapping[str, Any],
+        protocol_inputs: Mapping[str, Any] | None,
+        aquarium_id: int | None,
+        b_analyzer: ConcreteBehavioralAnalyzer,
+        r_analyzer: ROIAnalyzer | None,
+        validation_warnings: list[str],
+    ) -> None:
+        """Write ``report["protocol_metrics"]`` (ADR-014); the key is always present.
+
+        Runs last, after every generic metric, so a protocol reads analysers that
+        are already restricted to the window. A generic profile short-circuits to
+        ``{"status": "none"}`` without building anything: a legacy project's report
+        differs from v8.0 only by that one key. The profile's degradation warnings
+        join ``validation_warnings`` here, before any report is generated.
+
+        A multi-aquarium run (``aquarium_id`` set) never reaches a protocol. The
+        whole non-generic branch is guarded: whatever fails while building the
+        context or computing degrades to status ``error`` with a warning, so a
+        protocol can never cost the generic report.
+        """
+        profile = resolve_experiment_profile(behavioral_config=behavioral_config)
+        validation_warnings.extend(profile.warnings)
+        if profile.is_generic:
+            report[PROTOCOL_METRICS_KEY] = none_metrics()
+            return
+        protocol = profile.declared_protocol or profile.protocol.value
+        if aquarium_id is not None:
+            log.warning(
+                "analysis_service.protocol_metrics.multi_aquarium",
+                protocol=protocol,
+                aquarium_id=aquarium_id,
+            )
+            validation_warnings.append(
+                _(
+                    "The {protocol} protocol analyses one arena per video; its "
+                    "metrics are not computed for aquarium {aquarium} of a "
+                    "multi-aquarium video."
+                ).format(protocol=protocol, aquarium=aquarium_id + 1)
+            )
+            report[PROTOCOL_METRICS_KEY] = unavailable_metrics(
+                protocol, UnavailableReason.MULTI_AQUARIUM
+            )
+            return
+        try:
+            context = ProtocolContext(
+                profile=profile,
+                trajectory=trajectory_df,
+                rois=tuple(rois),
+                arena_polygon_px=tuple((float(p[0]), float(p[1])) for p in arena_polygon_px),
+                pixelcm_x=float(pixelcm_x),
+                pixelcm_y=float(pixelcm_y),
+                window=window,
+                time_base=time_base,
+                behavioral_config=behavioral_config,
+                inputs=protocol_inputs_for(protocol_inputs, profile.protocol),
+                behavioral_analyzer=b_analyzer,
+                roi_analyzer=r_analyzer,
+                warnings=validation_warnings,
+            )
+            result = compute_protocol_metrics(context)
+        # except Exception justified: the protocol branch must never raise into a
+        # report whose generic metrics are already complete; the report says why
+        # its protocol metrics are missing.
+        except Exception as exc:
+            log.error("analysis_service.protocol_metrics.failed", protocol=protocol, error=str(exc))
+            validation_warnings.append(
+                _("The {protocol} protocol metrics could not be computed: {error}").format(
+                    protocol=protocol, error=exc
+                )
+            )
+            result = unavailable_metrics(
+                protocol,
+                UnavailableReason.EXCEPTION,
+                status=ProtocolStatus.ERROR,
+                error=str(exc),
+            )
+        report[PROTOCOL_METRICS_KEY] = result
 
     @staticmethod
     def _apply_window(
@@ -708,6 +839,8 @@ class AnalysisService:
         mask_sidecar_path: str | Path | pd.DataFrame | None = None,
         window: WindowResolution | None = None,
         time_base: TimeBase | None = None,
+        protocol_inputs: Mapping[str, Any] | None = None,
+        aquarium_id: int | None = None,
     ) -> AnalysisResult:
         """Run complete analysis and return results as DTO (RECOMMENDED).
 
@@ -734,6 +867,10 @@ class AnalysisService:
             sharp_turn_threshold: Sharp turn detection threshold (deg/s)
             window: Analysis window (see :meth:`run_full_analysis`).
             time_base: The recording's time base (see :meth:`run_full_analysis`).
+            protocol_inputs: Per-protocol inputs of this video (see
+                :meth:`run_full_analysis`).
+            aquarium_id: Set only by the multi-aquarium paths (see
+                :meth:`run_full_analysis`).
 
         Returns:
             AnalysisResult DTO with all analysis data
@@ -778,6 +915,8 @@ class AnalysisService:
             mask_sidecar_path=mask_sidecar_path,
             window=window,
             time_base=time_base,
+            protocol_inputs=protocol_inputs,
+            aquarium_id=aquarium_id,
         )
 
         # Wrap in DTO
@@ -930,6 +1069,7 @@ class AnalysisService:
                     behavioral_config=behavioral_config,
                     window=(windows or {}).get(aq_id),
                     time_base=(time_bases or {}).get(aq_id),
+                    aquarium_id=aq_id,
                 )
 
                 results[aq_id] = analysis_result

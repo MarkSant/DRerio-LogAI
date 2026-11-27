@@ -14,6 +14,7 @@ from zebtrack.core.video.video_metadata_service import VideoMetadataService
 from zebtrack.i18n import _
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+from zebtrack.ui.terminology import animal_model_of_project_manager, term
 
 if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
@@ -200,10 +201,9 @@ class DialogCoordinator:
 
             response = self.ui_coordinator.ask_ok_cancel(
                 _("Main Arena Not Defined"),
-                _(
-                    "The main aquarium polygon has not been defined.\n\n"
-                    "The main arena is required for an accurate analysis.\n"
-                    "Do you want to define it now, before processing?"
+                term(
+                    "coordinator.arena_missing_batch",
+                    animal_model_of_project_manager(self.project_manager),
                 ),
             )
 
@@ -232,11 +232,9 @@ class DialogCoordinator:
                                 type=UIEvents.UI_SHOW_INFO,
                                 data=payloads.MessagePayload(
                                     title=_("Define the Main Arena"),
-                                    message=_(
-                                        "Please:\n"
-                                        "1. Use 'Detect Aquarium (Auto)' or\n"
-                                        "2. Draw the main polygon manually\n"
-                                        "3. Then come back to add videos"
+                                    message=term(
+                                        "coordinator.define_arena_steps_videos",
+                                        animal_model_of_project_manager(self.project_manager),
                                     ),
                                 ),
                             )

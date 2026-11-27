@@ -9,6 +9,9 @@
 # delete the line. Never add an entry to make the test pass.
 
 [pydantic] Pydantic reads it: model_config and the field/model validators run inside the model machinery, never from a call site
+src/zebtrack/analysis/protocols/barnes/contract.py::method::BarnesParams._quadrant_fits
+src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesParams.model_config
+src/zebtrack/analysis/protocols/barnes/contract.py::variable::BarnesVideoInputs.model_config
 src/zebtrack/core/conditions/artifact.py::method::AnalysisWindowArtifact._hash_matches_spec
 src/zebtrack/core/conditions/artifact.py::variable::AnalysisWindowArtifact.model_config
 src/zebtrack/core/conditions/artifact.py::variable::ArtifactEvent.model_config
@@ -103,6 +106,7 @@ src/zebtrack/ui/wizard/wizard_dialog.py::method::WizardDialog.buttonbox
 src/zebtrack/ui/gui.py::method::ApplicationGUI.ask_missing_metadata
 
 [enum-member] enum member: reached by value or iteration (Enum(value), for m in E) and persisted by name, so removing it breaks reading old data
+src/zebtrack/analysis/protocols/base.py::variable::ProtocolStatus.OK
 src/zebtrack/core/project/schemas.py::variable::AssetType.ANALYSIS_PROFILE
 src/zebtrack/core/project/schemas.py::variable::AssetType.MODEL_WEIGHTS
 src/zebtrack/core/project/schemas.py::variable::AssetType.ROI_TEMPLATE
@@ -154,7 +158,6 @@ src/zebtrack/ui/payloads.py::variable::UpdateProcessingModePayload.single_subjec
 src/zebtrack/ui/payloads.py::variable::VideoReconfigureSubjectsPayload.current_entries
 src/zebtrack/ui/payloads.py::variable::ZoneDisplayClearedPayload.deleted_video_path
 src/zebtrack/ui/wizard/models.py::variable::BehavioralAnalysisData.geotaxis_distance_cm
-src/zebtrack/ui/wizard/models.py::variable::BehavioralAnalysisData.thigmotaxis_distance_cm
 src/zebtrack/ui/wizard/models.py::variable::ModelSelectionData.detector_name
 src/zebtrack/utils/hardware_benchmark.py::variable::BenchmarkRecommendation.decode_backend
 src/zebtrack/utils/hardware_benchmark.py::variable::BenchmarkRecommendation.recommended_batch_size
@@ -264,7 +267,6 @@ src/zebtrack/plugins/ultralytics_detector.py::variable::ULTRALYTICS_AVAILABLE
 src/zebtrack/settings.py::function::export_schema
 src/zebtrack/settings.py::function::reload_settings
 src/zebtrack/tracker/basetrack.py::variable::BaseTrack.curr_feature
-src/zebtrack/tracker/basetrack.py::variable::BaseTrack.features
 src/zebtrack/tracker/basetrack.py::variable::BaseTrack.history
 src/zebtrack/tracker/basetrack.py::variable::BaseTrack.time_since_update
 src/zebtrack/tracker/byte_tracker.py::attribute::STrack.tracklet_len

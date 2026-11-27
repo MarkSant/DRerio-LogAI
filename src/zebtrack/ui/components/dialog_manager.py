@@ -16,6 +16,7 @@ import structlog
 
 from zebtrack.i18n import _
 from zebtrack.ui.components.roi_name_validation import RoiNameError, validate_roi_name
+from zebtrack.ui.terminology import animal_model_of_gui
 
 # Dialogs are imported locally within methods to avoid circular dependencies
 
@@ -551,6 +552,7 @@ class DialogManager:
             entry_metadata=entry_metadata,
             on_confirm=on_confirm,
             on_cancel=on_cancel,
+            animal_model=animal_model_of_gui(self.gui),
         )
         return dialog.get_result()
 

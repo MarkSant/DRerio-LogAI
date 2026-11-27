@@ -8,8 +8,10 @@ Extracted from reporter.py as part of Phase 2 refactoring (Task 2.5).
 
 from __future__ import annotations
 
+import re
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import structlog
@@ -19,8 +21,27 @@ from zebtrack.analysis.perspective_utils import (
     normalize_aquarium_perspective as _normalize_aquarium_perspective,
 )
 from zebtrack.analysis.roi import ROIAnalyzer
+from zebtrack.core.services.experiment_profile import (
+    AnimalModel,
+    ProtocolId,
+    resolve_experiment_profile,
+)
 
-__all__ = ["WINDOW_COLUMNS", "DataTransformer", "window_columns"]
+if TYPE_CHECKING:
+    from zebtrack.analysis.protocols.base import ProtocolSpec
+
+__all__ = [
+    "BARNES_COLUMN_PREFIX",
+    "WINDOW_COLUMNS",
+    "DataTransformer",
+    "active_protocol_spec",
+    "animal_model_of_config",
+    "barnes_columns",
+    "barnes_visits_frame",
+    "display_column_name",
+    "display_metadata_label",
+    "window_columns",
+]
 
 log = structlog.get_logger(__name__)
 
@@ -120,12 +141,86 @@ DISPLAY_COLUMN_MAPPING = {
     "window_stop_s": "Analysis Window Stop (s)",
     "window_duration_s": "Analysis Window Duration (s)",
     "window_reason": "Analysis Window End Reason",
+    # Barnes maze protocol (ADR-014). English, and NOT _(): exported column
+    # headers, like every entry above.
+    "barnes_status": "Barnes Status",
+    "barnes_trial_type": "Barnes Trial Type",
+    "barnes_encounter_latency_s": "Barnes Encounter Latency (s)",
+    "barnes_encounter_censored": "Barnes Encounter Censored",
+    "barnes_entry_latency_s": "Barnes Entry Latency (s)",
+    "barnes_entry_censored": "Barnes Entry Censored",
+    "barnes_entry_source": "Barnes Entry Source",
+    "barnes_primary_errors": "Barnes Primary Errors",
+    "barnes_total_errors": "Barnes Total Errors",
+    "barnes_perseverative_errors": "Barnes Perseverative Errors",
+    "barnes_primary_path_cm": "Barnes Path to Encounter (cm)",
+    "barnes_entry_path_cm": "Barnes Path to Entry (cm)",
+    "barnes_target_quadrant_time_s": "Barnes Target Quadrant Time (s)",
+    "barnes_target_quadrant_pct": "Barnes Target Quadrant Time (%)",
+    "barnes_strategy": "Barnes Strategy",
+    "barnes_strategy_source": "Barnes Strategy Source",
+    "barnes_strategy_auto": "Barnes Strategy (automatic)",
+    "barnes_center_crossings": "Barnes Center Crossings",
+    "barnes_adjacent_fraction": "Barnes Adjacent Transitions (fraction)",
+    "barnes_probe_first_hole_offset": "Barnes Probe First Hole Offset",
+    "barnes_probe_first_hole_score": "Barnes Probe First Hole Score",
+    "barnes_probe_first_error_latency_s": "Barnes Probe First Error Latency (s)",
+    "barnes_probe_attempts_to_target": "Barnes Probe Attempts to Target",
     "group_id": "Group",
     "experiment_id": "Experiment ID",
     "aquarium_id": "Aquarium",
     "subject": "Subject",
     "day": "Day",
 }
+
+#: Word-report display names an animal model words differently from
+#: ``DISPLAY_COLUMN_MAPPING`` (zebrafish and legacy keep the mapping above). Word
+#: ONLY: the exported xlsx/csv headers are a contract (``aggregate_summaries``
+#: concatenates files by header) and never depend on the animal model, so
+#: ``prepare_for_display`` does not read this table. The internal key
+#: (``aquarium_id``, ADR-012) never changes either.
+_ANIMAL_DISPLAY_OVERRIDES: dict[AnimalModel, dict[str, str]] = {
+    AnimalModel.RODENT: {"aquarium_id": "Arena"},
+    AnimalModel.OTHER: {"aquarium_id": "Arena"},
+}
+
+#: Internal-key fragments that read as another noun for a non-zebrafish animal.
+#: Applied to the KEY (``num_aquariums`` -> ``num_arenas``), never to displayed text.
+_ANIMAL_KEY_WORDS: dict[AnimalModel, tuple[tuple[str, str], ...]] = {
+    AnimalModel.RODENT: (("aquarium", "arena"),),
+    AnimalModel.OTHER: (("aquarium", "arena"),),
+}
+
+
+def animal_model_of_config(behavioral_config: Mapping[str, Any] | None) -> AnimalModel:
+    """The animal model of a run's behavioural configuration (zebrafish when absent)."""
+    return resolve_experiment_profile(behavioral_config=behavioral_config).animal_model
+
+
+def display_column_name(column: str, animal_model: AnimalModel = AnimalModel.ZEBRAFISH) -> str:
+    """Display name of an internal column; ``DISPLAY_COLUMN_MAPPING`` unless the animal words it.
+
+    Falls back to the title-cased key, as the Word summary table always did (for
+    another animal the aquarium fragment of the KEY is re-worded first).
+    """
+    override = _ANIMAL_DISPLAY_OVERRIDES.get(animal_model, {}).get(column)
+    if override is not None:
+        return override
+    mapped = DISPLAY_COLUMN_MAPPING.get(column)
+    return mapped if mapped is not None else display_metadata_label(column, animal_model)
+
+
+def display_metadata_label(key: str, animal_model: AnimalModel = AnimalModel.ZEBRAFISH) -> str:
+    """Label of a metadata key in the Word report: ``num_aquariums`` -> ``Num Aquariums``.
+
+    Zebrafish (and legacy) projects get the raw key title-cased, byte for byte as
+    before; another animal model first re-words the aquarium fragment of the KEY
+    (``Num Arenas``). The key itself is a persistence contract and is untouched.
+    """
+    for old, new in _ANIMAL_KEY_WORDS.get(animal_model, ()):
+        key = key.replace(old, new)
+    return key.replace("_", " ").title()
+
 
 # Dynamic prefix mappings for Portuguese → English translation of ROI-specific columns
 DYNAMIC_PREFIX_MAPPINGS = (
@@ -207,6 +302,114 @@ def window_columns(report: dict[str, Any]) -> dict[str, Any]:
         "window_duration_s": window.get("window_duration_s"),
         "window_reason": window.get("reason"),
     }
+
+
+#: Prefix of every Barnes tidy column (``barnes_status``, ``barnes_visits_d03``...).
+BARNES_COLUMN_PREFIX = "barnes_"
+
+#: Display name of ``barnes_visits_dNN`` (distance ``NN`` from the escape hole).
+_BARNES_VISITS_DISPLAY = "Barnes Visits at Distance {distance}"
+
+
+def active_protocol_spec(behavioral_config: Mapping[str, Any] | None) -> ProtocolSpec | None:
+    """The registered :class:`ProtocolSpec` a run's configuration asks for.
+
+    ``None`` for a generic project (the registry is not even imported), for a
+    protocol this version does not know and for one without a registered spec:
+    in all three the reports behave exactly as they always did.
+    """
+    profile = resolve_experiment_profile(behavioral_config=behavioral_config)
+    if profile.is_generic:
+        return None
+    from zebtrack.analysis.protocols.registry import get_protocol
+
+    return get_protocol(profile.protocol)
+
+
+def _dig(metrics: Mapping[str, Any], dotted: str) -> Any:
+    """``dotted`` ("a.b") inside ``metrics``; a missing key is ``None``.
+
+    ``visits_by_distance`` is int-keyed in memory and str-keyed after a JSON
+    round trip (CONTRACTS section 7): the last segment is looked up as an
+    ``int`` first, then as the string.
+    """
+    node: Any = metrics
+    for segment in dotted.split("."):
+        if not isinstance(node, Mapping):
+            return None
+        if segment.isdigit() and int(segment) in node:
+            node = node[int(segment)]
+        else:
+            node = node.get(segment)
+    return node
+
+
+def barnes_columns(
+    report: Mapping[str, Any], behavioral_config: Mapping[str, Any] | None
+) -> dict[str, Any]:
+    """The ``barnes_*`` tidy values of a report (CONTRACTS section 8).
+
+    Empty for a project that is not Barnes: a generic project gets no ``barnes_*``
+    column at all. For a Barnes project every column of the spec is present and
+    the schema never depends on the video. With ``status != "ok"`` only
+    ``barnes_status`` (and ``barnes_trial_type`` when the metrics carry one) is
+    filled: censoring and "unavailable" are ``None``, never ``0``.
+    """
+    profile = resolve_experiment_profile(behavioral_config=behavioral_config)
+    if profile.protocol is not ProtocolId.BARNES:
+        return {}
+    spec = active_protocol_spec(behavioral_config)
+    if spec is None:
+        return {}
+    from zebtrack.analysis.protocols.barnes.contract import tidy_column_source
+    from zebtrack.analysis.protocols.base import PROTOCOL_METRICS_KEY
+
+    metrics = report.get(PROTOCOL_METRICS_KEY) or {}
+    status = metrics.get("status")
+    columns = spec.tidy_columns(profile.protocol_params)
+    values: dict[str, Any] = dict.fromkeys(columns)
+    if "barnes_status" in values:
+        values["barnes_status"] = status
+    if status != "ok":
+        if "barnes_trial_type" in values:
+            values["barnes_trial_type"] = metrics.get("trial_type")
+        return values
+    for column in columns:
+        if column == "barnes_status":
+            continue
+        value = _dig(metrics, tidy_column_source(column))
+        if value is None and column.startswith("barnes_visits_d"):
+            # A distance nobody visited is 0 visits, but only for a computed trial.
+            value = 0
+        values[column] = value
+    return values
+
+
+def barnes_visits_frame(
+    report: Mapping[str, Any],
+    behavioral_config: Mapping[str, Any] | None,
+    experiment_id: str,
+) -> pd.DataFrame | None:
+    """The ``barnes_visits`` sheet: one row per hole visit (CONTRACTS section 8).
+
+    ``None`` for a project that is not Barnes: the sheet is written only for
+    Barnes, and then even when empty (a header-only sheet says "no visits", a
+    missing one would say "nothing was computed"). A report whose metrics are not
+    ``ok`` has no visit sequence, so the frame is empty.
+    """
+    if barnes_columns(report, behavioral_config) == {}:
+        return None
+    from zebtrack.analysis.protocols.barnes.contract import EXCEL_VISIT_COLUMNS, VISIT_FIELDS
+    from zebtrack.analysis.protocols.base import PROTOCOL_METRICS_KEY
+
+    metrics = report.get(PROTOCOL_METRICS_KEY) or {}
+    sequence = metrics.get("visit_sequence") if metrics.get("status") == "ok" else None
+    rows = [
+        {"experiment_id": experiment_id, **{field: visit.get(field) for field in VISIT_FIELDS}}
+        for visit in (sequence or [])
+        if isinstance(visit, Mapping)
+    ]
+    return pd.DataFrame(rows, columns=list(EXCEL_VISIT_COLUMNS))
 
 
 def _rgb_to_color_name(rgb_tuple):
@@ -460,6 +663,9 @@ class DataTransformer:
         # Analysis window (ADR-011): always present, NaN without one, and LAST --
         # third-party scripts read the summary by column position.
         combined_data.update(window_columns(report))
+        # Protocol columns (ADR-014) go AFTER window_*: positions are a contract
+        # for third-party scripts. Nothing is added for a generic project.
+        combined_data.update(barnes_columns(report, behavioral_config))
         return pd.DataFrame([combined_data])
 
     def _collect_roi_metrics(
@@ -852,6 +1058,10 @@ class DataTransformer:
             # Handle potential mixed cases or just EN
             roi = col_name.replace("latency_to_", "").replace("_s", "")
             return f"Latency to {roi} (s)"
+
+        visits_match = re.fullmatch(r"barnes_visits_d(\d{2})", col_name)
+        if visits_match is not None:
+            return _BARNES_VISITS_DISPLAY.format(distance=int(visits_match.group(1)))
 
         if col_name.startswith("geotaxis_zone_") and "_pct" in col_name:
             # Extract index

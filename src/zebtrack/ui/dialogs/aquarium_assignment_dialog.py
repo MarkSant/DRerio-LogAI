@@ -16,6 +16,7 @@ from tkinter import simpledialog, ttk
 import structlog
 
 from zebtrack.i18n import _
+from zebtrack.ui.terminology import AnimalLike, term
 from zebtrack.ui.wizard.models import AquariumConfig, MultiAquariumData
 
 log = structlog.get_logger()
@@ -55,6 +56,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         entry_metadata: dict | None = None,
         on_confirm: Callable[[list[AquariumConfig], bool], None] | None = None,
         on_cancel: Callable[[], None] | None = None,
+        animal_model: AnimalLike = None,
     ):
         """Initialize the aquarium assignment dialog.
 
@@ -73,6 +75,8 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         self.entry_metadata = entry_metadata or {}
         self._on_confirm = on_confirm
         self._on_cancel = on_cancel
+        # What the arena is called follows the project's animal model (display only).
+        self._animal_model: AnimalLike = animal_model
         self.result: list[AquariumConfig] | None = None
         self.apply_to_all: bool = False
 
@@ -89,7 +93,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             groups=available_groups,
         )
 
-        super().__init__(parent, _("Aquarium Configuration"))
+        super().__init__(parent, term("assignment.title", animal_model))
 
     def body(self, master: tk.Frame) -> tk.Widget | None:
         """Create dialog body with aquarium configuration forms.
@@ -105,7 +109,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         # Header
         header_label = ttk.Label(
             master,
-            text=_("Assign groups and identifiers to each aquarium"),
+            text=term("assignment.header", self._animal_model),
             font=("Helvetica", 11, "bold"),
         )
         header_label.pack(pady=(0, 5))
@@ -262,11 +266,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         if count > 2:
             messagebox.showwarning(
                 _("Warning"),
-                _(
-                    "Found {count} matches in the file name,\n"
-                    "but only 2 aquariums are supported.\n\n"
-                    "Using the first 2 matches."
-                ).format(count=count),
+                term("assignment.excess_matches", self._animal_model, count=count),
                 parent=self,
             )
             log.warning(
@@ -457,8 +457,11 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         position = _("Left") if aquarium_id == 0 else _("Right")
         frame = ttk.LabelFrame(
             parent,
-            text=_("Aquarium {number} ({position})").format(
-                number=aquarium_id + 1, position=position
+            text=term(
+                "assignment.panel_title",
+                self._animal_model,
+                number=aquarium_id + 1,
+                position=position,
             ),
             padding=10,
         )
@@ -619,14 +622,10 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             day = self._day_vars[i].get()
 
             if not group_raw:
-                raise ValueError(
-                    _("The group of Aquarium {number} cannot be empty").format(number=i + 1)
-                )
+                raise ValueError(term("assignment.group_empty", self._animal_model, number=i + 1))
 
             if not subject:
-                raise ValueError(
-                    _("The subject of Aquarium {number} cannot be empty").format(number=i + 1)
-                )
+                raise ValueError(term("assignment.subject_empty", self._animal_model, number=i + 1))
 
             # CRITICAL FIX: Resolve group name to match available_groups format
             # The StringVar might have '1', but we need 'G01'

@@ -25,6 +25,7 @@ from zebtrack.ui.sentinels import (
     no_group_label,
     not_reported_label,
 )
+from zebtrack.ui.terminology import animal_model_of_gui, term
 from zebtrack.utils.report_files import find_block_partial_report_files
 
 if TYPE_CHECKING:
@@ -116,6 +117,7 @@ class ValidationManager:
             Dictionary with 'groups' list containing formatted hierarchy
         """
         hierarchy = self._build_video_hierarchy_data(all_videos, "")
+        animal = animal_model_of_gui(self.gui)
 
         groups_list = []
 
@@ -231,7 +233,7 @@ class ValidationManager:
                     subjects_list.append(
                         {
                             "id": subject_id,
-                            "label": _("🐟 Subject {label}").format(label=subject_label),
+                            "label": term("subject.label", animal, label=subject_label),
                             "status": subj_status,
                             "data": subj_data,
                             "videos": videos_list,
@@ -287,7 +289,9 @@ class ValidationManager:
                 }
             )
 
-        return {"groups": groups_list}
+        # The animal model rides along so the overview widget (which knows no project)
+        # words its fallback subject label with the right emoji.
+        return {"groups": groups_list, "terms_model": animal.value}
 
     def check_live_project_calibration(self) -> None:
         """Check if Live project needs calibration and prompt user automatically.
@@ -304,13 +308,7 @@ class ValidationManager:
 
             response = self.dialog_manager.ask_ok_cancel(
                 _("Automatic Calibration"),
-                _(
-                    "No main arena has been defined for this live project.\n\n"
-                    "Do you want to set the calibration up automatically now?\n\n"
-                    "• The Zone Configuration tab will open\n"
-                    "• You can use 'Detect Aquarium (Auto)' or draw manually\n"
-                    "• The configuration is saved automatically"
-                ),
+                term("zones.no_arena_live_prompt", animal_model_of_gui(self.gui)),
             )
 
             if response:
@@ -322,12 +320,7 @@ class ValidationManager:
                 # Show guidance message
                 self.dialog_manager.show_info(
                     _("Main Arena Configuration"),
-                    _(
-                        "Set the main arena up using:\n\n"
-                        "1. 'Detect Aquarium (Auto)' - for automatic detection\n"
-                        "2. 'Draw Main Polygon' - for manual drawing\n\n"
-                        "The configuration is saved automatically."
-                    ),
+                    term("zones.no_arena_live_steps", animal_model_of_gui(self.gui)),
                 )
             else:
                 log.info("ui.live_calibration.auto_declined")
@@ -1152,6 +1145,7 @@ class ValidationManager:
         pm = controller.project_manager
         all_videos = pm.get_all_videos() or []
         hierarchy = self._build_video_hierarchy_data(all_videos, "")
+        animal = animal_model_of_gui(self.gui)
 
         snapshot: list[dict] = []
         for group_id, group_data in sorted(
@@ -1183,7 +1177,7 @@ class ValidationManager:
                 ):
                     subject_label = self.format_subject_label(subject_id)
                     subject_entry: dict[str, Any] = {
-                        "label": _("🐟 Subject {label}").format(label=subject_label),
+                        "label": term("subject.label", animal, label=subject_label),
                         "status_label": "",
                         "children": [],
                     }

@@ -14,8 +14,11 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from shapely.geometry import box
+from structlog.testing import capture_logs
 
 from zebtrack.core.conditions import (
+    AllOfLevel,
     ClassPresence,
     ClassTarget,
     EndOfStream,
@@ -24,14 +27,21 @@ from zebtrack.core.conditions import (
     FrameObservation,
     FrameReached,
     Hold,
+    LastSeenIn,
     Persist,
     RoiInside,
+    SubjectOverRoi,
+    SubjectVisibleFraction,
     TimeReached,
     WindowSpec,
     evaluate_window,
     read_artifact,
 )
-from zebtrack.core.conditions.presets import barnes_maze_preset, external_trigger_preset
+from zebtrack.core.conditions.presets import (
+    barnes_maze_preset,
+    barnes_maze_preset_v2,
+    external_trigger_preset,
+)
 from zebtrack.core.recording.condition_runtime import (
     ConditionRuntime,
     WindowPhase,
@@ -39,6 +49,7 @@ from zebtrack.core.recording.condition_runtime import (
     parse_window_spec,
     role_names_from_role_map,
     spec_listens_to,
+    spec_needs_subject_geometry,
     window_phase_message,
 )
 
@@ -436,3 +447,366 @@ def test_frame_hold_is_accepted_live():
     _step(runtime, 1, T0 + 0.1, classes={"rat": (0.9,)})
     (start,) = _step(runtime, 2, T0 + 0.2, classes={"rat": (0.9,)}).events
     assert start.frame == 1
+
+
+# ---------------------------------------------------------------------------
+# Subject geometry and the burrow entry (#633)
+# ---------------------------------------------------------------------------
+
+#: Escape hole ``toca`` as the detector stores it: vertex lists, frame pixels.
+TOCA_VERTICES = [[200.0, 0.0], [400.0, 0.0], [400.0, 200.0], [200.0, 200.0]]
+TOCA_ROIS = [("toca", TOCA_VERTICES)]
+_RAT = ClassPresence(target=ClassTarget.of_class("rat"))
+
+#: START at frame 0; STOP as soon as half the rat's box is over ``toca``.
+OVER_TOCA = WindowSpec(
+    start=FrameReached(frame=0),
+    stop=Persist(level=SubjectOverRoi(roi="toca"), hold=Hold(frames=1)),
+)
+
+
+def _geo_step(runtime: ConditionRuntime, frame: int, boxes, rois=TOCA_ROIS):
+    return runtime.step(
+        frame=frame,
+        t_capture_perf=T0 + frame * 0.1,
+        classes={"rat": (0.9,)} if boxes else {},
+        subject_rois=(),
+        subject_boxes=boxes,
+        rois=rois,
+    )
+
+
+class TestSpecNeedsSubjectGeometry:
+    def test_entry_presets_need_it_and_v1_does_not(self):
+        assert spec_needs_subject_geometry(barnes_maze_preset_v2()) is True
+        assert spec_needs_subject_geometry(barnes_maze_preset()) is False
+        assert spec_needs_subject_geometry(None) is False
+
+    def test_any_geometry_node_anywhere(self):
+        nested = Persist(
+            level=AllOfLevel(children=(_RAT, LastSeenIn(roi="toca"))), hold=Hold(frames=1)
+        )
+        in_start = WindowSpec(start=Persist(level=SubjectOverRoi(roi="a"), hold=Hold(frames=1)))
+        size = WindowSpec(
+            stop=Persist(level=SubjectVisibleFraction(max_fraction=0.3), hold=Hold(frames=1))
+        )
+
+        assert spec_needs_subject_geometry(WindowSpec(stop=nested)) is True
+        assert spec_needs_subject_geometry(in_start) is True
+        assert spec_needs_subject_geometry(size) is True
+        assert _runtime(size).needs_subject_geometry is True
+        assert _runtime(barnes_maze_preset()).needs_subject_geometry is False
+
+
+class TestRuntimeSubjectGeometry:
+    def test_cover_is_measured_from_the_boxes_and_roi_vertices(self):
+        runtime = _runtime(OVER_TOCA)
+        _geo_step(runtime, 0, [(0, 50, 60, 110, 0.9)])  # off the hole
+        off = _geo_step(runtime, 1, [(150, 50, 210, 110, 0.9)])  # 1/6 over it
+        update = _geo_step(runtime, 2, [(170, 50, 230, 110, 0.9)])  # exactly half
+
+        assert off.stop_confirmed is False
+        assert update.stop_confirmed is True
+        assert runtime.result.stop is not None and runtime.result.stop.frame == 2
+
+    def test_the_highest_confidence_box_is_the_subject(self):
+        runtime = _runtime(OVER_TOCA)
+        _geo_step(runtime, 0, [])
+        update = _geo_step(runtime, 1, [(250, 50, 300, 100, 0.3), (0, 50, 60, 110, 0.9)])
+
+        assert update.stop_confirmed is False
+
+    def test_shapely_rois_are_accepted_and_bad_vertices_are_skipped(self):
+        runtime = _runtime(OVER_TOCA)
+        rois = [("toca", box(200, 0, 400, 200)), ("bad", [[0, 0], [1, 1]]), ("junk", "x")]
+        _geo_step(runtime, 0, [], rois=rois)
+        update = _geo_step(runtime, 1, [(250, 50, 300, 100, 0.9)], rois=rois)
+
+        assert update.stop_confirmed is True
+
+    def test_without_rois_nothing_is_over_the_hole(self):
+        runtime = _runtime(OVER_TOCA)
+        _geo_step(runtime, 0, [], rois=[])
+        update = _geo_step(runtime, 1, [(250, 50, 300, 100, 0.9)], rois=[])
+
+        assert update.stop_confirmed is False
+
+    def test_geometry_is_skipped_when_the_spec_does_not_need_it(self, monkeypatch):
+        import zebtrack.core.recording.condition_runtime as module
+
+        def _boom(*_args, **_kwargs):
+            raise AssertionError("geometry computed for a spec that does not read it")
+
+        monkeypatch.setattr(module, "observe_subject", _boom)
+        runtime = _runtime(barnes_maze_preset())
+
+        update = _geo_step(runtime, 0, [(0, 0, 10, 10, 0.9)])
+
+        assert update.phase is WindowPhase.WAITING_START
+
+    def test_roi_polygons_are_prepared_once_per_distinct_set(self, monkeypatch):
+        import zebtrack.core.recording.condition_runtime as module
+
+        calls = []
+        real = module.prepare_rois
+
+        def _counting(rois):
+            calls.append([name for name, _shape in rois])
+            return real(rois)
+
+        monkeypatch.setattr(module, "prepare_rois", _counting)
+        runtime = _runtime(OVER_TOCA)
+        for frame in range(3):
+            _geo_step(runtime, frame, [(0, 0, 10, 10, 0.9)])
+        moved = [("toca", [[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [0.0, 5.0]])]
+        _geo_step(runtime, 3, [(0, 0, 10, 10, 0.9)], rois=moved)
+
+        assert calls == [["toca"], ["toca"]]
+
+
+def _entry_script() -> list[list[tuple[float, float, float, float, float]]]:
+    """A rat on the open table, then over ``toca`` and small, then gone.
+
+    Frames 0-19 full size (60 x 60) off the hole; 20-24 full size half over it
+    (the encounter); 25-34 a 25 x 25 box inside it (entry from frame 25);
+    35-39 gone.
+    """
+    script: list[list[tuple[float, float, float, float, float]]] = []
+    for frame in range(40):
+        if frame < 20:
+            x1 = 20.0 + 4 * frame
+            script.append([(x1, 50.0, x1 + 60.0, 110.0, 0.9)])
+        elif frame < 25:
+            script.append([(170.0, 50.0, 230.0, 110.0, 0.9)])
+        elif frame < 35:
+            script.append([(260.0, 60.0, 285.0, 85.0, 0.9)])
+        else:
+            script.append([])
+    return script
+
+
+class TestBarnesEntryParity:
+    """#633: live (boxes -> runtime) and analysis (trajectory -> builder) agree on the entry."""
+
+    SPEC = barnes_maze_preset_v2(k_frames=3, entry_min_reference_frames=5)
+
+    def _live(self) -> list:
+        runtime = _runtime(self.SPEC, roles={"subject": {"rat"}})
+        events = []
+        for frame, boxes in enumerate(_entry_script()):
+            events.extend(_geo_step(runtime, frame, boxes).events)
+        events.extend(runtime.finish().events)
+        return events
+
+    def _offline(self):
+        import pandas as pd
+        from shapely.geometry import Polygon
+
+        from zebtrack.analysis.roi import ROI
+        from zebtrack.analysis.window_observations import build_window_observations
+
+        rows = [
+            {
+                "timestamp": frame * 0.1,
+                "frame": frame,
+                "track_id": 1,
+                "x1": b[0],
+                "y1": b[1],
+                "x2": b[2],
+                "y2": b[3],
+                "confidence": b[4],
+            }
+            for frame, boxes in enumerate(_entry_script())
+            for b in boxes
+        ]
+        # The trajectory ends at the last detection; the builder needs the
+        # stream to cover the absent tail too, which only a 3c heartbeat gives.
+        built = build_window_observations(
+            pd.DataFrame(rows),
+            rois=[ROI("toca", Polygon(TOCA_VERTICES), coordinate_space="px")],
+            subject_names=["rat"],
+            min_track_duration_s=0.0,
+        )
+        return evaluate_window(self.SPEC, built.observations, role_names=built.role_names)
+
+    def test_runtime_and_evaluate_window_agree_on_the_entry(self):
+        live_stop = next(event for event in self._live() if event.kind == "stop")
+        offline = self._offline()
+
+        assert offline.stop is not None
+        assert (live_stop.frame, live_stop.reason) == (25, "burrow_entry")
+        assert (offline.stop.frame, offline.stop.reason) == (25, "burrow_entry")
+        assert live_stop.t_s == pytest.approx(offline.stop.t_s)
+        assert live_stop.confirmed_frame == offline.stop.confirmed_frame == 30
+
+
+class TestPipelineGeometryInputs:
+    """The pipeline's call site: the same detections as ``subject_rois``, raw ROI polygons."""
+
+    @staticmethod
+    def _inputs(pipeline, runtime, detections, aquarium_id=None):
+        from zebtrack.core.recording.frame_processing_pipeline import FrameProcessingMixin
+
+        return FrameProcessingMixin._condition_geometry_inputs(
+            pipeline, runtime, detections, aquarium_id
+        )
+
+    def test_nothing_is_gathered_when_the_window_does_not_need_it(self):
+        pipeline = SimpleNamespace(detector_service=None)
+        runtime = SimpleNamespace(needs_subject_geometry=False)
+
+        assert self._inputs(pipeline, runtime, [(0, 0, 1, 1, 0.9)]) == ([], [])
+
+    def test_a_mock_runtime_is_not_mistaken_for_one_that_needs_it(self):
+        from unittest.mock import MagicMock
+
+        assert self._inputs(SimpleNamespace(), MagicMock(), [(0, 0, 1, 1)]) == ([], [])
+
+    def test_single_aquarium_uses_the_detector_rois(self):
+        detector = SimpleNamespace(roi_names=["toca", "b"], scaled_roi_polygons=["P1", "P2"])
+        pipeline = SimpleNamespace(detector_service=SimpleNamespace(detector=detector))
+        runtime = SimpleNamespace(needs_subject_geometry=True)
+        detections = [(0, 0, 1, 1, 0.9, 3, 2)]
+
+        boxes, rois = self._inputs(pipeline, runtime, detections)
+
+        assert boxes == detections
+        assert rois == [("toca", "P1"), ("b", "P2")]
+
+    def test_multi_aquarium_keeps_only_that_aquariums_animal_and_rois(self):
+        aquariums = [
+            SimpleNamespace(id=0, roi_names=["toca"]),
+            SimpleNamespace(id=1, roi_names=["toca", "b"]),
+        ]
+        multi = SimpleNamespace(
+            get_multi_aquarium_data=lambda: aquariums,
+            get_aquarium_roi_polygons=lambda aq_id: [f"A{aq_id}P0", f"A{aq_id}P1"],
+        )
+        pipeline = SimpleNamespace(_multi_aq_detector=multi)
+        runtime = SimpleNamespace(needs_subject_geometry=True)
+        mine = (5, 5, 9, 9, 0.8, 1002, 2)
+        detections = [(0, 0, 1, 1, 0.9, 3, 2), mine, (0, 0, 1, 1, 0.9, None, 2), (1, 2)]
+
+        boxes, rois = self._inputs(pipeline, runtime, detections, aquarium_id=1)
+
+        assert boxes == [mine]
+        assert rois == [("toca", "A1P0"), ("b", "A1P1")]
+
+    def test_multi_aquarium_without_its_detector_yields_nothing(self):
+        pipeline = SimpleNamespace(_multi_aq_detector=None)
+        runtime = SimpleNamespace(needs_subject_geometry=True)
+
+        assert self._inputs(pipeline, runtime, [(0, 0, 1, 1, 0.9, 1001)], aquarium_id=1) == (
+            [],
+            [],
+        )
+
+
+class TestRuntimeGeometryCost:
+    """Hub review of #633: no shapely work per frame once the zones are known."""
+
+    def test_polygons_are_built_once_for_unchanged_vertices(self, monkeypatch):
+        import zebtrack.core.recording.condition_runtime as module
+
+        built = []
+        real = module._roi_geometry
+
+        def _counting(polygon):
+            built.append(1)
+            return real(polygon)
+
+        monkeypatch.setattr(module, "_roi_geometry", _counting)
+        runtime = _runtime(OVER_TOCA)
+        # A distinct container each frame (kept alive, so no id is reused): the
+        # key is the vertices, not the object that carries them.
+        containers = [[list(vertex) for vertex in TOCA_VERTICES] for _ in range(5)]
+        for frame, vertices in enumerate(containers):
+            _geo_step(runtime, frame, [(0, 0, 10, 10, 0.9)], rois=[("toca", vertices)])
+
+        assert len(built) == 1
+
+    def test_prepared_shapes_are_not_prepared_again_per_frame(self, monkeypatch):
+        import zebtrack.core.conditions.subject_geometry as geometry
+
+        runtime = _runtime(OVER_TOCA)
+        _geo_step(runtime, 0, [(0, 0, 10, 10, 0.9)])
+
+        def _boom(_rois):
+            raise AssertionError("prepare_rois called on already-prepared shapes")
+
+        monkeypatch.setattr(geometry, "prepare_rois", _boom)
+        update = _geo_step(runtime, 1, [(250, 50, 300, 100, 0.9)])
+
+        assert update.stop_confirmed is True
+
+    def test_a_shapely_roi_is_keyed_by_identity(self):
+        runtime = _runtime(OVER_TOCA)
+        shape = box(200, 0, 400, 200)
+        _geo_step(runtime, 0, [], rois=[("toca", shape)])
+        first = runtime._roi_shapes
+        _geo_step(runtime, 1, [], rois=[("toca", shape)])
+
+        assert runtime._roi_shapes is first
+
+
+class TestRuntimeMissingGeometryInputs:
+    """Hub review of #633: a v2 window without its ROI must not fail silently."""
+
+    SPEC = barnes_maze_preset_v2(k_frames=1)
+
+    def _run(self, runtime, rois, frames=6):
+        for frame in range(frames):
+            runtime.step(
+                frame=frame,
+                t_capture_perf=T0 + frame * 0.1,
+                classes={"rat": (0.9,)},
+                subject_rois=(),
+                subject_boxes=[(0, 0, 10, 10, 0.9)],
+                rois=rois,
+            )
+
+    def test_warns_once_after_start_when_the_burrow_roi_is_missing(self):
+        runtime = _runtime(self.SPEC)
+
+        with capture_logs() as logs:
+            self._run(runtime, [("center", TOCA_VERTICES)])
+
+        warnings = [
+            e for e in logs if e["event"] == "condition_runtime.subject_geometry.inputs_missing"
+        ]
+        assert len(warnings) == 1
+        assert warnings[0]["log_level"] == "warning"
+        assert warnings[0]["missing"] == ["roi:toca"]
+        assert warnings[0]["available"] == ["center"]
+        assert runtime.missing_inputs == ("roi:toca",)
+
+    def test_no_zones_at_all_is_reported_too(self):
+        runtime = _runtime(self.SPEC)
+
+        self._run(runtime, [])
+
+        assert runtime.missing_inputs == ("roi:toca",)
+
+    def test_nothing_is_reported_before_start(self):
+        runtime = _runtime(self.SPEC)
+        runtime.step(
+            frame=0,
+            t_capture_perf=T0,
+            classes={"start_box": (0.9,)},
+            subject_rois=(),
+            subject_boxes=[],
+            rois=[],
+        )
+
+        assert runtime.result.start is None
+        assert runtime.missing_inputs == ()
+
+    def test_present_roi_reports_nothing(self):
+        runtime = _runtime(self.SPEC)
+
+        with capture_logs() as logs:
+            self._run(runtime, TOCA_ROIS)
+
+        assert runtime.result.start is not None
+        assert runtime.missing_inputs == ()
+        assert not [e for e in logs if e["event"].endswith("inputs_missing")]

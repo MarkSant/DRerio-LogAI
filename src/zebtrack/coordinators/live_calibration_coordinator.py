@@ -42,11 +42,13 @@ from zebtrack.core.detection.aquarium_retry import (
 )
 from zebtrack.core.detection.class_aliases import ClassAliases
 from zebtrack.core.services.arena_detection_policy import resolve_arena_detection
+from zebtrack.core.services.experiment_profile import AnimalModel
 from zebtrack.i18n import _
 from zebtrack.io.camera import Camera
 from zebtrack.ui import payloads
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.payloads import VideoPathPayload
+from zebtrack.ui.terminology import animal_model_of_project_manager, term
 from zebtrack.utils.geometry import resolve_polygon_epsilon_factor, simplify_polygon
 
 if TYPE_CHECKING:
@@ -205,6 +207,14 @@ class LiveCalibrationCoordinator(BaseCoordinator):
         self._adhoc_zone_dir: str | None = None
 
         log.info("live_calibration_coordinator.initialized")
+
+    def _animal_model(self) -> AnimalModel:
+        """Animal model of the open project (zebrafish when there is none).
+
+        Wording only (``ui/terminology``). An ad-hoc live analysis has no project;
+        its dialog's choice does not reach this coordinator, so it reads legacy.
+        """
+        return animal_model_of_project_manager(self.project_manager)
 
     def _on_project_manager_replaced(self, data: Any) -> None:
         """Adopt the new ProjectManager and drop all project-scoped session state.
@@ -912,12 +922,8 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                     Event(
                         type=UIEvents.UI_SHOW_INFO,
                         data=payloads.MessagePayload(
-                            title=_("Aquarium Detected"),
-                            message=_(
-                                "Aquarium detected successfully!\n\n"
-                                "You can adjust the vertices or add ROIs.\n"
-                                "Click 'Finish' when you are ready."
-                            ),
+                            title=term("calibration.detected_title", self._animal_model()),
+                            message=term("calibration.detected_message", self._animal_model()),
                         ),
                     )
                 )
@@ -942,11 +948,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                         type=UIEvents.UI_SHOW_ERROR,
                         data=payloads.ErrorOccurredPayload(
                             title=_("Detection Failed"),
-                            message=_(
-                                "Could not detect the aquarium automatically.\n\n"
-                                "You will be taken to the zones tab to draw it "
-                                "manually."
-                            ),
+                            message=term("calibration.detect_failed_zones", self._animal_model()),
                         ),
                     )
                 )
@@ -994,11 +996,8 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 Event(
                     type=UIEvents.UI_SHOW_INFO,
                     data=payloads.MessagePayload(
-                        title=_("Draw the Aquarium"),
-                        message=_(
-                            "Draw the aquarium polygon and ROIs (if needed).\n\n"
-                            "Click 'Finish' when you are ready."
-                        ),
+                        title=term("calibration.draw_title", self._animal_model()),
+                        message=term("calibration.draw_message", self._animal_model()),
                     ),
                 )
             )
@@ -1053,12 +1052,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
             response = self.view.dialog_manager.ask_ok_cancel(
                 _("Main Arena Not Defined"),
-                _(
-                    "The main aquarium polygon has not been defined.\n\n"
-                    "Defining the arena before starting the recording is "
-                    "recommended.\n"
-                    "Do you want to define it now?"
-                ),
+                term("calibration.arena_missing_live", self._animal_model()),
             )
 
             if response:
@@ -1074,12 +1068,8 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                             type=UIEvents.UI_SHOW_INFO,
                             data=payloads.MessagePayload(
                                 title=_("Define the Main Arena"),
-                                message=_(
-                                    "Please:\n"
-                                    "1. Use the live camera to calibrate\n"
-                                    "2. Use 'Detect Aquarium (Auto)' or\n"
-                                    "3. Draw the main polygon manually\n"
-                                    "4. Then come back to start the recording"
+                                message=term(
+                                    "calibration.define_arena_steps_live", self._animal_model()
                                 ),
                             ),
                         )
@@ -1157,7 +1147,10 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             )
 
         outcome = self._calibration_step(
-            _("Detecting the aquarium..."), _work, _then, on_done=on_done
+            term("calibration.detecting_status", self._animal_model()),
+            _work,
+            _then,
+            on_done=on_done,
         )
         return outcome is True
 
@@ -1551,12 +1544,9 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                                 type=UIEvents.UI_SHOW_WARNING,
                                 data=payloads.MessagePayload(
                                     title=_("Automatic Detection Failed"),
-                                    message=_(
-                                        "Could not detect the aquarium automatically.\n\n"
-                                        "The captured image was loaded for manual "
-                                        "drawing.\n"
-                                        "Please use the 'Main Polygon' tool to define "
-                                        "the arena."
+                                    message=term(
+                                        "calibration.detect_failed_manual",
+                                        self._animal_model(),
                                     ),
                                 ),
                             )

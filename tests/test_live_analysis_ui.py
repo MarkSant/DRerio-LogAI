@@ -14,6 +14,11 @@ import numpy as np
 import pytest
 
 from tests.utils.wait_helpers import drain_background_tasks, wait_for_condition
+from zebtrack.ui.components.behavioral_config_widget import (
+    animal_model_choices,
+    protocol_choices,
+    trial_type_choices,
+)
 from zebtrack.ui.dialogs.live_analysis_dialog import LiveAnalysisDialog
 from zebtrack.ui.dialogs.live_preview_window import LivePreviewWindow
 
@@ -1687,3 +1692,106 @@ class TestFreezeStopTimeWithoutAWindow:
         window.eta_label.config.assert_called_once_with(text="--")
         clock = window.stop_time_label.config.call_args.kwargs["text"]
         assert len(clock.split(":")) == 3
+
+
+# ==============================================================================
+# ADR-014 — experiment profile in the ad-hoc live dialog
+# ==============================================================================
+
+
+def _pick_profile(combo, choices, token) -> None:
+    label = next(text for text, value in choices if value == token)
+    combo.set(label)
+    combo.event_generate("<<ComboboxSelected>>")
+
+
+@pytest.mark.gui
+class TestLiveAnalysisDialogExperimentProfile:
+    @pytest.fixture
+    def dialog(self, tkinter_root, test_settings):
+        from zebtrack.ui.dialogs.live_analysis_dialog import LiveAnalysisDialog as Dialog
+
+        with patch.object(Dialog, "wait_window"):
+            with patch(
+                "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras",
+                return_value=[],
+            ):
+                built = Dialog(tkinter_root, settings_obj=test_settings)
+                tkinter_root.update_idletasks()
+                yield built
+
+    def test_the_dialog_asks_the_profile_and_the_trial_type(self, dialog):
+        widget = dialog.behavioral_config_widget
+
+        assert widget.animal_model_combo is not None
+        assert widget.protocol_combo is not None
+        assert widget.trial_type_combo is not None
+
+    def test_it_starts_on_the_legacy_profile(self, dialog):
+        values = dialog.behavioral_config_widget.get_values()
+
+        assert values["animal_model"] == "zebrafish"
+        assert values["protocol"] == "generic"
+
+    def test_choosing_barnes_pins_the_analysis_interval_to_every_frame(self, dialog):
+        widget = dialog.behavioral_config_widget
+
+        _pick_profile(widget.protocol_combo, protocol_choices(), "barnes")
+
+        assert dialog.analysis_interval_var.get() == 1
+
+    def test_choosing_a_rodent_swaps_in_the_rodent_freezing_numbers_and_back(self, dialog):
+        widget = dialog.behavioral_config_widget
+        baseline = (dialog.freeze_thresh_var.get(), dialog.freeze_dur_var.get())
+
+        _pick_profile(widget.animal_model_combo, animal_model_choices(), "rodent")
+        assert (dialog.freeze_thresh_var.get(), dialog.freeze_dur_var.get()) == (2.0, 1.0)
+
+        _pick_profile(widget.animal_model_combo, animal_model_choices(), "zebrafish")
+        assert (dialog.freeze_thresh_var.get(), dialog.freeze_dur_var.get()) == baseline
+
+    def test_the_result_carries_the_profile_and_the_sessions_default_trial_type(self, dialog):
+        widget = dialog.behavioral_config_widget
+        _pick_profile(widget.protocol_combo, protocol_choices(), "barnes")
+        _pick_profile(widget.trial_type_combo, trial_type_choices(), "probe")
+        dialog.camera_index_map = {"Camera 0": 0}
+        dialog.camera_selection_var.set("Camera 0")
+
+        dialog.apply()
+
+        block = dialog.result["behavioral_analysis"]
+        assert block["animal_model"] == "rodent"
+        assert block["protocol"] == "barnes"
+        assert block["aquarium_perspective"] == "top_down"
+        assert block["protocol_params"] == {"barnes": {"default_trial_type": "probe"}}
+        assert dialog.result["analysis_interval_frames"] == 1
+
+    def test_leaving_barnes_puts_the_previous_interval_back(self, dialog):
+        widget = dialog.behavioral_config_widget
+        dialog.analysis_interval_var.set(7)
+
+        _pick_profile(widget.protocol_combo, protocol_choices(), "barnes")
+        assert dialog.analysis_interval_var.get() == 1
+        _pick_profile(widget.protocol_combo, protocol_choices(), "generic")
+
+        assert dialog.analysis_interval_var.get() == 7
+
+    def test_a_second_barnes_pick_does_not_forget_the_original_interval(self, dialog):
+        widget = dialog.behavioral_config_widget
+        dialog.analysis_interval_var.set(7)
+
+        _pick_profile(widget.protocol_combo, protocol_choices(), "barnes")
+        _pick_profile(widget.trial_type_combo, trial_type_choices(), "probe")
+        _pick_profile(widget.protocol_combo, protocol_choices(), "generic")
+
+        assert dialog.analysis_interval_var.get() == 7
+
+    def test_a_hand_edited_freezing_value_survives_a_protocol_change(self, dialog):
+        widget = dialog.behavioral_config_widget
+        _pick_profile(widget.animal_model_combo, animal_model_choices(), "rodent")
+        dialog.freeze_thresh_var.set(3.5)
+
+        _pick_profile(widget.protocol_combo, protocol_choices(), "barnes")
+        _pick_profile(widget.trial_type_combo, trial_type_choices(), "probe")
+
+        assert dialog.freeze_thresh_var.get() == 3.5

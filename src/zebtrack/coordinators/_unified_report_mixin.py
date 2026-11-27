@@ -629,6 +629,7 @@ class UnifiedReportMixin:
         writer = None
         try:
             from zebtrack.analysis.data_transformer import DataTransformer
+            from zebtrack.analysis.reporters.barnes_aggregates import barnes_sheets
 
             display_df = DataTransformer().prepare_for_display(final_df)
 
@@ -640,6 +641,10 @@ class UnifiedReportMixin:
                 desc_stats_df.to_excel(writer, sheet_name="Descriptive Stats")
             if not notes_df.empty:
                 notes_df.to_excel(writer, sheet_name="Notes", index=False)
+            # Barnes projects only: the aggregates behind the Word figures, for
+            # statistics software. Empty for a generic project (no sheet at all).
+            for sheet_name, sheet in barnes_sheets(final_df).items():
+                sheet.to_excel(writer, sheet_name=sheet_name, index=False)
 
             exported_artifacts.append(excel_path.name)
             exported_paths["excel"] = str(excel_path)
@@ -821,8 +826,10 @@ class UnifiedReportMixin:
             return None
 
         numeric_cols = final_df.select_dtypes(include="number").columns.tolist()
-        # Exclude internal/validation columns from summary
-        exclude_prefixes = ("validation_", "roi_color_")
+        # Exclude internal/validation columns from summary. ``barnes_`` columns
+        # carry censored latencies (the trial ceiling, not a measurement): their
+        # means live in the censoring-aware Barnes aggregates, never here.
+        exclude_prefixes = ("validation_", "roi_color_", "barnes_")
         numeric_cols = [
             c for c in numeric_cols if not any(c.startswith(p) for p in exclude_prefixes)
         ]
