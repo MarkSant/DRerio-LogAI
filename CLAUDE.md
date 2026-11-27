@@ -412,6 +412,12 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence,
 - **All UI updates from worker threads MUST use `root.after(0, ...)`** (Tkinter main thread only).
 - `StateManager` is thread-safe.
 - Worker threads must be `daemon=True` (otherwise pytest hangs at shutdown — see [`docs/archive/PHASES.md`](docs/archive/PHASES.md) Phase 7).
+- **Never create a private `tkinter.Tcl()`/`Tk()` as a fallback (#735).** Nothing destroys it,
+  so the cyclic GC frees it on whichever thread runs the collection, and freed off the main
+  thread Tcl aborts the process (`Tcl_AsyncDelete: async handler deleted by the wrong
+  thread`). That holds even after `destroy()`. Without a real root, keep the state in Python.
+  The autouse guard in `tests/conftest.py` (`tests/tk_interpreter_guard.py`) fails any test
+  that leaves an interpreter alive and names the line that created it.
 
 ### 🧙 Project Wizard
 

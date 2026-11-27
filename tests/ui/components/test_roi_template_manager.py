@@ -171,3 +171,49 @@ def test_update_combobox_values_falls_back_to_gui_combobox(mock_pm, tkinter_root
 
     gui.roi_template_combobox.__setitem__.assert_called_once_with("values", ["📁 Local"])
     gui.roi_template_combobox.configure.assert_called_once_with(state="readonly")
+
+
+@pytest.mark.parametrize("root", [None, MagicMock()], ids=["no-root", "mock-root"])
+def test_headless_parent_creates_no_tcl_interpreter(mock_pm, root):
+    """#735: without a Tk master the selection lives in Python, never in a private Tcl().
+
+    That private interpreter was never destroyed, so the garbage collector freed it
+    on whichever thread it ran — the camera reader thread, in the nightly job —
+    and Tcl aborted the whole process ("async handler deleted by the wrong thread").
+    """
+    import tkinter
+
+    from tests.tk_interpreter_guard import TkInterpreterTracker
+
+    from zebtrack.ui.components.roi_template_manager import _FallbackStringVar
+
+    gui = MagicMock()
+    gui.root = root
+    gui.tk = None
+    tracker = TkInterpreterTracker()
+    tracker.install(tkinter.Tk)
+    try:
+        before = tracker.mark()
+        manager = ROITemplateManager(mock_pm, gui)
+        created = tracker.mark() - before
+    finally:
+        tracker.uninstall()
+
+    assert created == 0, "ROITemplateManager must not create a Tcl interpreter"
+    assert isinstance(manager.template_var, _FallbackStringVar)
+    manager.template_var.set("📁 T1")
+    assert manager.template_var.get() == "📁 T1"
+
+
+def test_real_tk_parent_keeps_a_tk_string_var(mock_pm, tkinter_root):
+    """With a real master the selection is still a Tk StringVar bound to it."""
+    from tkinter import StringVar
+
+    gui = MagicMock()
+    gui.root = tkinter_root
+
+    manager = ROITemplateManager(mock_pm, gui)
+
+    assert isinstance(manager.template_var, StringVar)
+    manager.template_var.set("bound")
+    assert tkinter_root.getvar(str(manager.template_var)) == "bound"

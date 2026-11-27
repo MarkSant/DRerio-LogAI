@@ -6,6 +6,24 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-11-27] Nightly flakiness job aborts with `Tcl_AsyncDelete` (#735)
+
+__Agent:__ Claude Code (Opus 5.5) — side session of the Barnes hub
+__Status:__ Completed ✅
+__Branch:__ `claude/fix-735-tcl-wrong-thread-b60df9` (from `main`, 67359019)
+__Description:__
+The "Flakiness Detection (3x full suite)" job dies every night at ~62 % with
+`Tcl_AsyncDelete: async handler deleted by the wrong thread`, the current thread being a
+`Camera._reader_thread` inside `tests/io/test_camera.py` while it garbage-collects. Find which
+earlier test leaves a Tk interpreter for the collector, fix it at the root, and add a guard so a
+Tk object can never again be finalised off the main thread.
+__Outcome:__
+The culprit was the private `tkinter.Tcl()` that `ROITemplateManager` built for a parent with no
+Tk root. Only one test created an interpreter before the camera tests:
+`test_zones_updated_event.py::...dual_mode`. The fallback is gone. An autouse guard
+(`tests/tk_interpreter_guard.py`) fails any test that leaves an interpreter alive. A racy camera
+test now runs its abort on the reader thread. Details: `docs/archive/fixes/2026-11.md` § 1.
+
 ### [2026-11-19] Labirinto de Barnes de ponta a ponta (#633) + perfil do experimento
 
 __ID:__ TASK-088

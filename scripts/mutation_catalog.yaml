@@ -8689,3 +8689,42 @@ _load_registry()"
         description: "os sumarios resolvem a base mas nao a entregam a analise"
         find: "                    window=window,\n                    time_base=time_base,\n                    protocol_inputs=protocol_inputs_of_entry("
         replace: "                    window=window,\n                    protocol_inputs=protocol_inputs_of_entry("
+  roi_template_manager_headless_var:
+    source: src/zebtrack/ui/components/roi_template_manager.py
+    tests:
+      - tests/ui/components/test_roi_template_manager.py
+      - tests/integration/test_zones_updated_event.py
+    mutations:
+      - id: headless-parent-builds-a-tcl
+        description: "#735: sem master Tk o gerenciador volta a criar um Tcl() que ninguem destroi"
+        find: "            self.template_var = _FallbackStringVar(\"\")\n        else:"
+        replace: "            self.template_var = StringVar(master=__import__(\"tkinter\").Tcl(), value=\"\")\n        else:"
+      - id: headless-check-dropped
+        description: "#735: um pai sem raiz Tk deixa de cair na variavel Python"
+        find: "if not isinstance(master, Misc):"
+        replace: "if False:"
+  tk_interpreter_guard:
+    source: tests/tk_interpreter_guard.py
+    tests:
+      - tests/test_tk_interpreter_guard.py
+    mutations:
+      - id: guard-never-reports
+        description: "#735: o guarda deixa de reportar o interpretador que o teste deixou vivo"
+        find: "            if ref() is not None:\n                pending.append((ref, site))"
+        replace: "            if False:\n                pending.append((ref, site))"
+      - id: cycle-left-for-a-worker-thread
+        description: "#735: o guarda nao coleta o ciclo na thread principal"
+        find: "        gc.collect()\n        leaks = []"
+        replace: "        leaks = []"
+      - id: session-root-blamed
+        description: "#735: a raiz da sessao (isenta) passa a reprovar o teste que a criou"
+        find: "if root is None or self._is_exempt(root):"
+        replace: "if root is None:"
+      - id: ttkbootstrap-hold-kept
+        description: "#735: a referencia do registro de temas do ttkbootstrap vira falso vazamento"
+        find: "            del subscribers[name]"
+        replace: "            pass"
+      - id: any-registry-entry-dropped
+        description: "#735: o guarda apaga do registro do ttkbootstrap widgets que nao sao do teste"
+        find: "if any(value is root for value in defaults):"
+        replace: "if True:"

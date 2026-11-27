@@ -8,6 +8,8 @@ from typing import Any
 import pytest
 import structlog
 
+from tests.tk_interpreter_guard import TkInterpreterTracker
+
 # Tkinter may be unavailable in minimal/headless environments (e.g. a Python
 # build without the Tcl/Tk bindings). Import it defensively so that pure-logic
 # tests (tracker, detection geometry, analysis) can still be collected and run.
@@ -206,6 +208,45 @@ def _create_mock_tk_root():
 
 # Run IMMEDIATELY at import time, BEFORE any other imports
 _configure_silent_logging()
+
+
+_TK_TRACKER = TkInterpreterTracker()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _tk_interpreter_tracker():
+    """Record every Tcl/Tk interpreter the session creates (see tk_interpreter_guard)."""
+    if not _TK_AVAILABLE:
+        yield None
+        return
+    _TK_TRACKER.install(tk.Tk)
+    yield _TK_TRACKER
+    _TK_TRACKER.uninstall()
+
+
+@pytest.fixture(autouse=True)
+def _no_tk_interpreter_left_for_the_gc(_tk_interpreter_tracker):
+    """Fail a test that leaves a Tcl/Tk interpreter behind for the garbage collector.
+
+    An interpreter freed by a collection that runs on a worker thread aborts the
+    process with ``Tcl_AsyncDelete: async handler deleted by the wrong thread``
+    — the nightly flakiness job died that way every night (#735), in an
+    innocent camera test. The guard collects a leaked interpreter here, on the
+    main thread, and names the code that created it.
+    """
+    if _tk_interpreter_tracker is None:
+        yield
+        return
+    mark = _tk_interpreter_tracker.mark()
+    yield
+    leaks = _tk_interpreter_tracker.leaks_since(mark)
+    if leaks:
+        pytest.fail(
+            "Test left a Tcl/Tk interpreter for the garbage collector; freed off the "
+            "main thread it aborts the run (#735). Destroy it AND drop every reference "
+            "(mocks record their call arguments), or do not create one:\n\n" + "\n\n".join(leaks),
+            pytrace=False,
+        )
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -510,6 +551,8 @@ def tkinter_session_root():
                     pass
             reason = str(error) if error is not None else "tkinter is unavailable"
             pytest.skip(f"Tk could not be initialized for this session: {reason}")
+        # Meant to outlive every test; it is destroyed below, on the main thread.
+        _TK_TRACKER.exempt(root)
     else:
         warnings.warn("Headless test mode enabled. Using Mock for Tkinter root.", stacklevel=2)
         root = _create_mock_tk_root()

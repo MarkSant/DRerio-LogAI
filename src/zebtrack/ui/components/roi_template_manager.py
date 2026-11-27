@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from tkinter import Misc, StringVar, Tcl, TclError, ttk
+from tkinter import Misc, StringVar, TclError, ttk
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -45,12 +45,20 @@ class ROITemplateManager:
         self.template_var: StringVar | _FallbackStringVar
         master = getattr(gui_parent, "root", None) or getattr(gui_parent, "tk", None)
         if not isinstance(master, Misc):
-            # Fallback to a Tcl interpreter to avoid default-root failures in headless tests.
-            master = Tcl()
-        try:
-            self.template_var = StringVar(master=master, value="")
-        except TclError:
+            # No Tk master (a headless caller): keep the selection in plain Python.
+            # NEVER create a private ``Tcl()`` interpreter here. Nothing destroys
+            # it, so it is freed whenever the garbage collector reaches it — on
+            # whichever thread happens to trigger that collection. Freed off the
+            # main thread, Tcl aborts the whole process with
+            # "Tcl_AsyncDelete: async handler deleted by the wrong thread"; that
+            # is what killed the nightly flakiness job every night (#735).
+            # ``template_var`` is never bound to a widget, so nothing needs Tcl.
             self.template_var = _FallbackStringVar("")
+        else:
+            try:
+                self.template_var = StringVar(master=master, value="")
+            except TclError:
+                self.template_var = _FallbackStringVar("")
         # Delete button reference will be managed via gui or passed in?
         # The plan says self.delete_button = None initially.
         self.delete_button: ttk.Button | None = None

@@ -56,6 +56,14 @@ zebrafish-em-aquário. Plano e contratos em `docs/tasks/v8.1/barnes/`; decisão 
 
 ### Fixed
 
+- **O teste noturno de flakiness (3× a suíte) deixa de abortar com `Tcl_AsyncDelete` (#735).**
+  `ROITemplateManager` criava um `tkinter.Tcl()` próprio quando o pai não tinha raiz Tk e nunca
+  o destruía. Centenas de testes depois, o coletor de ciclos o liberava na thread de leitura da
+  câmera, e o Tcl derrubava o processo inteiro, toda noite, em `tests/io/test_camera.py`. Sem
+  raiz Tk, a seleção agora fica em Python. Um guarda autouse em `tests/conftest.py` reprova o
+  teste que deixa um interpretador Tcl/Tk vivo e aponta a linha que o criou. O teste
+  `test_reconnect_abort_still_stops_when_the_driver_release_fails`, intermitente, agora roda o
+  abort na thread de leitura, como em produção. Nada muda no app.
 - **O batimento do `3c_Objetos_` agora data a gravação em todos os caminhos de análise.**
   A ordem declarada (`3c` > `6_FrameLedger` > PTS da trajetória > fps do settings, com
   aviso) só existia no papel: nenhum chamador de produção passava o `3c`, então um vídeo de
