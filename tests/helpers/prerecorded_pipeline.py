@@ -57,11 +57,14 @@ from zebtrack.settings import Settings, load_settings
 
 __all__ = [
     "ARENA_POLYGON",
+    "BARNES_ENTRY_GONE_FROM",
     "BARNES_FPS",
     "BARNES_ID",
     "BARNES_NAMES",
     "BARNES_ROI_NAMES",
     "BARNES_ROLES",
+    "BARNES_SCENARIOS",
+    "BARNES_SHRINK_FROM",
     "BARNES_TOCA",
     "EXPERIMENT_ID",
     "FPS",
@@ -442,12 +445,71 @@ def barnes_rat_box(frame_index: int) -> tuple[int, int, int, int]:
     return x1, 210, x1 + BARNES_RAT_SIZE, 210 + BARNES_RAT_SIZE
 
 
-def write_barnes_video(path: Path) -> None:
+#: Frames where the ``burrow_entry`` rat shrinks over ``toca`` (k = 0, 1, ...).
+BARNES_SHRINK_FROM = 45
+#: First frame the ``burrow_entry`` rat is gone (into the escape box).
+BARNES_ENTRY_GONE_FROM = 62
+
+
+def _entry_rat_box(frame_index: int) -> tuple[int, int, int, int] | None:
+    """The ``burrow_entry`` scenario (#633): touch, go in over the hole, vanish.
+
+    Frames 15-44 as the escape trial (the encounter: a 13 % touch at frame 40,
+    two thirds of the box over ``toca`` at frame 44). From frame 45 the rat
+    climbs in: its visible box moves 6 px/frame into the hole and loses 7 px of
+    side per frame down to 30 px, so it is at most 35 % of its 60 x 60 size
+    (``(60 - 7k)**2 / 3600``) from k = 4 — frame 49 — and fully over ``toca``.
+    It stays small until frame 61 and is gone from frame 62.
+    """
+    if frame_index < BARNES_SHRINK_FROM:
+        return barnes_rat_box(frame_index) if frame_index in BARNES_RAT_FRAMES else None
+    if frame_index >= BARNES_ENTRY_GONE_FROM:
+        return None
+    k = frame_index - BARNES_SHRINK_FROM
+    size = max(BARNES_RAT_SIZE - 7 * k, 30)
+    centre_x = min(302 + 6 * k, 340)
+    x1 = centre_x - size // 2
+    y1 = 240 - size // 2
+    return x1, y1, x1 + size, y1 + size
+
+
+def _touch_only_rat_box(frame_index: int) -> tuple[int, int, int, int] | None:
+    """The ``touch_only`` scenario: the rat touches ``toca``, then walks away, visible.
+
+    Frames 15-44 as the escape trial; from frame 45 it walks back left at
+    8 px/frame and stays in view (full size) until the end.
+    """
+    if frame_index < 15:
+        return None
+    if frame_index < BARNES_SHRINK_FROM:
+        return barnes_rat_box(frame_index)
+    turn = barnes_rat_box(BARNES_SHRINK_FROM - 1)[0]
+    x1 = max(turn - 8 * (frame_index - BARNES_SHRINK_FROM + 1), 160)
+    return x1, 210, x1 + BARNES_RAT_SIZE, 210 + BARNES_RAT_SIZE
+
+
+def _escape_rat_box(frame_index: int) -> tuple[int, int, int, int] | None:
+    return barnes_rat_box(frame_index) if frame_index in BARNES_RAT_FRAMES else None
+
+
+#: Rat script per scenario: frame -> box, or ``None`` when the rat is not drawn.
+BARNES_SCENARIOS: dict[str, Any] = {
+    "escape": _escape_rat_box,
+    "burrow_entry": _entry_rat_box,
+    "touch_only": _touch_only_rat_box,
+}
+
+
+def write_barnes_video(path: Path, scenario: str = "escape") -> None:
     """Synthetic Barnes trial: experimenter and start box leave, the rat escapes.
+
+    ``scenario`` picks the rat's script (:data:`BARNES_SCENARIOS`); the start box
+    and the experimenter are the same in all of them.
 
     Raises:
         RuntimeError: No usable codec (callers skip).
     """
+    rat_box = BARNES_SCENARIOS[scenario]
     fourcc = cast(Any, cv2).VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(path), fourcc, BARNES_FPS, (WIDTH, HEIGHT))
     if not writer.isOpened():
@@ -459,8 +521,9 @@ def write_barnes_video(path: Path) -> None:
                 cv2.rectangle(frame, (40, 340), (139, 439), _BARNES_COLOURS[3], -1)
             if i <= BARNES_EXPERIMENTER_UNTIL:
                 cv2.rectangle(frame, (40, 40), (139, 139), _BARNES_COLOURS[1], -1)
-            if i in BARNES_RAT_FRAMES:
-                x1, y1, x2, y2 = barnes_rat_box(i)
+            box = rat_box(i)
+            if box is not None:
+                x1, y1, x2, y2 = box
                 cv2.rectangle(frame, (x1, y1), (x2 - 1, y2 - 1), _BARNES_COLOURS[2], -1)
             writer.write(frame)
     finally:
@@ -510,7 +573,11 @@ class BarnesRun:
 
 
 def run_barnes_pipeline(
-    workdir: Path, settings: Settings, *, single_subject: bool = True
+    workdir: Path,
+    settings: Settings,
+    *,
+    single_subject: bool = True,
+    scenario: str = "escape",
 ) -> BarnesRun:
     """Run the REAL pre-recorded worker on the synthetic Barnes trial.
 
@@ -520,12 +587,13 @@ def run_barnes_pipeline(
 
     ``single_subject=False`` runs the detector in multi-subject mode, the one
     that wrote the rat's unconfirmed first frame with no id (#671).
+    ``scenario`` picks the rat's script (:data:`BARNES_SCENARIOS`).
     """
     from zebtrack.core.detection.class_roles import resolve_class_role_map
 
     workdir.mkdir(parents=True, exist_ok=True)
     video_path = workdir / f"{BARNES_ID}.mp4"
-    write_barnes_video(video_path)
+    write_barnes_video(video_path, scenario)
     output_dir = workdir / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
 

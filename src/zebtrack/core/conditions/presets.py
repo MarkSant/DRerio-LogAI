@@ -9,8 +9,13 @@ Like the rest of the package this module is pure: no Tk, no settings, no detecto
 
 from __future__ import annotations
 
+from typing import Any
+
+from pydantic import ValidationError
+
 from zebtrack.core.conditions.model import (
     AllOfLevel,
+    BurrowEntry,
     ClassPresence,
     ClassTarget,
     Delay,
@@ -32,6 +37,8 @@ __all__ = [
     "LEGACY_TRIGGER_START_CODE",
     "LEGACY_TRIGGER_STOP_CODE",
     "barnes_maze_preset",
+    "barnes_maze_preset_v1_arguments",
+    "barnes_maze_preset_v2",
     "external_trigger_preset",
 ]
 
@@ -104,7 +111,26 @@ def barnes_maze_preset(
         raise ValueError(f"max_s must be positive, got {max_s!r}")
     if burrow_roi is not None and not burrow_roi.strip():
         raise ValueError(f"burrow_roi must be a ROI name or None, got {burrow_roi!r}")
-    start = Persist(
+    start = _barnes_release(k_frames)
+    stop_lines: list[TriggerNode] = [
+        EndOfStream(),
+        Persist(
+            level=ClassPresence(
+                target=ClassTarget.of_class(BARNES_SUBJECT_CLASS),
+                present=False,
+            ),
+            hold=Hold(seconds=absent_s),
+        ),
+    ]
+    if burrow_roi is not None:
+        stop_lines.append(RoiEdge(roi=burrow_roi, edge="enter"))
+    stop_lines.append(Delay(after="start", seconds=max_s))
+    return WindowSpec(start=start, stop=FirstOf(children=tuple(stop_lines)))
+
+
+def _barnes_release(k_frames: int) -> Persist:
+    """START of every Barnes preset: box and experimenter gone, rat visible, held."""
+    return Persist(
         level=AllOfLevel(
             children=(
                 ClassPresence(
@@ -123,20 +149,98 @@ def barnes_maze_preset(
         ),
         hold=Hold(frames=k_frames),
     )
-    stop_lines: list[TriggerNode] = [
-        EndOfStream(),
-        Persist(
-            level=ClassPresence(
-                target=ClassTarget.of_class(BARNES_SUBJECT_CLASS),
-                present=False,
-            ),
-            hold=Hold(seconds=absent_s),
-        ),
-    ]
-    if burrow_roi is not None:
-        stop_lines.append(RoiEdge(roi=burrow_roi, edge="enter"))
-    stop_lines.append(Delay(after="start", seconds=max_s))
-    return WindowSpec(start=start, stop=FirstOf(children=tuple(stop_lines)))
+
+
+def barnes_maze_preset_v2(
+    *,
+    k_frames: int = 5,
+    max_s: float = 240.0,
+    burrow_roi: str = BARNES_BURROW_ROI,
+    entry_min_cover: float = 0.5,
+    entry_max_visible_fraction: float = 0.35,
+    entry_hold_s: float = 0.5,
+    entry_absent_s: float = 3.0,
+    entry_min_reference_frames: int = 10,
+) -> WindowSpec:
+    """Barnes-maze window v2 (#633): stop on the ENTRY into the escape hole.
+
+    - **START** — identical to :func:`barnes_maze_preset` (v1).
+    - **STOP** — the first of, in this order: the recording ends; the rat ENTERS
+      ``burrow_roi`` (:class:`~zebtrack.core.conditions.model.BurrowEntry`, reason
+      ``burrow_entry``); ``max_s`` seconds after START (protocol ceiling,
+      censored).
+
+    v1 stops on ``RoiEdge(burrow_roi, "enter")``, which under the default
+    ``bbox_intersects`` rule fires on the first TOUCH of the hole — a nose poke —
+    so the interval between the encounter and the entry fell outside the window.
+    v2 waits for the entry, recognised from the box geometry because the rat
+    weight is detection-only:
+
+    - **(a)** at least ``entry_min_cover`` of the visible box is over the hole and
+      its area is at most ``entry_max_visible_fraction`` of the rat's running
+      median size since START (once ``entry_min_reference_frames`` detected frames
+      make that median), held ``entry_hold_s`` seconds;
+    - **(b)** the rat vanished for ``entry_absent_s`` seconds with its last box
+      over the hole.
+
+    Both are back-dated to the first frame of their run. A rat that never enters
+    is censored at the ceiling. The keyword names mirror ``BarnesParams``
+    (``analysis/protocols/barnes/contract.py``), which imports this module, so it
+    cannot be passed here directly.
+
+    Raises:
+        ValueError: ``max_s`` is not positive, or ``burrow_roi`` is blank.
+            ``pydantic.ValidationError`` for an out-of-range entry parameter.
+    """
+    if not max_s > 0:
+        raise ValueError(f"max_s must be positive, got {max_s!r}")
+    if not burrow_roi.strip():
+        raise ValueError(f"burrow_roi must be a ROI name, got {burrow_roi!r}")
+    entry = BurrowEntry(
+        roi=burrow_roi,
+        min_cover=entry_min_cover,
+        max_visible_fraction=entry_max_visible_fraction,
+        hold=Hold(seconds=entry_hold_s),
+        absent_s=entry_absent_s,
+        min_reference_frames=entry_min_reference_frames,
+    )
+    return WindowSpec(
+        start=_barnes_release(k_frames),
+        stop=FirstOf(children=(EndOfStream(), entry, Delay(after="start", seconds=max_s))),
+    )
+
+
+def barnes_maze_preset_v1_arguments(spec: WindowSpec | None) -> dict[str, Any] | None:
+    """The arguments that make :func:`barnes_maze_preset` (v1) return ``spec`` exactly.
+
+    ``None`` when ``spec`` is not a v1 Barnes preset (or was edited after it was
+    applied). The editor uses it to OFFER the update to v2 — keeping the
+    researcher's ``k_frames``, ``max_s`` and burrow ROI — never to apply it.
+    """
+    if spec is None or not isinstance(spec.start, Persist) or not isinstance(spec.stop, FirstOf):
+        return None
+    children = spec.stop.children
+    if len(children) not in (3, 4):
+        return None
+    absence, ceiling = children[1], children[-1]
+    burrow = children[2] if len(children) == 4 else None
+    if not isinstance(absence, Persist) or absence.hold.seconds is None:
+        return None
+    if not isinstance(ceiling, Delay) or (burrow is not None and not isinstance(burrow, RoiEdge)):
+        return None
+    arguments: dict[str, Any] = {
+        "k_frames": spec.start.hold.frames,
+        "absent_s": absence.hold.seconds,
+        "max_s": ceiling.seconds,
+        "burrow_roi": None if burrow is None else burrow.roi,
+    }
+    if arguments["k_frames"] is None:
+        return None
+    try:
+        rebuilt = barnes_maze_preset(**arguments)
+    except (ValueError, ValidationError):
+        return None
+    return arguments if rebuilt == spec else None
 
 
 def external_trigger_preset(

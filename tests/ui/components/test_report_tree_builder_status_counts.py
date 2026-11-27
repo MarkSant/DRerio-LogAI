@@ -10,6 +10,8 @@ Semântica dos cards (derivada dos dados em disco, não do status cru):
 
 from __future__ import annotations
 
+import pytest
+
 from zebtrack.ui.components.project_views.report_tree_builder import ReportTreeBuilder
 
 
@@ -215,3 +217,189 @@ def test_project_overview_summary_uses_shared_counts():
     manager.gui.project_overview_widget.update_summary.assert_called_once_with(expected)
     assert expected["total"] == 12
     assert expected["pending"] == 6
+
+
+# ---------------------------------------------------------------------------
+# Barnes (#633): manual correction of the automatic search strategy
+# ---------------------------------------------------------------------------
+
+_BARNES_PROJECT: dict = {"behavioral_config": {"protocol": "barnes"}}
+
+
+class _StrategyProject:
+    """ProjectManager with video entries found by PATH and a save that can fail."""
+
+    def __init__(self, entries: list[dict], project_data: dict, *, fail_save: bool = False):
+        self.project_data = project_data
+        self._entries = {e["path"]: e for e in entries}
+        self._fail_save = fail_save
+        self.saves = 0
+
+    def find_video_entry(self, *, path=None, experiment_id=None):
+        return self._entries.get(str(path))
+
+    def save_project(self) -> None:
+        self.saves += 1
+        if self._fail_save:
+            raise OSError("disk full")
+
+
+def _correction(entries, project_data=None, **kwargs):
+    from zebtrack.ui.components.project_views.report_tree_builder import BarnesStrategyCorrection
+
+    project = _StrategyProject(
+        entries, _BARNES_PROJECT if project_data is None else project_data, **kwargs
+    )
+    return BarnesStrategyCorrection(project_manager_getter=lambda: project), project
+
+
+def test_a_barnes_video_offers_automatic_and_the_three_strategies():
+    correction, _project = _correction([{"path": "a.mp4"}])
+
+    choices = correction.choices("a.mp4")
+
+    assert [(c.label, c.value, c.selected) for c in choices] == [
+        ("Automatic", None, True),
+        ("Direct", "direct", False),
+        ("Serial", "serial", False),
+        ("Random", "random", False),
+    ]
+
+
+def test_the_current_correction_is_the_selected_choice():
+    entry = {"path": "a.mp4", "protocol_inputs": {"barnes": {"strategy_override": "serial"}}}
+    correction, _project = _correction([entry])
+
+    selected = [c.value for c in correction.choices("a.mp4") if c.selected]
+
+    assert selected == ["serial"]
+
+
+@pytest.mark.parametrize(
+    "project_data",
+    [{}, {"behavioral_config": {"protocol": "generic"}}, {"behavioral_config": {}}],
+)
+def test_a_generic_project_has_no_strategy_menu_and_cannot_be_written(project_data):
+    correction, project = _correction([{"path": "a.mp4"}], project_data)
+
+    assert correction.choices("a.mp4") == []
+    assert correction.set_override("a.mp4", "direct") is False
+    assert project.saves == 0
+
+
+def test_an_unknown_or_multi_aquarium_video_is_not_offered():
+    entries = [{"path": "multi.mp4", "multi_aquarium_outputs": {"0": {}}}]
+    correction, _project = _correction(entries)
+
+    assert correction.choices("missing.mp4") == []
+    assert correction.choices("multi.mp4") == []
+    assert correction.set_override("multi.mp4", "direct") is False
+
+
+def test_applying_a_strategy_writes_the_protocol_input_and_saves_once():
+    entry = {"path": "a.mp4", "protocol_inputs": {"barnes": {"trial_type": "probe"}}}
+    correction, project = _correction([entry])
+
+    assert correction.set_override("a.mp4", "random") is True
+
+    assert entry["protocol_inputs"] == {
+        "barnes": {"trial_type": "probe", "strategy_override": "random"}
+    }
+    assert project.saves == 1
+
+
+def test_clearing_removes_only_the_correction_and_empty_blocks():
+    both = {
+        "path": "a.mp4",
+        "protocol_inputs": {"barnes": {"trial_type": "probe", "strategy_override": "serial"}},
+    }
+    only = {"path": "b.mp4", "protocol_inputs": {"barnes": {"strategy_override": "serial"}}}
+    correction, project = _correction([both, only])
+
+    assert correction.set_override("a.mp4", None) is True
+    assert correction.set_override("b.mp4", None) is True
+
+    assert both["protocol_inputs"] == {"barnes": {"trial_type": "probe"}}
+    assert "protocol_inputs" not in only
+    assert project.saves == 2
+
+
+def test_an_unknown_token_is_refused_and_nothing_is_saved():
+    entry = {"path": "a.mp4"}
+    correction, project = _correction([entry])
+
+    assert correction.set_override("a.mp4", "wandering") is False
+
+    assert "protocol_inputs" not in entry
+    assert project.saves == 0
+
+
+def test_a_failed_save_restores_the_previous_correction():
+    entry = {"path": "a.mp4", "protocol_inputs": {"barnes": {"strategy_override": "serial"}}}
+    correction, project = _correction([entry], fail_save=True)
+
+    assert correction.set_override("a.mp4", "random") is False
+    assert entry["protocol_inputs"] == {"barnes": {"strategy_override": "serial"}}
+
+    fresh = {"path": "b.mp4"}
+    correction, _project = _correction([fresh], fail_save=True)
+    assert correction.set_override("b.mp4", "direct") is False
+    assert "protocol_inputs" not in fresh
+    assert project.saves == 1
+
+
+def test_videos_are_found_by_path_so_repeated_ids_stay_apart():
+    day1 = {"path": "Dia_1/R4.mp4", "experiment_id": "R4"}
+    day2 = {"path": "Dia_2/R4.mp4", "experiment_id": "R4"}
+    correction, _project = _correction([day1, day2])
+
+    correction.set_override("Dia_2/R4.mp4", "serial")
+
+    assert "protocol_inputs" not in day1
+    assert day2["protocol_inputs"] == {"barnes": {"strategy_override": "serial"}}
+
+
+def test_the_message_says_to_regenerate_and_differs_when_the_correction_is_removed():
+    from zebtrack.ui.components.project_views.report_tree_builder import BarnesStrategyCorrection
+
+    saved = BarnesStrategyCorrection.regenerate_message("serial")
+    removed = BarnesStrategyCorrection.regenerate_message(None)
+
+    assert "Regenerate" in saved
+    assert "automatic" in removed
+    assert saved != removed
+
+
+def test_a_failed_save_restores_the_exact_stored_token_even_a_malformed_one():
+    entry = {"path": "a.mp4", "protocol_inputs": {"barnes": {"strategy_override": "wandering"}}}
+    correction, _project = _correction([entry], fail_save=True)
+
+    assert correction.set_override("a.mp4", "serial") is False
+
+    assert entry["protocol_inputs"] == {"barnes": {"strategy_override": "wandering"}}
+
+
+def test_a_failed_save_leaves_no_empty_block_that_was_not_there():
+    bare = {"path": "a.mp4"}
+    other = {"path": "b.mp4", "protocol_inputs": {"other": {"k": 1}}}
+    correction, _project = _correction([bare, other], fail_save=True)
+
+    assert correction.set_override("a.mp4", "direct") is False
+    assert correction.set_override("b.mp4", "direct") is False
+
+    assert "protocol_inputs" not in bare
+    assert other["protocol_inputs"] == {"other": {"k": 1}}
+
+
+def test_a_failed_clear_puts_the_correction_back():
+    entry = {
+        "path": "a.mp4",
+        "protocol_inputs": {"barnes": {"trial_type": "probe", "strategy_override": "serial"}},
+    }
+    correction, _project = _correction([entry], fail_save=True)
+
+    assert correction.set_override("a.mp4", None) is False
+
+    assert entry["protocol_inputs"] == {
+        "barnes": {"trial_type": "probe", "strategy_override": "serial"}
+    }

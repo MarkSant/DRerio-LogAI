@@ -218,6 +218,79 @@ def test_generate_summaries_applies_the_analysis_window(view_model, tmp_path):
     assert call.kwargs["window"] is sentinel
 
 
+def test_generate_summaries_hands_the_project_profile_to_the_protocol_hook(
+    view_model, tmp_path, monkeypatch
+):
+    """A Barnes project analysed from "Generate summaries" reaches its protocol (ADR-014).
+
+    Without the project's behavioural config the analysis fell back to the settings
+    defaults, which carry no profile, and the protocol metrics read status none.
+    """
+    import pandas as pd
+
+    from zebtrack.analysis.analysis_service import AnalysisService
+    from zebtrack.analysis.protocols import registry
+    from zebtrack.analysis.protocols.base import ProtocolSpec
+    from zebtrack.core.services.experiment_profile import ProtocolId
+    from zebtrack.settings import load_settings
+
+    seen = []
+
+    def compute(context):
+        seen.append(context)
+        return {"status": "ok", "protocol": "barnes", "version": 1, "reason": None}
+
+    spec = ProtocolSpec(
+        protocol=ProtocolId.BARNES, display_name=lambda: "Barnes", compute_metrics=compute
+    )
+    monkeypatch.setattr(registry, "_registry", registry._build_registry((spec,)))
+
+    frames = list(range(40))
+    xs = [100.0 + 2.0 * f for f in frames]
+    pd.DataFrame(
+        {
+            "timestamp": [f / 10 for f in frames],
+            "frame": frames,
+            "track_id": [1] * len(frames),
+            "x1": [x - 5 for x in xs],
+            "y1": [195.0] * len(frames),
+            "x2": [x + 5 for x in xs],
+            "y2": [205.0] * len(frames),
+            "confidence": [0.9] * len(frames),
+            "x_center_px": xs,
+            "y_center_px": [200.0] * len(frames),
+        }
+    ).to_parquet(tmp_path / "3_CoordMovimento_exp1.parquet")
+    pm = view_model.project_manager
+    pm.find_video_entry.return_value = {
+        "experiment_id": "exp1",
+        "metadata": {},
+        "protocol_inputs": {"barnes": {"trial_type": "probe"}},
+    }
+    pm.resolve_results_directory.return_value = str(tmp_path)
+    pm.project_data = {"behavioral_config": {"protocol": "barnes"}, "calibration": {}}
+    pm.get_zone_data.return_value = SimpleNamespace(
+        polygon=[(0, 0), (400, 0), (400, 400), (0, 400)],
+        roi_polygons=[[(10, 10), (60, 10), (60, 60), (10, 60)]],
+        roi_names=["toca"],
+        roi_colors=[],
+    )
+    view_model.analysis_service = AnalysisService(settings_obj=load_settings())
+
+    with (
+        patch("zebtrack.analysis.reporters.ReporterContext"),
+        patch("zebtrack.analysis.reporters.ExcelReporter"),
+        patch("zebtrack.analysis.reporters.ParquetSummaryReporter"),
+        patch("zebtrack.analysis.reporters.WordReporter"),
+        patch("zebtrack.core.video.video_metadata_service.VideoMetadataService"),
+    ):
+        view_model._generate_summaries_impl(["v.mp4"])
+
+    (context,) = seen
+    assert context.profile.protocol is ProtocolId.BARNES
+    assert dict(context.inputs) == {"trial_type": "probe"}
+
+
 # ---------------------------------------------------------------------------
 # Workflow entry points
 # ---------------------------------------------------------------------------

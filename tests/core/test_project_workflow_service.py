@@ -2475,6 +2475,53 @@ class TestCreationSideEffects:
         (update,) = service.state_manager.updates  # type: ignore[attr-defined]
         assert update["project_path"] == Path(pm.project_path)
 
+    def test_the_experiment_profile_is_persisted_and_read_back_by_the_single_resolver(
+        self, tmp_path
+    ):
+        from zebtrack.core.project.project_manager import ProjectManager
+        from zebtrack.core.services.experiment_profile import (
+            AnimalModel,
+            ProtocolId,
+            resolve_experiment_profile,
+        )
+
+        pm = _real_pm(tmp_path)
+        service = _service(pm)
+        block = {
+            "animal_model": "rodent",
+            "protocol": "barnes",
+            "protocol_params": {"barnes": {"table_diameter_cm": 150.0}},
+            "aquarium_perspective": "top_down",
+        }
+
+        service._persist_project_data({"behavioral_analysis": block})
+
+        reloaded = ProjectManager(settings_obj=None)
+        reloaded.load_project(pm.project_path)
+        profile = resolve_experiment_profile(project_data=reloaded.project_data)
+        assert profile.protocol is ProtocolId.BARNES
+        assert profile.animal_model is AnimalModel.RODENT
+        assert profile.protocol_params["table_diameter_cm"] == 150.0
+        assert profile.warnings == ()
+
+    def test_a_project_without_profile_keys_reads_as_legacy_zebrafish_generic(self, tmp_path):
+        from zebtrack.core.project.project_manager import ProjectManager
+        from zebtrack.core.services.experiment_profile import (
+            AnimalModel,
+            resolve_experiment_profile,
+        )
+
+        pm = _real_pm(tmp_path)
+        service = _service(pm)
+
+        service._persist_project_data({"behavioral_analysis": {"thigmotaxis_distance_cm": 2.0}})
+
+        reloaded = ProjectManager(settings_obj=None)
+        reloaded.load_project(pm.project_path)
+        profile = resolve_experiment_profile(project_data=reloaded.project_data)
+        assert profile.is_generic
+        assert profile.animal_model is AnimalModel.ZEBRAFISH
+
     def test_runtime_defaults_fill_missing_values(self):
         service = _service(settings=SimpleNamespace(openvino=SimpleNamespace(device=None)))
         service.set_global_model_defaults("g.pt", True)

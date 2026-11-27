@@ -198,6 +198,39 @@ block in `scripts/mutation_catalog.yaml`; run it with
 | `src/zebtrack/locales/_pairs/*.json` (removing a `_()` string) | `tests/i18n/test_pairs_not_orphaned.py` (every pair names a msgid still in the `.po`; an orphan stops `update_translations.py` before the `.mo` is compiled) |
 | `src/zebtrack/locales/*` (any new `_()`) | `tests/i18n/test_pot_in_sync.py` (every source msgid is in the `.pot`), `tests/i18n/test_catalog_integrity.py` |
 
+## v8.1 modules (experiment profile, protocols, Barnes maze — #633)
+
+Plan and contracts: [`docs/tasks/v8.1/barnes/`](../tasks/v8.1/barnes/). Mutation blocks live in
+the `# --- Barnes v8.1 <front> ---` sections of `scripts/mutation_catalog.yaml`.
+
+| Source | Tests |
+| --- | --- |
+| `core/services/experiment_profile.py` (`resolve_experiment_profile`, `set_protocol_param`) | `tests/core/services/test_experiment_profile.py` (`TestSetProtocolParam`); single-home reads guarded by `tests/quality/test_single_source_rules.py` |
+| `analysis/protocols/{base,registry}.py`, hook in `analysis_service.py` | `tests/analysis/protocols/test_protocol_base.py`, `test_protocol_registry.py` (`test_barnes_is_the_only_built_in_protocol`), `tests/analysis/test_analysis_service.py` |
+| `analysis/protocols/barnes/contract.py` (names, `BarnesParams`, `infer_n_holes`) | `tests/analysis/protocols/barnes/test_barnes_contract.py` |
+| `analysis/protocols/barnes/{layout,visits,strategy,metrics,spec}.py` | `tests/analysis/protocols/barnes/test_barnes_{layout,visits,strategy,metrics,spec}.py` (builders: `barnes_builders.py`; two end-to-end runs through `AnalysisService.run_full_analysis`) |
+| `core/detection/barnes_geometry.py` | `tests/core/detection/test_barnes_geometry.py` (`TestHoleCount`; synthetic tables: `tests/helpers/barnes_synthetic.py`) |
+| `ui/dialogs/barnes_layout_dialog.py` | `tests/ui/dialogs/test_barnes_layout_dialog.py` (gui; `TestStatusNotes`) |
+| Barnes write path (`MultiAquariumCoordinator.apply_barnes_layout`) | `tests/coordinators/test_multi_aquarium_coordinator.py` (`TestBarnesLayoutApply`, `TestBarnesLayoutApplyIsAllOrNothing`) |
+| Barnes assistant button and table detection (`event_dispatcher.py`, `zone_controls.py`) | `tests/ui/components/test_event_dispatcher.py::TestBarnesAssistant`, `tests/ui/components/test_zone_controls_widget.py` |
+| `core/conditions/subject_geometry.py` | `tests/core/conditions/test_subject_geometry.py` |
+| Entry nodes (`SubjectOverRoi`, `SubjectVisibleFraction`, `LastSeenIn`, `BurrowEntry`), `barnes_maze_preset_v2` | `tests/core/conditions/test_evaluator.py` (`TestSubjectOverRoi`, `TestSubjectVisibleFraction`, `TestLastSeenIn`, `TestBurrowEntry`), `test_model.py::TestSubjectGeometryRule`, `test_presets.py`, `test_artifact.py` |
+| `core/recording/condition_runtime.py` (entry geometry, parity, cost) | `tests/core/recording/test_condition_runtime.py` (`TestBarnesEntryParity`, `TestRuntimeGeometryCost`, `TestRuntimeMissingGeometryInputs`, `TestPipelineGeometryInputs`) |
+| `analysis/window_observations.py` (geometry only when the spec reads it) | `tests/analysis/test_window_observations.py::TestGeometryOnlyWhenTheSpecReadsIt` |
+| Barnes window end to end (encounter vs entry) | `tests/integration/test_barnes_window_e2e.py` (`burrow_entry`, `touch_only`) |
+| `ui/components/analysis_window_panel.py` (entry lines, v1 → v2 update) | `tests/ui/components/test_analysis_window_panel.py` |
+| Wizard profile (`discovery_step`, `calibration_step`, `models`, `templates`) | `tests/ui/wizard/test_wizard_foundation.py`, `test_calibration_step.py` (`TestWizardProfileEndToEnd`), `test_wizard_templates.py` (`TestProtocolWindowSpec`), `test_wizard_edge_cases.py` |
+| `ui/components/behavioral_config_widget.py`, ad-hoc dialogs (profile combos) | `tests/ui/components/test_behavioral_config_widget.py`, `tests/test_live_analysis_ui.py`, `tests/test_single_video_config.py` |
+| `analysis/behavioral_policy.py` (per-animal defaults) | `tests/analysis/test_behavioral_policy.py` |
+| `analysis/data_transformer.py` (`barnes_*` columns) | `tests/analysis/reporters/test_barnes_tidy.py` |
+| `analysis/reporters/barnes_section.py`, Barnes parts of `word_reporter.py`, `excel_reporter.py`, `visualization_generator.py` | `tests/analysis/reporters/test_barnes_individual_report.py` (builders: `barnes_report_builders.py`) |
+| `analysis/reporters/barnes_aggregates.py` | `tests/analysis/reporters/test_barnes_aggregates.py` |
+| `analysis/reporters/project_reporter.py` (protocol metric lists) | `tests/analysis/reporters/test_project_reporter_extended.py` |
+| Unified/partial Barnes aggregates | `tests/coordinators/test_unified_report.py`, `tests/ui/dialogs/test_block_detail_dialog.py` |
+| Manual strategy correction (`report_tree_builder.py`, `reports_tree_manager.py`, `menu_manager.py`) | `tests/ui/components/test_report_tree_builder_status_counts.py`, `test_reports_tree_manager_extended.py`, `test_menu_manager.py` |
+| `ui/terminology.py` and the re-worded surfaces | `tests/ui/test_terminology.py`, `tests/ui/test_animal_terms_surfaces.py`, `tests/coordinators/test_dialog_coordinator.py`, `tests/coordinators/test_live_calibration_coordinator.py` |
+| `scripts/barnes_validation.py` | `tests/scripts/test_barnes_validation.py` |
+
 ## Special markers
 
 - `@pytest.mark.gui` — GUI tests, run with `-n0` (sequential), excluded by default

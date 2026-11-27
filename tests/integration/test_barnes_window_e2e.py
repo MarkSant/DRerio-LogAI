@@ -30,7 +30,9 @@ import pytest
 
 from tests.helpers.prerecorded_pipeline import (
     BARNES_ARENA,
+    BARNES_ENTRY_GONE_FROM,
     BARNES_ROI_NAMES,
+    BARNES_SHRINK_FROM,
     BARNES_TOCA,
     BarnesRun,
     load_pristine_settings,
@@ -45,7 +47,7 @@ from zebtrack.analysis.analysis_window_service import (
 from zebtrack.analysis.roi_builder import build_rois_from_zone_polygons
 from zebtrack.analysis.time_base import resolve_time_base
 from zebtrack.core.conditions import read_artifact
-from zebtrack.core.conditions.presets import barnes_maze_preset
+from zebtrack.core.conditions.presets import barnes_maze_preset, barnes_maze_preset_v2
 from zebtrack.io.object_sidecar import HEARTBEAT_CLASS_ID, read_object_sidecar
 
 pytestmark = pytest.mark.integration
@@ -263,6 +265,142 @@ def test_multi_subject_mode_reports_one_rat(barnes_multi):
 
     assert report["analise_roi"]["n_animais"] == 1
     assert report["validacao"]["estatisticas"]["unique_tracks"] == 1
+
+
+# ---------------------------------------------------------------------------
+# #633: preset v2 — the window stops on the burrow ENTRY, not on the touch.
+#
+#     frames 15-44  the rat walks to toca; first touch (encounter) at frame 40
+#     frames 45-61  burrow_entry: it climbs in, its visible box shrinking over
+#                   toca to <= 35 % of its usual size from frame 49
+#     frames 62-89  burrow_entry: gone (four paws in)
+#     frames 45-89  touch_only: it walks away and stays in view
+# ---------------------------------------------------------------------------
+
+
+def _run_scenario(tmp_path_factory, name: str) -> tuple[BarnesRun, pd.DataFrame]:
+    settings = load_pristine_settings()
+    try:
+        run = run_barnes_pipeline(tmp_path_factory.mktemp(name), settings, scenario=name)
+    except RuntimeError as exc:  # no codec on this machine
+        pytest.skip(f"Cannot build the Barnes fixture video: {exc}")
+    return run, pd.read_parquet(run.trajectory_path)
+
+
+@pytest.fixture(scope="module")
+def barnes_entry(tmp_path_factory) -> tuple[BarnesRun, pd.DataFrame]:
+    return _run_scenario(tmp_path_factory, "burrow_entry")
+
+
+@pytest.fixture(scope="module")
+def barnes_touch(tmp_path_factory) -> tuple[BarnesRun, pd.DataFrame]:
+    return _run_scenario(tmp_path_factory, "touch_only")
+
+
+def _resolve_v2(run: BarnesRun, trajectory: pd.DataFrame, **preset) -> WindowResolution:
+    spec = barnes_maze_preset_v2(k_frames=K_FRAMES, **preset)
+    project = {"analysis_window": spec.model_dump(mode="json", by_alias=True)}
+    service = AnalysisService(settings_obj=load_pristine_settings())
+    window = resolve_analysis_window(
+        project,
+        run.trajectory_path,
+        trajectory_df=trajectory,
+        rois=_rois(),
+        roi_rule=service.resolve_roi_rule(),
+    )
+    assert window is not None
+    return window
+
+
+def test_entry_trial_records_the_shrinking_rat(barnes_entry):
+    _run, trajectory = barnes_entry
+    areas = (trajectory["x2"] - trajectory["x1"]) * (trajectory["y2"] - trajectory["y1"])
+    by_frame = dict(zip(trajectory["frame"], areas, strict=True))
+
+    assert by_frame[30] == 3600
+    assert by_frame[BARNES_SHRINK_FROM + 4] <= 0.35 * 3600
+    assert int(trajectory["frame"].max()) == BARNES_ENTRY_GONE_FROM - 1
+
+
+def test_v2_stops_on_the_entry_not_on_the_touch(barnes_entry):
+    """(a) over the hole and small, held 0.5 s, back-dated to its first frame (49)."""
+    run, trajectory = barnes_entry
+
+    window = _resolve_v2(run, trajectory)
+
+    assert window.status == "complete"
+    assert window.start is not None and window.stop is not None
+    assert (window.start.frame, window.start.reason) == (25, "persist")
+    assert (window.stop.frame, window.stop.reason) == (BARNES_SHRINK_FROM + 4, "burrow_entry")
+    assert window.stop.t_s == pytest.approx(4.9)
+    assert window.censored is False
+    artifact = read_artifact(analysis_window_artifact_path(run.trajectory_path))
+    assert artifact is not None and artifact.offline is not None
+    assert artifact.offline.stop is not None and artifact.offline.stop.reason == "burrow_entry"
+
+
+def test_v1_on_the_same_trial_stops_on_the_encounter(barnes_entry):
+    """The bug v2 fixes: v1's ``RoiEdge`` fires on the 13 % touch at frame 40."""
+    run, trajectory = barnes_entry
+
+    window = _resolve(run, trajectory)
+
+    assert window.stop is not None
+    assert (window.stop.frame, window.stop.reason) == (40, "roi_edge")
+
+
+def test_v2_keeps_the_encounter_to_entry_interval_in_the_metrics(barnes_entry):
+    run, trajectory = barnes_entry
+    window = _resolve_v2(run, trajectory)
+
+    report = _analyse(trajectory, window)
+
+    assert report["analysis_window"]["stop"]["frame"] == 49
+    # The encounter (the ROI rule's first entry) is 1.5 s after START, inside the window.
+    assert report["analise_roi"]["latencia_primeira_entrada"]["toca"] == pytest.approx(1.5)
+    assert report["latency_censored"]["toca"] is False
+    assert report["comportamento_geral"]["total_frames_analisados"] == 25
+
+
+def test_v2_entry_by_vanishing_into_the_hole(barnes):
+    """(b): the escape-trial rat never shrinks; it vanishes fully over toca at frame 70."""
+    run, trajectory = barnes
+
+    window = _resolve_v2(run, trajectory, entry_absent_s=1.0)
+
+    assert window.stop is not None
+    assert (window.stop.frame, window.stop.reason) == (70, "burrow_entry")
+    assert window.censored is False
+
+
+def test_v2_vanishing_shorter_than_absent_s_is_censored(barnes):
+    """The default 3 s of absence never completes before the video ends: end of stream."""
+    run, trajectory = barnes
+
+    window = _resolve_v2(run, trajectory)
+
+    assert window.stop is not None
+    assert window.stop.reason == "end_of_stream"
+    assert window.censored is True
+
+
+def test_v2_never_entered_is_censored_at_the_ceiling(barnes_touch):
+    """A touch and a walk away: no entry, so the protocol ceiling closes the trial.
+
+    The engine flags only an end-of-stream STOP as ``censored``; a ceiling is a
+    ``complete`` window whose STOP reason is ``delay`` — the reason the Barnes
+    metrics read as "no entry, censored at ``max_trial_s``" (CONTRACTS §6).
+    """
+    run, trajectory = barnes_touch
+
+    window = _resolve_v2(run, trajectory, max_s=4.0)
+
+    assert window.status == "complete"
+    assert window.stop is not None
+    assert (window.stop.frame, window.stop.reason) == (65, "delay")
+    assert window.window_duration_s == pytest.approx(4.0)
+    report = _analyse(trajectory, window)
+    assert report["latency_censored"]["toca"] is False  # the touch still counts as a visit
 
 
 def test_multi_subject_mode_window_matches_single_subject_mode(barnes, barnes_multi):

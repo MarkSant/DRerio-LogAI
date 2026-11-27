@@ -35,6 +35,7 @@ from zebtrack.core.services.session_duration_resolver import (
 )
 from zebtrack.i18n import _
 from zebtrack.ui.background_task import run_in_background
+from zebtrack.ui.terminology import animal_model_of, term
 from zebtrack.utils.report_files import find_summary_excel_file, has_summary_excel_output
 
 if TYPE_CHECKING:
@@ -225,7 +226,10 @@ class BlockDetailDialog(Toplevel):
 
         Label(
             list_frame,
-            text=_("🐟 Subjects"),
+            text=term(
+                "subject.list_title",
+                animal_model_of(getattr(self.project_manager, "project_data", None)),
+            ),
             font=("Segoe UI", 11, "bold"),
         ).pack(anchor="w", pady=(0, 10))
 
@@ -1350,6 +1354,9 @@ class BlockDetailDialog(Toplevel):
             col
             for col in unified_df.columns
             if col != "analysis_timestamp"
+            # The Barnes columns have their own censoring-aware section: a mean of a
+            # censored latency here would pass the trial ceiling off as a measurement.
+            and not str(col).startswith("Barnes ")
             and any(keyword in col.lower() for keyword in keywords)
             and pd.api.types.is_numeric_dtype(unified_df[col])
         ]
@@ -1422,6 +1429,14 @@ class BlockDetailDialog(Toplevel):
             notes_df = self._block_notes_frame()
             if not notes_df.empty:
                 notes_df.to_excel(writer, sheet_name="Notas", index=False)  # i18n: not-ui
+
+            # Barnes projects only; English sheet names are persistence tokens.
+            from zebtrack.analysis.reporters.barnes_aggregates import barnes_sheets
+
+            for sheet_name, sheet in barnes_sheets(
+                unified_df, group_col="grupo", day_col="dia"
+            ).items():
+                sheet.to_excel(writer, sheet_name=sheet_name, index=False)
 
     def _block_notes_frame(self):
         """This block's notes as a table, one row per note (block note first)."""
@@ -1538,6 +1553,16 @@ class BlockDetailDialog(Toplevel):
             row_cells = session_table.add_row().cells
             row_cells[0].text = str(subject)
             row_cells[1].text = summary_path.name
+
+        # Barnes projects only (nothing is written for any other): the per-animal
+        # headline metrics, then the block aggregates, before the wide landscape table.
+        from zebtrack.analysis.reporters.barnes_aggregates import (
+            render_barnes_aggregates,
+            render_barnes_per_animal,
+        )
+
+        render_barnes_per_animal(document, unified_df)
+        render_barnes_aggregates(document, unified_df, group_col="grupo", day_col="dia")
 
         stats_cols = self._get_partial_report_stats_columns(unified_df)
         if stats_cols:

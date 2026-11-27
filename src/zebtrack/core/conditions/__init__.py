@@ -3,6 +3,8 @@
 - :mod:`.model` — the START/STOP condition AST (:class:`WindowSpec`) and its hash.
 - :mod:`.evaluator` — :class:`ConditionEvaluator` (online, one ``step`` per frame)
   and :func:`evaluate_window` (batch: the same fold).
+- :mod:`.subject_geometry` — area and per-ROI cover of the subject box, shared
+  by the offline and live observation builders.
 - :mod:`.artifact` — the ``7_AnalysisWindow_<base>.json`` artifact (atomic write,
   read that degrades to ``None``).
 """
@@ -33,6 +35,7 @@ from zebtrack.core.conditions.model import (
     AllOf,
     AllOfLevel,
     AnyOfLevel,
+    BurrowEntry,
     ClassPresence,
     ClassTarget,
     ConditionNode,
@@ -42,17 +45,22 @@ from zebtrack.core.conditions.model import (
     FirstOf,
     FrameReached,
     Hold,
+    LastSeenIn,
     LevelNode,
     Not,
     Persist,
     RoiEdge,
     RoiInside,
     Sequence,
+    SubjectOverRoi,
+    SubjectVisibleFraction,
     TimeReached,
     TriggerNode,
     WindowSpec,
     iter_nodes,
     spec_hash,
+    spec_needs_subject_geometry,
+    subject_geometry_rois,
 )
 
 __all__ = [
@@ -64,6 +72,7 @@ __all__ = [
     "AnyOfLevel",
     "ArtifactEvent",
     "ArtifactExternalEvent",
+    "BurrowEntry",
     "ClassPresence",
     "ClassTarget",
     "ConditionEvaluator",
@@ -76,6 +85,7 @@ __all__ = [
     "FrameObservation",
     "FrameReached",
     "Hold",
+    "LastSeenIn",
     "LevelNode",
     "Not",
     "OfflineWindow",
@@ -84,6 +94,8 @@ __all__ = [
     "RoiEdge",
     "RoiInside",
     "Sequence",
+    "SubjectOverRoi",
+    "SubjectVisibleFraction",
     "TimeReached",
     "TriggerNode",
     "WindowEvent",
@@ -96,5 +108,7 @@ __all__ = [
     "iter_nodes",
     "read_artifact",
     "spec_hash",
+    "spec_needs_subject_geometry",
+    "subject_geometry_rois",
     "write_artifact",
 ]

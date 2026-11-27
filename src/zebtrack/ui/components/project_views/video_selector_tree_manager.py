@@ -23,6 +23,7 @@ from zebtrack.ui.components.project_views.project_view_helpers import (
     summarize_batch_data,
     video_sort_key,
 )
+from zebtrack.ui.terminology import animal_model_of_gui, term
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.dialog_manager import DialogManager
@@ -491,7 +492,11 @@ class VideoSelectorTreeManager:
                     subject_node = tree.insert(
                         day_node,
                         "end",
-                        text=_("🐟 Subject {label}").format(label=subject_label),
+                        text=term(
+                            "subject.label",
+                            animal_model_of_gui(self.gui),
+                            label=subject_label,
+                        ),
                         open=True,
                         tags=("subject", _group_id, day_id, subject_id),
                     )

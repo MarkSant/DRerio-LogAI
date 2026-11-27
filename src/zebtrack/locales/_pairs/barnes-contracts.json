@@ -1,0 +1,14 @@
+{
+  "_comment": "Barnes stage 0 (ADR-014): experiment profile, protocol registry and Barnes contract warnings. Appended by hand to the .pot/.po (see docs/guides/developer/i18n.md); kept here for the next full regeneration.",
+  "Unknown animal model {value} in the project configuration; it is treated as 'other'.": "Modelo animal desconhecido {value} na configuração do projeto; ele é tratado como 'other'.",
+  "Unknown protocol {value} in the project configuration; no protocol-specific metric is computed for it.": "Protocolo desconhecido {value} na configuração do projeto; nenhuma métrica específica de protocolo é calculada para ele.",
+  "The {protocol} protocol requires the animal model '{forced}'; the declared '{declared}' was replaced.": "O protocolo {protocol} exige o modelo animal '{forced}'; o '{declared}' declarado foi substituído.",
+  "The parameters of the {protocol} protocol are not a mapping; its defaults are used.": "Os parâmetros do protocolo {protocol} não são um mapeamento; os valores padrão são usados.",
+  "The protocol parameters are not a mapping; every protocol uses its defaults.": "Os parâmetros de protocolo não são um mapeamento; todos os protocolos usam seus valores padrão.",
+  "The {protocol} protocol is not available in this version; its metrics were not computed.": "O protocolo {protocol} não está disponível nesta versão; suas métricas não foram calculadas.",
+  "The {protocol} protocol metrics could not be computed: {error}": "As métricas do protocolo {protocol} não puderam ser calculadas: {error}",
+  "The {protocol} protocol returned malformed metrics; they were left out of the report.": "O protocolo {protocol} retornou métricas malformadas; elas foram deixadas fora do relatório.",
+  "Invalid Barnes parameter {name}={value}; its default is used.": "Parâmetro do Barnes inválido {name}={value}; o valor padrão é usado.",
+  "Invalid Barnes value {name}={value} for this video; it is ignored.": "Valor do Barnes inválido {name}={value} para este vídeo; ele é ignorado.",
+  "The {protocol} protocol analyses one arena per video; its metrics are not computed for aquarium {aquarium} of a multi-aquarium video.": "O protocolo {protocol} analisa uma arena por vídeo; suas métricas não são calculadas para o aquário {aquarium} de um vídeo com vários aquários."
+}

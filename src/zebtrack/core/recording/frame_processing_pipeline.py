@@ -2179,6 +2179,43 @@ class FrameProcessingMixin:
         occupied = self._occupancy_by_aquarium(detections, evaluators)
         return {aquarium_id: frozenset(rois) for aquarium_id, rois in occupied.items()}
 
+    def _condition_geometry_inputs(
+        self, runtime: Any, detections: list, aquarium_id: int | None
+    ) -> tuple[list, list]:
+        """Subject boxes and raw ROI polygons for a window that reads the box geometry.
+
+        The SAME detections as ``subject_rois`` (in a 2+-aquarium session, those
+        of ``aquarium_id``) and the ROIs in the detector's frame space, unbuffered:
+        cover is a fraction of the animal, not the occupancy rule (#633). Empty
+        when the window does not need them.
+        """
+        if getattr(runtime, "needs_subject_geometry", False) is not True:
+            return [], []
+        if aquarium_id is None:
+            detector = self.detector_service.detector
+            names = list(getattr(detector, "roi_names", []) or [])
+            polygons = list(getattr(detector, "scaled_roi_polygons", []) or [])
+            return list(detections), list(zip(names, polygons, strict=False))
+        from zebtrack.core.detection.multi_aquarium_detector import aquarium_of_track_id
+
+        multi = getattr(self, "_multi_aq_detector", None)
+        if multi is None:
+            return [], []
+        rois: list = []
+        for aquarium in multi.get_multi_aquarium_data() or []:
+            if int(aquarium.id) == aquarium_id:
+                names = list(getattr(aquarium, "roi_names", []) or [])
+                polygons = list(multi.get_aquarium_roi_polygons(aquarium.id) or [])
+                rois = list(zip(names, polygons, strict=False))
+        boxes = []
+        for det in detections:
+            try:
+                if aquarium_of_track_id(det[5]) == aquarium_id:
+                    boxes.append(det)
+            except (IndexError, TypeError, ValueError):
+                continue
+        return boxes, rois
+
     def _step_condition_runtime(
         self,
         frame_number: int,
@@ -2205,6 +2242,7 @@ class FrameProcessingMixin:
         if not getattr(self, "_condition_runtimes", None):
             runtime = runtimes[0]
             try:
+                boxes, rois = self._condition_geometry_inputs(runtime, detections, None)
                 update = runtime.step(
                     frame=frame_number,
                     t_capture_perf=capture_ts,
@@ -2214,6 +2252,8 @@ class FrameProcessingMixin:
                     # reads; perf_counter differences are exactly that, without
                     # wall jumps.
                     t_wall=capture_ts,
+                    subject_boxes=boxes,
+                    rois=rois,
                 )
             # except Exception justified: the window is an analysis aid; it must
             # never stop the processing thread, which also feeds the recording.
@@ -2233,12 +2273,15 @@ class FrameProcessingMixin:
                 if isinstance(obs, dict) and obs.get("aquarium_id") == aquarium_id
             ]
             try:
+                boxes, rois = self._condition_geometry_inputs(runtime, detections, aquarium_id)
                 update = runtime.step(
                     frame=frame_number,
                     t_capture_perf=capture_ts,
                     classes=classes_from_observations(own),
                     subject_rois=rois_by_aquarium.get(aquarium_id, frozenset()),
                     t_wall=capture_ts,
+                    subject_boxes=boxes,
+                    rois=rois,
                 )
             # except Exception justified: same as above, one aquarium's window
             # failing must not take the other one (or the recording) down.

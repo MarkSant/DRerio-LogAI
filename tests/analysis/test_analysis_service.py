@@ -919,3 +919,264 @@ class TestFailedWallAndDepthMetricsAreReported:
         )
 
         assert not [w for w in report["validacao"]["avisos"] if "could not be computed" in w]
+
+
+# === Protocol metrics hook (ADR-014) ===
+
+
+class TestProtocolMetricsHook:
+    """``report["protocol_metrics"]`` is always present and dispatched by profile."""
+
+    @staticmethod
+    def _install(monkeypatch, compute):
+        from zebtrack.analysis.protocols import registry
+        from zebtrack.analysis.protocols.base import ProtocolSpec
+        from zebtrack.core.services.experiment_profile import ProtocolId
+
+        spec = ProtocolSpec(
+            protocol=ProtocolId.BARNES, display_name=lambda: "Barnes", compute_metrics=compute
+        )
+        monkeypatch.setattr(registry, "_registry", registry._build_registry((spec,)))
+
+    @pytest.mark.parametrize("with_rois", [False, True])
+    def test_a_generic_project_reports_status_none(self, settings_obj: Settings, with_rois):
+        report = _run(settings_obj, _walk(), fps=10.0, rois=_rois() if with_rois else None)
+
+        assert report["protocol_metrics"] == {"status": "none"}
+        assert report["validacao"]["avisos"] == []
+
+    def test_a_generic_profile_never_dispatches(self, settings_obj: Settings, monkeypatch):
+        def must_not_run(context):
+            raise AssertionError("dispatched a generic project")
+
+        self._install(monkeypatch, must_not_run)
+
+        report = _run(settings_obj, _walk(), fps=10.0, behavioral_config={"animal_model": "rodent"})
+
+        assert report["protocol_metrics"] == {"status": "none"}
+
+    def test_a_bad_profile_value_warns_in_the_report(self, settings_obj: Settings):
+        report = _run(
+            settings_obj, _walk(), fps=10.0, behavioral_config={"animal_model": "unicorn"}
+        )
+
+        assert report["protocol_metrics"] == {"status": "none"}
+        assert any("unicorn" in w for w in report["validacao"]["avisos"])
+
+    def test_an_unregistered_protocol_is_reported_and_warned(
+        self, settings_obj: Settings, monkeypatch
+    ):
+        from zebtrack.analysis.protocols import registry
+
+        monkeypatch.setattr(registry, "_registry", registry._build_registry(()))
+
+        report = _run(settings_obj, _walk(), fps=10.0, behavioral_config={"protocol": "barnes"})
+
+        assert report["protocol_metrics"] == {
+            "status": "unavailable",
+            "protocol": "barnes",
+            "version": None,
+            "reason": "unregistered",
+        }
+        assert any("barnes" in w for w in report["validacao"]["avisos"])
+
+    @pytest.mark.parametrize("with_rois", [False, True])
+    def test_the_spec_gets_the_run_as_its_context(
+        self, settings_obj: Settings, monkeypatch, with_rois
+    ):
+        seen = []
+
+        def compute(context):
+            seen.append(context)
+            context.warnings.append("from the protocol")
+            return {"status": "ok", "protocol": "barnes", "version": 1, "reason": None}
+
+        self._install(monkeypatch, compute)
+        window = _window(1.0, 4.0)
+        rois = _rois() if with_rois else None
+
+        report = _run(
+            settings_obj,
+            _walk(),
+            fps=10.0,
+            rois=rois,
+            window=window,
+            behavioral_config={"protocol": "barnes", "protocol_params": {"barnes": {"n": 1}}},
+            protocol_inputs={"barnes": {"trial_type": "probe"}, "other": {"x": 1}},
+        )
+
+        assert report["protocol_metrics"] == {
+            "status": "ok",
+            "protocol": "barnes",
+            "version": 1,
+            "reason": None,
+        }
+        (context,) = seen
+        assert context.profile.protocol.value == "barnes"
+        assert dict(context.profile.protocol_params) == {"n": 1}
+        assert dict(context.inputs) == {"trial_type": "probe"}
+        assert context.window is window
+        assert [r.name for r in context.rois] == ([r.name for r in rois] if rois else [])
+        assert context.pixelcm_x == 10.0 and context.pixelcm_y == 10.0
+        assert context.arena_polygon_px == tuple((float(x), float(y)) for x, y in _ARENA)
+        assert len(context.trajectory) == len(_walk())
+        assert context.time_base.duration_s == pytest.approx(4.5)
+        assert (context.roi_analyzer is not None) == with_rois
+        assert context.behavioral_analyzer is not None
+        # The SAME list as the report's warnings: an append reaches the document.
+        assert context.warnings is report["validacao"]["avisos"]
+        assert "from the protocol" in report["validacao"]["avisos"]
+
+    def test_the_dto_forwards_the_inputs(self, settings_obj: Settings, monkeypatch):
+        seen = []
+
+        def compute(context):
+            seen.append(dict(context.inputs))
+            return {"status": "ok", "protocol": "barnes", "version": 1, "reason": None}
+
+        self._install(monkeypatch, compute)
+        service = AnalysisService(settings_obj=settings_obj)
+
+        result = service.run_full_analysis_as_dto(
+            trajectory_df=_walk(),
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=400,
+            arena_polygon_px=_ARENA,
+            rois=[],
+            fps=10.0,
+            metadata={"experiment_id": "x"},
+            roi_colors={},
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=1.0,
+            behavioral_config={"protocol": "barnes"},
+            protocol_inputs={"barnes": {"trial_type": "training"}},
+        )
+
+        assert seen == [{"trial_type": "training"}]
+        assert result.report["protocol_metrics"]["status"] == "ok"
+
+
+class _UnreadableCoordinate(float):
+    """A coordinate the generic analysis does arithmetic with but ``float()`` refuses."""
+
+    def __float__(self) -> float:
+        raise ValueError("unreadable arena vertex")
+
+
+class TestProtocolHookGuards:
+    """Hub review of stage 0: the non-generic branch never raises, multi-aquarium is refused."""
+
+    @staticmethod
+    def _install(monkeypatch, compute):
+        from zebtrack.analysis.protocols import registry
+        from zebtrack.analysis.protocols.base import ProtocolSpec
+        from zebtrack.core.services.experiment_profile import ProtocolId
+
+        spec = ProtocolSpec(
+            protocol=ProtocolId.BARNES, display_name=lambda: "Barnes", compute_metrics=compute
+        )
+        monkeypatch.setattr(registry, "_registry", registry._build_registry((spec,)))
+
+    @staticmethod
+    def _must_not_run(context):
+        raise AssertionError("the protocol was dispatched")
+
+    def test_a_malformed_arena_degrades_to_an_error_instead_of_raising(
+        self, settings_obj: Settings, monkeypatch
+    ):
+        self._install(monkeypatch, self._must_not_run)
+        arena = [(0.0, 0.0), (_UnreadableCoordinate(400.0), 0.0), (400.0, 400.0), (0.0, 400.0)]
+        service = AnalysisService(settings_obj=settings_obj)
+
+        report, *_rest = service.run_full_analysis(
+            trajectory_df=_walk(),
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=400,
+            arena_polygon_px=arena,
+            rois=[],
+            fps=10.0,
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=1.0,
+            behavioral_config={"protocol": "barnes"},
+        )
+
+        assert report["protocol_metrics"] == {
+            "status": "error",
+            "protocol": "barnes",
+            "version": None,
+            "reason": "exception",
+            "error": "unreadable arena vertex",
+        }
+        assert any("unreadable arena vertex" in w for w in report["validacao"]["avisos"])
+        # The generic metrics are intact.
+        assert report["comportamento_geral"]["distancia_total_cm"] > 0
+
+    @pytest.mark.parametrize("with_rois", [False, True])
+    def test_a_multi_aquarium_run_never_reaches_the_protocol(
+        self, settings_obj: Settings, monkeypatch, with_rois
+    ):
+        self._install(monkeypatch, self._must_not_run)
+
+        report = _run(
+            settings_obj,
+            _walk(),
+            fps=10.0,
+            rois=_rois() if with_rois else None,
+            behavioral_config={"protocol": "barnes"},
+            aquarium_id=1,
+        )
+
+        assert report["protocol_metrics"] == {
+            "status": "unavailable",
+            "protocol": "barnes",
+            "version": None,
+            "reason": "multi_aquarium",
+        }
+        (warning,) = [w for w in report["validacao"]["avisos"] if "aquarium 2" in w]
+        assert "barnes" in warning
+
+    def test_a_generic_multi_aquarium_run_is_status_none(self, settings_obj: Settings):
+        report = _run(settings_obj, _walk(), fps=10.0, aquarium_id=0)
+
+        assert report["protocol_metrics"] == {"status": "none"}
+        assert report["validacao"]["avisos"] == []
+
+    def test_the_dto_forwards_the_aquarium(self, settings_obj: Settings, monkeypatch):
+        self._install(monkeypatch, self._must_not_run)
+        service = AnalysisService(settings_obj=settings_obj)
+
+        result = service.run_full_analysis_as_dto(
+            trajectory_df=_walk(),
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            video_height_px=400,
+            arena_polygon_px=_ARENA,
+            rois=[],
+            fps=10.0,
+            metadata={"experiment_id": "x"},
+            roi_colors={},
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=1.0,
+            behavioral_config={"protocol": "barnes"},
+            aquarium_id=0,
+        )
+
+        assert result.report["protocol_metrics"]["reason"] == "multi_aquarium"
+
+    def test_run_multi_aquarium_analysis_tags_every_aquarium(self, settings_obj: Settings):
+        from unittest.mock import MagicMock, patch
+
+        service = AnalysisService(settings_obj=settings_obj)
+        aquarium = MagicMock(
+            polygon=_ARENA, roi_polygons=[], roi_names=[], roi_colors=[], group="G", day="1"
+        )
+        aquarium.subject_id = "S"
+
+        with patch.object(service, "run_full_analysis_as_dto") as run:
+            service.run_multi_aquarium_analysis(
+                {0: (_walk(), aquarium), 1: (_walk(), aquarium)}, fps=10.0
+            )
+
+        assert sorted(c.kwargs["aquarium_id"] for c in run.call_args_list) == [0, 1]

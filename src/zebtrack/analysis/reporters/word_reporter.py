@@ -20,7 +20,16 @@ from docx.document import Document as DocxDocument
 from docx.shared import Inches
 from docxtpl import DocxTemplate
 
-from zebtrack.analysis.data_transformer import DISPLAY_COLUMN_MAPPING, WINDOW_COLUMNS
+from zebtrack.analysis.data_transformer import (
+    BARNES_COLUMN_PREFIX,
+    WINDOW_COLUMNS,
+    active_protocol_spec,
+    animal_model_of_config,
+    display_column_name,
+    display_metadata_label,
+)
+from zebtrack.analysis.protocols.base import GenericReportSection
+from zebtrack.analysis.reporters.barnes_section import append_barnes_section, barnes_metrics_of
 from zebtrack.analysis.reporters.reporter_context import (
     INDIVIDUAL_REPORT_TEMPLATE,
     _,
@@ -199,10 +208,12 @@ class WordReporter:
             "parquet_files",
             "multi_aquarium_outputs",
         }
+        animal_model = animal_model_of_config(getattr(ctx, "behavioral_config", None))
         for key, value in (ctx.metadata or {}).items():
             if key in _internal_metadata_keys:
                 continue
-            document.add_paragraph(f"{key.replace('_', ' ').title()}: {value}")
+            # Display label only: the key stays the persisted one (ADR-012).
+            document.add_paragraph(f"{display_metadata_label(key, animal_model)}: {value}")
         progress_callback(1 / total_steps, _("Metadata added"))
 
         self._append_analysis_window_note(document)
@@ -214,6 +225,15 @@ class WordReporter:
         )
         # The window has its own section above; its columns stay in the xlsx.
         df = df.drop(columns=[c for c in WINDOW_COLUMNS if c in df.columns])
+        # The Barnes columns have their own section below; they stay in the xlsx.
+        df = df.drop(columns=[c for c in df.columns if c.startswith(BARNES_COLUMN_PREFIX)])
+        # A protocol may suppress generic sections (a rat on a dry table has no
+        # thigmotaxis or geotaxis); the columns stay in the xlsx for the schema.
+        suppressed = self._suppressed_sections()
+        if GenericReportSection.THIGMOTAXIS in suppressed:
+            df = df.drop(columns=[c for c in df.columns if c.startswith("thigmotaxis_")])
+        if GenericReportSection.GEOTAXIS in suppressed:
+            df = df.drop(columns=[c for c in df.columns if c.startswith("geotaxis_")])
 
         # Geotaxis column renaming for Word
         height_cm = float((ctx.metadata or {}).get("aquarium_height_cm", 0) or 0)
@@ -252,10 +272,7 @@ class WordReporter:
 
         for column_name in df.columns:
             row_cells = table.add_row().cells
-            formatted_name = DISPLAY_COLUMN_MAPPING.get(
-                column_name, column_name.replace("_", " ").title()
-            )
-            row_cells[0].text = formatted_name
+            row_cells[0].text = display_column_name(column_name, animal_model)
 
             value = df[column_name].iloc[0]
             if pd.isna(value):
@@ -273,6 +290,10 @@ class WordReporter:
                 row_cells[1].text = str(value)
 
         progress_callback(2 / total_steps, _("Summary table added"))
+
+        barnes_metrics = barnes_metrics_of(ctx)
+        if barnes_metrics is not None:
+            append_barnes_section(document, ctx, barnes_metrics)
 
         # Delegate to sub-sections
         self._append_roi_reference_map(document, progress_callback, total_steps)
@@ -412,13 +433,20 @@ class WordReporter:
                 self._ctx.viz_generator.generate_angular_velocity_plot,
                 _("Angular Velocity"),
             ),
-            (
-                self._ctx.viz_generator.generate_thigmotaxis_plot,
-                _("Thigmotaxis (Wall Distance)"),
-            ),
         ]
+        suppressed = self._suppressed_sections()
+        if GenericReportSection.THIGMOTAXIS not in suppressed:
+            plot_configs.append(
+                (
+                    self._ctx.viz_generator.generate_thigmotaxis_plot,
+                    _("Thigmotaxis (Wall Distance)"),
+                )
+            )
 
-        if self._should_include_geotaxis_visualization():
+        if (
+            GenericReportSection.GEOTAXIS not in suppressed
+            and self._should_include_geotaxis_visualization()
+        ):
             plot_configs.append(
                 (
                     self._ctx.viz_generator.generate_geotaxis_plot,
@@ -441,6 +469,11 @@ class WordReporter:
                 (4 + i) / total_steps,
                 _("Visualization added: {name}").format(name=name),
             )
+
+    def _suppressed_sections(self) -> frozenset[GenericReportSection]:
+        """Generic sections the active protocol omits (empty for a generic project)."""
+        spec = active_protocol_spec(getattr(self._ctx, "behavioral_config", None))
+        return frozenset() if spec is None else spec.suppressed_report_sections
 
     def _should_include_geotaxis_visualization(self) -> bool:
         """Return whether geotaxis plots should be included in DOC visualisations."""

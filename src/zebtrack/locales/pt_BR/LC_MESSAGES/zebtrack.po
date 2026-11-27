@@ -16219,6 +16219,758 @@ msgstr "metadados da gravação"
 msgid "recorded video"
 msgstr "vídeo gravado"
 
+#: src/zebtrack/core/services/experiment_profile.py:195
+#, python-brace-format
+msgid ""
+"Unknown animal model {value} in the project configuration; it is treated as "
+"'other'."
+msgstr ""
+"Modelo animal desconhecido {value} na configuração do projeto; ele é tratado"
+" como 'other'."
+
+#: src/zebtrack/core/services/experiment_profile.py:211
+#, python-brace-format
+msgid ""
+"Unknown protocol {value} in the project configuration; no protocol-specific "
+"metric is computed for it."
+msgstr ""
+"Protocolo desconhecido {value} na configuração do projeto; nenhuma métrica "
+"específica de protocolo é calculada para ele."
+
+#: src/zebtrack/core/services/experiment_profile.py:227
+#, python-brace-format
+msgid ""
+"The {protocol} protocol requires the animal model '{forced}'; the declared "
+"'{declared}' was replaced."
+msgstr ""
+"O protocolo {protocol} exige o modelo animal '{forced}'; o '{declared}' "
+"declarado foi substituído."
+
+#: src/zebtrack/core/services/experiment_profile.py:247
+#, python-brace-format
+msgid ""
+"The parameters of the {protocol} protocol are not a mapping; its defaults "
+"are used."
+msgstr ""
+"Os parâmetros do protocolo {protocol} não são um mapeamento; os valores "
+"padrão são usados."
+
+#: src/zebtrack/core/services/experiment_profile.py:258
+msgid ""
+"The protocol parameters are not a mapping; every protocol uses its defaults."
+msgstr ""
+"Os parâmetros de protocolo não são um mapeamento; todos os protocolos usam "
+"seus valores padrão."
+
+#: src/zebtrack/analysis/protocols/registry.py:104
+#, python-brace-format
+msgid ""
+"The {protocol} protocol is not available in this version; its metrics were "
+"not computed."
+msgstr ""
+"O protocolo {protocol} não está disponível nesta versão; suas métricas não "
+"foram calculadas."
+
+#: src/zebtrack/analysis/protocols/registry.py:118
+#, python-brace-format
+msgid "The {protocol} protocol metrics could not be computed: {error}"
+msgstr ""
+"As métricas do protocolo {protocol} não puderam ser calculadas: {error}"
+
+#: src/zebtrack/analysis/protocols/registry.py:137
+#, python-brace-format
+msgid ""
+"The {protocol} protocol returned malformed metrics; they were left out of "
+"the report."
+msgstr ""
+"O protocolo {protocol} retornou métricas malformadas; elas foram deixadas "
+"fora do relatório."
+
+#: src/zebtrack/analysis/protocols/barnes/contract.py:387
+#, python-brace-format
+msgid "Invalid Barnes parameter {name}={value}; its default is used."
+msgstr "Parâmetro do Barnes inválido {name}={value}; o valor padrão é usado."
+
+#: src/zebtrack/analysis/protocols/barnes/contract.py:429
+#, python-brace-format
+msgid "Invalid Barnes value {name}={value} for this video; it is ignored."
+msgstr ""
+"Valor do Barnes inválido {name}={value} para este vídeo; ele é ignorado."
+
+
+#: src/zebtrack/analysis/analysis_service.py:718
+#, python-brace-format
+msgid ""
+"The {protocol} protocol analyses one arena per video; its metrics are not "
+"computed for aquarium {aquarium} of a multi-aquarium video."
+msgstr ""
+"O protocolo {protocol} analisa uma arena por vídeo; suas métricas não são "
+"calculadas para o aquário {aquarium} de um vídeo com vários aquários."
+
+
+#: src/zebtrack/ui/components/zone_controls.py:446
+msgid "🕳 Barnes assistant…"
+msgstr "🕳 Assistente Barnes…"
+
+#: src/zebtrack/ui/components/event_dispatcher.py:1270
+#: src/zebtrack/ui/components/event_dispatcher.py:1281
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:211
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:919
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:941
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:799
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:807
+#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:981
+msgid "Barnes assistant"
+msgstr "Assistente Barnes"
+
+#: src/zebtrack/ui/components/event_dispatcher.py:1271
+msgid "The Barnes assistant is only available in a Barnes-maze project."
+msgstr ""
+"O assistente Barnes só está disponível em um projeto de labirinto de Barnes."
+
+#: src/zebtrack/ui/components/event_dispatcher.py:1282
+msgid "Load a video frame (or the camera snapshot) in the Zones tab first."
+msgstr ""
+"Carregue antes um quadro do vídeo (ou o instantâneo da câmera) na aba Zonas."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:968
+msgid "Apply to other videos"
+msgstr "Aplicar a outros vídeos"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:256
+msgid "1. Table"
+msgstr "1. Mesa"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:259
+msgid "Detect table (auto)"
+msgstr "Detectar mesa (auto)"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:265
+msgid "Click the rim (5+ points)"
+msgstr "Clicar na borda (5+ pontos)"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:268
+msgid "Fit ellipse"
+msgstr "Ajustar elipse"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:271
+msgid "2. Escape hole"
+msgstr "2. Toca"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:274
+msgid "Click the escape hole"
+msgstr "Clicar na toca"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:278
+msgid "3. Check and adjust"
+msgstr "3. Conferir e ajustar"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:283
+msgid "◀ 1 hole"
+msgstr "◀ 1 buraco"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:287
+msgid "1 hole ▶"
+msgstr "1 buraco ▶"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:291
+msgid "Undo hole drags"
+msgstr "Desfazer buracos arrastados"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:301
+msgid "4. Trial type of this video"
+msgstr "4. Tipo de sessão deste vídeo"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:305
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1000
+msgid "Training"
+msgstr "Treino"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:311
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1001
+msgid "Probe"
+msgstr "Teste (probe)"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:333
+msgid "Apply to other videos…"
+msgstr "Aplicar a outros vídeos…"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:490
+msgid "Working…"
+msgstr "Processando…"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:618
+msgid "The table was not detected: click its rim instead."
+msgstr "A mesa não foi detectada: clique na borda dela."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1002
+msgid "Keep each video's"
+msgstr "Manter o de cada vídeo"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:462
+#, python-brace-format
+msgid "{total} holes placed without snapping (no dark hole found)."
+msgstr ""
+"{total} buracos posicionados sem ajuste (nenhum buraco escuro encontrado)."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:466
+#, python-brace-format
+msgid ""
+"{snapped}/{total} holes snapped · mean residual {mean:.1f} px (max "
+"{maximum:.1f} px)"
+msgstr ""
+"{snapped}/{total} buracos ajustados · resíduo médio {mean:.1f} px (máx. "
+"{maximum:.1f} px)"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:492
+msgid ""
+"Click at least 5 points on the table's rim, then press “Fit ellipse” (or "
+"detect the table automatically)."
+msgstr ""
+"Clique em pelo menos 5 pontos na borda da mesa e depois em “Ajustar elipse” "
+"(ou detecte a mesa automaticamente)."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:626
+msgid "The detected outline is not usable: click the rim instead."
+msgstr "O contorno detectado não serve: clique na borda."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:800
+msgid "Some holes were not found or look misplaced. Apply this layout anyway?"
+msgstr ""
+"Alguns buracos não foram encontrados ou parecem fora do lugar. Aplicar este "
+"layout mesmo assim?"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:497
+msgid "Click the centre of the escape hole."
+msgstr "Clique no centro da toca."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:499
+msgid ""
+"Drag a hole to move it; “◀ 1 hole” / “1 hole ▶” move the escape hole. Red = "
+"escape hole, green = snapped, orange = not found, blue = moved."
+msgstr ""
+"Arraste um buraco para movê-lo; “◀ 1 buraco” / “1 buraco ▶” movem a toca. "
+"Vermelho = toca, verde = ajustado, laranja = não encontrado, azul = movido."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:917
+#, python-brace-format
+msgid "Could not read: {names}"
+msgstr "Não foi possível ler: {names}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:942
+#, python-brace-format
+msgid "Could not read {name}; it is skipped."
+msgstr "Não foi possível ler {name}; ele foi pulado."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:974
+msgid "Videos (same camera, same table):"
+msgstr "Vídeos (mesma câmera, mesma mesa):"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:984
+msgid "Same escape hole: copy the layout and re-snap it on each video"
+msgstr "Mesma toca: copiar o layout e reajustá-lo em cada vídeo"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:990
+msgid "Different escape hole: show each video and click its escape hole"
+msgstr "Toca diferente: mostrar cada vídeo e clicar na toca dele"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:998
+msgid "Trial type:"
+msgstr "Tipo de sessão:"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:319
+msgid ""
+"This frame has no project video: the project's default trial type applies."
+msgstr ""
+"Este quadro não tem vídeo no projeto: vale o tipo de sessão padrão do "
+"projeto."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:478
+#, python-brace-format
+msgid ""
+"Some holes were not found or sit far from an evenly spaced ring. Check the "
+"escape-hole click and the number of holes ({n})."
+msgstr ""
+"Alguns buracos não foram encontrados ou estão longe de um anel com "
+"espaçamento regular. Confira o clique na toca e o número de buracos ({n})."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:506
+#, python-brace-format
+msgid "Video {index} of {total}: {name}"
+msgstr "Vídeo {index} de {total}: {name}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:643
+#, python-brace-format
+msgid "Could not fit an ellipse to these points: {error}"
+msgstr "Não foi possível ajustar uma elipse a estes pontos: {error}"
+
+#: src/zebtrack/coordinators/multi_aquarium_coordinator.py:982
+#, python-brace-format
+msgid "The Barnes zones could not be saved for {video}."
+msgstr "As zonas Barnes não puderam ser salvas para {video}."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:631
+msgid ""
+"The video's frames could not be read: holes are snapped on this single frame,"
+" where the rat or the experimenter may hide one."
+msgstr ""
+"Não foi possível ler os quadros do vídeo: os buracos são ajustados neste "
+"único quadro, onde o rato ou o experimentador podem esconder algum."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:695
+msgid ""
+"Table detected. The detection also saved this outline as the video's arena; "
+"Apply replaces it with the table ellipse. Now click the centre of the escape "
+"hole."
+msgstr ""
+"Mesa detectada. A detecção também salvou este contorno como a arena do vídeo;"
+" Aplicar o substitui pela elipse da mesa. Agora clique no centro da toca."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1183
+msgid ""
+"This video is framed differently: define its table again (detect it or click "
+"the rim)."
+msgstr ""
+"Este vídeo está enquadrado de outro jeito: defina a mesa de novo (detecte-a "
+"ou clique na borda)."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:961
+#, python-brace-format
+msgid ""
+"This table has {found} holes but the project is set to {expected}. Change the"
+" project's hole count to {found}? Every video of the project must use the "
+"same count: it fixes the report's columns."
+msgstr ""
+"Esta mesa tem {found} buracos, mas o projeto está configurado para "
+"{expected}. Mudar o número de buracos do projeto para {found}? Todos os "
+"vídeos do projeto precisam usar o mesmo número: ele define as colunas do "
+"relatório."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1114
+#, python-brace-format
+msgid "Layout applied to {count} video(s), this one included."
+msgstr "Layout aplicado a {count} vídeo(s), incluindo este."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:322
+msgid "Holes:"
+msgstr "Buracos:"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:505
+#, python-brace-format
+msgid "detected: {n}"
+msgstr "detectados: {n}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:507
+#, python-brace-format
+msgid "project: {n}"
+msgstr "projeto: {n}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:981
+#, python-brace-format
+msgid "The Barnes zones could not be saved for {video}; nothing was changed."
+msgstr ""
+"As zonas Barnes não puderam ser salvas para {video}; nada foi alterado."
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1120
+#, python-brace-format
+msgid ""
+"Some holes were not found on these; you will click their escape hole one by "
+"one: {names}"
+msgstr ""
+"Alguns buracos não foram encontrados nestes; você vai clicar na toca de cada "
+"um: {names}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1127
+#, python-brace-format
+msgid "Framed differently, not written (open them on their own): {names}"
+msgstr ""
+"Enquadrados de outro jeito, não gravados (abra-os separadamente): {names}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:1134
+#, python-brace-format
+msgid "Could not be saved: {names}"
+msgstr "Não puderam ser salvos: {names}"
+
+#: src/zebtrack/ui/dialogs/barnes_layout_dialog.py:790
+#, python-brace-format
+msgid "The holes could not be placed: {error}"
+msgstr "Não foi possível posicionar os buracos: {error}"
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:108
+msgid ""
+"The analysis window of this Barnes trial cannot detect the burrow entry (it "
+"has no burrow_entry stop); the entry latency was not measured."
+msgstr ""
+"A janela de análise deste ensaio de Barnes não consegue detectar a entrada "
+"na toca (ela não tem parada burrow_entry); a latência de entrada não foi "
+"medida."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:216
+msgid "This video has no ROIs; the Barnes metrics need the hole ROIs."
+msgstr ""
+"Este vídeo não tem ROIs; as métricas de Barnes precisam das ROIs dos "
+"buracos."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:253
+msgid ""
+"The Barnes trial has no detection to measure; the Barnes metrics were not "
+"computed."
+msgstr ""
+"O ensaio de Barnes não tem detecção para medir; as métricas de Barnes não "
+"foram calculadas."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:259
+msgid ""
+"The analysis window has no START; the Barnes trial is timed from the first "
+"detection."
+msgstr ""
+"A janela de análise não tem INÍCIO; o ensaio de Barnes é cronometrado a "
+"partir da primeira detecção."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:230
+msgid "The Barnes metrics were not computed: the hole ROIs do not form a ring."
+msgstr ""
+"As métricas de Barnes não foram calculadas: as ROIs dos buracos não formam "
+"um anel."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:126
+#, python-brace-format
+msgid ""
+"The Barnes ROI {roi} is missing; the time in the target quadrant was not "
+"computed."
+msgstr ""
+"A ROI de Barnes {roi} está ausente; o tempo no quadrante-alvo não foi "
+"calculado."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:237
+#, python-brace-format
+msgid ""
+"The Barnes metrics need one animal per video; this trajectory has {count}."
+msgstr ""
+"As métricas de Barnes precisam de um animal por vídeo; esta trajetória tem "
+"{count}."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:224
+#, python-brace-format
+msgid ""
+"The Barnes metrics were not computed: hole ROIs missing or empty: {names}."
+msgstr ""
+"As métricas de Barnes não foram calculadas: ROIs de buracos ausentes ou "
+"vazias: {names}."
+
+#: src/zebtrack/analysis/protocols/barnes/spec.py:26
+msgid "Barnes maze"
+msgstr "Labirinto de Barnes"
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:237
+#, python-brace-format
+msgid ""
+"Several ROIs share the Barnes name(s) {names}; the Barnes metrics use the "
+"first ROI of each name."
+msgstr ""
+"Várias ROIs compartilham o(s) nome(s) de Barnes {names}; as métricas de "
+"Barnes usam a primeira ROI de cada nome."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:293
+#, python-brace-format
+msgid ""
+"{count} possible hole visit(s) were left out of the Barnes metrics: the "
+"slowdown filter (visit_max_speed_cm_s) could not measure the speed around "
+"them (tracking gaps)."
+msgstr ""
+"{count} possível(is) visita(s) a buracos ficou(aram) fora das métricas de "
+"Barnes: o filtro de desaceleração (visit_max_speed_cm_s) não conseguiu medir"
+" a velocidade em torno dela(s) (lacunas de rastreamento)."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:208
+msgid ""
+"The Barnes metrics were not computed: no decoy hole ROI (buraco_+01, "
+"buraco_-01, ...) was found."
+msgstr ""
+"As métricas de Barnes não foram calculadas: nenhuma ROI de buraco falso "
+"(buraco_+01, buraco_-01, ...) foi encontrada."
+
+#: src/zebtrack/analysis/protocols/barnes/metrics.py:220
+#, python-brace-format
+msgid ""
+"The Barnes ROIs of this video describe a table of {effective} holes, but the"
+" project declares {declared}; the Barnes metrics use {effective} holes."
+msgstr ""
+"As ROIs de Barnes deste vídeo descrevem uma mesa de {effective} buracos, mas"
+" o projeto declara {declared}; as métricas de Barnes usam {effective} "
+"buracos."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:163
+msgid "Subject is mostly over ROI"
+msgstr "Sujeito está em sua maior parte sobre a ROI"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:164
+msgid "Subject looks small (fraction of its size)"
+msgstr "Sujeito parece pequeno (fração do seu tamanho)"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:165
+msgid "Subject vanished, last seen over ROI"
+msgstr "Sujeito sumiu, visto por último sobre a ROI"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:166
+msgid "Subject enters the burrow ROI (not a touch)"
+msgstr "Sujeito entra na ROI da toca (não só toca nela)"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:322
+msgid "The subject's size and the burrow entry can only be used in Stop."
+msgstr "O tamanho do sujeito e a entrada na toca só podem ser usados em Fim."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:349
+#, python-brace-format
+msgid "The number must be less than {limit}."
+msgstr "O número deve ser menor que {limit}."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:728
+#, python-brace-format
+msgid "at least {percent}% of the subject is over ROI '{roi}'"
+msgstr "pelo menos {percent}% do sujeito está sobre a ROI '{roi}'"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:733
+#, python-brace-format
+msgid ""
+"the subject looks at most {percent}% of its usual size (median since the "
+"start, after {frames} detected frames)"
+msgstr ""
+"o sujeito parece ter no máximo {percent}% do seu tamanho habitual (mediana "
+"desde o início, após {frames} frames detectados)"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:740
+#, python-brace-format
+msgid "the subject is not visible and was last seen over ROI '{roi}'"
+msgstr "o sujeito não está visível e foi visto por último sobre a ROI '{roi}'"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:757
+#, python-brace-format
+msgid "{frames} frame(s)"
+msgstr "{frames} frame(s)"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:801
+#, python-brace-format
+msgid ""
+"the subject enters ROI '{roi}' (not just a touch): {percent}% of it over the"
+" ROI and at most {size}% of its usual size for {hold}, or not visible for "
+"{absent} s after it was last seen there"
+msgstr ""
+"o sujeito entra na ROI '{roi}' (não só toca nela): {percent}% dele sobre a "
+"ROI e no máximo {size}% do seu tamanho habitual por {hold}, ou invisível por"
+" {absent} s depois de ser visto por último ali"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:859
+#, python-brace-format
+msgid "{roi} (≥ {percent}% of the box)"
+msgstr "{roi} (≥ {percent}% da caixa)"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:865
+#, python-brace-format
+msgid "≤ {percent}% of its usual size"
+msgstr "≤ {percent}% do seu tamanho habitual"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1027
+msgid ""
+"This window is the Barnes preset v1: it stops on the first TOUCH of the "
+"escape hole. The v2 preset stops on the ENTRY (four paws in), so the time "
+"between the encounter and the entry is analysed. Nothing changes until you "
+"update and Save."
+msgstr ""
+"Esta janela é a predefinição Barnes v1: ela para no primeiro TOQUE no buraco"
+" de fuga. A predefinição v2 para na ENTRADA (quatro patas dentro), de modo "
+"que o tempo entre o encontro e a entrada é analisado. Nada muda até você "
+"atualizar e Salvar."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1224
+msgid "Update to Barnes preset v2…"
+msgstr "Atualizar para a predefinição Barnes v2…"
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1742
+msgid ""
+"Fraction of the subject's box that must lie over the ROI (0 to 1; blank = "
+"0.5)."
+msgstr ""
+"Fração da caixa do sujeito que precisa estar sobre a ROI (0 a 1; em branco ="
+" 0,5)."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1745
+msgid ""
+"Largest box size, as a fraction of the subject's usual size since the start "
+"(between 0 and 1, e.g. 0.35)."
+msgstr ""
+"Maior tamanho da caixa, como fração do tamanho habitual do sujeito desde o "
+"início (entre 0 e 1, p. ex. 0,35)."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1749
+msgid ""
+"Fraction of the last box seen that had to be over the ROI (0 to 1; blank = "
+"0.5)."
+msgstr ""
+"Fração da última caixa vista que precisava estar sobre a ROI (0 a 1; em "
+"branco = 0,5)."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1752
+msgid ""
+"Fires when the subject goes INTO the ROI, not when it only touches it: "
+"mostly over it and small for 0.5 s, or gone for 3 s after it was last seen "
+"there. Back-dated to when that began."
+msgstr ""
+"Dispara quando o sujeito ENTRA na ROI, não quando só toca nela: em sua maior"
+" parte sobre ela e pequeno por 0,5 s, ou sumido por 3 s depois de ser visto "
+"por último ali. Datado retroativamente para quando isso começou."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1044
+#, python-brace-format
+msgid ""
+"Updating replaces the Stop line \"'rat' is not visible, for {seconds} s\" "
+"with the burrow entry; the Start condition and the {ceiling} s ceiling are "
+"kept."
+msgstr ""
+"A atualização substitui a linha de Fim \"'rat' não está visível, por "
+"{seconds} s\" pela entrada na toca; a condição de Início e o teto de "
+"{ceiling} s são mantidos."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1050
+#, python-brace-format
+msgid ""
+"Updating replaces the Stop lines \"'rat' is not visible, for {seconds} s\" "
+"and \"the subject enters ROI '{roi}'\" (the first touch) with the burrow "
+"entry; the Start condition and the {ceiling} s ceiling are kept."
+msgstr ""
+"A atualização substitui as linhas de Fim \"'rat' não está visível, por "
+"{seconds} s\" e \"o sujeito entra na ROI '{roi}'\" (o primeiro toque) pela "
+"entrada na toca; a condição de Início e o teto de {ceiling} s são mantidos."
+
+#: src/zebtrack/ui/components/analysis_window_panel.py:1593
+msgid "Review the lines, then Save."
+msgstr "Revise as linhas e depois clique em Salvar."
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:45
+msgid "Zebrafish (aquarium)"
+msgstr "Peixe-zebra (aquário)"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:46
+msgid "Rodent (rat or mouse)"
+msgstr "Roedor (rato ou camundongo)"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:47
+msgid "Other species"
+msgstr "Outra espécie"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:54
+msgid "Generic (no protocol)"
+msgstr "Genérico (sem protocolo)"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:55
+msgid "Barnes maze (rodents)"
+msgstr "Labirinto de Barnes (roedores)"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:224
+msgid "Experiment Profile"
+msgstr "Perfil do Experimento"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:229
+msgid "Animal model:"
+msgstr "Modelo animal:"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:241
+msgid "Protocol:"
+msgstr "Protocolo:"
+
+#: src/zebtrack/ui/components/behavioral_config_widget.py:268
+msgid ""
+"The Barnes maze is run with rodents: choosing it sets the animal model, the "
+"top-down view and the analysis interval for you."
+msgstr ""
+"O labirinto de Barnes é executado com roedores: ao escolhê-lo, o modelo "
+"animal, a vista superior e o intervalo de análise são definidos para você."
+
+#: src/zebtrack/ui/wizard/calibration_step.py:266
+msgid "Table diameter (cm):"
+msgstr "Diâmetro da mesa (cm):"
+
+#: src/zebtrack/ui/wizard/calibration_step.py:274
+msgid ""
+"📏 Table Diameter\n"
+"\n"
+"The REAL diameter of the Barnes table, edge to edge, in centimetres.\n"
+"\n"
+"It converts pixels into centimetres for the whole project (distances, speeds, paths). The lab's table measures 184 cm.\n"
+"\n"
+"💡 Tip: measure the table itself, not the visible area of the video."
+msgstr ""
+"📏 Diâmetro da Mesa\n"
+"\n"
+"O diâmetro REAL da mesa de Barnes, de borda a borda, em centímetros.\n"
+"\n"
+"Ele converte pixels em centímetros em todo o projeto (distâncias, velocidades, trajetos). A mesa do laboratório mede 184 cm.\n"
+"\n"
+"💡 Dica: meça a própria mesa, não a área visível do vídeo."
+
+#: src/zebtrack/ui/wizard/calibration_step.py:434
+msgid "The table diameter must be greater than zero."
+msgstr "O diâmetro da mesa deve ser maior que zero."
+
+#: src/zebtrack/ui/wizard/discovery_step.py:372
+msgid "4. Experiment Profile"
+msgstr "4. Perfil do Experimento"
+
+#: src/zebtrack/ui/wizard/discovery_step.py:379
+msgid ""
+"Which animal is studied and which protocol is run? This decides the zone "
+"assistant, the metrics and the reports."
+msgstr ""
+"Qual animal é estudado e qual protocolo é executado? Isso decide o "
+"assistente de zonas, as métricas e os relatórios."
+
+#: src/zebtrack/ui/wizard/templates.py:290
+msgid ""
+"The template's experiment profile held a value this version does not "
+"recognise; it was replaced by the closest valid one. Check the animal model "
+"and the protocol in the first step."
+msgstr ""
+"O perfil de experimento do modelo continha um valor que esta versão não "
+"reconhece; ele foi substituído pelo valor válido mais próximo. Confira o "
+"modelo animal e o protocolo na primeira etapa."
+
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "Automatic"
+msgstr "Automática"
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "Direct"
+msgstr "Direta"
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "Random"
+msgstr "Aleatória"
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "Search strategy"
+msgstr "Estratégia de busca"
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "Serial"
+msgstr "Serial"
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "The manual correction was removed. Regenerate the report of this video to show the automatic search strategy again."
+msgstr "A correção manual foi removida. Gere novamente o relatório deste vídeo para mostrar de novo a estratégia de busca automática."
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "The search strategy could not be saved; the project was left unchanged."
+msgstr "Não foi possível salvar a estratégia de busca; o projeto foi mantido inalterado."
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "The search strategy was saved as corrected. Regenerate the report (and the summary) of this video for the correction to appear."
+msgstr "A estratégia de busca foi salva como corrigida. Gere novamente o relatório (e o resumo) deste vídeo para a correção aparecer."
+
+#: src/zebtrack/ui/components/project_views/report_tree_builder.py
+msgid "🐀 Search strategy (Barnes)"
+msgstr "🐀 Estratégia de busca (Barnes)"
+
 #~ msgid "Detector parameters updated."
 #~ msgstr "Parâmetros do detector atualizados."
 
@@ -17940,3 +18692,439 @@ msgstr "vídeo gravado"
 
 #~ msgid "Stopping..."
 #~ msgstr "Parando..."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Number of arenas (videos):"
+msgstr "Número de arenas (vídeos):"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"🎬 Number of Arenas (Videos)\n"
+"\n"
+"How many independent videos will be analyzed in this project.\n"
+"\n"
+"• Each arena = 1 separate video\n"
+"• LIVE project: typically 1 (a single recording)\n"
+"• PRE-RECORDED project: may be several videos\n"
+"\n"
+"Examples:\n"
+"  • 1 arena: a single experiment/recording\n"
+"  • 6 arenas: 6 different recordings (e.g. 3 groups x 2 days)\n"
+"  • 24 arenas: a full battery of experiments\n"
+"\n"
+"💡 Tip: if you are unsure, start with 1 and add more videos later."
+msgstr ""
+"🎬 Número de arenas (Vídeos)\n"
+"\n"
+"Quantos vídeos independentes serão analisados neste projeto.\n"
+"\n"
+"• Cada arena = 1 vídeo separado\n"
+"• Projeto LIVE: Tipicamente 1 (gravação única)\n"
+"• Projeto PRÉ-GRAVADO: Pode ser múltiplos vídeos\n"
+"\n"
+"Exemplos:\n"
+"  • 1 arena: Um único experimento/gravação\n"
+"  • 6 arenas: 6 gravações diferentes (ex: 3 grupos x 2 dias)\n"
+"  • 24 arenas: Bateria completa de experimentos\n"
+"\n"
+"💡 Dica: Se não tiver certeza, comece com 1 e adicione mais vídeos depois."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Animals per arena:"
+msgstr "Animais por arena:"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"🐾 Animals per Arena\n"
+"\n"
+"How many animals will be present in EACH video/arena.\n"
+"\n"
+"Impact on the analysis:\n"
+"  • 1 animal: simplified individual tracking\n"
+"    → Ideal for: individual behavioural studies\n"
+"    → Recommended method: detection (det)\n"
+"\n"
+"  • 2-5 animals: moderate multi-animal tracking\n"
+"    → Ideal for: social interaction, small-group behaviour\n"
+"    → Recommended method: segmentation (seg)\n"
+"\n"
+"  • 6+ animals: group tracking (e.g. a large social group)\n"
+"    → Ideal for: group dynamics, collective behaviour\n"
+"    → Recommended method: segmentation (seg) with high confidence\n"
+"\n"
+"⚠️ IMPORTANT: this value must be the SAME for every video in the project.\n"
+"If you have videos with different animal counts, create separate projects.\n"
+"\n"
+"💡 Tip: for several animals, prefer segmentation (seg) in the model selection step."
+msgstr ""
+"🐾 Animais por arena\n"
+"\n"
+"Quantos animais estarão presentes em CADA vídeo/arena.\n"
+"\n"
+"Impacto na Análise:\n"
+"  • 1 animal: Rastreamento individual simplificado\n"
+"    → Ideal para: Estudos comportamentais individuais\n"
+"    → Método recomendado: Detecção (det)\n"
+"\n"
+"  • 2-5 animais: Rastreamento multi-animal moderado\n"
+"    → Ideal para: Interações sociais, comportamento de grupo pequeno\n"
+"    → Método recomendado: Segmentação (seg)\n"
+"\n"
+"  • 6+ animais: Rastreamento de grupo (ex.: um grupo social grande)\n"
+"    → Ideal para: Dinâmica de grupo, comportamento coletivo\n"
+"    → Método recomendado: Segmentação (seg) com alta confiança\n"
+"\n"
+"⚠️ IMPORTANTE: Este valor deve ser o MESMO para todos os vídeos do projeto.\n"
+"Se você tem vídeos com números diferentes de animais, crie projetos separados.\n"
+"\n"
+"💡 Dica: Para múltiplos animais, prefira segmentação (seg) no passo de seleção de modelo."
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"• Parquet: an efficient file format for storing data\n"
+"\n"
+"• Arena: the area where the animals move, such as a table or a box (a bounding polygon)\n"
+"\n"
+"• ROI (Region of Interest): specific regions such as 'Centre', 'Edge', 'Escape Zone'\n"
+"\n"
+"• Trajectory: frame-by-frame coordinates of the animals' movement\n"
+"\n"
+"Importing this data from previous analyses avoids reprocessing."
+msgstr ""
+"• Parquet: Formato de arquivo eficiente para armazenar dados\n"
+"\n"
+"• Arena: Área onde os animais se movem, como uma mesa ou uma caixa (polígono delimitador)\n"
+"\n"
+"• ROI (Region of Interest): Regiões específicas como 'Centro', 'Borda', 'Zona de Escape'\n"
+"\n"
+"• Trajetória: Coordenadas frame-a-frame do movimento dos animais\n"
+"\n"
+"Importar esses dados de análises anteriores evita o reprocessamento."
+
+#: src/zebtrack/ui/terminology.py
+msgid "  • Arenas: {count}"
+msgstr "  • Arenas: {count}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "  • Animals per arena: {count}"
+msgstr "  • Animais por arena: {count}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "  • Arena method: {method}"
+msgstr "  • Método da arena: {method}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "  • Arena weight: {weight}"
+msgstr "  • Peso da arena: {weight}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Arena Perspective *"
+msgstr "Perspectiva da arena *"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Select how the camera sees the arena:"
+msgstr "Selecione como a câmera visualiza a arena:"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Distance threshold for considering the animal close to the arena walls:"
+msgstr "Distância limite para considerar o animal próximo às paredes da arena:"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Split the arena into:"
+msgstr "Dividir a arena em:"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Detect Arena (Auto)"
+msgstr "Detectar Arena (Auto)"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐀 Active Arena"
+msgstr "🐀 Arena Ativa"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐾 Active Arena"
+msgstr "🐾 Arena Ativa"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Arena 1 (Left)"
+msgstr "Arena 1 (Esquerda)"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Arena 2 (Right)"
+msgstr "Arena 2 (Direita)"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Sequential (2 passes, 1 arena at a time)"
+msgstr "Sequencial (2 passagens, 1 arena por vez)"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Sequential: processes the whole video for each arena separately"
+msgstr "Sequencial: processa o vídeo completo para cada arena separadamente"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Could not load a frame. Please load a video or use 'Detect Arena (Auto)' first."
+msgstr "Não foi possível carregar um frame. Por favor, carregue um vídeo ou use 'Detectar Arena (Auto)' primeiro."
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"No main arena has been defined for this live project.\n"
+"\n"
+"Do you want to set the calibration up automatically now?\n"
+"\n"
+"• The Zone Configuration tab will open\n"
+"• You can use 'Detect Arena (Auto)' or draw manually\n"
+"• The configuration is saved automatically"
+msgstr ""
+"Nenhuma arena principal foi definida para este projeto ao vivo.\n"
+"\n"
+"Deseja configurar a calibração automaticamente agora?\n"
+"\n"
+"• Será aberta a aba de Configuração de Zonas\n"
+"• Você pode usar 'Detectar Arena (Auto)' ou desenhar manualmente\n"
+"• A configuração será salva automaticamente"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Set the main arena up using:\n"
+"\n"
+"1. 'Detect Arena (Auto)' - for automatic detection\n"
+"2. 'Draw Main Polygon' - for manual drawing\n"
+"\n"
+"The configuration is saved automatically."
+msgstr ""
+"Configure a arena principal usando:\n"
+"\n"
+"1. 'Detectar Arena (Auto)' - Para detecção automática\n"
+"2. 'Desenhar Polígono Principal' - Para desenho manual\n"
+"\n"
+"A configuração será salva automaticamente."
+
+#: src/zebtrack/ui/terminology.py
+msgid "No. of arenas:"
+msgstr "Nº de arenas:"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Live analysis handles ONE arena at a time.\n"
+"For multiple arenas, create a live project."
+msgstr ""
+"A análise ao vivo trata UMA arena por vez.\n"
+"Para várias arenas, crie um projeto ao vivo."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Animals/arena:"
+msgstr "Animais/arena:"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Number of animals inside each arena."
+msgstr "Quantidade de animais dentro de cada arena."
+
+#: src/zebtrack/ui/terminology.py
+msgid "ℹ️ Live analysis covers ONE arena at a time. To record several arenas at once, create a live project."
+msgstr "ℹ️ A análise ao vivo cobre UMA arena por vez. Para gravar várias arenas ao mesmo tempo, crie um projeto ao vivo."
+
+#: src/zebtrack/ui/terminology.py
+msgid "The number of arenas and animals must be >= 1"
+msgstr "O número de arenas e de animais deve ser >= 1"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Number of Arenas:"
+msgstr "Número de arenas:"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Number of Arenas\n"
+"\n"
+"Sets whether the video contains 1 or 2 independent arenas.\n"
+"• 1: standard analysis.\n"
+"• 2: lets you draw two arenas and process them together."
+msgstr ""
+"Número de arenas\n"
+"\n"
+"Define se o vídeo contém 1 ou 2 arenas independentes.\n"
+"• 1: Análise padrão.\n"
+"• 2: Permite desenhar duas arenas e processá-las em conjunto."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Animals per Arena:"
+msgstr "Animais por arena:"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Animals per Arena\n"
+"\n"
+"How many animals are in each arena.\n"
+"• 1: enables the tracker optimized for a single subject.\n"
+"• >1: requires Segmentation (seg) mode to avoid ID swaps."
+msgstr ""
+"Animais por arena\n"
+"\n"
+"Quantidade de animais em cada arena.\n"
+"• 1: Ativa o rastreador otimizado para sujeito único.\n"
+"• >1: Exige o modo de Segmentação (seg) para evitar trocas de ID."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Arena Configuration"
+msgstr "Configuração das arenas"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Assign groups and identifiers to each arena"
+msgstr "Atribua grupos e identificadores para cada arena"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Found {count} matches in the file name,\n"
+"but only 2 arenas are supported.\n"
+"\n"
+"Using the first 2 matches."
+msgstr ""
+"Encontradas {count} correspondências no nome do arquivo,\n"
+"mas apenas 2 arenas são suportadas.\n"
+"\n"
+"Usando as 2 primeiras correspondências."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Arena {number} ({position})"
+msgstr "Arena {number} ({position})"
+
+#: src/zebtrack/ui/terminology.py
+msgid "The group of Arena {number} cannot be empty"
+msgstr "Grupo da Arena {number} não pode estar vazio"
+
+#: src/zebtrack/ui/terminology.py
+msgid "The subject of Arena {number} cannot be empty"
+msgstr "Sujeito da Arena {number} não pode estar vazio"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐀 Subject {label}"
+msgstr "🐀 Sujeito {label}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐾 Subject {label}"
+msgstr "🐾 Sujeito {label}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐀 Subjects"
+msgstr "🐀 Cobaias"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐾 Subjects"
+msgstr "🐾 Cobaias"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"The main arena polygon has not been defined.\n"
+"\n"
+"The main arena is required for an accurate analysis.\n"
+"Do you want to define it now, before processing?"
+msgstr ""
+"O polígono principal da arena não foi definido.\n"
+"\n"
+"É necessário definir a arena principal para análise precisa.\n"
+"Deseja definir agora antes de processar?"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Please:\n"
+"1. Use 'Detect Arena (Auto)' or\n"
+"2. Draw the main polygon manually\n"
+"3. Then come back to add videos"
+msgstr ""
+"Por favor:\n"
+"1. Use 'Detectar Arena (Auto)' ou\n"
+"2. Desenhe manualmente o polígono principal\n"
+"3. Depois volte para adicionar vídeos"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"The main arena polygon has not been defined.\n"
+"\n"
+"Defining the arena before starting the recording is recommended.\n"
+"Do you want to define it now?"
+msgstr ""
+"O polígono principal da arena não foi definido.\n"
+"\n"
+"É recomendado definir a arena antes de iniciar gravação.\n"
+"Deseja definir agora?"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Please:\n"
+"1. Use the live camera to calibrate\n"
+"2. Use 'Detect Arena (Auto)' or\n"
+"3. Draw the main polygon manually\n"
+"4. Then come back to start the recording"
+msgstr ""
+"Por favor:\n"
+"1. Use a câmera ao vivo para calibrar\n"
+"2. Use 'Detectar Arena (Auto)' ou\n"
+"3. Desenhe manualmente o polígono principal\n"
+"4. Depois volte para iniciar a gravação"
+
+#: src/zebtrack/ui/terminology.py
+msgid "Detecting the arena..."
+msgstr "Detectando a arena..."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Arena Detected"
+msgstr "Arena Detectada"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Arena detected successfully!\n"
+"\n"
+"You can adjust the vertices or add ROIs.\n"
+"Click 'Finish' when you are ready."
+msgstr ""
+"Arena detectada com sucesso!\n"
+"\n"
+"Você pode ajustar os vértices ou adicionar ROIs.\n"
+"Clique em 'Concluir' quando estiver pronto."
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Could not detect the arena automatically.\n"
+"\n"
+"You will be taken to the zones tab to draw it manually."
+msgstr ""
+"Não foi possível detectar a arena automaticamente.\n"
+"\n"
+"Você será levado para a aba de zonas para desenhar manualmente."
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Could not detect the arena automatically.\n"
+"\n"
+"The captured image was loaded for manual drawing.\n"
+"Please use the 'Main Polygon' tool to define the arena."
+msgstr ""
+"Não foi possível detectar a arena automaticamente.\n"
+"\n"
+"A imagem capturada foi carregada para desenho manual.\n"
+"Por favor, use a ferramenta 'Polígono Principal' para definir a arena."
+
+#: src/zebtrack/ui/terminology.py
+msgid "Draw the Arena"
+msgstr "Desenhe a Arena"
+
+#: src/zebtrack/ui/terminology.py
+msgid ""
+"Draw the arena polygon and ROIs (if needed).\n"
+"\n"
+"Click 'Finish' when you are ready."
+msgstr ""
+"Desenhe o polígono da arena e ROIs (se necessário).\n"
+"\n"
+"Clique em 'Concluir' quando estiver pronto."
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐟 {label}"
+msgstr "🐟 {label}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐀 {label}"
+msgstr "🐀 {label}"
+
+#: src/zebtrack/ui/terminology.py
+msgid "🐾 {label}"
+msgstr "🐾 {label}"

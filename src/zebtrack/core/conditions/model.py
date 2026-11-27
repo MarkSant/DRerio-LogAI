@@ -9,10 +9,11 @@ projects it wrote itself.
 Two node families:
 
 - **Level** nodes are true or false on each processed frame (``ClassPresence``,
-  ``RoiInside``, ``Not``, ``AllOfLevel``, ``AnyOfLevel``).
+  ``RoiInside``, ``Not``, ``AllOfLevel``, ``AnyOfLevel``, and the subject-geometry
+  levels ``SubjectOverRoi``, ``SubjectVisibleFraction``, ``LastSeenIn``).
 - **Trigger** nodes fire once, at one instant (``Persist``, ``RoiEdge``,
   ``TimeReached``, ``FrameReached``, ``Delay``, ``External``, ``EndOfStream``,
-  ``FirstOf``, ``AllOf``, ``Sequence``).
+  ``BurrowEntry``, ``FirstOf``, ``AllOf``, ``Sequence``).
 
 The module is pure: pydantic, stdlib and nothing else. Evaluation lives in
 :mod:`zebtrack.core.conditions.evaluator`.
@@ -33,6 +34,7 @@ __all__ = [
     "AllOf",
     "AllOfLevel",
     "AnyOfLevel",
+    "BurrowEntry",
     "ClassPresence",
     "ClassTarget",
     "ConditionNode",
@@ -42,17 +44,22 @@ __all__ = [
     "FirstOf",
     "FrameReached",
     "Hold",
+    "LastSeenIn",
     "LevelNode",
     "Not",
     "Persist",
     "RoiEdge",
     "RoiInside",
     "Sequence",
+    "SubjectOverRoi",
+    "SubjectVisibleFraction",
     "TimeReached",
     "TriggerNode",
     "WindowSpec",
     "iter_nodes",
     "spec_hash",
+    "spec_needs_subject_geometry",
+    "subject_geometry_rois",
 ]
 
 # Same rule as ``core.detection.class_aliases.normalize_class_name``. Duplicated on
@@ -169,6 +176,47 @@ class AnyOfLevel(_Node):
     children: tuple[LevelNode, ...] = Field(min_length=1)
 
 
+class SubjectOverRoi(_Node):
+    """True when at least ``min_cover`` of the subject's VISIBLE box lies over ``roi``.
+
+    The fraction is ``area(box ∩ roi) / area(box)``
+    (:mod:`zebtrack.core.conditions.subject_geometry`), so a rat whose body is
+    mostly over the escape hole reads high even when only part of it is visible,
+    and one that only reaches it with its nose reads low.
+    """
+
+    kind: Literal["subject_over_roi"] = "subject_over_roi"
+    roi: str = Field(min_length=1)
+    min_cover: float = Field(default=0.5, gt=0.0, le=1.0)
+
+
+class SubjectVisibleFraction(_Node):
+    """True when the subject's box is at most ``max_fraction`` of its usual size.
+
+    "Usual" is the running median of the box area over the frames with a
+    subject detection since START; the frame being tested joins that reference
+    only AFTER the test. False before START, on a frame without the subject, and
+    until ``min_reference_frames`` detected frames make up the reference. Only
+    meaningful inside STOP (the reference starts with START).
+    """
+
+    kind: Literal["subject_visible_fraction"] = "subject_visible_fraction"
+    max_fraction: float = Field(gt=0.0, lt=1.0)
+    min_reference_frames: int = Field(default=10, ge=1)
+
+
+class LastSeenIn(_Node):
+    """True on a frame WITHOUT the subject whose last detection was over ``roi``.
+
+    "Over" uses the same fraction as :class:`SubjectOverRoi` (``min_cover``).
+    Wrapped in a ``Persist`` it reads "vanished into ``roi`` for N seconds".
+    """
+
+    kind: Literal["last_seen_in"] = "last_seen_in"
+    roi: str = Field(min_length=1)
+    min_cover: float = Field(default=0.5, gt=0.0, le=1.0)
+
+
 # ---------------------------------------------------------------------------
 # Trigger nodes
 # ---------------------------------------------------------------------------
@@ -252,6 +300,32 @@ class EndOfStream(_Node):
     kind: Literal["end_of_stream"] = "end_of_stream"
 
 
+class BurrowEntry(_Node):
+    """Fires when the subject ENTERS ``roi`` (four paws in), not when it touches it.
+
+    The first of two runs, each back-dated to its first frame:
+
+    - **(a) over the hole and small** — ``SubjectOverRoi(roi, min_cover)`` and
+      ``SubjectVisibleFraction(max_visible_fraction, min_reference_frames)``
+      together, held for ``hold``;
+    - **(b) vanished into the hole** — ``LastSeenIn(roi, min_cover)`` held for
+      ``absent_s`` seconds.
+
+    ``max_gap_s`` resets either run on a gap between observations, as in
+    :class:`Persist`. The window's STOP reason is ``burrow_entry``. STOP only:
+    the size reference starts with START.
+    """
+
+    kind: Literal["burrow_entry"] = "burrow_entry"
+    roi: str = Field(min_length=1)
+    min_cover: float = Field(default=0.5, gt=0.0, le=1.0)
+    max_visible_fraction: float = Field(default=0.35, gt=0.0, lt=1.0)
+    hold: Hold = Field(default_factory=lambda: Hold(seconds=0.5))
+    absent_s: float = Field(default=3.0, gt=0.0)
+    min_reference_frames: int = Field(default=10, ge=1)
+    max_gap_s: float | None = Field(default=None, gt=0.0)
+
+
 class FirstOf(_Node):
     """OR: fires with the first child that fires."""
 
@@ -275,7 +349,14 @@ class Sequence(_Node):
 
 
 LevelNode = Annotated[
-    ClassPresence | RoiInside | Not | AllOfLevel | AnyOfLevel,
+    ClassPresence
+    | RoiInside
+    | Not
+    | AllOfLevel
+    | AnyOfLevel
+    | SubjectOverRoi
+    | SubjectVisibleFraction
+    | LastSeenIn,
     Field(discriminator="kind"),
 ]
 TriggerNode = Annotated[
@@ -286,6 +367,7 @@ TriggerNode = Annotated[
     | Delay
     | External
     | EndOfStream
+    | BurrowEntry
     | FirstOf
     | AllOf
     | Sequence,
@@ -299,6 +381,9 @@ ConditionNode = (
     | Not
     | AllOfLevel
     | AnyOfLevel
+    | SubjectOverRoi
+    | SubjectVisibleFraction
+    | LastSeenIn
     | Persist
     | RoiEdge
     | TimeReached
@@ -306,6 +391,7 @@ ConditionNode = (
     | Delay
     | External
     | EndOfStream
+    | BurrowEntry
     | FirstOf
     | AllOf
     | Sequence
@@ -362,11 +448,54 @@ class WindowSpec(_Node):
                     "EndOfStream cannot be part of the START condition: "
                     "a window cannot start once the recording is over.",
                 )
+            if isinstance(node, BurrowEntry | SubjectVisibleFraction):
+                raise PydanticCustomError(
+                    "start_uses_subject_size",
+                    "BurrowEntry and SubjectVisibleFraction cannot be part of the START "
+                    "condition: the subject's usual size is measured from START on.",
+                )
         return self
 
 
 for _model in (Not, AllOfLevel, AnyOfLevel, Persist, Delay, FirstOf, AllOf, Sequence, WindowSpec):
     _model.model_rebuild()
+
+
+#: Nodes that read the subject box's area or ROI cover (``subject_geometry``).
+_GEOMETRY_NODES = (SubjectOverRoi, SubjectVisibleFraction, LastSeenIn, BurrowEntry)
+
+
+def spec_needs_subject_geometry(spec: WindowSpec | None) -> bool:
+    """Whether any START/STOP node reads the subject box's area or ROI cover.
+
+    The one rule both observation builders use to skip the geometry: a window
+    without these nodes never pays for it, offline or live.
+    """
+    if spec is None:
+        return False
+    return any(
+        isinstance(node, _GEOMETRY_NODES)
+        for root in (spec.start, spec.stop)
+        if root is not None
+        for node in iter_nodes(root)
+    )
+
+
+def subject_geometry_rois(spec: WindowSpec | None) -> tuple[str, ...]:
+    """ROI names the geometry nodes of ``spec`` read, in order of first appearance."""
+    names: list[str] = []
+    if spec is None:
+        return ()
+    for root in (spec.start, spec.stop):
+        if root is None:
+            continue
+        for node in iter_nodes(root):
+            if (
+                isinstance(node, SubjectOverRoi | LastSeenIn | BurrowEntry)
+                and node.roi not in names
+            ):
+                names.append(node.roi)
+    return tuple(names)
 
 
 def spec_hash(spec: WindowSpec) -> str:

@@ -1,0 +1,16 @@
+{
+  "The main arena polygon has not been defined.\n\nThe main arena is required for an accurate analysis.\nDo you want to define it now, before processing?": "O polígono principal da arena não foi definido.\n\nÉ necessário definir a arena principal para análise precisa.\nDeseja definir agora antes de processar?",
+  "Please:\n1. Use 'Detect Arena (Auto)' or\n2. Draw the main polygon manually\n3. Then come back to add videos": "Por favor:\n1. Use 'Detectar Arena (Auto)' ou\n2. Desenhe manualmente o polígono principal\n3. Depois volte para adicionar vídeos",
+  "The main arena polygon has not been defined.\n\nDefining the arena before starting the recording is recommended.\nDo you want to define it now?": "O polígono principal da arena não foi definido.\n\nÉ recomendado definir a arena antes de iniciar gravação.\nDeseja definir agora?",
+  "Please:\n1. Use the live camera to calibrate\n2. Use 'Detect Arena (Auto)' or\n3. Draw the main polygon manually\n4. Then come back to start the recording": "Por favor:\n1. Use a câmera ao vivo para calibrar\n2. Use 'Detectar Arena (Auto)' ou\n3. Desenhe manualmente o polígono principal\n4. Depois volte para iniciar a gravação",
+  "Detecting the arena...": "Detectando a arena...",
+  "Arena Detected": "Arena Detectada",
+  "Arena detected successfully!\n\nYou can adjust the vertices or add ROIs.\nClick 'Finish' when you are ready.": "Arena detectada com sucesso!\n\nVocê pode ajustar os vértices ou adicionar ROIs.\nClique em 'Concluir' quando estiver pronto.",
+  "Could not detect the arena automatically.\n\nYou will be taken to the zones tab to draw it manually.": "Não foi possível detectar a arena automaticamente.\n\nVocê será levado para a aba de zonas para desenhar manualmente.",
+  "Could not detect the arena automatically.\n\nThe captured image was loaded for manual drawing.\nPlease use the 'Main Polygon' tool to define the arena.": "Não foi possível detectar a arena automaticamente.\n\nA imagem capturada foi carregada para desenho manual.\nPor favor, use a ferramenta 'Polígono Principal' para definir a arena.",
+  "Draw the Arena": "Desenhe a Arena",
+  "Draw the arena polygon and ROIs (if needed).\n\nClick 'Finish' when you are ready.": "Desenhe o polígono da arena e ROIs (se necessário).\n\nClique em 'Concluir' quando estiver pronto.",
+  "🐟 {label}": "🐟 {label}",
+  "🐀 {label}": "🐀 {label}",
+  "🐾 {label}": "🐾 {label}"
+}

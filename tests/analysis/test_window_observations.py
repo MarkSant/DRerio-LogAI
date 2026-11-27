@@ -18,16 +18,20 @@ from zebtrack.analysis.window_observations import (
     build_window_observations,
     missing_inputs,
     role_names_from_metadata,
+    subject_geometry_by_frame,
     subject_rois_by_frame,
 )
 from zebtrack.core.conditions import (
     AllOfLevel,
+    BurrowEntry,
     ClassPresence,
     ClassTarget,
     ExternalEvent,
     Hold,
+    LastSeenIn,
     Persist,
     RoiInside,
+    SubjectOverRoi,
     WindowSpec,
     evaluate_window,
 )
@@ -435,3 +439,141 @@ def test_property_one_observation_per_heartbeat(tmp_path_factory, frames):
     assert [o.frame for o in built.observations] == sorted(frames)
     times = np.array([o.t_s for o in built.observations])
     assert np.all(np.diff(times) > 0)
+
+
+# ---------------------------------------------------------------------------
+# Subject geometry (#633): box area and ROI cover on each observation
+# ---------------------------------------------------------------------------
+
+
+class TestSubjectGeometry:
+    def test_area_and_cover_of_the_trajectory_box(self) -> None:
+        # Boxes 10 x 10 centred at x = 50 (inside) and x = 100 (half over the edge).
+        trajectory = _trajectory([0, 1], [50.0, 100.0])
+
+        geometry = subject_geometry_by_frame(trajectory, [ROI_SQUARE])
+
+        assert geometry[0].area_px == pytest.approx(100.0)
+        assert geometry[0].cover == {"toca": pytest.approx(1.0)}
+        assert geometry[1].cover == {"toca": pytest.approx(0.5)}
+
+    def test_the_most_confident_row_of_a_frame_is_the_subject(self) -> None:
+        trajectory = _trajectory([0, 0], [50.0, 300.0], track_ids=[1, 2])
+        trajectory["confidence"] = [0.4, 0.9]
+
+        geometry = subject_geometry_by_frame(trajectory, [ROI_SQUARE])
+
+        assert geometry[0].cover == {}
+
+    def test_without_confidence_the_larger_box_wins(self) -> None:
+        trajectory = _trajectory([0, 0], [50.0, 300.0], track_ids=[1, 2]).drop(columns="confidence")
+        trajectory.loc[1, ["x1", "x2"]] = [250.0, 350.0]
+
+        geometry = subject_geometry_by_frame(trajectory, [ROI_SQUARE])
+
+        assert geometry[0].area_px == pytest.approx(1000.0)
+
+    def test_frames_without_a_usable_box_are_absent(self) -> None:
+        trajectory = _trajectory([0, 1, 2], [50.0, 50.0, 50.0])
+        trajectory.loc[1, "x2"] = np.nan
+        trajectory.loc[2, "frame"] = np.nan
+
+        assert set(subject_geometry_by_frame(trajectory, [ROI_SQUARE])) == {0}
+
+    def test_no_bbox_columns_means_no_geometry(self) -> None:
+        trajectory = _trajectory([0], [50.0]).drop(columns=["x1", "y1", "x2", "y2"])
+
+        assert subject_geometry_by_frame(trajectory, [ROI_SQUARE]) == {}
+
+    def test_no_trajectory_means_no_geometry(self) -> None:
+        assert subject_geometry_by_frame(None, [ROI_SQUARE]) == {}
+        assert subject_geometry_by_frame(pd.DataFrame(), [ROI_SQUARE]) == {}
+
+    def test_observations_carry_the_geometry_and_none_where_absent(self) -> None:
+        trajectory = _trajectory([0, 1, 3], [50.0, 50.0, 100.0])  # no row on frame 2
+
+        built = build_window_observations(trajectory, rois=[ROI_SQUARE], subject_names=["rat"])
+
+        by_frame = {o.frame: o for o in built.observations}
+        assert by_frame[0].subject_area_px == pytest.approx(100.0)
+        assert by_frame[0].subject_cover == {"toca": pytest.approx(1.0)}
+        assert by_frame[2].subject_area_px is None
+        assert by_frame[2].subject_cover == {}
+        assert by_frame[3].subject_cover == {"toca": pytest.approx(0.5)}
+
+    def test_sidecar_streams_take_the_geometry_from_the_trajectory(self, tmp_path) -> None:
+        rows = [_heartbeat(0, 0.0), _detection(0, 0.0, 2), _heartbeat(1, 0.1)]
+        trajectory = _trajectory([0], [50.0])
+
+        built = build_window_observations(
+            trajectory, objects_df=_objects(tmp_path, rows), rois=[ROI_SQUARE]
+        )
+
+        assert [o.subject_area_px for o in built.observations] == [pytest.approx(100.0), None]
+
+
+class TestMissingInputsForEntryNodes:
+    @pytest.mark.parametrize(
+        "stop",
+        [
+            BurrowEntry(roi="toca"),
+            Persist(level=SubjectOverRoi(roi="toca"), hold=Hold(frames=1)),
+            Persist(level=LastSeenIn(roi="toca"), hold=Hold(frames=1)),
+        ],
+    )
+    def test_a_missing_roi_is_reported(self, stop) -> None:
+        spec = WindowSpec(stop=stop)
+
+        assert missing_inputs(spec, has_objects=True, subject_names=[], roi_names=[]) == [
+            "roi:toca"
+        ]
+        assert missing_inputs(spec, has_objects=True, subject_names=[], roi_names=["toca"]) == []
+
+
+class TestGeometryOnlyWhenTheSpecReadsIt:
+    """Hub review of #633: a window without entry nodes never pays for the geometry."""
+
+    @staticmethod
+    def _spy(monkeypatch):
+        import zebtrack.analysis.window_observations as module
+
+        calls = []
+        real = module.subject_geometry_by_frame
+
+        def _counting(trajectory_df, rois):
+            calls.append(1)
+            return real(trajectory_df, rois)
+
+        monkeypatch.setattr(module, "subject_geometry_by_frame", _counting)
+        return calls
+
+    def test_a_spec_without_entry_nodes_never_computes_it(self, monkeypatch) -> None:
+        calls = self._spy(monkeypatch)
+        spec = WindowSpec(
+            stop=Persist(level=RoiInside(roi="toca", state="inside"), hold=Hold(frames=1))
+        )
+
+        built = build_window_observations(
+            _trajectory([0, 1], [50.0, 50.0]), rois=[ROI_SQUARE], spec=spec
+        )
+
+        assert calls == []
+        assert all(o.subject_area_px is None for o in built.observations)
+
+    def test_an_entry_spec_computes_it(self, monkeypatch) -> None:
+        calls = self._spy(monkeypatch)
+        spec = WindowSpec(stop=BurrowEntry(roi="toca"))
+
+        built = build_window_observations(
+            _trajectory([0, 1], [50.0, 50.0]), rois=[ROI_SQUARE], spec=spec
+        )
+
+        assert calls == [1]
+        assert built.observations[0].subject_area_px == pytest.approx(100.0)
+
+    def test_without_a_spec_it_is_computed(self, monkeypatch) -> None:
+        calls = self._spy(monkeypatch)
+
+        build_window_observations(_trajectory([0], [50.0]), rois=[ROI_SQUARE])
+
+        assert calls == [1]

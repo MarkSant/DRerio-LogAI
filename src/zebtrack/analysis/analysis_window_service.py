@@ -451,6 +451,7 @@ class AnalysisWindowService:
             pixelcm=pixelcm,
             mask_source=mask_source,
             min_track_duration_s=self._min_track_duration_s,
+            spec=spec,
         )
         missing = missing_inputs(
             spec,

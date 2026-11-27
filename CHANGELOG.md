@@ -12,6 +12,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Campanha de cobertura e pontas soltas (TASK-087, PR #717): cobertura de 58 % para 70 % na
 suíte core, um teste ponta a ponta por fluxo, e os defeitos que esses testes encontraram.
 
+Labirinto de Barnes e perfil do experimento (TASK-088, #633): o app deixa de supor
+zebrafish-em-aquário. Plano e contratos em `docs/tasks/v8.1/barnes/`; decisão no ADR-014.
+
+### Added
+
+- **Perfil do experimento** (modelo animal + protocolo), escolhido na primeira etapa do
+  assistente e nos diálogos de vídeo único e ao vivo; lido só por
+  `resolve_experiment_profile`. Projetos sem perfil continuam idênticos (zebrafish, genérico).
+  Template embutido "Barnes maze (rat)"; diâmetro da mesa na Calibração; padrões de
+  comportamento por animal (roedor: 100 cm/s, faixa de parede de 15 cm; congelamento
+  provisório de 2,0 cm/s por 1,0 s).
+- **Camada de protocolos** (ADR-014): `report["protocol_metrics"]` sempre presente
+  (`{"status": "none"}` no genérico) e dados por vídeo em `video_entry["protocol_inputs"]`.
+- **Assistente de arena Barnes** na aba Zonas: a mesa (autodetecção ou cliques na borda), um
+  clique na toca e o app distribui os buracos, encaixa cada um no buraco real e cria a arena, o
+  `quadrante_alvo` (toca ± 2 buracos) e uma ROI por buraco, nomeadas pela distância à toca. A
+  contagem (18 ou 20) é detectada por vídeo; a mesa atual do laboratório tem 18 buracos, o
+  padrão. Aplicar a outros vídeos refaz o encaixe em cada um; uma gravação que falha não muda
+  nada e avisa.
+- **Encontro × entrada na toca**: novos nós de condição (`SubjectOverRoi`,
+  `SubjectVisibleFraction`, `LastSeenIn`, `BurrowEntry`) e o preset Barnes v2, que fecha a
+  janela na ENTRADA (rato majoritariamente sobre a toca e visivelmente menor que no resto do
+  ensaio, ou sumido com a última posição na toca) e não no primeiro toque; motivo de parada
+  `burrow_entry`. Um projeto Barnes novo nasce com o v2; o editor oferece a atualização da v1
+  e diz quais linhas saem. Ao vivo e offline usam o mesmo avaliador.
+- **Métricas Barnes**: latências de encontro e de entrada (censura em 240 s), erros
+  primários, totais e perseverativos, distâncias, tempo no quadrante-alvo, sequência de visitas e
+  visitas por distância; probe (score do 1º buraco `min(d+1, 10)`, latência do 1º erro,
+  tentativas); estratégia de busca automática (direta/seriada/aleatória) com correção manual por
+  vídeo no menu do relatório.
+- **Relatórios Barnes**: colunas `barnes_*` depois das `window_*`; seção Barnes no relatório
+  individual com diagrama dos buracos e trajetória numerada; aba `barnes_visits` no `.xlsx`;
+  curvas de aprendizagem, distribuição de estratégias e comparação de probe, cientes da censura,
+  nos relatórios parcial e unificado.
+- **Vocabulário da interface por animal**: projetos de roedor veem "arena"/"animal" no lugar de
+  "aquário"/"peixe" no assistente, na aba Zonas, nos diálogos, nos sujeitos (🐀) e nos rótulos
+  do relatório Word. Cabeçalhos exportados no `.xlsx` não mudam.
+- `scripts/barnes_validation.py`: valida e calibra as métricas Barnes contra a pontuação manual
+  do laboratório (Bland–Altman, ICC(2,1), kappa, latências com censura, desvio do início; modo
+  só-reanálise e calibração com conjunto separado por animal). Guia:
+  `docs/tasks/v8.1/barnes/VALIDATION.md`.
+
 ### Fixed
 
 - **Pontas soltas da TASK-087 (#724–#730):**

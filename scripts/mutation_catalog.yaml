@@ -1112,8 +1112,14 @@ modules:
         replace: 'if False:'
       - id: zero-ceiling-accepted
         description: "teto zero passa a ser aceito e toda janela fecha no primeiro quadro"
-        find: 'if not max_s > 0:'
-        replace: 'if False:'
+        find: |-
+          if not max_s > 0:
+                  raise ValueError(f"max_s must be positive, got {max_s!r}")
+              if burrow_roi is not None and not burrow_roi.strip():
+        replace: |-
+          if False:
+                  raise ValueError(f"max_s must be positive, got {max_s!r}")
+              if burrow_roi is not None and not burrow_roi.strip():
       - id: legacy-stop-only-marks
         description: "codigo 0 do gatilho legado deixa de encerrar a sessao e so marca o FIM"
         find: 'on_stop="end_session",'
@@ -1194,8 +1200,8 @@ modules:
         replace: 'if node.hold.frames == 0:'
       - id: roi-inside-not-referenced
         description: "#650: ROI citada por 'dentro/fora' deixa de ser conferida e o editor nao avisa"
-        find: 'if isinstance(node, RoiEdge | RoiInside) and node.roi not in names:'
-        replace: 'if isinstance(node, RoiEdge) and node.roi not in names:'
+        find: 'isinstance(node, RoiEdge | RoiInside | SubjectOverRoi | LastSeenIn | BurrowEntry)'
+        replace: 'isinstance(node, RoiEdge | SubjectOverRoi | LastSeenIn | BurrowEntry)'
       - id: missing-roi-ignores-case
         description: "#650: 'Toca' passa a satisfazer 'toca', mas o avaliador compara exato e a linha nunca dispara"
         find: 'known = set(available)'
@@ -2192,16 +2198,18 @@ modules:
           smoothing_polyorder=smoothing_polyorder,
                       window=window,
                       behavioral_config=behavioral_config,
+                      protocol_inputs=protocol_inputs,
                   )
 
-              def _resolve_analysis_window(
+              def _video_protocol_inputs(
         replace: |-
           smoothing_polyorder=smoothing_polyorder,
                       window=None,
                       behavioral_config=behavioral_config,
+                      protocol_inputs=protocol_inputs,
                   )
 
-              def _resolve_analysis_window(
+              def _video_protocol_inputs(
 
   live_post_analysis_window:
     source: src/zebtrack/core/recording/live_analysis_post_processor.py
@@ -6492,3 +6500,2052 @@ _load_registry()"
         description: "#727: zonas ilegiveis derrubam a abertura do dialogo do bloco"
         find: "self._project_has_polygon = bool(zone_data and getattr(zone_data, \"polygon\", None))\n        except Exception as exc:"
         replace: "self._project_has_polygon = bool(zone_data and getattr(zone_data, \"polygon\", None))\n        except KeyError as exc:"
+
+  # --- Barnes v8.1 stage 0 (ADR-014): experiment profile, protocol layer, Barnes contract ---
+  experiment_profile:
+    source: src/zebtrack/core/services/experiment_profile.py
+    tests:
+      - tests/core/services/test_experiment_profile.py
+    mutations:
+      - id: unknown-protocol-passes-as-generic
+        description: "protocolo desconhecido passa a ser tratado como generico, sem aviso no relatorio"
+        find: "return self.protocol is ProtocolId.GENERIC and self.declared_protocol is None"
+        replace: "return self.protocol is ProtocolId.GENERIC"
+      - id: none-value-counts-as-declared
+        description: "chave com valor None deixa de cair para o projeto"
+        find: "if key in source and source[key] is not None:"
+        replace: "if key in source:"
+      - id: legacy-block-ignored
+        description: "bloco legado behavioral_analysis deixa de ser lido"
+        find: "if _PROJECT_BLOCK_KEY in project_data:"
+        replace: "if True:"
+      - id: unknown-model-becomes-zebrafish
+        description: "modelo animal desconhecido vira zebrafish em vez de other"
+        find: "animal_model = AnimalModel.OTHER"
+        replace: "animal_model = AnimalModel.ZEBRAFISH"
+      - id: forced-model-not-applied
+        description: "Barnes deixa de forcar o modelo roedor"
+        find: "if forced is not None and animal_model is not forced:"
+        replace: "if False:"
+      - id: forced-model-always-warns
+        description: "correcao do modelo avisa mesmo quando nada foi declarado"
+        find: "if model_found:\n            logger.warning("
+        replace: "if True:\n            logger.warning("
+      - id: own-params-ignored
+        description: "parametros do proprio protocolo deixam de ser lidos"
+        find: "if isinstance(own, Mapping):"
+        replace: "if False:"
+
+  protocols_base:
+    source: src/zebtrack/analysis/protocols/base.py
+    tests:
+      - tests/analysis/protocols/test_protocol_base.py
+    mutations:
+      - id: generic-status-not-none
+        description: "relatorio generico deixa de ser exatamente status none"
+        find: 'return {"status": ProtocolStatus.NONE.value}'
+        replace: 'return {"status": ProtocolStatus.OK.value}'
+      - id: error-message-dropped
+        description: "mensagem de erro do protocolo some do relatorio"
+        find: "if error is not None:"
+        replace: "if False:"
+      - id: inputs-for-reads-wrong-block
+        description: "entradas por video de outro protocolo chegam ao protocolo errado"
+        find: "block = protocol_inputs.get(protocol.value)"
+        replace: 'block = protocol_inputs.get("generic")'
+      - id: set-input-wipes-other-protocols
+        description: "gravar uma entrada apaga as entradas dos outros protocolos"
+        find: "if not isinstance(blocks, MutableMapping):\n        blocks = {}"
+        replace: "if True:\n        blocks = {}"
+      - id: clear-keeps-empty-block
+        description: "limpar a ultima entrada deixa um bloco vazio no projeto"
+        find: "if not block:"
+        replace: "if False:"
+
+  protocols_registry:
+    source: src/zebtrack/analysis/protocols/registry.py
+    tests:
+      - tests/analysis/protocols/test_protocol_registry.py
+    mutations:
+      - id: generic-dispatches
+        description: "projeto generico passa a despachar para um protocolo"
+        find: "if profile.is_generic:"
+        replace: "if False:"
+      - id: unknown-reported-as-unregistered
+        description: "protocolo desconhecido e relatado como nao registrado"
+        find: "if profile.declared_protocol is not None:"
+        replace: "if False:"
+      - id: malformed-result-accepted
+        description: "resultado sem status/protocol/version entra no relatorio"
+        find: "if not isinstance(result, dict) or any(key not in result for key in _REQUIRED_RESULT_KEYS):"
+        replace: "if not isinstance(result, dict):"
+      - id: duplicate-registration-allowed
+        description: "protocolo registrado duas vezes deixa de ser recusado"
+        find: "if spec.protocol in registry:"
+        replace: "if False:"
+      - id: registry-rebuilt-every-call
+        description: "registro reconstruido a cada consulta, ignorando o instalado"
+        find: "if _registry is None:"
+        replace: "if True:"
+
+  barnes_contract:
+    source: src/zebtrack/analysis/protocols/barnes/contract.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_contract.py
+    mutations:
+      - id: opposite-hole-negative
+        description: "buraco oposto passa a ter deslocamento negativo"
+        find: "if delta > half:"
+        replace: "if delta >= half:"
+      - id: negative-opposite-name-accepted
+        description: "deslocamento -n/2 ganha o nome do oposto"
+        find: "if offset < 0:"
+        replace: "if False:"
+      - id: quadrant-after-target
+        description: "quadrante deixa de vir antes dos buracos (stable_roi passa a ser dele)"
+        find: "names = [QUADRANT_ROI, TARGET_ROI]"
+        replace: "names = [TARGET_ROI, QUADRANT_ROI]"
+      - id: zero-offset-hole-name-accepted
+        description: "buraco_+00 passa a ser aceito como ROI de Barnes"
+        find: "if offset == 0 or abs(offset) > half"
+        replace: "if abs(offset) > half"
+      - id: probe-score-uncapped
+        description: "score do probe perde o teto do protocolo"
+        find: "return min(abs(offset) + 1, cap)"
+        replace: "return abs(offset) + 1"
+      - id: quadrant-fit-unchecked
+        description: "quadrante maior que a mesa deixa de ser recusado"
+        find: "if 2 * self.quadrant_half_holes + 1 > self.n_holes:"
+        replace: "if False:"
+      - id: cross-field-failure-not-dropped
+        description: "falha entre campos deixa de descartar e avisar os campos culpados"
+        find: 'bad = {"quadrant_half_holes", "n_holes"} & set(data)'
+        replace: "bad = set()"
+      - id: default-trial-is-probe
+        description: "ensaio sem declaracao vira probe"
+        find: "default_trial_type: TrialType = TrialType.TRAINING"
+        replace: "default_trial_type: TrialType = TrialType.PROBE"
+      - id: bad-trial-type-not-dropped
+        description: "tipo de ensaio invalido derruba a leitura das entradas do video"
+        find: 'for name in ("trial_type", "strategy_override"):'
+        replace: 'for name in ("strategy_override",):'
+      - id: layout-offsets-unchecked
+        description: "layout com deslocamentos incoerentes com a toca e aceito"
+        find: "if hole.offset != expected:"
+        replace: "if False:"
+      - id: broken-cache-raises
+        description: "cache de layout invalido derruba a leitura em vez de ser ignorado"
+        find: "except (KeyError, TypeError, ValueError) as exc:"
+        replace: "except KeyError as exc:"
+      - id: tidy-visits-skip-target
+        description: "coluna de visitas a toca (d00) some do relatorio"
+        find: "distances = range(max_offset(n_holes) + 1)"
+        replace: "distances = range(1, max_offset(n_holes) + 1)"
+      - id: tidy-source-keeps-zero-padding
+        description: "coluna barnes_visits_dNN aponta para chave com zero a esquerda"
+        find: 'return f"visits_by_distance.{int(match.group(1))}"'
+        replace: 'return f"visits_by_distance.{match.group(1)}"'
+
+  analysis_service_protocol_hook:
+    source: src/zebtrack/analysis/analysis_service.py
+    tests:
+      - tests/analysis/test_analysis_service.py
+    mutations:
+      - id: generic-report-not-none
+        description: "relatorio generico deixa de trazer protocol_metrics status none"
+        find: "report[PROTOCOL_METRICS_KEY] = none_metrics()"
+        replace: 'report[PROTOCOL_METRICS_KEY] = {"status": "ok"}'
+      - id: profile-warnings-dropped
+        description: "avisos de perfil invalido somem do relatorio"
+        find: "validation_warnings.extend(profile.warnings)"
+        replace: "validation_warnings.extend(())"
+      - id: video-inputs-not-forwarded
+        description: "entradas por video nao chegam ao protocolo"
+        find: "inputs=protocol_inputs_for(protocol_inputs, profile.protocol),"
+        replace: "inputs=protocol_inputs_for(None, profile.protocol),"
+      - id: protocol-warnings-copied
+        description: "avisos do protocolo vao para uma copia e nao chegam ao documento"
+        find: "warnings=validation_warnings,\n            )\n            result = compute_protocol_metrics(context)"
+        replace: "warnings=list(validation_warnings),\n            )\n            result = compute_protocol_metrics(context)"
+      - id: no-roi-report-lacks-key
+        description: "relatorio sem ROIs perde a chave protocol_metrics"
+        find: "self._attach_protocol_metrics(report, r_analyzer=None, **protocol_args)"
+        replace: "None"
+      - id: multi-aquarium-dispatches
+        description: "protocolo nao generico roda num aquario de video multi-aquario"
+        find: "if aquarium_id is not None:"
+        replace: "if False:"
+      - id: context-failure-raises
+        description: "falha ao montar o contexto do protocolo derruba o relatorio inteiro"
+        find: "# its protocol metrics are missing.\n        except Exception as exc:"
+        replace: "# its protocol metrics are missing.\n        except KeyError as exc:"
+      - id: dto-drops-aquarium
+        description: "o DTO deixa de repassar o aquario e o multi-aquario chega ao protocolo"
+        find: "protocol_inputs=protocol_inputs,\n            aquarium_id=aquarium_id,\n        )"
+        replace: "protocol_inputs=protocol_inputs,\n            aquarium_id=None,\n        )"
+      - id: dto-drops-inputs
+        description: "o DTO deixa de repassar as entradas por video"
+        find: "protocol_inputs=protocol_inputs,\n            aquarium_id=aquarium_id,\n        )"
+        replace: "protocol_inputs=None,\n            aquarium_id=aquarium_id,\n        )"
+
+  # --- Barnes v8.1 barnes-arena (#633): arena assistant geometry, dialog, write path ---
+  barnes_geometry:
+    source: src/zebtrack/core/detection/barnes_geometry.py
+    tests:
+      - tests/core/detection/test_barnes_geometry.py
+    mutations:
+      - id: ring-counter-clockwise
+        description: "o anel passa a girar no sentido anti-horario e os offsets se invertem"
+        find: "cx + ux * math.cos(theta) - uy * math.sin(theta),"
+        replace: "cx + ux * math.cos(theta) + uy * math.sin(theta),"
+      - id: rho-halved
+        description: "clique fora da mesa passa a ser aceito como toca"
+        find: "return math.atan2(v, u), math.hypot(u, v)"
+        replace: "return math.atan2(v, u), math.hypot(u, v) * 0.5"
+      - id: snap-window-collapses
+        description: "janela de busca do snap encolhe e nenhum buraco e ajustado"
+        find: "SNAP_SEARCH_FRACTION = 0.4"
+        replace: "SNAP_SEARCH_FRACTION = 0.04"
+      - id: ring-never-refitted
+        description: "o anel nao e reajustado pelos buracos e o buraco ausente fica deslocado"
+        find: "if len(found) < MIN_HOLES_TO_REFIT:"
+        replace: "if True:"
+      - id: quadrant-one-hole-short
+        description: "quadrante alvo perde um buraco no lado anti-horario"
+        find: "t_start = midpoint(-half_holes, -half_holes - 1)"
+        replace: "t_start = midpoint(-half_holes, -half_holes + 1)"
+      - id: hole-rois-may-overlap
+        description: "o teto do raio passa de meio espacamento e ROIs vizinhas se sobrepoem"
+        find: "HOLE_ROI_SPACING_CAP = 0.45"
+        replace: "HOLE_ROI_SPACING_CAP = 0.6"
+      - id: abs-origin-not-wrapped
+        description: "origem do abs_index deixa de ser o buraco mais a direita no sentido horario"
+        find: "angles = [math.atan2(y - cy, x - cx) % (2.0 * math.pi) for x, y in centers]"
+        replace: "angles = [math.atan2(y - cy, x - cx) for x, y in centers]"
+      - id: collinear-rim-accepted
+        description: "pontos colineares na borda viram uma mesa"
+        find: "if misfit > MAX_RIM_MISFIT:"
+        replace: "if False:"
+      - id: background-min-not-median
+        description: "fundo vira o minimo dos quadros e o rato que anda fica no fundo"
+        find: "background = np.median(stack, axis=0).astype(np.uint8)"
+        replace: "background = np.min(stack, axis=0).astype(np.uint8)"
+      - id: worst-hole-count-kept
+        description: "contagem de buracos escolhe o pior ajuste (20 numa mesa de 18)"
+        find: "best = max(placed, key=lambda count: _count_score(placed[count][0]))"
+        replace: "best = min(placed, key=lambda count: _count_score(placed[count][0]))"
+      - id: frame-margin-too-wide
+        description: "mesa bem fora do quadro ainda conta como enquadrada"
+        find: "min(xs) >= -margin * width"
+        replace: "min(xs) >= -10 * margin * width"
+
+  barnes_layout_dialog:
+    source: src/zebtrack/ui/dialogs/barnes_layout_dialog.py
+    tests:
+      - tests/ui/dialogs/test_barnes_layout_dialog.py
+    mutations:
+      - id: click-not-unscaled
+        description: "clique no canvas nao volta para pixels crus do video"
+        find: "return (float(canvas_x) / self._scale, float(canvas_y) / self._scale)"
+        replace: "return (float(canvas_x) * self._scale, float(canvas_y) * self._scale)"
+      - id: suspicious-not-confirmed
+        description: "layout com buraco nao encontrado e aplicado sem perguntar"
+        find: "if geometry.layout_quality(layout).suspicious and not messagebox.askyesno("
+        replace: "if False and not messagebox.askyesno("
+      - id: trial-type-without-entry
+        description: "quadro sem video no projeto ainda envia tipo de sessao"
+        find: "return self.trial_type_var.get() if self._inputs.trial_type_editable else None"
+        replace: "return self.trial_type_var.get()"
+      - id: rotation-inverted
+        description: "seta de 1 buraco move a toca para o lado oposto"
+        find: "self._model = self._model.rotated(holes * self._model.step)"
+        replace: "self._model = self._model.rotated(-holes * self._model.step)"
+      - id: queue-trial-type-dropped
+        description: "tipo de sessao escolhido para os outros videos se perde"
+        find: "self._start_queue(list(choice.paths), choice.trial_type)"
+        replace: "self._start_queue(list(choice.paths), None)"
+      - id: early-click-never-snapped
+        description: "clique feito antes do fundo carregar nunca e ajustado"
+        find: "if self._click is not None and not self._manual and self._table is not None:"
+        replace: "if False:"
+      - id: count-never-detected
+        description: "numero de buracos nao e detectado no video e fica o do projeto"
+        find: "if self._background is not None and not self._count_overridden:"
+        replace: "if False:"
+      - id: project-count-changed-silently
+        description: "contagem diferente do projeto e gravada sem perguntar"
+        find: "if layout.n_holes == self._params.n_holes:"
+        replace: "if True:"
+      - id: unanswered-write-is-success
+        description: "gravacao sem resposta do coordenador e dada como feita"
+        find: "written = bool(outcome) and outcome[-1]"
+        replace: "written = not outcome or outcome[-1]"
+      - id: table-outside-frame-reused
+        description: "mesa fora do quadro de outro video e reaproveitada"
+        find: "                ) or not geometry.table_fits_frame(table, background.shape[:2]):"
+        replace: "                ):"
+      - id: suspicious-copy-written
+        description: "copia com buraco nao encontrado e gravada sem revisao"
+        find: "                if geometry.layout_quality(layout).suspicious:\n"
+        replace: "                if False:\n"
+      - id: current-video-not-written
+        description: "aplicar a outros videos esquece o video atual"
+        find: "if not proceed or not self._write_current(layout, project_n_holes):\n            return\n        if choice.same_escape_hole:"
+        replace: "if not proceed:\n            return\n        if choice.same_escape_hole:"
+      - id: single-frame-note-hidden
+        description: "fundo de um quadro so deixa de ser avisado"
+        find: "if self._background_note:"
+        replace: "if False:"
+
+  multi_aquarium_coordinator_barnes:
+    source: src/zebtrack/coordinators/multi_aquarium_coordinator.py
+    tests:
+      - tests/coordinators/test_multi_aquarium_coordinator.py
+    mutations:
+      - id: old-barnes-rois-kept
+        description: "ROIs Barnes antigas nao sao substituidas e ficam duplicadas"
+        find: "if is_barnes(str(name)):"
+        replace: "if False:"
+      - id: persisted-per-roi
+        description: "projeto e parquet sao gravados a cada ROI em vez de uma vez"
+        find: "roi_points, roi_name, roi_color, video_path=video_path, persist=False"
+        replace: "roi_points, roi_name, roi_color, video_path=video_path, persist=True"
+      - id: trial-type-hardcoded
+        description: "tipo de sessao do video vira sempre treino"
+        find: 'set_protocol_input(entry, ProtocolId.BARNES, "trial_type", trial_type)'
+        replace: 'set_protocol_input(entry, ProtocolId.BARNES, "trial_type", "training")'
+      - id: arena-written-to-active-video
+        description: "arena vai para o video ativo e nao para o caminho pedido"
+        find: "zone_data.polygon = [(int(x), int(y)) for x, y in points]\n\n        self.project_manager.save_zone_data(zone_data, video_path, persist=persist)"
+        replace: "zone_data.polygon = [(int(x), int(y)) for x, y in points]\n\n        self.project_manager.save_zone_data(zone_data, None, persist=persist)"
+      - id: no-rollback
+        description: "falha no meio da gravacao deixa o projeto meio escrito"
+        find: "            self._barnes_restore(snapshot)\n"
+        replace: "            pass\n"
+      - id: refused-roi-ignored
+        description: "ROI do contrato recusada some em silencio"
+        find: "                raise _BarnesWriteRefusedError(roi_name)\n"
+        replace: "                pass\n"
+      - id: other-count-leftovers-kept
+        description: "ROIs de um layout de 20 buracos sobram ao refazer com 18"
+        find: "for n in (98, 99))"
+        replace: "for n in (18,))"
+      - id: outcome-always-success
+        description: "o dialogo e informado de sucesso mesmo quando nada foi gravado"
+        find: "            on_result(written)\n"
+        replace: "            on_result(True)\n"
+      - id: confirmed-count-dropped
+        description: "contagem confirmada pelo usuario nao chega ao projeto"
+        find: '"n_holes", project_n_holes)'
+        replace: '"n_holes", 20)'
+
+  event_dispatcher_barnes:
+    source: src/zebtrack/ui/components/event_dispatcher.py
+    tests:
+      - tests/ui/components/test_event_dispatcher.py
+    mutations:
+      - id: assistant-for-every-project
+        description: "botao do assistente Barnes aparece em projeto generico"
+        find: "return resolve_experiment_profile(project_data).protocol is ProtocolId.BARNES"
+        replace: "return resolve_experiment_profile(project_data).protocol is not ProtocolId.BARNES"
+      - id: table-detection-multi
+        description: "deteccao da mesa pede dois aquarios"
+        find: "                expected_count=1,"
+        replace: "                expected_count=2,"
+      - id: live-offers-other-videos
+        description: "projeto ao vivo oferece aplicar a outros videos"
+        find: "        if not is_live:\n            for video in"
+        replace: "        if True:\n            for video in"
+      - id: snapshot-offers-detection
+        description: "instantaneo ao vivo oferece deteccao por video"
+        find: "can_detect_table=not (is_live or is_snapshot),"
+        replace: "can_detect_table=True,"
+      - id: stale-arena-as-detection
+        description: "arena antiga e apresentada como mesa detectada"
+        find: "if not after or after == before:"
+        replace: "if not after:"
+
+  zone_controls_barnes:
+    source: src/zebtrack/ui/components/zone_controls.py
+    tests:
+      - tests/ui/components/test_zone_controls_widget.py
+    mutations:
+      - id: button-packed-last
+        description: "botao do assistente vai para depois de Concluir e Salvar"
+        find: "                        before=self.conclude_video_btn,\n"
+        replace: ""
+
+  experiment_profile_barnes_write:
+    source: src/zebtrack/core/services/experiment_profile.py
+    tests:
+      - tests/core/services/test_experiment_profile.py
+    mutations:
+      - id: legacy-block-ignored
+        description: "projeto legado recebe o parametro num bloco que o leitor nao le"
+        find: "        block_key = _LEGACY_BLOCK_KEY"
+        replace: "        block_key = _PROJECT_BLOCK_KEY"
+      - id: param-not-written
+        description: "parametro do protocolo nao e gravado"
+        find: "    own[key] = value"
+        replace: "    own[key] = previous"
+  # --- Barnes v8.1 barnes-metrics (#633): layout, visits, strategy, metrics, spec ---
+  barnes_layout:
+    source: src/zebtrack/analysis/protocols/barnes/layout.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_layout.py
+    mutations:
+      - id: duplicate-roi-last-wins
+        description: "uma ROI repetida mais adiante substitui a primeira (ordem armazenada)"
+        find: "if roi.name in by_name:"
+        replace: "if False:"
+      - id: empty-hole-accepted
+        description: "ROI de buraco sem area conta como buraco valido"
+        find: "return geometry is not None and not geometry.is_empty and float(geometry.area) > 0.0"
+        replace: "return geometry is not None"
+      - id: coincident-centres-form-a-ring
+        description: "centros coincidentes passam a formar um anel de raio quase zero"
+        find: "if not math.isfinite(radius) or radius < _MIN_SEMI_AXIS_PX:"
+        replace: "if not math.isfinite(radius):"
+      - id: ellipse-rotation-sign
+        description: "teste do disco central gira a elipse para o lado errado"
+        find: "v = -dx * sin_t + dy * cos_t"
+        replace: "v = dx * sin_t + dy * cos_t"
+      - id: center-disk-not-scaled
+        description: "o disco central deixa de ser escalado no segundo semieixo"
+        find: "b = ellipse.semi_axes_px[1] * ratio"
+        replace: "b = ellipse.semi_axes_px[1]"
+      - id: empty-quadrant-kept
+        description: "quadrante sem area e aceito como quadrante"
+        find: "if quadrant is not None and not _usable(quadrant):"
+        replace: "if False:"
+      - id: duplicates-not-reported
+        description: "nomes de Barnes repetidos deixam de ser relatados"
+        find: "                duplicates.append(roi.name)"
+        replace: "                pass"
+  barnes_visits:
+    source: src/zebtrack/analysis/protocols/barnes/visits.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_visits.py
+    mutations:
+      - id: cover-wrong-denominator
+        description: "cobertura dividida por 4x a area do buraco: nenhum poke vira visita"
+        find: "shapely.intersection(boxes, hole.roi.geometry)) / hole.area_px"
+        replace: "shapely.intersection(boxes, hole.roi.geometry)) / (4 * hole.area_px)"
+      - id: enter-debounce-off
+        description: "um unico quadro coberto abre uma visita"
+        find: "if self._run >= self._enter:"
+        replace: "if self._run >= 1:"
+      - id: exit-debounce-off
+        description: "um unico quadro descoberto fecha a visita"
+        find: "if self._run >= self._exit:"
+        replace: "if self._run >= 1:"
+      - id: exit-not-back-dated
+        description: "saida datada no ultimo quadro da sequencia, nao no primeiro"
+        find: "self._close(self._run_t)"
+        replace: "self._close(t)"
+      - id: enter-not-back-dated
+        description: "entrada datada no quadro que confirma, nao no primeiro coberto"
+        find: "self._start = self._run_t"
+        replace: "self._start = t"
+      - id: slowdown-filter-ignored
+        description: "filtro de desaceleracao deixa de descartar uma corrida sobre o buraco"
+        find: "if self._slow or not self._need_slow:"
+        replace: "if True:"
+      - id: missing-frames-ignored
+        description: "quadros sem deteccao deixam de contar como descobertos"
+        find: "debounce.step(float(t[i - 1] + k * spacing), False, False, False)"
+        replace: "continue"
+      - id: open-visit-not-clamped
+        description: "visita aberta no START comeca antes de t0"
+        find: "start = max(visit.t_enter_s, t0)"
+        replace: "start = visit.t_enter_s"
+      - id: exit-after-trial-kept
+        description: "saida depois do fim do ensaio continua contada como saida"
+        find: "if end is not None and end > trial_end:"
+        replace: "if False:"
+      - id: closed-at-t0-kept
+        description: "visita que fecha exatamente em t0 continua contada"
+        find: "if visit.t_exit_s is not None and visit.t_exit_s <= t0:"
+        replace: "if visit.t_exit_s is not None and visit.t_exit_s < t0:"
+      - id: lowest-confidence-kept
+        description: "no mesmo instante fica a deteccao de MENOR confianca"
+        find: "ascending=[True, False, False]"
+        replace: "ascending=[True, True, False]"
+      - id: frame-step-minimum
+        description: "passo de quadro pelo menor intervalo: um par atipico inventa quadros perdidos"
+        find: "step = float(np.median(positive))"
+        replace: "step = float(positive.min())"
+      - id: path-counts-gap-jumps
+        description: "caminho soma o salto atraves de uma lacuna longa"
+        find: "return float(steps[dt <= gap_threshold_s].sum())"
+        replace: "return float(steps.sum())"
+      - id: speed-across-gaps
+        description: "velocidade calculada atraves de lacunas longas"
+        find: "valid = (dt > 0) & (dt <= gap_threshold_s)"
+        replace: "valid = dt > 0"
+      - id: recorded-centre-ignored
+        description: "centro gravado (x_center_px) ignorado em favor do centro da bbox"
+        find: "cx = np.where(recorded, recorded_x, (x1 + x2) / 2.0)"
+        replace: "cx = (x1 + x2) / 2.0"
+      - id: unmeasured-candidates-lost
+        description: "candidato sem velocidade medivel some em silencio no filtro de desaceleracao"
+        find: "elif not self._measured:"
+        replace: "elif False:"
+      - id: nan-speed-counts-as-measured
+        description: "velocidade NaN conta como medida e o candidato some sem aviso"
+        find: "measured = covered & np.isfinite(samples.speed_cm_s)"
+        replace: "measured = covered"
+  barnes_strategy:
+    source: src/zebtrack/analysis/protocols/barnes/strategy.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_strategy.py
+    mutations:
+      - id: step-not-circular
+        description: "passo entre buracos deixa de dar a volta pelo lado curto"
+        find: "return min(delta, n_holes - delta)"
+        replace: "return delta"
+      - id: crossing-counts-staying-inside
+        description: "permanecer no centro conta como travessia"
+        find: "flags[1:] & ~flags[:-1]"
+        replace: "flags[1:] & flags[:-1]"
+      - id: adjacent-step-strict
+        description: "passo igual ao limite deixa de ser adjacente"
+        find: "if circular_step(a, b, params.n_holes) <= params.strategy_adjacent_max_step"
+        replace: "if circular_step(a, b, params.n_holes) < params.strategy_adjacent_max_step"
+      - id: no-visit-gets-a-strategy
+        description: "ensaio sem visita recebe uma estrategia"
+        find: "if n_visits == 0:"
+        replace: "if False:"
+      - id: direct-errors-strict
+        description: "exatamente o maximo de erros deixa de ser direta"
+        find: "and features.errors_before_target <= params.strategy_direct_max_errors"
+        replace: "and features.errors_before_target < params.strategy_direct_max_errors"
+      - id: direct-allows-a-crossing
+        description: "estrategia direta aceita uma travessia do centro"
+        find: "and features.center_crossings == 0"
+        replace: "and features.center_crossings <= 1"
+      - id: serial-fraction-strict
+        description: "fracao adjacente igual ao limite deixa de ser serial"
+        find: "and features.adjacent_transition_fraction >= params.strategy_serial_min_adjacent_fraction"
+        replace: "and features.adjacent_transition_fraction > params.strategy_serial_min_adjacent_fraction"
+      - id: serial-crossings-strict
+        description: "travessias iguais ao limite deixam de ser seriais"
+        find: "and features.center_crossings <= params.strategy_serial_max_center_crossings"
+        replace: "and features.center_crossings < params.strategy_serial_max_center_crossings"
+      - id: manual-override-ignored
+        description: "correcao manual da estrategia e ignorada"
+        find: "if override is not None:"
+        replace: "if False:"
+  barnes_metrics:
+    source: src/zebtrack/analysis/protocols/barnes/metrics.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_metrics.py
+    mutations:
+      - id: entry-reason-ignored
+        description: "parada burrow_entry da janela nao vira latencia de entrada"
+        find: "and window.stop.reason == STOP_REASON_BURROW_ENTRY"
+        replace: "and window.stop.reason != STOP_REASON_BURROW_ENTRY"
+      - id: censored-entry-unavailable
+        description: "janela v2 sem entrada deixa de censurar em max_trial_s"
+        find: "if window is not None and _spec_has_kind(window.spec, _BURROW_ENTRY_NODE_KIND):"
+        replace: "if False:"
+      - id: spec-walk-skips-lists
+        description: "busca do no burrow_entry nao entra em listas (FirstOf)"
+        find: "return any(_spec_has_kind(item, kind) for item in node)"
+        replace: "return False"
+      - id: probe-measures-entry
+        description: "ensaio probe passa a medir entrada"
+        find: "if trial_type is TrialType.PROBE:\n        return None, None, EntrySource.NOT_APPLICABLE"
+        replace: "if False:\n        return None, None, EntrySource.NOT_APPLICABLE"
+      - id: quadrant-pct-not-percent
+        description: "porcentagem no quadrante-alvo sai como fracao"
+        find: "return seconds, seconds / (trial_end - t0) * 100.0"
+        replace: "return seconds, seconds / (trial_end - t0)"
+      - id: target-revisit-perseverative
+        description: "revisita ao alvo conta como perseveracao"
+        find: "repeat = not is_target and visit.offset in seen"
+        replace: "repeat = visit.offset in seen"
+      - id: encounter-visit-before-itself
+        description: "a propria visita de encontro marcada como antes do encontro"
+        find: "encounter_t is None or visit.t_enter_s < encounter_t,"
+        replace: "encounter_t is None or visit.t_enter_s <= encounter_t,"
+      - id: probe-target-is-an-error
+        description: "probe que vai direto ao alvo ganha latencia de primeiro erro"
+        find: "first_error = None if first.offset == 0 else first.t_enter_s - t0"
+        replace: "first_error = first.t_enter_s - t0"
+      - id: probe-attempts-zero-based
+        description: "tentativas ate o alvo contadas a partir de zero"
+        find: "(order for order, visit in enumerate(visits, start=1) if visit.offset == 0), None"
+        replace: "(order for order, visit in enumerate(visits, start=0) if visit.offset == 0), None"
+      - id: t0-ignores-window-start
+        description: "t0 vira a primeira deteccao mesmo com START da janela"
+        find: "t0, source = float(window.start.t_s), StartSource.WINDOW"
+        replace: "t0, source = float(samples.t_s[0]), StartSource.WINDOW"
+      - id: no-trial-ceiling
+        description: "ensaio deixa de terminar em t0 + max_trial_s"
+        find: "trial_end = min(stop_t, t0 + params.max_trial_s)"
+        replace: "trial_end = stop_t"
+      - id: empty-window-measured
+        description: "janela vazia mede a gravacao inteira"
+        find: "if len(samples) == 0 or (window is not None and window.is_empty):"
+        replace: "if len(samples) == 0:"
+      - id: two-animals-accepted
+        description: "trajetoria com dois animais e medida como um"
+        find: "if n_subjects > 1:"
+        replace: "if n_subjects > 2:"
+      - id: video-trial-type-ignored
+        description: "tipo de ensaio do video ignorado em favor do padrao do projeto"
+        find: "trial_type = inputs.trial_type or params.default_trial_type"
+        replace: "trial_type = params.default_trial_type"
+      - id: primary-errors-after-encounter
+        description: "erros primarios contam visitas depois do encontro"
+        find: "primary_errors = sum(1 for v in visits if v.offset != 0 and v.t_enter_s < primary_cutoff)"
+        replace: "primary_errors = sum(1 for v in visits if v.offset != 0)"
+      - id: perseverative-counts-all-decoys
+        description: "erros perseverativos contam todo buraco falso"
+        find: "if repeat and v.t_enter_s < total_cutoff"
+        replace: "if v.t_enter_s < total_cutoff"
+      - id: crossings-after-encounter
+        description: "travessias depois do encontro entram na estrategia"
+        find: "search_end = trial_end if encounter_t is None else encounter_t"
+        replace: "search_end = trial_end"
+      - id: search-past-target
+        description: "transicoes depois do alvo entram na estrategia"
+        find: "search = visits if encounter is None else visits[: visits.index(encounter) + 1]"
+        replace: "search = visits"
+      - id: histogram-not-counting
+        description: "histograma por distancia marca presenca em vez de contar"
+        find: "visits_by_distance[abs(visit.offset)] += 1"
+        replace: "visits_by_distance[abs(visit.offset)] = 1"
+      - id: encounter-not-censored
+        description: "sem encontro a latencia deixa de ser max_trial_s"
+        find: "(params.max_trial_s if encounter_t is None else encounter_t - t0)"
+        replace: "(None if encounter_t is None else encounter_t - t0)"
+      - id: late-entry-not-censored
+        description: "entrada depois de max_trial_s sai como latencia medida"
+        find: "if latency > params.max_trial_s:"
+        replace: "if False:"
+      - id: entry-at-ceiling-censored
+        description: "entrada exatamente no teto passa a ser censurada"
+        find: "if latency > params.max_trial_s:"
+        replace: "if latency >= params.max_trial_s:"
+      - id: quadrant-over-the-window
+        description: "tempo no quadrante medido na janela inteira, nao no ensaio"
+        find: "context.roi_analyzer.get_time_spent_in_rois(t0, trial_end)"
+        replace: "context.roi_analyzer.get_time_spent_in_rois()"
+      - id: duplicate-names-silent
+        description: "ROIs de Barnes com nome repetido nao geram aviso"
+        find: "if resolution.duplicates:"
+        replace: "if False:"
+      - id: unmeasured-visits-silent
+        description: "visitas descartadas sem velocidade medivel nao geram aviso"
+        find: "if unmeasured:"
+        replace: "if False:"
+      - id: declared-hole-count-wins
+        description: "a contagem declarada no projeto vence a desenhada nas ROIs"
+        find: "    return params.model_copy(update={\"n_holes\": effective})"
+        replace: "    return params"
+      - id: hole-count-mismatch-silent
+        description: "contagem de buracos diferente da do projeto nao gera aviso"
+        find: "    if effective == params.n_holes:\n        return params"
+        replace: "    if True:\n        return params"
+      - id: no-table-measured
+        description: "ROIs sem nenhum buraco falso deixam de ser recusadas"
+        find: "    if effective_params is None:\n        return _unavailable(UnavailableReason.LAYOUT_UNRESOLVED)"
+        replace: "    if False:\n        return _unavailable(UnavailableReason.LAYOUT_UNRESOLVED)"
+  barnes_spec:
+    source: src/zebtrack/analysis/protocols/barnes/spec.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_spec.py
+    mutations:
+      - id: tidy-columns-ignore-n-holes
+        description: "colunas tidy ignoram o numero de buracos do projeto"
+        find: "return barnes_tidy_columns(parse_barnes_params(raw_params)[0].n_holes)"
+        replace: "return barnes_tidy_columns(20)"
+      - id: window-preset-not-wired
+        description: "o Barnes deixa de propor a janela v2 para um projeto novo"
+        find: "    window_preset=_window_preset,"
+        replace: "    window_preset=None,"
+      - id: window-preset-ignores-params
+        description: "a janela proposta ignora os parametros do projeto"
+        find: "return barnes_window_preset(parse_barnes_params(raw_params)[0])"
+        replace: "return barnes_window_preset(BarnesParams())"
+      - id: ceiling-not-from-params
+        description: "o teto da janela deixa de vir de max_trial_s"
+        find: "max_s=params.max_trial_s if max_s is None else max_s,"
+        replace: "max_s=240.0 if max_s is None else max_s,"
+      - id: ceiling-override-dropped
+        description: "o teto de uma janela v1 se perde na atualizacao para v2"
+        find: "max_s=params.max_trial_s if max_s is None else max_s,"
+        replace: "max_s=params.max_trial_s,"
+      - id: release-hold-override-dropped
+        description: "o k_frames de uma janela v1 se perde na atualizacao para v2"
+        find: "hold = {} if k_frames is None else {\"k_frames\": k_frames}"
+        replace: "hold = {}"
+      - id: entry-cover-default
+        description: "cobertura minima da entrada ignora o projeto"
+        find: "entry_min_cover=params.entry_min_cover,"
+        replace: "entry_min_cover=0.5,"
+      - id: entry-visible-default
+        description: "fracao visivel maxima da entrada ignora o projeto"
+        find: "entry_max_visible_fraction=params.entry_max_visible_fraction,"
+        replace: "entry_max_visible_fraction=0.35,"
+      - id: entry-hold-default
+        description: "tempo de permanencia da entrada ignora o projeto"
+        find: "entry_hold_s=params.entry_hold_s,"
+        replace: "entry_hold_s=0.5,"
+      - id: entry-absent-default
+        description: "tempo de ausencia da entrada ignora o projeto"
+        find: "entry_absent_s=params.entry_absent_s,"
+        replace: "entry_absent_s=3.0,"
+      - id: entry-reference-default
+        description: "quadros de referencia da entrada ignoram o projeto"
+        find: "entry_min_reference_frames=params.entry_min_reference_frames,"
+        replace: "entry_min_reference_frames=10,"
+  barnes_registry:
+    source: src/zebtrack/analysis/protocols/registry.py
+    tests:
+      - tests/analysis/protocols/test_protocol_registry.py
+    mutations:
+      - id: barnes-not-registered
+        description: "o Barnes deixa de ser registrado"
+        find: "return (BARNES_SPEC,)"
+        replace: "return ()"
+  barnes_contract_hole_count:
+    source: src/zebtrack/analysis/protocols/barnes/contract.py
+    tests:
+      - tests/analysis/protocols/barnes/test_barnes_contract.py
+    mutations:
+      - id: default-twenty-holes
+        description: "padrao volta a 20 buracos (a mesa atual do laboratorio tem 18)"
+        find: "n_holes: int = Field(default=18, ge=_MIN_HOLES, le=_MAX_HOLES)"
+        replace: "n_holes: int = Field(default=20, ge=_MIN_HOLES, le=_MAX_HOLES)"
+      - id: opposite-ignored
+        description: "buraco_oposto deixa de tornar a mesa par"
+        find: "n_holes = 2 * k + 2 if OPPOSITE_HOLE_ROI in names else 2 * k + 1"
+        replace: "n_holes = 2 * k + 1"
+      - id: smallest-offset
+        description: "contagem pelo MENOR deslocamento presente"
+        find: "k = max(offsets, default=0)"
+        replace: "k = min(offsets, default=0)"
+      - id: count-range-unchecked
+        description: "contagem fora de 3..99 passa"
+        find: "if not _MIN_HOLES <= n_holes <= _MAX_HOLES:"
+        replace: "if False:"
+
+  # --- Barnes v8.1 barnes-entry ---
+  barnes_entry_subject_geometry:
+    source: src/zebtrack/core/conditions/subject_geometry.py
+    tests:
+      - tests/core/conditions/test_subject_geometry.py
+    mutations:
+      - id: tie-takes-smaller-box
+        description: "#633: empate de confianca passa a escolher a caixa MENOR"
+        find: "key = (confidence, (box[2] - box[0]) * (box[3] - box[1]))"
+        replace: "key = (confidence, -(box[2] - box[0]) * (box[3] - box[1]))"
+      - id: confidence-ignored
+        description: "#633: a confianca deixa de escolher o sujeito (so a area decide)"
+        find: "confidence = float(item[4]) if len(item) > 4 else 0.0"
+        replace: "confidence = 0.0"
+      - id: flat-box-accepted
+        description: "#633: caixa sem largura vira um sujeito de area zero (entrada falsa)"
+        find: "if right <= left or bottom <= top:"
+        replace: "if right < left or bottom < top:"
+      - id: cover-over-roi-area
+        description: "#633: a cobertura passa a dividir pela area da ROI, nao da caixa"
+        find: "columns.append((name, np.clip(overlap / areas, 0.0, 1.0)))"
+        replace: "columns.append((name, np.clip(overlap / shapely.area(geometry), 0.0, 1.0)))"
+      - id: edge-contact-is-cover
+        description: "#633: encostar na borda da ROI vira cobertura"
+        find: "if fraction > _MIN_COVER:"
+        replace: "if fraction >= 0.0:"
+      - id: prepared-flag-ignored
+        description: "#633: ROIs ja preparadas sao preparadas de novo a cada quadro ao vivo"
+        find: "shapes = rois if prepared else prepare_rois(rois)"
+        replace: "shapes = prepare_rois(rois)"
+
+  barnes_entry_evaluator:
+    source: src/zebtrack/core/conditions/evaluator.py
+    tests:
+      - tests/core/conditions/test_evaluator.py
+    mutations:
+      - id: cover-threshold-strict
+        description: "#633: cobertura exatamente no limiar deixa de contar"
+        find: "return cover.get(roi, 0.0) >= min_cover - _COVER_EPS"
+        replace: "return cover.get(roi, 0.0) > min_cover"
+      - id: over-roi-without-box
+        description: "#633: cobertura velha de um quadro sem sujeito conta como sobre a toca"
+        find: "return obs.subject_area_px is not None and _covers(obs.subject_cover, roi, min_cover)"
+        replace: "return _covers(obs.subject_cover, roi, min_cover)"
+      - id: reference-one-frame-short
+        description: "#633: o tamanho habitual e julgado com um quadro de referencia a menos"
+        find: "if len(reference) < min_reference_frames:"
+        replace: "if len(reference) < min_reference_frames - 1:"
+      - id: size-bound-exclusive
+        description: "#633: tamanho exatamente no limite deixa de contar como pequeno"
+        find: "return median is not None and obs.subject_area_px <= max_fraction * median"
+        replace: "return median is not None and obs.subject_area_px < max_fraction * median"
+      - id: frame-joins-before-test
+        description: "#633: o quadro entra na referencia ANTES de ser testado"
+        find: "        events = self._advance(obs, ctx)\n"
+        replace: "        self._observe_subject(obs, ctx)\n        events = self._advance(obs, ctx)\n"
+      - id: reference-before-start
+        description: "#633: quadros antes do START entram no tamanho habitual"
+        find: "if not self._tracks_subject_size or ctx.start is None:"
+        replace: "if not self._tracks_subject_size:"
+      - id: last-seen-while-visible
+        description: "#633: 'sumiu na toca' vale mesmo com o rato visivel"
+        find: "if obs.subject_area_px is not None or last is None:"
+        replace: "if last is None:"
+      - id: entry-reason-persist
+        description: "#633: a entrada sai com motivo persist e as metricas nao a reconhecem"
+        find: 'return _Fire(first.frame, first.t_s, "burrow_entry")'
+        replace: 'return _Fire(first.frame, first.t_s, "persist")'
+      - id: absence-uses-entry-hold
+        description: "#633: o sumico usa o hold de 0,5 s em vez de absent_s"
+        find: "hold=Hold(seconds=node.absent_s),"
+        replace: "hold=node.hold,"
+      - id: reference-always-kept
+        description: "#633: a referencia de tamanho e mantida mesmo sem no que a leia"
+        find: "self._tracks_subject_size = spec.stop is not None and any("
+        replace: "self._tracks_subject_size = True or any("
+
+  barnes_entry_model:
+    source: src/zebtrack/core/conditions/model.py
+    tests:
+      - tests/core/conditions/test_model.py
+    mutations:
+      - id: size-level-allowed-in-start
+        description: "#633: SubjectVisibleFraction passa a ser aceito no START"
+        find: "if isinstance(node, BurrowEntry | SubjectVisibleFraction):"
+        replace: "if isinstance(node, BurrowEntry):"
+      - id: entry-default-fraction
+        description: "#633: fracao visivel padrao da entrada deixa de ser 0,35"
+        find: "max_visible_fraction: float = Field(default=0.35, gt=0.0, lt=1.0)"
+        replace: "max_visible_fraction: float = Field(default=0.5, gt=0.0, lt=1.0)"
+      - id: entry-default-hold
+        description: "#633: hold padrao da entrada deixa de ser 0,5 s"
+        find: "hold: Hold = Field(default_factory=lambda: Hold(seconds=0.5))"
+        replace: "hold: Hold = Field(default_factory=lambda: Hold(seconds=1.0))"
+      - id: fraction-one-accepted
+        description: "#633: fracao visivel 1 (qualquer tamanho) passa a ser aceita"
+        find: "max_fraction: float = Field(gt=0.0, lt=1.0)"
+        replace: "max_fraction: float = Field(gt=0.0, le=1.0)"
+      - id: needs-geometry-only-entry
+        description: "#633: so BurrowEntry liga a geometria; os niveis sozinhos ficam cegos"
+        find: "isinstance(node, _GEOMETRY_NODES)"
+        replace: "isinstance(node, BurrowEntry)"
+      - id: geometry-rois-miss-last-seen
+        description: "#633: a ROI do 'sumiu na toca' nao e conferida ao vivo"
+        find: "isinstance(node, SubjectOverRoi | LastSeenIn | BurrowEntry)"
+        replace: "isinstance(node, SubjectOverRoi | BurrowEntry)"
+
+  barnes_entry_presets:
+    source: src/zebtrack/core/conditions/presets.py
+    tests:
+      - tests/core/conditions/test_presets.py
+    mutations:
+      - id: v2-ceiling-before-entry
+        description: "#633: no mesmo quadro o teto vence a entrada e o ensaio sai censurado"
+        find: 'stop=FirstOf(children=(EndOfStream(), entry, Delay(after="start", seconds=max_s))),'
+        replace: 'stop=FirstOf(children=(EndOfStream(), Delay(after="start", seconds=max_s), entry)),'
+      - id: v2-hold-ignored
+        description: "#633: entry_hold_s do projeto deixa de chegar ao preset"
+        find: "hold=Hold(seconds=entry_hold_s),"
+        replace: "hold=Hold(seconds=0.5),"
+      - id: v2-reference-ignored
+        description: "#633: entry_min_reference_frames deixa de chegar ao preset"
+        find: "min_reference_frames=entry_min_reference_frames,"
+        replace: "min_reference_frames=10,"
+      - id: v1-match-ignores-edits
+        description: "#633: uma janela v1 editada e reconhecida como v1 e oferecida para troca"
+        find: "return arguments if rebuilt == spec else None"
+        replace: "return arguments"
+
+  barnes_entry_runtime:
+    source: src/zebtrack/core/recording/condition_runtime.py
+    tests:
+      - tests/core/recording/test_condition_runtime.py
+    mutations:
+      - id: live-geometry-never-computed
+        description: "#633: ao vivo a geometria do sujeito nunca chega ao motor"
+        find: "if self._needs_geometry:"
+        replace: "if False:"
+      - id: live-rois-rebuilt-every-frame
+        description: "#633: poligonos das ROIs reconstruidos a cada quadro do loop ao vivo"
+        find: "if key != self._roi_key:"
+        replace: "if True:"
+      - id: live-first-box-is-subject
+        description: "#633: ao vivo a primeira caixa vira o sujeito, nao a mais confiante"
+        find: "geometry = observe_subject(pick_subject_bbox(subject_boxes), shapes, prepared=True)"
+        replace: "geometry = observe_subject(pick_subject_bbox(subject_boxes[:1]), shapes, prepared=True)"
+      - id: live-missing-roi-silent
+        description: "#633: janela v2 sem a ROI da toca termina no teto sem nenhum aviso"
+        find: "missing = tuple(f\"roi:{name}\" for name in self._geometry_rois if name not in available)"
+        replace: "missing: tuple[str, ...] = ()"
+      - id: live-missing-roi-before-start
+        description: "#633: ROI ausente e acusada antes do START, enquanto as zonas ainda carregam"
+        find: "if self._missing_inputs or self._evaluator.result.start is None:"
+        replace: "if self._missing_inputs:"
+      - id: live-key-rebuilt-from-wkb
+        description: "#633: a chave do cache muda a cada quadro e os poligonos sao refeitos sempre"
+        find: "key.append((str(name), vertices.shape, vertices.dtype.str, vertices.tobytes()))"
+        replace: "key.append((str(name), id(polygon)))"
+
+  barnes_entry_pipeline_feed:
+    source: src/zebtrack/core/recording/frame_processing_pipeline.py
+    tests:
+      - tests/core/recording/test_condition_runtime.py
+    mutations:
+      - id: mock-runtime-needs-geometry
+        description: "#633: um runtime sem o atributo (duble) passa a pedir geometria"
+        find: 'if getattr(runtime, "needs_subject_geometry", False) is not True:'
+        replace: 'if not getattr(runtime, "needs_subject_geometry", False):'
+      - id: other-aquariums-animal-counts
+        description: "#633: o rato do outro aquario entra na geometria deste"
+        find: "if aquarium_of_track_id(det[5]) == aquarium_id:"
+        replace: "if True:"
+
+  barnes_entry_window_observations:
+    source: src/zebtrack/analysis/window_observations.py
+    tests:
+      - tests/analysis/test_window_observations.py
+    mutations:
+      - id: offline-first-row-is-subject
+        description: "#633: offline a primeira linha do quadro vira o sujeito"
+        find: "chosen = [pick_subject_bbox(boxes[frame]) for frame in ordered]"
+        replace: "chosen = [pick_subject_bbox(boxes[frame][:1]) for frame in ordered]"
+      - id: offline-geometry-always
+        description: "#633: a geometria offline e calculada para toda janela, mesmo sem no que a leia"
+        find: "if spec is None or spec_needs_subject_geometry(spec)"
+        replace: "if True"
+      - id: offline-area-dropped
+        description: "#633: a area do sujeito nao chega as observacoes offline"
+        find: "subject_area_px=None if geometry is None else geometry.area_px,"
+        replace: "subject_area_px=None,"
+      - id: entry-roi-not-checked
+        description: "#633: ROI da entrada ausente no projeto deixa de ser reportada"
+        find: "isinstance(node, RoiInside | RoiEdge | SubjectOverRoi | LastSeenIn | BurrowEntry)"
+        replace: "isinstance(node, RoiInside | RoiEdge | SubjectOverRoi | LastSeenIn)"
+
+  barnes_entry_panel:
+    source: src/zebtrack/ui/components/analysis_window_panel.py
+    tests:
+      - tests/ui/components/test_analysis_window_panel.py
+    mutations:
+      - id: burrow-line-roi-ignored
+        description: "#633: a ROI escolhida na linha da toca e ignorada"
+        find: 'data["roi"] = row.target.strip()'
+        replace: 'data["roi"] = data["roi"]'
+      - id: burrow-line-loses-params
+        description: "#633: a linha da toca perde os parametros guardados e muda o hash"
+        find: 'return ConditionRow(kind="burrow_entry", target=node.roi, node=node)'
+        replace: 'return ConditionRow(kind="burrow_entry", target=node.roi, node=None)'
+      - id: v2-offered-outside-barnes
+        description: "#633: a troca para v2 e oferecida num projeto que nao e Barnes"
+        find: "if arguments is None or not is_barnes_project(project_data):"
+        replace: "if arguments is None:"
+      - id: preset-button-stays-v1
+        description: "#633: o botao de preset num projeto Barnes continua dando a v1"
+        find: "if not self._session_only and is_barnes_project(project_data):"
+        replace: "if False:"
+      - id: v2-change-text-silent
+        description: "#633: a atualizacao v1 -> v2 nao diz que a linha 'rato ausente' sai"
+        find: "self._load_preset(spec, roi_names, note=barnes_v2_change_text(self._stored_spec))"
+        replace: "self._load_preset(spec, roi_names)"
+      - id: v2-change-text-touch-always
+        description: "#633: v1 sem linha de toca e descrita como se tivesse o toque"
+        find: 'if arguments["burrow_roi"] is None:'
+        replace: "if False:"
+      - id: burrow-line-allowed-in-start
+        description: "#633: a linha de entrada na toca passa a ser aceita no Inicio"
+        find: '{"delay_after_start", "end_of_video", "subject_small", "burrow_entry"}'
+        replace: '{"delay_after_start", "end_of_video", "subject_small"}'
+
+  # --- Barnes v8.1 exp-profile ---
+  exp_profile_behavioral_policy:
+    source: src/zebtrack/analysis/behavioral_policy.py
+    tests:
+      - tests/analysis/test_behavioral_policy.py
+    mutations:
+      - id: rodent-ceiling-ignored
+        description: "perfil rodent deixa de trocar o teto de velocidade"
+        find: "None if animal_defaults is None else animal_defaults.max_plausible_speed_cm_s,"
+        replace: "None,"
+      - id: rodent-ceiling-number
+        description: "teto de velocidade do roedor deixa de ser o do template rodent"
+        find: "max_plausible_speed_cm_s=100.0,"
+        replace: "max_plausible_speed_cm_s=50.0,"
+      - id: declared-wall-band-overridden
+        description: "faixa de parede declarada pelo projeto e sobrescrita pelo padrao do roedor"
+        find: "if animal_defaults is not None and not _declares(project_block, \"thigmotaxis_distance_cm\"):"
+        replace: "if animal_defaults is not None:"
+      - id: rodent-wall-band-lost
+        description: "projeto roedor sem faixa propria fica com a do zebrafish"
+        find: "config[\"thigmotaxis_distance_cm\"] = animal_defaults.thigmotaxis_distance_cm"
+        replace: "config[\"thigmotaxis_distance_cm\"] = 1.5"
+      - id: none-counts-as-declared
+        description: "valor None passa a contar como declarado"
+        find: "return isinstance(block, Mapping) and block.get(key) is not None"
+        replace: "return isinstance(block, Mapping) and key in block"
+      - id: freezing-baseline-lost
+        description: "zebrafish deixa de devolver o baseline de congelamento"
+        find: "return baseline_velocity, baseline_min_duration_s"
+        replace: "return 0.0, 0.0"
+
+  exp_profile_templates:
+    source: src/zebtrack/ui/wizard/templates.py
+    tests:
+      - tests/ui/wizard/test_wizard_templates.py
+    mutations:
+      - id: profile-migration-skipped
+        description: "a migracao deixa de normalizar o perfil do template"
+        find: "notes.extend(_migrate_experiment_profile(migrated))"
+        replace: "notes.extend(())"
+      - id: barnes-interval-not-forced
+        description: "template Barnes deixa de fixar o intervalo em 1 quadro"
+        find: "migrated[\"analysis_interval_frames\"] = 1"
+        replace: "migrated[\"analysis_interval_frames\"] = migrated.get(\"analysis_interval_frames\")"
+      - id: barnes-view-not-forced
+        description: "template Barnes mantem a vista lateral declarada"
+        find: "normalised[\"aquarium_perspective\"] = \"top_down\""
+        replace: "normalised[\"aquarium_perspective\"] = block.get(\"aquarium_perspective\", \"top_down\")"
+      - id: profile-note-never
+        description: "valor de perfil desconhecido deixa de gerar nota"
+        find: "return [NOTE_EXPERIMENT_PROFILE_NORMALISED] if profile.warnings else []"
+        replace: "return []"
+      - id: bad-params-kept
+        description: "parametros malformados do protocolo sobrevivem a migracao"
+        find: "normalised.pop(PROTOCOL_PARAMS_KEY, None)"
+        replace: "pass"
+      - id: window-preset-ignores-params
+        description: "o preset de janela deixa de receber os parametros do protocolo"
+        find: "spec.window_preset(profile.protocol_params)"
+        replace: "spec.window_preset({})"
+      - id: window-preset-none-unchecked
+        description: "spec sem preset passa a ser chamado"
+        find: "if spec is None or spec.window_preset is None:"
+        replace: "if spec is None:"
+
+  exp_profile_wizard_models:
+    source: src/zebtrack/ui/wizard/models.py
+    tests:
+      - tests/ui/wizard/test_wizard_edge_cases.py
+    mutations:
+      - id: params-not-mapping-kept
+        description: "parametros que nao sao mapeamento deixam de virar vazio"
+        find: "if not isinstance(value, Mapping):\n        return {}"
+        replace: "if not isinstance(value, Mapping):\n        return value"
+      - id: params-junk-blocks-kept
+        description: "bloco de protocolo que nao e mapeamento deixa de ser descartado"
+        find: "if isinstance(block, Mapping)"
+        replace: "if True"
+      - id: barnes-view-not-forced
+        description: "Barnes deixa de impor a vista superior"
+        find: "object.__setattr__(self, \"aquarium_perspective\", AquariumPerspective.TOP_DOWN)"
+        replace: "pass"
+      - id: barnes-animal-not-forced
+        description: "Barnes deixa de impor o roedor"
+        find: "forced = forced_animal_model(self.protocol)"
+        replace: "forced = None"
+
+  exp_profile_behavioral_widget:
+    source: src/zebtrack/ui/components/behavioral_config_widget.py
+    tests:
+      - tests/ui/components/test_behavioral_config_widget.py
+    mutations:
+      - id: animal-change-keeps-fields
+        description: "trocar o animal deixa de trocar velocidade e faixa de parede"
+        find: "if profile.animal_model.value != before:"
+        replace: "if False:"
+      - id: rodent-speed-reset-baseline
+        description: "roedor recebe o teto do zebrafish ao trocar de animal"
+        find: "self.max_speed_var.set(defaults.max_plausible_speed_cm_s)"
+        replace: "self.max_speed_var.set(self._default_max_speed_cm_s)"
+      - id: barnes-view-not-locked
+        description: "Barnes deixa de travar a vista superior"
+        find: "self.perspective_var.set(AquariumPerspective.TOP_DOWN.value)"
+        replace: "pass"
+      - id: restore-always-resets
+        description: "config sem chaves de perfil volta o perfil ao padrao"
+        find: "if not any(key in config for key in (ANIMAL_MODEL_KEY, PROTOCOL_KEY, PROTOCOL_PARAMS_KEY)):"
+        replace: "if False:"
+      - id: trial-type-not-persisted
+        description: "o tipo de tentativa deixa de ir para os parametros do protocolo"
+        find: "if protocol == ProtocolId.BARNES.value and self._show_trial_type:"
+        replace: "if False:"
+      - id: params-survive-protocol-change
+        description: "parametros do protocolo anterior sobrevivem a troca"
+        find: "if token != self.protocol_var.get():"
+        replace: "if False:"
+      - id: generic-has-params
+        description: "perfil generico passa a devolver parametros de protocolo"
+        find: "if self.protocol_var.get() == ProtocolId.GENERIC.value:"
+        replace: "if False:"
+      - id: restore-keeps-old-animal-numbers
+        description: "restaurar outro animal mantem a velocidade e a parede do animal anterior"
+        find: "if profile.animal_model.value != self.animal_model_var.get():"
+        replace: "if False:"
+
+  exp_profile_discovery_step:
+    source: src/zebtrack/ui/wizard/discovery_step.py
+    tests:
+      - tests/ui/wizard/test_wizard_foundation.py
+    mutations:
+      - id: animal-change-keeps-thigmotaxis
+        description: "trocar o animal mantem a faixa de parede do animal anterior"
+        find: "block.pop(\"thigmotaxis_distance_cm\", None)"
+        replace: "pass"
+      - id: protocol-change-keeps-params
+        description: "trocar o protocolo mantem os parametros do anterior"
+        find: "if profile.protocol is not previous.protocol:"
+        replace: "if False:"
+      - id: barnes-overwrites-window
+        description: "Barnes sobrescreve a janela que o usuario ja tinha"
+        find: "if not self.wizard_data.get(\"analysis_window\"):"
+        replace: "if True:"
+      - id: barnes-geotaxis-left-on
+        description: "Barnes deixa de desligar a geotaxia"
+        find: "block[\"geotaxis_enabled\"] = False"
+        replace: "pass"
+      - id: leaving-barnes-clears-custom-window
+        description: "sair do Barnes apaga a janela customizada"
+        find: "if self.wizard_data.get(\"analysis_window\") == protocol_window_spec(previous):"
+        replace: "if True:"
+      - id: animal-combo-never-locked
+        description: "o combo do animal nao trava com Barnes"
+        find: "self.animal_model_combo.configure(state=\"disabled\" if forced else \"readonly\")"
+        replace: "self.animal_model_combo.configure(state=\"readonly\")"
+      - id: set-data-ignores-profile
+        description: "voltar ao passo nao restaura o perfil"
+        find: "if isinstance(data.get(\"behavioral_analysis\"), dict):"
+        replace: "if False:"
+      - id: leaving-barnes-keeps-window
+        description: "sair do Barnes mantem a janela que o proprio Barnes propos"
+        find: "data[\"analysis_window\"] = None"
+        replace: "pass"
+
+  exp_profile_calibration_step:
+    source: src/zebtrack/ui/wizard/calibration_step.py
+    tests:
+      - tests/ui/wizard/test_calibration_step.py
+    mutations:
+      - id: barnes-interval-not-pinned
+        description: "Barnes deixa de fixar o intervalo na tela de calibracao"
+        find: "self.analysis_interval_var.set(BARNES_ANALYSIS_INTERVAL_FRAMES)"
+        replace: "pass"
+      - id: declared-diameter-ignored
+        description: "diametro declarado do projeto nao volta ao campo"
+        find: "self.table_diameter_var.set(params.table_diameter_cm)"
+        replace: "pass"
+      - id: height-not-written
+        description: "a altura deixa de receber o diametro da mesa"
+        find: "data[\"aquarium_height_cm\"] = diameter"
+        replace: "pass"
+      - id: diameter-not-a-param
+        description: "o diametro deixa de ir para os parametros do protocolo"
+        find: "self.behavioral_config_widget.set_protocol_param(\"table_diameter_cm\", diameter)"
+        replace: "pass"
+      - id: zero-diameter-accepted
+        description: "diametro zero passa na validacao"
+        find: "if self._is_barnes() and not 0 < float(data[\"aquarium_width_cm\"]):"
+        replace: "if False:"
+      - id: interval-entry-stays-open
+        description: "o campo do intervalo continua editavel no Barnes"
+        find: "self._analysis_entry.configure(state=\"disabled\" if barnes else \"normal\")"
+        replace: "self._analysis_entry.configure(state=\"normal\")"
+      - id: interval-not-restored
+        description: "sair do Barnes nao devolve o intervalo anterior"
+        find: "self.analysis_interval_var.set(self._interval_before_barnes)"
+        replace: "pass"
+      - id: interval-not-remembered
+        description: "entrar no Barnes nao guarda o intervalo anterior"
+        find: "self._interval_before_barnes = int(self.analysis_interval_var.get())"
+        replace: "self._interval_before_barnes = None"
+
+  exp_profile_live_dialog:
+    source: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+    tests:
+      - tests/test_live_analysis_ui.py
+    mutations:
+      - id: freezing-reset-on-every-callback
+        description: "os campos de congelamento voltam ao padrao a cada mudanca de perfil"
+        find: "if profile.animal_model is not self._profile_animal:"
+        replace: "if True:"
+      - id: barnes-interval-not-restored
+        description: "sair do Barnes nao devolve o intervalo anterior"
+        find: "self.analysis_interval_var.set(self._interval_before_barnes)"
+        replace: "pass"
+      - id: barnes-interval-not-remembered
+        description: "Barnes deixa de guardar o intervalo anterior"
+        find: "if self._interval_before_barnes is None:"
+        replace: "if False:"
+
+  exp_profile_single_video_dialog:
+    source: src/zebtrack/ui/dialogs/single_video_config_dialog.py
+    tests:
+      - tests/test_single_video_config.py
+    mutations:
+      - id: freezing-reset-on-every-callback
+        description: "os campos de congelamento voltam ao padrao a cada mudanca de perfil"
+        find: "if profile.animal_model is not self._profile_animal:"
+        replace: "if True:"
+      - id: barnes-interval-not-restored
+        description: "sair do Barnes nao devolve o intervalo anterior"
+        find: "self.analysis_interval_var.set(self._interval_before_barnes)"
+        replace: "pass"
+      - id: barnes-interval-not-remembered
+        description: "Barnes deixa de guardar o intervalo anterior"
+        find: "if self._interval_before_barnes is None:"
+        replace: "if False:"
+
+  # --- Barnes v8.1 barnes-validation ---
+
+  barnes_validation:
+    source: scripts/barnes_validation.py
+    tests:
+      - tests/scripts/test_barnes_validation.py
+    mutations:
+      - id: bland-altman-sign-flipped
+        description: "a diferenca passa a ser lab - app: o vies troca de sinal"
+        find: |-
+          diff = a - b
+              bias = float(diff.mean())
+        replace: |-
+          diff = b - a
+              bias = float(diff.mean())
+      - id: bland-altman-population-sd
+        description: "desvio-padrao das diferencas com ddof=0 estreita os limites de concordancia"
+        find: "sd = float(diff.std(ddof=1))"
+        replace: "sd = float(diff.std(ddof=0))"
+      - id: bland-altman-lower-limit-above-bias
+        description: "limite inferior de concordancia fica acima do vies"
+        find: "loa_lower=bias - 1.96 * sd,"
+        replace: "loa_lower=bias + 1.96 * sd,"
+      - id: icc-ignores-rater-offset
+        description: "ICC deixa de penalizar o desvio sistematico entre avaliadores (vira consistencia)"
+        find: "denominator = ms_rows + (k - 1) * ms_err + k * (ms_cols - ms_err) / n"
+        replace: "denominator = ms_rows + (k - 1) * ms_err"
+      - id: icc-residual-keeps-rater-variance
+        description: "soma de quadrados residual esquece a variancia entre avaliadores"
+        find: "ss_err = float(((data - grand) ** 2).sum()) - ss_rows - ss_cols"
+        replace: "ss_err = float(((data - grand) ** 2).sum()) - ss_rows"
+      - id: icc-upper-limit-uses-error-term
+        description: "limite superior do IC do ICC usa MSE onde McGraw-Wong usam MSR"
+        find: "upper = n * (f_upper_tail * ms_rows - ms_err) / (pooled + n * f_upper_tail * ms_rows)"
+        replace: "upper = n * (f_upper_tail * ms_rows - ms_err) / (pooled + n * f_upper_tail * ms_err)"
+      - id: kappa-chance-agreement-wrong-denominator
+        description: "concordancia esperada ao acaso dividida por n em vez de n ao quadrado"
+        find: "expected = float((matrix.sum(axis=1) * matrix.sum(axis=0)).sum()) / (n * n)"
+        replace: "expected = float((matrix.sum(axis=1) * matrix.sum(axis=0)).sum()) / n"
+      - id: confusion-matrix-transposed
+        description: "matriz de confusao com linhas = app em vez de linhas = laboratorio"
+        find: "matrix[index[lab_label], index[app_label]] += 1"
+        replace: "matrix[index[app_label], index[lab_label]] += 1"
+      - id: censored-pairs-count-as-observed
+        description: "latencia censurada pelo laboratorio entra nas estatisticas de pares observados"
+        find: "observed = both & ~app_cens & ~lab_cens & np.isfinite(lab_values)"
+        replace: "observed = both & ~app_cens & np.isfinite(lab_values)"
+      - id: lab-ceiling-not-censored
+        description: "latencia do laboratorio exatamente no teto (240 s) deixa de ser censurada"
+        find: "ceiling_hit = out[latency] >= spec.censor_at_s - _CENSOR_TOLERANCE_S"
+        replace: "ceiling_hit = out[latency] > spec.censor_at_s"
+      - id: offset-half-second-excludes-the-bound
+        description: "|offset| de exatamente 0,5 s deixa de contar como dentro de 0,5 s"
+        find: "within_0_5_s=float((abs_diff <= 0.5).mean()),"
+        replace: "within_0_5_s=float((abs_diff < 0.5).mean()),"
+      - id: clock-time-not-multiplied-by-sixty
+        description: "tempo em m:ss deixa de multiplicar os minutos por 60"
+        find: "seconds = seconds * 60.0 + float(chunk)"
+        replace: "seconds = seconds + float(chunk)"
+      - id: source-row-off-by-header
+        description: "numero da linha da planilha ignora a linha do cabecalho"
+        find: 'out["source_row"] = frame.index + spec.header_row + 1'
+        replace: 'out["source_row"] = frame.index + 1'
+      - id: path-match-accepts-one-component
+        description: "uma unica componente de caminho em comum (so o nome do arquivo) passa a casar"
+        find: "if shared < 2 or shared < best:"
+        replace: "if shared < 1 or shared < best:"
+      - id: path-tie-resolved-silently
+        description: "empate de caminhos deixa de ser ambiguo e o ultimo vence"
+        find: "if shared > best:"
+        replace: "if shared >= best:"
+      - id: strategy-counts-pairs-without-app-label
+        description: "par sem estrategia do app entra na comparacao de kappa"
+        find: "usable = lab.notna() & app.notna()"
+        replace: "usable = lab.notna()"
+      - id: relative-loss-inverted
+        description: "perda relativa invertida: piorar passa a parecer melhorar"
+        find: "(values[name] + _LOSS_EPS[name]) / (reference[name] + _LOSS_EPS[name])"
+        replace: "(reference[name] + _LOSS_EPS[name]) / (values[name] + _LOSS_EPS[name])"
+      - id: ties-do-not-prefer-the-current-values
+        description: "empate na grade deixa de preferir o valor mais proximo do atual"
+        find: "scored.sort(key=lambda item: (item[0], item[1]))"
+        replace: "scored.sort(key=lambda item: (item[0],))"
+      - id: held-out-tie-counts-as-improvement
+        description: "perda relativa igual a 1 (sem ganho) passa a ser chamada de melhora"
+        find: "bool(math.isfinite(loss) and loss < 1.0)"
+        replace: "bool(math.isfinite(loss) and loss <= 1.0)"
+      - id: split-group-can-empty-one-side
+        description: "grupo de dois animais pode deixar o conjunto de avaliacao vazio"
+        find: "min(max(round(fraction * len(keys)), 1), len(keys) - 1)"
+        replace: "round(fraction * len(keys))"
+      - id: calibration-accepts-too-few-videos
+        description: "calibracao com 1 video casado deixa de ser recusada"
+        find: "if len(matched) < 4:"
+        replace: "if len(matched) < 1:"
+      - id: recompute-ignores-the-rebuilt-window
+        description: "o recompute deixa de reconstruir a janela com o preset v2 e os limiares sobrescritos"
+        find: 'if self._window_mode == "preset_v2"'
+        replace: "if False"
+      - id: split-by-video-not-by-animal
+        description: "a divisao passa a ser por video: o mesmo rato cai nos dois conjuntos"
+        find: 'subject = normalize_token(row.get("subject")) or f"__video_{index}"'
+        replace: 'subject = f"__video_{index}"'
+      - id: defaults-are-the-raw-override-block
+        description: "padroes da calibracao voltam a ser so os overrides do projeto (vazio sem overrides)"
+        find: 'return parse_barnes_params(self._base_params)[0].model_dump(mode="python")'
+        replace: "return dict(self._base_params)"
+      - id: visits-loss-ignores-censoring-mismatch
+        description: "perda de visitas deixa de contar o desacordo de censura do encontro (limiar que censura vence)"
+        find: 'values["encounter_censoring_mismatch"] = float('
+        replace: 'values["encounter_censoring_mismatch"] = 0.0 * float('
+      - id: undefined-metric-is-dropped-from-the-loss
+        description: "candidato que deixa uma metrica indefinida passa a ter o termo descartado em vez de rejeitado"
+        find: "if not reference or any(name not in values for name in reference):"
+        replace: "if not reference:"
+      - id: video-path-falls-back-to-the-key
+        description: "linha do laboratorio com caminho de video e sem candidato cai silenciosamente na chave"
+        find: |-
+          rule = "video_path"
+                      if not candidates:
+        replace: |-
+          rule = "video_path"
+                      if False:
+      - id: trial-order-off-by-one
+        description: "tentativa derivada da ordem comeca de 2 em vez de 1"
+        find: "trials[position] = str(number)"
+        replace: "trials[position] = str(number + 1)"
+      - id: derived-censoring-excludes-the-ceiling
+        description: "latencia exatamente no teto sem flag deixa de ser censurada"
+        find: "values.append(bool(value >= ceiling_s - _CENSOR_TOLERANCE_S))"
+        replace: "values.append(bool(value > ceiling_s))"
+      - id: imputed-view-keeps-the-lab-value
+        description: "visao com teto imputado deixa de por o laboratorio no teto onde esta censurado"
+        find: "np.where(lab_cens[both], lab_ceiling, lab_values[both])"
+        replace: "np.where(np.isfinite(lab_values[both]), lab_values[both], np.nan)"
+      - id: newest-unified-by-path
+        description: "arquivo unificado mais recente escolhido pelo caminho em vez do carimbo da execucao"
+        find: "return max(candidates, key=age_key)"
+        replace: "return max(candidates)"
+      - id: unified-mtime-ignored
+        description: "sem carimbo no nome, a data de modificacao deixa de decidir o mais recente"
+        find: 'return (match.group(1) if match else "", path.stat().st_mtime)'
+        replace: 'return (match.group(1) if match else "", 0.0)'
+      - id: empty-held-out-reads-as-no-improvement
+        description: "avaliacao nao feita (sem videos de teste) passa a parecer 'mantenha os padroes'"
+        find: "if evaluated else None"
+        replace: "if evaluated else False"
+      - id: unknown-override-accepted
+        description: "--set com nome que nao e campo de BarnesParams deixa de ser recusado"
+        find: "if k not in valid)"
+        replace: "if k in valid)"
+      - id: invalid-override-value-accepted
+        description: "--set com valor invalido volta a cair no padrao em silencio"
+        find: "new = [w for w in warnings if w not in base_warnings]"
+        replace: "new = []"
+      - id: undated-recording-falls-back-to-settings-fps
+        description: "gravacao que nao se data pelo proprio relogio deixa de ser recusada"
+        find: "if time_base.source in (SOURCE_FALLBACK, SOURCE_NONE) or not time_base.fps_video:"
+        replace: "if False:"
+
+  # --- Barnes v8.1 barnes-reports (#633): tidy columns, Word section, sheet, aggregates, correction ---
+  barnes_reports_data_transformer:
+    source: src/zebtrack/analysis/data_transformer.py
+    tests:
+      - tests/analysis/reporters/test_barnes_tidy.py
+      - tests/analysis/reporters/test_barnes_individual_report.py
+    mutations:
+      - id: barnes-columns-not-appended
+        description: "as colunas barnes_* deixam de entrar no tidy"
+        find: 'combined_data.update(barnes_columns(report, behavioral_config))'
+        replace: 'pass'
+      - id: not-ok-reads-metrics-anyway
+        description: "um resultado indisponivel passa a preencher colunas (visitas viram 0)"
+        find: 'if status != "ok":'
+        replace: 'if False:'
+      - id: missing-distance-not-zero
+        description: "distancia sem visita deixa de valer 0 num ensaio calculado"
+        find: 'if value is None and column.startswith("barnes_visits_d"):'
+        replace: 'if False:'
+      - id: status-column-empty
+        description: "barnes_status deixa de ser preenchido"
+        find: 'values["barnes_status"] = status'
+        replace: 'pass'
+      - id: int-keyed-histogram-unread
+        description: "o histograma com chaves int (em memoria) deixa de ser lido"
+        find: 'if segment.isdigit() and int(segment) in node:'
+        replace: 'if False:'
+      - id: generic-gets-visits-sheet
+        description: "um projeto generico passa a ganhar a aba barnes_visits"
+        find: 'if barnes_columns(report, behavioral_config) == {}:'
+        replace: 'if False:'
+      - id: failed-trial-has-visits
+        description: "a sequencia de visitas e lida mesmo com status diferente de ok"
+        find: 'sequence = metrics.get("visit_sequence") if metrics.get("status") == "ok" else None'
+        replace: 'sequence = metrics.get("visit_sequence")'
+      - id: registry-never-consulted
+        description: "o spec do protocolo nunca e consultado"
+        find: 'return get_protocol(profile.protocol)'
+        replace: 'return None'
+      - id: visits-display-name-lost
+        description: "barnes_visits_dNN perde o nome de exibicao"
+        find: 'return _BARNES_VISITS_DISPLAY.format(distance=int(visits_match.group(1)))'
+        replace: 'return col_name'
+
+  barnes_reports_barnes_section:
+    source: src/zebtrack/analysis/reporters/barnes_section.py
+    tests:
+      - tests/analysis/reporters/test_barnes_individual_report.py
+    mutations:
+      - id: section-for-any-protocol
+        description: "a secao Barnes aparece para qualquer protocolo registrado"
+        find: 'if spec is None or spec.zone_assistant != ASSISTANT_ID:'
+        replace: 'if spec is None or spec.zone_assistant == ASSISTANT_ID:'
+      - id: censored-latency-not-marked
+        description: "latencia censurada deixa de ser marcada como limite inferior"
+        find: 'if censored:'
+        replace: 'if False:'
+      - id: manual-strategy-not-marked
+        description: "a estrategia corrigida deixa de ser marcada"
+        find: 'if metrics.get("strategy_source") == "manual":'
+        replace: 'if False:'
+      - id: probe-shows-entry-row
+        description: "o ensaio de sonda passa a mostrar a latencia de entrada"
+        find: 'probe = metrics.get("trial_type") == "probe"'
+        replace: 'probe = False'
+      - id: unavailable-draws-table
+        description: "um resultado indisponivel tenta montar a tabela de metricas"
+        find: 'if status != "ok":'
+        replace: 'if False:'
+      - id: none-count-is-zero
+        description: "contagem ausente vira 0"
+        find: 'return _NOT_AVAILABLE if value is None else str(int(value))'
+        replace: 'return str(int(value or 0))'
+      - id: none-latency-is-zero
+        description: "latencia ausente vira 0.00 s"
+        find: |-
+          return _("N/A")
+              if censored:
+        replace: |-
+          return "0.00 s"
+              if censored:
+      - id: missing-quadrant-share-is-zero
+        description: "percentual do quadrante ausente vira 0.0 %"
+        find: 'share = _NOT_AVAILABLE if pct is None else f"{float(pct):.1f} %"'
+        replace: 'share = f"{float(pct or 0.0):.1f} %"'
+
+  barnes_reports_excel_reporter:
+    source: src/zebtrack/analysis/reporters/excel_reporter.py
+    tests:
+      - tests/analysis/reporters/test_barnes_individual_report.py
+    mutations:
+      - id: visits-never-computed
+        description: "a aba barnes_visits nunca e montada"
+        find: 'visits = self._barnes_visits_frame()'
+        replace: 'visits = None'
+      - id: visits-sheet-not-written
+        description: "a aba barnes_visits e montada mas nao escrita"
+        find: 'if visits is not None:'
+        replace: 'if False:'
+      - id: only-barnes-uses-single-sheet-path
+        description: "so a ausencia de por_animal decide a escrita de uma aba"
+        find: 'if per_animal is None and visits is None:'
+        replace: 'if per_animal is None:'
+
+  barnes_reports_word_reporter:
+    source: src/zebtrack/analysis/reporters/word_reporter.py
+    tests:
+      - tests/analysis/reporters/test_barnes_individual_report.py
+    mutations:
+      - id: section-never-appended
+        description: "a secao Barnes nunca entra no Word"
+        find: 'if barnes_metrics is not None:'
+        replace: 'if False:'
+      - id: thigmotaxis-plot-not-suppressed
+        description: "a figura de tigmotaxia volta para o Barnes"
+        find: 'if GenericReportSection.THIGMOTAXIS not in suppressed:'
+        replace: 'if True:'
+      - id: barnes-columns-repeat-in-summary
+        description: "as colunas Barnes repetem na tabela generica de metricas"
+        find: 'df = df.drop(columns=[c for c in df.columns if c.startswith(BARNES_COLUMN_PREFIX)])'
+        replace: 'pass'
+      - id: thigmotaxis-rows-not-suppressed
+        description: "as linhas de tigmotaxia voltam para o Barnes"
+        find: 'if GenericReportSection.THIGMOTAXIS in suppressed:'
+        replace: 'if False:'
+      - id: geotaxis-rows-not-suppressed
+        description: "as linhas de geotaxia voltam para o Barnes"
+        find: 'if GenericReportSection.GEOTAXIS in suppressed:'
+        replace: 'if False:'
+
+  barnes_reports_visualization:
+    source: src/zebtrack/analysis/visualization_generator.py
+    tests:
+      - tests/analysis/reporters/test_barnes_individual_report.py
+    mutations:
+      - id: hole-count-colour-ignored
+        description: "o buraco visitado nao se distingue do nao visitado"
+        find: 'fill = "0.88" if count == 0 else plt.get_cmap("Blues")(0.3 + 0.7 * count / peak)'
+        replace: 'fill = "0.88"'
+      - id: target-not-outlined
+        description: "o buraco alvo perde o contorno destacado"
+        find: 'is_target = offset == 0'
+        replace: 'is_target = False'
+      - id: quadrant-too-narrow
+        description: "o quadrante sombreado perde meio buraco por lado"
+        find: 'half_width = (quadrant_half_holes + 0.5) * 360.0 / n_holes'
+        replace: 'half_width = quadrant_half_holes * 360.0 / n_holes'
+      - id: negative-offsets-wrap-wrongly
+        description: "offsets anti-horarios deixam de ser negativos no anel"
+        find: 'offset = index if index <= half else index - n_holes'
+        replace: 'offset = index'
+      - id: target-marker-not-gold
+        description: "a visita alvo perde o destaque na trajetoria"
+        find: '"facecolor": "gold" if is_target else "white",'
+        replace: '"facecolor": "white",'
+      - id: target-visits-not-found
+        description: "nenhuma visita e reconhecida como alvo na trajetoria"
+        find: 'target = {str(v.get("roi")) for v in visit_sequence if v.get("is_target")}'
+        replace: 'target = set()'
+      - id: visit-orders-not-joined
+        description: "ordens de visitas repetidas ao mesmo buraco deixam de se juntar"
+        find: 'orders_by_roi.setdefault(str(visit.get("roi")), []).append(str(visit.get("order")))'
+        replace: 'orders_by_roi[str(visit.get("roi"))] = [str(visit.get("order"))]'
+
+  barnes_reports_aggregates:
+    source: src/zebtrack/analysis/reporters/barnes_aggregates.py
+    tests:
+      - tests/analysis/reporters/test_barnes_aggregates.py
+    mutations:
+      - id: failed-trials-enter-curves
+        description: "ensaios sem status ok entram nas curvas"
+        find: 'mask = internal["barnes_status"].astype("string") == "ok"'
+        replace: 'mask = internal["barnes_status"].astype("string") != "ok"'
+      - id: trial-type-not-filtered
+        description: "treino e sonda se misturam nas curvas"
+        find: 'mask &= internal["barnes_trial_type"].astype("string") == trial_type'
+        replace: 'pass'
+      - id: censored-counted-as-observed
+        description: "a media observada inclui as latencias censuradas"
+        find: '"mean_observed": _mean(values.where(~censored)),'
+        replace: '"mean_observed": _mean(values),'
+      - id: censored-count-lost
+        description: "o numero de ensaios censurados deixa de ser contado"
+        find: '"n_censored": int((censored & present).sum()),'
+        replace: '"n_censored": 0,'
+      - id: sem-population-std
+        description: "o EPM usa o desvio padrao populacional"
+        find: 'return float(values.std(ddof=1) / math.sqrt(len(values)))'
+        replace: 'return float(values.std(ddof=0) / math.sqrt(len(values)))'
+      - id: sem-of-two-trials-undefined
+        description: "o EPM de dois ensaios passa a ser indefinido"
+        find: 'if len(values) < 2:'
+        replace: 'if len(values) < 3:'
+      - id: first-hole-distance-signed
+        description: "a distancia do primeiro buraco passa a ter sinal"
+        find: 'values = values.abs()'
+        replace: 'pass'
+      - id: strategy-fraction-is-count
+        description: "a fracao de estrategia vira contagem"
+        find: '"fraction": n / total,'
+        replace: '"fraction": n,'
+      - id: display-names-not-mapped-back
+        description: "nomes de exibicao nao voltam aos nomes internos"
+        find: 'if column in inverse:'
+        replace: 'if False:'
+      - id: days-sorted-as-text
+        description: "dias deixam de ser ordenados naturalmente"
+        find: 'return (float(match.group()) if match else math.inf, text)'
+        replace: 'return (0.0, text)'
+      - id: one-day-gets-curve-figure
+        description: "a figura de curvas aparece com um unico dia"
+        find: 'if with_figures and curves["day"].nunique(dropna=True) > 1:'
+        replace: 'if with_figures:'
+      - id: censored-point-not-flagged
+        description: "o ponto com ensaios censurados deixa de ser marcado"
+        find: 'if row["n_censored"] > 0 and not math.isnan(row["mean"]):'
+        replace: 'if False:'
+      - id: per-animal-censoring-unmarked
+        description: "a latencia censurada por animal deixa de ser marcada"
+        find: 'if censored is True or str(censored).lower() == "true":'
+        replace: 'if False:'
+      - id: per-animal-correction-unmarked
+        description: "a estrategia corrigida por animal deixa de ser marcada"
+        find: 'return _("{strategy} (corrected)").format(strategy=label) if source == "manual" else label'
+        replace: 'return label'
+      - id: generic-frame-gets-aggregates
+        description: "um quadro generico recebe a secao de agregados"
+        find: |-
+          if not is_barnes_frame(df):
+                  return False
+              frame = to_internal_columns(df)
+              document.add_heading(_("Barnes Maze Results"), level=2)
+        replace: |-
+          frame = to_internal_columns(df)
+              document.add_heading(_("Barnes Maze Results"), level=2)
+      - id: generic-frame-gets-per-animal
+        description: "um quadro generico recebe a tabela por animal"
+        find: |-
+          if not is_barnes_frame(df):
+                  return False
+              frame = to_internal_columns(df)
+              document.add_heading(_("Barnes Maze Results per Animal"), level=2)
+        replace: |-
+          frame = to_internal_columns(df)
+              document.add_heading(_("Barnes Maze Results per Animal"), level=2)
+      - id: null-group-not-bucketed
+        description: "grupo nulo deixa de virar o balde (sem grupo)"
+        find: 'labelled[group_col] = labelled[group_col].astype(object).where(~missing, _("(no group)"))'
+        replace: 'labelled[group_col] = labelled[group_col]'
+      - id: curve-bar-drawn-where-sem-undefined
+        description: "a curva desenha barra de erro onde o EPM e indefinido"
+        find: |-
+          # zero, it does not exist, and a zero-length bar would claim it is.
+                      defined = rows["sem"].notna().to_numpy()
+        replace: |-
+          # zero, it does not exist, and a zero-length bar would claim it is.
+                      defined = np.ones(len(rows), dtype=bool)
+      - id: probe-bar-drawn-where-sem-undefined
+        description: "a figura de sonda desenha barra de erro onde o EPM e indefinido"
+        find: |-
+          defined = rows["sem"].notna().to_numpy()
+                  if defined.any():
+        replace: |-
+          defined = np.ones(len(rows), dtype=bool)
+                  if defined.any():
+      - id: probe-no-data-drawn-as-zero-bar
+        description: "grupo sem dado na sonda vira barra de altura zero"
+        find: |-
+          rows["mean"],
+                      color=[f"C{i % 10}" for i in range(len(groups))],
+        replace: |-
+          rows["mean"].fillna(0.0),
+                      color=[f"C{i % 10}" for i in range(len(groups))],
+
+  barnes_reports_project_reporter:
+    source: src/zebtrack/analysis/reporters/project_reporter.py
+    tests:
+      - tests/analysis/reporters/test_project_reporter_extended.py
+    mutations:
+      - id: barnes-aggregates-not-rendered
+        description: "o relatorio de projeto nao mostra os agregados Barnes"
+        find: 'render_barnes_aggregates(document, aggregated_df)'
+        replace: 'pass'
+      - id: thigmotaxis-stats-kept
+        description: "estatisticas de tigmotaxia voltam para o Barnes"
+        find: 'if GenericReportSection.THIGMOTAXIS in suppressed:'
+        replace: 'if False:'
+      - id: geotaxis-stats-kept
+        description: "estatisticas de geotaxia voltam para o Barnes"
+        find: 'if GenericReportSection.GEOTAXIS in suppressed:'
+        replace: 'if False:'
+      - id: generic-loses-suppression-guard
+        description: "um quadro generico passa a ter secoes suprimidas"
+        find: 'if not is_barnes_frame(aggregated_df):'
+        replace: 'if is_barnes_frame(aggregated_df):'
+
+  barnes_reports_unified_mixin:
+    source: src/zebtrack/coordinators/_unified_report_mixin.py
+    tests:
+      - tests/coordinators/test_unified_report.py
+    mutations:
+      - id: barnes-means-in-descriptive-stats
+        description: "as colunas barnes_ voltam para a estatistica descritiva generica"
+        find: 'exclude_prefixes = ("validation_", "roi_color_", "barnes_")'
+        replace: 'exclude_prefixes = ("validation_", "roi_color_")'
+      - id: aggregate-sheets-not-written
+        description: "as abas de agregados Barnes nao sao escritas no xlsx unificado"
+        find: 'for sheet_name, sheet in barnes_sheets(final_df).items():'
+        replace: 'for sheet_name, sheet in {}.items():'
+
+  barnes_reports_block_dialog:
+    source: src/zebtrack/ui/dialogs/block_detail_dialog.py
+    tests:
+      - tests/ui/dialogs/test_block_detail_dialog.py
+    mutations:
+      - id: barnes-columns-in-block-means
+        description: "colunas Barnes entram nas medias por animal do relatorio parcial"
+        find: 'and not str(col).startswith("Barnes ")'
+        replace: 'and True'
+      - id: per-animal-table-missing
+        description: "o relatorio parcial perde a tabela Barnes por animal"
+        find: 'render_barnes_per_animal(document, unified_df)'
+        replace: 'pass'
+      - id: block-aggregates-missing
+        description: "o relatorio parcial perde os agregados Barnes do bloco"
+        find: 'render_barnes_aggregates(document, unified_df, group_col="grupo", day_col="dia")'
+        replace: 'pass'
+      - id: partial-sheets-not-written
+        description: "as abas de agregados Barnes nao entram no xlsx parcial"
+        find: 'sheet.to_excel(writer, sheet_name=sheet_name, index=False)'
+        replace: 'pass'
+
+  barnes_reports_strategy_correction:
+    source: src/zebtrack/ui/components/project_views/report_tree_builder.py
+    tests:
+      - tests/ui/components/test_report_tree_builder_status_counts.py
+    mutations:
+      - id: generic-project-offered-correction
+        description: "um projeto generico passa a oferecer a correcao"
+        find: 'if resolve_experiment_profile(project_data).protocol is not ProtocolId.BARNES:'
+        replace: 'if False:'
+      - id: multi-aquarium-offered-correction
+        description: "video multi-aquario passa a oferecer a correcao"
+        find: 'if not isinstance(entry, dict) or entry.get("multi_aquarium_outputs"):'
+        replace: 'if not isinstance(entry, dict):'
+      - id: unknown-token-written
+        description: "um token de estrategia desconhecido e gravado"
+        find: 'if value is not None and value not in {s.value for s in SearchStrategy}:'
+        replace: 'if False:'
+      - id: failed-save-not-rolled-back
+        description: "um salvamento que falha deixa a mudanca em memoria"
+        find: 'write(previous)'
+        replace: 'pass'
+      - id: automatic-never-selected
+        description: "a opcao Automatica nunca aparece marcada"
+        find: 'StrategyChoice(_("Automatic"), None, current is None),'
+        replace: 'StrategyChoice(_("Automatic"), None, False),'
+      - id: clearing-writes-instead
+        description: "limpar a correcao grava em vez de remover"
+        find: 'if token is None or token is _ABSENT:'
+        replace: 'if False:'
+      - id: project-not-saved
+        description: "a correcao nao persiste o projeto"
+        find: 'self.project_manager.save_project()'
+        replace: 'pass'
+      - id: rollback-forgets-stored-token
+        description: "a restauracao nao usa o token exato que estava gravado"
+        find: 'previous = stored.get("strategy_override", _ABSENT)'
+        replace: 'previous = None'
+      - id: rollback-writes-absent-marker
+        description: "a restauracao grava o marcador de ausencia em vez de remover"
+        find: 'if token is None or token is _ABSENT:'
+        replace: 'if token is None:'
+
+  barnes_reports_menu_manager:
+    source: src/zebtrack/ui/components/menu_manager.py
+    tests:
+      - tests/ui/components/test_menu_manager.py
+    mutations:
+      - id: current-strategy-not-marked
+        description: "a estrategia atual deixa de aparecer marcada no menu"
+        find: 'label=("✔ " if choice.selected else "    ") + choice.label,'
+        replace: 'label="    " + choice.label,'
+      - id: menu-added-without-callbacks
+        description: "o submenu e montado mesmo sem callbacks"
+        find: 'if choices_for is None or set_strategy is None:'
+        replace: 'if False:'
+
+  barnes_reports_reports_tree_manager:
+    source: src/zebtrack/ui/components/project_views/reports_tree_manager.py
+    tests:
+      - tests/ui/components/test_reports_tree_manager_extended.py
+    mutations:
+      - id: failed-save-reported-as-success
+        description: "uma falha ao salvar a correcao vira mensagem de sucesso"
+        find: 'if self._strategy_correction.set_override(video_path, value):'
+        replace: 'if True:'
+
+  # --- Barnes v8.1 animal-terms (#633): the interface vocabulary follows the animal model ---
+  animal_terms_terminology:
+    source: src/zebtrack/ui/terminology.py
+    tests:
+      - tests/ui/test_terminology.py
+    mutations:
+      - id: zebrafish-reads-the-neutral-text
+        description: "zebrafish deixa de receber o texto legado"
+        find: "        if model is AnimalModel.ZEBRAFISH:"
+        replace: "        if model is AnimalModel.RODENT:"
+      - id: other-ignores-its-own-variant
+        description: "outras especies ignoram a variante propria (emoji)"
+        find: "        if model is AnimalModel.OTHER and self.other is not None:"
+        replace: "        if False:"
+      - id: no-profile-reads-neutral
+        description: "projeto sem perfil deixa de ser zebrafish"
+        find: "        return AnimalModel.ZEBRAFISH"
+        replace: "        return AnimalModel.RODENT"
+      - id: format-arguments-ignored
+        description: "os argumentos de formatacao deixam de ser aplicados"
+        find: "    return text.format(**fmt) if fmt else text"
+        replace: "    return text"
+      - id: gui-helper-ignores-the-project
+        description: "o auxiliar da janela ignora o projeto aberto"
+        find: '    return animal_model_of(getattr(project_manager, "project_data", None))'
+        replace: "    return animal_model_of(None)"
+
+  animal_terms_data_transformer:
+    source: src/zebtrack/analysis/data_transformer.py
+    tests:
+      - tests/analysis/test_data_transformer.py
+    mutations:
+      - id: unmapped-column-ignores-animal
+        description: "coluna sem mapa ignora o animal ao montar o rotulo"
+        find: "    return mapped if mapped is not None else display_metadata_label(column, animal_model)"
+        replace: "    return mapped if mapped is not None else display_metadata_label(column)"
+      - id: column-override-ignored
+        description: "o nome de coluna por animal deixa de valer"
+        find: "    if override is not None:"
+        replace: "    if False:"
+      - id: other-animal-keeps-aquarium-column
+        description: "outras especies mantem a coluna Aquarium"
+        find: '    AnimalModel.OTHER: {"aquarium_id": "Arena"},'
+        replace: "    AnimalModel.OTHER: {},"
+      - id: metadata-key-not-reworded
+        description: "a chave de metadados nao e reescrita para o animal"
+        find: "    for old, new in _ANIMAL_KEY_WORDS.get(animal_model, ()):"
+        replace: "    for old, new in ():"
+      - id: other-animal-keeps-aquarium-key-word
+        description: "outras especies mantem Aquarium nos rotulos de metadados"
+        find: '    AnimalModel.OTHER: (("aquarium", "arena"),),'
+        replace: "    AnimalModel.OTHER: (),"
+
+  animal_terms_word_reporter:
+    source: src/zebtrack/analysis/reporters/word_reporter.py
+    tests:
+      - tests/analysis/reporters/test_word_reporter.py
+    mutations:
+      - id: metadata-label-ignores-animal
+        description: "o rotulo de metadados do Word ignora o animal"
+        find: "display_metadata_label(key, animal_model)"
+        replace: "display_metadata_label(key)"
+      - id: metric-row-ignores-animal
+        description: "a linha de metrica do Word ignora o animal"
+        find: "row_cells[0].text = display_column_name(column_name, animal_model)"
+        replace: "row_cells[0].text = display_column_name(column_name)"
+
+  animal_terms_zone_controls:
+    source: src/zebtrack/ui/components/zone_controls.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: detect-button-not-reworded
+        description: "o botao de detectar nao acompanha o animal"
+        find: '                auto_detect.configure(text=term("zones.detect_button", animal_model))'
+        replace: "                pass"
+      - id: active-frame-not-reworded
+        description: "o quadro Arena ativa nao acompanha o animal"
+        find: '                    text=term("zones.active_frame", animal_model)'
+        replace: '                    text=term("zones.active_frame")'
+      - id: left-radio-not-reworded
+        description: "o radio da esquerda nao acompanha o animal"
+        find: '                self.aquarium_radio_1.configure(text=term("zones.radio_left", animal_model))'
+        replace: "                pass"
+      - id: right-radio-not-reworded
+        description: "o radio da direita nao acompanha o animal"
+        find: '                self.aquarium_radio_2.configure(text=term("zones.radio_right", animal_model))'
+        replace: "                pass"
+      - id: sequential-radio-not-reworded
+        description: "o radio sequencial nao acompanha o animal"
+        find: '                self.sequential_radio.configure(text=term("zones.sequential_radio", animal_model))'
+        replace: "                pass"
+      - id: sequential-help-not-reworded
+        description: "a ajuda sequencial nao acompanha o animal"
+        find: '                    text=term("zones.sequential_help", animal_model)'
+        replace: '                    text=term("zones.sequential_help")'
+
+  animal_terms_event_dispatcher:
+    source: src/zebtrack/ui/components/event_dispatcher.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: zones-tab-always-legacy
+        description: "a aba de zonas sempre recebe o animal legado"
+        find: "        setter(animal_model_of(project_data if isinstance(project_data, Mapping) else None))"
+        replace: "        setter(animal_model_of(None))"
+      - id: terms-not-refreshed-with-the-barnes-button
+        description: "a atualizacao do botao Barnes deixa de atualizar o vocabulario"
+        find: "        self.refresh_animal_terminology()"
+        replace: "        pass"
+
+  animal_terms_calibration_step:
+    source: src/zebtrack/ui/wizard/calibration_step.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: profile-change-does-not-reword
+        description: "mudar o perfil nao reescreve os rotulos da calibracao"
+        find: "        self._apply_terms(profile.animal_model)"
+        replace: "        pass"
+      - id: count-label-not-reworded
+        description: "o rotulo do numero de arenas nao acompanha o animal"
+        find: '            self._count_label.configure(text=term("calibration.count_label", animal_model))'
+        replace: "            pass"
+      - id: animals-label-not-reworded
+        description: "o rotulo de animais por arena nao acompanha o animal"
+        find: '            self._animals_label.configure(text=term("calibration.animals_label", animal_model))'
+        replace: "            pass"
+      - id: count-tooltip-not-reworded
+        description: "a dica do numero de arenas nao acompanha o animal"
+        find: '            self._count_tip.text = term("calibration.count_help", animal_model)'
+        replace: "            pass"
+      - id: animals-tooltip-not-reworded
+        description: "a dica de animais por arena nao acompanha o animal"
+        find: '            self._animals_tip.text = term("calibration.animals_help", animal_model)'
+        replace: "            pass"
+
+  animal_terms_behavioral_config_widget:
+    source: src/zebtrack/ui/components/behavioral_config_widget.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: combos-refresh-does-not-reword
+        description: "escolher o animal nao reescreve os rotulos do widget"
+        find: "\"\"\"\n        self._apply_terms()\n        if self.animal_model_combo:"
+        replace: "\"\"\"\n        if self.animal_model_combo:"
+      - id: perspective-title-not-reworded
+        description: "o titulo da perspectiva nao acompanha o animal"
+        find: '            self._perspective_frame.configure(text=term("behavioral.perspective_title", model))'
+        replace: "            pass"
+      - id: thigmotaxis-help-not-reworded
+        description: "a ajuda da tigmotaxia nao acompanha o animal"
+        find: '            self._thigmotaxis_help_label.configure(text=term("behavioral.thigmotaxis_help", model))'
+        replace: "            pass"
+      - id: zones-split-not-reworded
+        description: "o rotulo de divisao de zonas nao acompanha o animal"
+        find: '            self._zones_split_label.configure(text=term("behavioral.zones_split", model))'
+        replace: "            pass"
+
+  animal_terms_live_analysis_dialog:
+    source: src/zebtrack/ui/dialogs/live_analysis_dialog.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: profile-change-does-not-reword
+        description: "mudar o perfil nao reescreve os rotulos do dialogo ao vivo"
+        find: "        self._apply_terms()\n"
+        replace: ""
+      - id: count-error-ignores-animal
+        description: "a mensagem de erro de contagem ignora o animal"
+        find: 'raise ValueError(term("live.count_error", self._profile_animal))'
+        replace: 'raise ValueError(term("live.count_error"))'
+      - id: notice-not-reworded
+        description: "o aviso de uma arena por vez nao acompanha o animal"
+        find: '            self._one_arena_notice.configure(text=term("live.one_arena_notice", model))'
+        replace: "            pass"
+      - id: tooltip-not-reworded
+        description: "a dica de contagem nao acompanha o animal"
+        find: '            set_help_text(self._count_help, term("live.count_help", model))'
+        replace: "            pass"
+
+  animal_terms_single_video_config_dialog:
+    source: src/zebtrack/ui/dialogs/single_video_config_dialog.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: profile-change-does-not-reword
+        description: "mudar o perfil nao reescreve os rotulos do dialogo de video unico"
+        find: "        self._apply_terms()\n"
+        replace: ""
+      - id: count-help-not-reworded
+        description: "a dica de contagem nao acompanha o animal"
+        find: '            set_help_text(self._count_help, term("single.count_help", model))'
+        replace: "            pass"
+      - id: animals-label-not-reworded
+        description: "o rotulo de animais nao acompanha o animal"
+        find: '            self._animals_label.configure(text=term("single.animals_label", model))'
+        replace: "            pass"
+
+  animal_terms_aquarium_assignment_dialog:
+    source: src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: title-ignores-animal
+        description: "o titulo do dialogo ignora o animal"
+        find: '        super().__init__(parent, term("assignment.title", animal_model))'
+        replace: '        super().__init__(parent, term("assignment.title"))'
+      - id: group-error-ignores-animal
+        description: "a mensagem de grupo vazio ignora o animal"
+        find: '                raise ValueError(term("assignment.group_empty", self._animal_model, number=i + 1))'
+        replace: '                raise ValueError(term("assignment.group_empty", None, number=i + 1))'
+
+  animal_terms_report_tree_builder:
+    source: src/zebtrack/ui/components/project_views/report_tree_builder.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: subject-label-ignores-animal
+        description: "o no de sujeito ignora o animal do projeto"
+        find: '        return animal_model_of(getattr(self.project_manager, "project_data", None))'
+        replace: "        return AnimalModel.ZEBRAFISH"
+
+  animal_terms_tooltip:
+    source: src/zebtrack/ui/wizard/tooltip.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: help-text-not-replaced
+        description: "set_help_text deixa de trocar o texto da dica"
+        find: "        tooltip.text = text"
+        replace: "        pass"
+
+  animal_terms_dialog_coordinator:
+    source: src/zebtrack/coordinators/dialog_coordinator.py
+    tests:
+      - tests/coordinators/test_dialog_coordinator.py
+    mutations:
+      - id: arena-question-ignores-animal
+        description: "a pergunta de arena nao definida ignora o animal"
+        find: "                    animal_model_of_project_manager(self.project_manager),\n                ),"
+        replace: "                    None,\n                ),"
+      - id: define-steps-ignore-animal
+        description: "os passos para definir a arena ignoram o animal"
+        find: "                                        animal_model_of_project_manager(self.project_manager),"
+        replace: "                                        None,"
+
+  animal_terms_live_calibration_coordinator:
+    source: src/zebtrack/coordinators/live_calibration_coordinator.py
+    tests:
+      - tests/coordinators/test_live_calibration_coordinator.py
+    mutations:
+      - id: animal-always-legacy
+        description: "o coordenador sempre le o animal como legado"
+        find: "        return animal_model_of_project_manager(self.project_manager)"
+        replace: "        return AnimalModel.ZEBRAFISH"
+      - id: draw-title-ignores-animal
+        description: "o titulo de desenhar a arena ignora o animal"
+        find: '                        title=term("calibration.draw_title", self._animal_model()),'
+        replace: '                        title=term("calibration.draw_title"),'
+      - id: draw-message-ignores-animal
+        description: "a mensagem de desenhar a arena ignora o animal"
+        find: '                        message=term("calibration.draw_message", self._animal_model()),'
+        replace: '                        message=term("calibration.draw_message"),'
+      - id: missing-arena-question-ignores-animal
+        description: "a pergunta de arena nao definida ignora o animal"
+        find: '                term("calibration.arena_missing_live", self._animal_model()),'
+        replace: '                term("calibration.arena_missing_live"),'
+      - id: steps-ignore-animal
+        description: "os passos com o botao Detectar ignoram o animal"
+        find: '                                    "calibration.define_arena_steps_live", self._animal_model()'
+        replace: '                                    "calibration.define_arena_steps_live", None'
+
+  animal_terms_project_overview:
+    source: src/zebtrack/ui/components/project_overview.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: fallback-label-ignores-animal
+        description: "o rotulo de reserva do sujeito ignora o animal"
+        find: '                                hierarchy_data.get("terms_model"),'
+        replace: "                                None,"
+
+  animal_terms_validation_manager:
+    source: src/zebtrack/ui/components/validation_manager.py
+    tests:
+      - tests/ui/test_animal_terms_surfaces.py
+    mutations:
+      - id: hierarchy-drops-the-animal
+        description: "a hierarquia deixa de carregar o animal do projeto"
+        find: '        return {"groups": groups_list, "terms_model": animal.value}'
+        replace: '        return {"groups": groups_list, "terms_model": None}'

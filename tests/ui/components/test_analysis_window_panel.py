@@ -25,6 +25,7 @@ from zebtrack.core.conditions import (
     AllOf,
     AllOfLevel,
     AnyOfLevel,
+    BurrowEntry,
     ClassPresence,
     ClassTarget,
     Delay,
@@ -33,16 +34,23 @@ from zebtrack.core.conditions import (
     FirstOf,
     FrameReached,
     Hold,
+    LastSeenIn,
     Not,
     Persist,
     RoiEdge,
     RoiInside,
     Sequence,
+    SubjectOverRoi,
+    SubjectVisibleFraction,
     TimeReached,
     WindowSpec,
     spec_hash,
 )
-from zebtrack.core.conditions.presets import barnes_maze_preset, external_trigger_preset
+from zebtrack.core.conditions.presets import (
+    barnes_maze_preset,
+    barnes_maze_preset_v2,
+    external_trigger_preset,
+)
 from zebtrack.ui.components.analysis_window_panel import (
     PROJECT_KEY,
     ROW_KINDS,
@@ -51,6 +59,10 @@ from zebtrack.ui.components.analysis_window_panel import (
     ConditionRow,
     SectionDraft,
     SpecBuildError,
+    barnes_v2_change_text,
+    barnes_v2_offer_text,
+    barnes_v2_spec,
+    barnes_v2_update,
     build_trigger,
     build_window_spec,
     check_row,
@@ -63,6 +75,7 @@ from zebtrack.ui.components.analysis_window_panel import (
     format_number,
     friendly_validation_message,
     hold_unit_labels,
+    is_barnes_project,
     load_window_spec,
     match_roi_name,
     missing_class_names,
@@ -129,7 +142,13 @@ class TestLabels:
         assert set(section_labels()) == {"start", "stop"}
 
     def test_stop_only_kinds(self) -> None:
-        assert STOP_ONLY_KINDS == {"delay_after_start", "end_of_video"}
+        # The subject's usual size (and so the burrow entry) is measured from START.
+        assert STOP_ONLY_KINDS == {
+            "delay_after_start",
+            "end_of_video",
+            "subject_small",
+            "burrow_entry",
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -1353,3 +1372,393 @@ class TestSessionPanel:
 
         bus.publish.assert_not_called()
         assert panel.current_spec() == WindowSpec(stop=EndOfStream())
+
+
+# ---------------------------------------------------------------------------
+# Burrow-entry lines and the Barnes preset v2 (#633)
+# ---------------------------------------------------------------------------
+
+BARNES_PROJECT: dict[str, Any] = {
+    "behavioral_config": {
+        "protocol": "barnes",
+        "protocol_params": {"barnes": {"max_trial_s": 180.0, "entry_hold_s": 0.8}},
+    }
+}
+ENTRY_GROUP = Persist(
+    level=AllOfLevel(
+        children=(
+            SubjectOverRoi(roi="toca", min_cover=0.6),
+            SubjectVisibleFraction(max_fraction=0.3, min_reference_frames=7),
+        )
+    ),
+    hold=Hold(seconds=0.5),
+)
+
+
+class TestEntryLines:
+    @pytest.mark.parametrize(
+        "spec",
+        [
+            barnes_maze_preset_v2(),
+            barnes_maze_preset_v2(
+                k_frames=4,
+                max_s=90.0,
+                burrow_roi="Toca",
+                entry_hold_s=1.0,
+                entry_min_reference_frames=7,
+                entry_absent_s=2.0,
+            ),
+            WindowSpec(
+                stop=FirstOf(
+                    children=(
+                        BurrowEntry(roi="toca", hold=Hold(frames=4), max_gap_s=2.0),
+                        Delay(after="start", seconds=5.0),
+                    )
+                )
+            ),
+            WindowSpec(stop=ENTRY_GROUP),
+            WindowSpec(
+                start=Persist(level=LastSeenIn(roi="toca", min_cover=0.7), hold=Hold(frames=1))
+            ),
+        ],
+    )
+    def test_round_trip_keeps_the_hash(self, spec: WindowSpec) -> None:
+        drafts = drafts_from_spec(spec)
+
+        assert drafts is not None
+        rebuilt = build_window_spec(
+            drafts[0], drafts[1], on_start_not_met=spec.on_start_not_met, on_stop=spec.on_stop
+        )
+        assert rebuilt is not None and spec_hash(rebuilt) == spec_hash(spec)
+
+    def test_v2_stop_becomes_three_lines(self) -> None:
+        drafts = drafts_from_spec(barnes_maze_preset_v2())
+
+        assert drafts is not None
+        stop = drafts[1]
+        assert stop.combinator == "any_of"
+        assert [row.kind for row in stop.rows] == [
+            "end_of_video",
+            "burrow_entry",
+            "delay_after_start",
+        ]
+        assert stop.rows[1].target == "toca"
+        assert stop.rows[1].node == BurrowEntry(roi="toca")
+
+    def test_level_lines_of_a_group(self) -> None:
+        drafts = drafts_from_spec(WindowSpec(stop=ENTRY_GROUP))
+
+        assert drafts is not None
+        assert [(r.kind, r.target, r.value) for r in drafts[1].rows] == [
+            ("subject_over_roi", "toca", 0.6),
+            ("subject_small", "", 0.3),
+            ("hold", "", 0.5),
+        ]
+
+    def test_a_new_burrow_line_takes_the_contract_defaults(self) -> None:
+        node = build_trigger(_section(ConditionRow(kind="burrow_entry", target=" toca ")), "stop")
+
+        assert node == BurrowEntry(roi="toca")
+
+    def test_the_lines_roi_wins_over_the_stored_node(self) -> None:
+        row = ConditionRow(
+            kind="burrow_entry", target="Toca", node=BurrowEntry(roi="toca", absent_s=2.0)
+        )
+
+        assert build_trigger(_section(row), "stop") == BurrowEntry(roi="Toca", absent_s=2.0)
+
+    def test_new_level_lines_default_their_cover(self) -> None:
+        rows = (
+            ConditionRow(kind="subject_over_roi", target="toca"),
+            ConditionRow(kind="last_seen_in", target="toca"),
+            ConditionRow(kind="subject_small", value=0.25),
+        )
+
+        node = build_trigger(_section(*rows), "stop")
+
+        assert node == Persist(
+            level=AllOfLevel(
+                children=(
+                    SubjectOverRoi(roi="toca"),
+                    LastSeenIn(roi="toca"),
+                    SubjectVisibleFraction(max_fraction=0.25),
+                )
+            ),
+            hold=Hold(frames=1),
+        )
+
+    @pytest.mark.parametrize("kind", ["burrow_entry", "subject_small"])
+    def test_size_lines_are_stop_only(self, kind: Any) -> None:
+        with pytest.raises(SpecBuildError, match="can only be used in Stop"):
+            check_row(ConditionRow(kind=kind, target="toca", value=0.3), "start")
+
+    @pytest.mark.parametrize("kind", ["burrow_entry", "subject_over_roi", "last_seen_in"])
+    def test_roi_lines_need_an_roi(self, kind: Any) -> None:
+        with pytest.raises(SpecBuildError, match="Choose an ROI"):
+            check_row(ConditionRow(kind=kind, target=" "), "stop")
+
+    def test_small_line_needs_a_number_in_range(self) -> None:
+        with pytest.raises(SpecBuildError, match="Type a number"):
+            check_row(ConditionRow(kind="subject_small"), "stop")
+        with pytest.raises(SpecBuildError, match="less than 1"):
+            check_row(ConditionRow(kind="subject_small", value=1.0), "stop")
+
+    def test_cover_above_one_is_refused(self) -> None:
+        with pytest.raises(SpecBuildError, match="at most 1"):
+            check_row(ConditionRow(kind="subject_over_roi", target="toca", value=1.5), "stop")
+
+    def test_start_refusal_has_a_friendly_message(self) -> None:
+        with pytest.raises(ValidationError) as caught:
+            WindowSpec(start=BurrowEntry(roi="toca"))
+
+        assert friendly_validation_message(caught.value) == (
+            "The subject's size and the burrow entry can only be used in Stop."
+        )
+
+    def test_describe_entry_nodes(self) -> None:
+        assert describe_trigger(BurrowEntry(roi="toca")) == (
+            "the subject enters ROI 'toca' (not just a touch): 50% of it over the ROI and at "
+            "most 35% of its usual size for 0.5 s, or not visible for 3 s after it was last "
+            "seen there"
+        )
+        assert "for 4 frame(s)" in describe_trigger(BurrowEntry(roi="toca", hold=Hold(frames=4)))
+        assert describe_level(SubjectOverRoi(roi="toca", min_cover=0.6)) == (
+            "at least 60% of the subject is over ROI 'toca'"
+        )
+        assert describe_level(SubjectVisibleFraction(max_fraction=0.35)) == (
+            "the subject looks at most 35% of its usual size "
+            "(median since the start, after 10 detected frames)"
+        )
+        assert describe_level(LastSeenIn(roi="toca")) == (
+            "the subject is not visible and was last seen over ROI 'toca'"
+        )
+
+    def test_describe_entry_rows(self) -> None:
+        assert describe_row(ConditionRow(kind="subject_over_roi", target="toca")) == (
+            "toca (≥ 50% of the box)"
+        )
+        assert describe_row(ConditionRow(kind="last_seen_in", target="toca", value=0.7)) == (
+            "toca (≥ 70% of the box)"
+        )
+        assert describe_row(ConditionRow(kind="subject_small", value=0.35)) == (
+            "≤ 35% of its usual size"
+        )
+        assert describe_row(ConditionRow(kind="subject_small")) == ""
+        assert describe_row(ConditionRow(kind="burrow_entry", target="toca")) == "toca"
+
+    def test_referenced_rois_include_the_entry_nodes(self) -> None:
+        spec = WindowSpec(
+            start=Persist(level=LastSeenIn(roi="a"), hold=Hold(frames=1)),
+            stop=FirstOf(children=(BurrowEntry(roi="b"), ENTRY_GROUP)),
+        )
+
+        assert referenced_roi_names(spec) == ["a", "b", "toca"]
+        assert missing_roi_names(spec, ["a", "toca"]) == ["b"]
+
+
+class TestBarnesV2Update:
+    def test_barnes_project_is_read_from_the_profile(self) -> None:
+        assert is_barnes_project(BARNES_PROJECT) is True
+        assert is_barnes_project({}) is False
+
+    def test_v2_spec_uses_the_projects_barnes_parameters(self) -> None:
+        spec = barnes_v2_spec(BARNES_PROJECT, ["Toca"])
+
+        assert spec == barnes_maze_preset_v2(max_s=180.0, burrow_roi="Toca", entry_hold_s=0.8)
+
+    def test_v2_spec_overrides_win(self) -> None:
+        spec = barnes_v2_spec(BARNES_PROJECT, [], k_frames=7, max_s=60.0, burrow_roi="hole")
+
+        assert spec == barnes_maze_preset_v2(
+            k_frames=7, max_s=60.0, burrow_roi="hole", entry_hold_s=0.8
+        )
+
+    def test_update_keeps_what_the_researcher_set_in_v1(self) -> None:
+        stored = barnes_maze_preset(k_frames=8, absent_s=1.0, max_s=200.0, burrow_roi="Toca")
+
+        update = barnes_v2_update(stored, BARNES_PROJECT, ["Toca"])
+
+        assert update == barnes_maze_preset_v2(
+            k_frames=8, max_s=200.0, burrow_roi="Toca", entry_hold_s=0.8
+        )
+
+    def test_v1_without_a_burrow_line_gets_the_projects_toca(self) -> None:
+        stored = barnes_maze_preset(burrow_roi=None)
+
+        update = barnes_v2_update(stored, BARNES_PROJECT, ["TOCA"])
+
+        assert update is not None
+        assert isinstance(update.stop, FirstOf)
+        assert update.stop.children[1] == BurrowEntry(roi="TOCA", hold=Hold(seconds=0.8))
+
+    def test_nothing_to_offer_otherwise(self) -> None:
+        assert barnes_v2_update(barnes_maze_preset(), {}, ["toca"]) is None
+        assert barnes_v2_update(barnes_maze_preset_v2(), BARNES_PROJECT, ["toca"]) is None
+        assert barnes_v2_update(None, BARNES_PROJECT, ["toca"]) is None
+
+    def test_offer_text_names_touch_and_entry(self) -> None:
+        text = barnes_v2_offer_text()
+
+        assert "TOUCH" in text and "ENTRY" in text and "Save" in text
+
+
+@pytest.mark.gui
+class TestBarnesV2Panel:
+    @staticmethod
+    def _panel(root: Any, data: dict[str, Any], roi_names: list[str]) -> Any:
+        controller, pm = _make_controller(data, roi_names=roi_names)
+        panel = AnalysisWindowPanel(root, controller, event_bus=MagicMock())
+        root.update_idletasks()
+        return panel, pm
+
+    @staticmethod
+    def _offered(panel: Any) -> bool:
+        return bool(panel._v2_button.winfo_manager())
+
+    def test_offer_appears_for_a_barnes_project_with_the_v1_window(self, tkinter_root: Any) -> None:
+        data = {**BARNES_PROJECT}
+        store_window_spec(data, barnes_maze_preset())
+
+        panel, _pm = self._panel(tkinter_root, data, ["toca"])
+
+        assert panel.barnes_v2_offered() is True
+        assert self._offered(panel) is True
+        assert panel._notice.cget("text") == (
+            f"{barnes_v2_offer_text()} {barnes_v2_change_text(barnes_maze_preset())}"
+        )
+
+    @pytest.mark.parametrize(
+        ("data", "spec"),
+        [
+            ({}, barnes_maze_preset()),
+            ({**BARNES_PROJECT}, barnes_maze_preset_v2()),
+            ({**BARNES_PROJECT}, None),
+        ],
+    )
+    def test_no_offer_otherwise(self, tkinter_root: Any, data: Any, spec: Any) -> None:
+        store_window_spec(data, spec)
+
+        panel, _pm = self._panel(tkinter_root, data, ["toca"])
+
+        assert self._offered(panel) is False
+
+    def test_update_loads_v2_unsaved_then_save_removes_the_offer(self, tkinter_root: Any) -> None:
+        data = {**BARNES_PROJECT}
+        store_window_spec(data, barnes_maze_preset(max_s=200.0))
+        stored = dict(data[PROJECT_KEY])
+        panel, pm = self._panel(tkinter_root, data, ["toca"])
+
+        panel.apply_barnes_v2_update()
+
+        expected = barnes_maze_preset_v2(max_s=200.0, entry_hold_s=0.8)
+        assert panel.current_spec() == expected
+        assert data[PROJECT_KEY] == stored, "never a silent swap: nothing saved yet"
+        pm.save_project.assert_not_called()
+        assert panel._editor is not None
+
+        assert panel.save() is True
+        assert load_window_spec(data) == (expected, False)
+        assert self._offered(panel) is False
+
+    def test_update_without_a_v1_window_does_nothing(self, tkinter_root: Any) -> None:
+        data = {**BARNES_PROJECT}
+        store_window_spec(data, barnes_maze_preset_v2())
+        panel, _pm = self._panel(tkinter_root, data, ["toca"])
+
+        with capture_logs() as logs:
+            panel.apply_barnes_v2_update()
+
+        assert panel._editor is None
+        events = [e["event"] for e in logs]
+        assert "analysis_window_panel.barnes_v2_update.not_applicable" in events
+
+    def test_preset_button_gives_v2_in_a_barnes_project(self, tkinter_root: Any) -> None:
+        panel, _pm = self._panel(tkinter_root, {**BARNES_PROJECT}, ["Toca"])
+
+        panel.apply_barnes_preset()
+
+        assert panel.current_spec() == barnes_maze_preset_v2(
+            max_s=180.0, burrow_roi="Toca", entry_hold_s=0.8
+        )
+
+    def test_burrow_line_is_added_from_the_widgets(self, tkinter_root: Any) -> None:
+        panel, _pm = self._panel(tkinter_root, {}, ["toca"])
+        panel.open_editor()
+        panel.target_section.set(section_labels()["stop"])
+        panel._refresh_kind_choices()
+        panel.row_kind.set(row_kind_labels()["burrow_entry"])
+        panel._on_kind_changed()
+        panel.row_target.set("toca")
+
+        panel.add_line()
+
+        assert panel.drafts["stop"].rows == (ConditionRow(kind="burrow_entry", target="toca"),)
+        assert panel.current_spec() == WindowSpec(stop=BurrowEntry(roi="toca"))
+
+    def test_cover_line_reads_its_number(self, tkinter_root: Any) -> None:
+        panel, _pm = self._panel(tkinter_root, {}, ["toca"])
+        panel.open_editor()
+        panel.row_kind.set(row_kind_labels()["subject_over_roi"])
+        panel._on_kind_changed()
+        panel.row_target.set("toca")
+        panel.row_number.set("0,7")
+
+        row = panel.read_line()
+
+        assert row == ConditionRow(kind="subject_over_roi", target="toca", value=0.7)
+        assert "Fraction of the subject's box" in panel._number_hint.cget("text")
+
+
+class TestBarnesV2ChangeText:
+    """Hub review of #633: the update says which v1 lines it replaces."""
+
+    def test_names_the_absence_and_touch_lines_it_replaces(self) -> None:
+        text = barnes_v2_change_text(barnes_maze_preset(absent_s=2.5, max_s=200.0))
+
+        assert text == (
+            "Updating replaces the Stop lines \"'rat' is not visible, for 2.5 s\" and "
+            "\"the subject enters ROI 'toca'\" (the first touch) with the burrow entry; "
+            "the Start condition and the 200 s ceiling are kept."
+        )
+
+    def test_v1_without_a_burrow_line_names_only_the_absence(self) -> None:
+        text = barnes_v2_change_text(barnes_maze_preset(burrow_roi=None))
+
+        assert text == (
+            "Updating replaces the Stop line \"'rat' is not visible, for 3 s\" with the "
+            "burrow entry; the Start condition and the 240 s ceiling are kept."
+        )
+
+    def test_nothing_to_say_for_other_windows(self) -> None:
+        assert barnes_v2_change_text(None) == ""
+        assert barnes_v2_change_text(barnes_maze_preset_v2()) == ""
+
+
+@pytest.mark.gui
+class TestBarnesV2ChangeShown:
+    def test_offer_and_status_show_what_changes(self, tkinter_root: Any) -> None:
+        data = {**BARNES_PROJECT}
+        store_window_spec(data, barnes_maze_preset())
+        controller, _pm = _make_controller(data, roi_names=["toca"])
+        panel = AnalysisWindowPanel(tkinter_root, controller, event_bus=MagicMock())
+        change = barnes_v2_change_text(barnes_maze_preset())
+
+        assert change in panel._notice.cget("text")  # type: ignore[union-attr]
+
+        panel.apply_barnes_v2_update()
+
+        status = panel._status.cget("text")  # type: ignore[union-attr]
+        assert status == f"{change} Review the lines, then Save."
+
+    def test_problems_follow_the_change_note(self, tkinter_root: Any) -> None:
+        data = {**BARNES_PROJECT}
+        store_window_spec(data, barnes_maze_preset(burrow_roi="hole"))
+        controller, _pm = _make_controller(data, roi_names=["center"])
+        panel = AnalysisWindowPanel(tkinter_root, controller, event_bus=MagicMock())
+
+        panel.apply_barnes_v2_update()
+
+        status = panel._status.cget("text")  # type: ignore[union-attr]
+        assert status.startswith("Updating replaces the Stop lines")
+        assert "'hole'" in status
+        assert str(panel._status.cget("foreground")) == "red"  # type: ignore[union-attr]

@@ -9,6 +9,7 @@ Estimated size: ~750 lines (target <800).
 
 from __future__ import annotations
 
+import copy
 import os
 import shutil
 from pathlib import Path
@@ -46,6 +47,21 @@ def _payload_get(payload: payloads.EventPayload | dict[str, Any], key: str, defa
     if isinstance(payload, dict):
         return payload.get(key, default)
     return getattr(payload, key, default)
+
+
+#: Colours of the Barnes assistant's ROIs (RGB): every ROI gets one, so the
+#: positional ``roi_colors`` list stays aligned with ``roi_polygons``.
+_BARNES_QUADRANT_COLOR = (255, 200, 0)
+_BARNES_TARGET_COLOR = (255, 0, 0)
+_BARNES_DECOY_COLOR = (0, 200, 0)
+#: Colour a kept user ROI without one gets (the analysis' own fallback).
+_DEFAULT_USER_ROI_COLOR = (255, 0, 0)
+#: ``project_data`` keys a Barnes write may change (rolled back on failure).
+_BARNES_SNAPSHOT_KEYS = ("zones_by_video", "detection_zones", "behavioral_config")
+
+
+class _BarnesWriteRefusedError(RuntimeError):
+    """A zone writer refused one of the Barnes polygons (the apply is rolled back)."""
 
 
 #: ``detection_zones`` defaults, used when the injected settings lack a usable value.
@@ -122,6 +138,12 @@ class MultiAquariumCoordinator(BaseCoordinator):
         self._auto_assign_aquariums: bool = False
         self._last_assignment_configs: list[dict] | None = None
         self._assigned_videos: set[str] = set()
+
+        # The Barnes arena assistant's writes. Subscribed here, not in
+        # VideoProcessingCoordinator.register_event_handlers, because this
+        # coordinator owns the arena/ROI writers the contract names (#633).
+        if event_bus is not None:
+            event_bus.subscribe(UIEvents.ZONE_BARNES_LAYOUT_APPLY, self._on_barnes_layout_apply)
 
         log.info("multi_aquarium_coordinator.initialized")
 
@@ -766,11 +788,22 @@ class MultiAquariumCoordinator(BaseCoordinator):
     # Arena & ROI Polygon Management
     # ========================================================================
 
-    def set_main_arena_polygon(self, points: list[tuple[float, float]]) -> bool:
-        """Set the main arena polygon for the current video.
+    def set_main_arena_polygon(
+        self,
+        points: list[tuple[float, float]],
+        *,
+        video_path: str | Path | None = None,
+        persist: bool = True,
+    ) -> bool:
+        """Set the main arena polygon of a video.
 
         Args:
             points: List of (x, y) tuples defining the arena polygon.
+            video_path: The video whose zones change; ``None`` = the active zone
+                video (the historical behaviour).
+            persist: Write the project and the zone parquets now. A caller that
+                writes several zones of one video passes ``False`` on all but
+                the last write.
 
         Returns:
             True if the polygon was set successfully, False otherwise.
@@ -779,7 +812,11 @@ class MultiAquariumCoordinator(BaseCoordinator):
             log.warning("processing_coordinator.set_arena.invalid_points", count=len(points))
             return False
 
-        zone_data = self.project_manager.get_zone_data()
+        zone_data = (
+            self.project_manager.get_zone_data(video_path)
+            if video_path is not None
+            else self.project_manager.get_zone_data()
+        )
         if zone_data is None:
             from zebtrack.core.detection import ZoneData
 
@@ -787,7 +824,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
         else:
             zone_data.polygon = [(int(x), int(y)) for x, y in points]
 
-        self.project_manager.save_zone_data(zone_data)
+        self.project_manager.save_zone_data(zone_data, video_path, persist=persist)
         self._publish_processing_mode(source="set_main_arena_polygon")
         log.info("processing_coordinator.set_arena.success", points=len(points))
         return True
@@ -854,13 +891,20 @@ class MultiAquariumCoordinator(BaseCoordinator):
         points_list: list[tuple[float, float]],
         name: str,
         color: tuple | None = None,
+        *,
+        video_path: str | Path | None = None,
+        persist: bool = True,
     ) -> bool:
-        """Add an ROI polygon to the current zone data.
+        """Add an ROI polygon to a video's zone data.
 
         Args:
             points_list: List of (x, y) tuples defining the ROI polygon.
             name: Name for the ROI region.
             color: Optional RGB color tuple for the ROI.
+            video_path: The video whose zones change; ``None`` = the active zone
+                video (the historical behaviour).
+            persist: Write the project and the zone parquets now (see
+                :meth:`set_main_arena_polygon`).
 
         Returns:
             True if the ROI was added successfully, False otherwise.
@@ -869,7 +913,11 @@ class MultiAquariumCoordinator(BaseCoordinator):
             log.warning("processing_coordinator.add_roi.invalid_points", count=len(points_list))
             return False
 
-        zone_data = self.project_manager.get_zone_data()
+        zone_data = (
+            self.project_manager.get_zone_data(video_path)
+            if video_path is not None
+            else self.project_manager.get_zone_data()
+        )
         if zone_data is None:
             log.warning("processing_coordinator.add_roi.no_zone_data")
             return False
@@ -907,7 +955,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
             roi_cols = cast(list, zone_data.roi_colors)
             roi_cols.append(color)
 
-        self.project_manager.save_zone_data(zone_data)
+        self.project_manager.save_zone_data(zone_data, video_path, persist=persist)
         log.info(
             "processing_coordinator.add_roi.success",
             name=name,
@@ -915,6 +963,253 @@ class MultiAquariumCoordinator(BaseCoordinator):
             total_rois=len(zone_data.roi_polygons),
         )
         return True
+
+    # ========================================================================
+    # Barnes arena assistant (#633, CONTRACTS §4)
+    # ========================================================================
+
+    def _on_barnes_layout_apply(self, payload: payloads.EventPayload) -> None:
+        """Handle ``ZONE_BARNES_LAYOUT_APPLY``: write one video's Barnes zones.
+
+        The bus swallows a handler's exceptions, so the outcome is reported
+        explicitly: ``on_result(written)`` when the payload carries it, and a
+        warning on failure.
+        """
+        video_path = str(_payload_get(payload, "video_path", "") or "").strip()
+        on_result = _payload_get(payload, "on_result")
+        written = False
+        try:
+            arena = _payload_get(payload, "arena_polygon") or ()
+            rois = _payload_get(payload, "rois") or ()
+            layout_metadata = _payload_get(payload, "layout_metadata") or {}
+            trial_type = _payload_get(payload, "trial_type")
+            project_n_holes = _payload_get(payload, "project_n_holes")
+            written = self.apply_barnes_layout(
+                video_path,
+                [(float(x), float(y)) for x, y in arena],
+                [(str(name), [(float(x), float(y)) for x, y in poly]) for name, poly in rois],
+                dict(layout_metadata),
+                trial_type=str(trial_type) if trial_type else None,
+                project_n_holes=int(project_n_holes) if project_n_holes is not None else None,
+            )
+        # A malformed payload must still reach on_result.
+        except (TypeError, ValueError) as exc:
+            log.warning(
+                "multi_aquarium_coordinator.barnes_apply.malformed_payload",
+                video=video_path,
+                error=str(exc),
+            )
+            written = False
+        if callable(on_result):
+            on_result(written)
+        if not written:
+            self._publish_event(
+                UIEvents.UI_SHOW_WARNING,
+                payloads.MessagePayload(
+                    title=_("Barnes assistant"),
+                    message=_("The Barnes zones could not be saved for {video}.").format(
+                        video=os.path.basename(video_path) or video_path
+                    ),
+                ),
+            )
+            return
+        self._publish_event(UIEvents.UI_REDRAW_ZONES, payloads.ZonesUpdatedPayload(zone_data=None))
+        self._publish_event(
+            UIEvents.UI_UPDATE_ZONE_LIST, payloads.ZonesUpdatedPayload(zone_data=None)
+        )
+
+    def _barnes_snapshot(self, video_path: Path | str) -> dict[str, Any]:
+        """Deep copy of everything a Barnes write may change in memory."""
+        project_data = self.project_manager.project_data
+        entry = self.project_manager.find_video_entry(path=video_path)
+        return {
+            "keys": {
+                key: (key in project_data, copy.deepcopy(project_data.get(key)))
+                for key in _BARNES_SNAPSHOT_KEYS
+            },
+            "entry": entry,
+            "entry_copy": None if entry is None else copy.deepcopy(dict(entry)),
+        }
+
+    def _barnes_restore(self, snapshot: dict[str, Any]) -> None:
+        """Put back what :meth:`_barnes_snapshot` copied (no half-written layout)."""
+        project_data = self.project_manager.project_data
+        for key, (present, value) in snapshot["keys"].items():
+            if present:
+                project_data[key] = value
+            else:
+                project_data.pop(key, None)
+        entry = snapshot["entry"]
+        if entry is not None:
+            # In place: the entry is referenced from the project's video lists.
+            entry.clear()
+            entry.update(snapshot["entry_copy"])
+
+    def apply_barnes_layout(
+        self,
+        video_path: Path | str,
+        arena: list[tuple[float, float]],
+        rois: list[tuple[str, list[tuple[float, float]]]],
+        layout_metadata: dict[str, Any],
+        *,
+        trial_type: str | None = None,
+        project_n_holes: int | None = None,
+    ) -> bool:
+        """Write the Barnes assistant's zones for ONE video (CONTRACTS §4).
+
+        Replaces every ROI whose name the contract recognises, keeps the user's
+        other ROIs AFTER the Barnes ones (the stored order the metrics rely on),
+        writes the arena through :meth:`set_main_arena_polygon` and each ROI
+        through :meth:`add_roi_polygon`, caches the layout under
+        ``metadata["barnes_layout"]``, records the trial type with
+        ``set_protocol_input`` and persists once, at the end.
+
+        All or nothing: when any step fails (a writer refuses a contract ROI, or
+        anything raises), the in-memory project is restored to what it was
+        before the call and ``False`` is returned.
+
+        Args:
+            project_n_holes: When given, the project's ``n_holes`` is set to it
+                first (the user confirmed the table's detected count), through
+                ``set_protocol_param``.
+
+        Returns:
+            ``True`` when every zone was written and the project saved.
+        """
+        from zebtrack.analysis.protocols.barnes.contract import BarnesLayout, TrialType
+
+        # Kept as the caller's string: zone keys and video entries are matched by
+        # the project's own path spelling, which a Path round-trip could change.
+        video_path = os.fspath(video_path)
+        layout = BarnesLayout.from_metadata(layout_metadata)
+        if not video_path or layout is None or len(arena) < 3 or not rois:
+            log.warning(
+                "multi_aquarium_coordinator.barnes_apply.invalid_input",
+                video=video_path,
+                has_layout=layout is not None,
+                arena_points=len(arena),
+                rois=len(rois),
+            )
+            return False
+        if trial_type is not None and trial_type not in {t.value for t in TrialType}:
+            log.warning("multi_aquarium_coordinator.barnes_apply.bad_trial_type", value=trial_type)
+            return False
+
+        snapshot = self._barnes_snapshot(video_path)
+        try:
+            self._write_barnes_layout(
+                video_path,
+                layout,
+                arena,
+                rois,
+                layout_metadata,
+                trial_type=trial_type,
+                project_n_holes=project_n_holes,
+            )
+        # except Exception justified: the bus swallows handler errors; roll back and report.
+        except Exception as exc:
+            self._barnes_restore(snapshot)
+            log.error(
+                "multi_aquarium_coordinator.barnes_apply.failed",
+                video=os.path.basename(video_path),
+                error=str(exc),
+                exc_info=True,
+            )
+            return False
+        return True
+
+    def _write_barnes_layout(
+        self,
+        video_path: Path | str,
+        layout: Any,
+        arena: list[tuple[float, float]],
+        rois: list[tuple[str, list[tuple[float, float]]]],
+        layout_metadata: dict[str, Any],
+        *,
+        trial_type: str | None,
+        project_n_holes: int | None,
+    ) -> None:
+        """The writes of :meth:`apply_barnes_layout`; raises on the first failure."""
+        from zebtrack.analysis.protocols.barnes.contract import (
+            LAYOUT_METADATA_KEY,
+            QUADRANT_ROI,
+            TARGET_ROI,
+            parse_barnes_roi_name,
+        )
+        from zebtrack.analysis.protocols.base import set_protocol_input
+        from zebtrack.core.services.experiment_profile import ProtocolId, set_protocol_param
+
+        project_data = self.project_manager.project_data
+        if project_n_holes is not None:
+            set_protocol_param(project_data, ProtocolId.BARNES, "n_holes", project_n_holes)
+
+        def is_barnes(name: str) -> bool:
+            # Any name an earlier layout may have written, whatever its count: a
+            # video re-done with 18 holes must not keep a 20-hole "buraco_+09" as
+            # if the user had drawn it. 98 and 99 (the largest even and odd
+            # n_holes) accept every name the contract can produce.
+            return any(parse_barnes_roi_name(name, n) is not None for n in (98, 99))
+
+        zone_data = self.project_manager.get_zone_data(video_path, fallback_to_global=False)
+        colors = list(zone_data.roi_colors)
+        kept: list[tuple[list[tuple[float, float]], str, tuple[int, ...]]] = []
+        for index, (polygon, name) in enumerate(
+            zip(zone_data.roi_polygons, zone_data.roi_names, strict=False)
+        ):
+            if is_barnes(str(name)):
+                continue
+            color = tuple(colors[index]) if index < len(colors) else _DEFAULT_USER_ROI_COLOR
+            kept.append(([(float(p[0]), float(p[1])) for p in polygon], str(name), color))
+
+        zone_data.roi_polygons = []
+        zone_data.roi_names = []
+        zone_data.roi_colors = []
+        zone_data.metadata = {
+            **dict(zone_data.metadata or {}),
+            LAYOUT_METADATA_KEY: layout_metadata,
+        }
+        self.project_manager.save_zone_data(zone_data, video_path, persist=False)
+
+        if not self.set_main_arena_polygon(arena, video_path=video_path, persist=False):
+            raise _BarnesWriteRefusedError("arena")
+        for roi_name, roi_points in rois:
+            if roi_name == QUADRANT_ROI:
+                roi_color = _BARNES_QUADRANT_COLOR
+            elif roi_name == TARGET_ROI:
+                roi_color = _BARNES_TARGET_COLOR
+            else:
+                roi_color = _BARNES_DECOY_COLOR
+            if not self.add_roi_polygon(
+                roi_points, roi_name, roi_color, video_path=video_path, persist=False
+            ):
+                raise _BarnesWriteRefusedError(roi_name)
+        for kept_points, kept_name, kept_color in kept:
+            if not self.add_roi_polygon(
+                kept_points, kept_name, kept_color, video_path=video_path, persist=False
+            ):
+                raise _BarnesWriteRefusedError(kept_name)
+
+        if trial_type is not None:
+            entry = self.project_manager.find_video_entry(path=video_path)
+            if entry is None:
+                log.warning(
+                    "multi_aquarium_coordinator.barnes_apply.no_video_entry",
+                    video=video_path,
+                )
+            else:
+                set_protocol_input(entry, ProtocolId.BARNES, "trial_type", trial_type)
+
+        final = self.project_manager.get_zone_data(video_path, fallback_to_global=False)
+        self.project_manager.save_zone_data(final, video_path, persist=True)
+        log.info(
+            "multi_aquarium_coordinator.barnes_apply.success",
+            video=os.path.basename(video_path),
+            n_holes=layout.n_holes,
+            barnes_rois=len(rois),
+            kept_rois=len(kept),
+            trial_type=trial_type,
+            project_n_holes=project_n_holes,
+        )
 
     # ========================================================================
     # Processing Mode Configuration

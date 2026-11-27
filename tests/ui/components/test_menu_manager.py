@@ -704,3 +704,56 @@ class TestShowRoiContextMenu:
 
         menu_manager.gui.roi_context_menu.post.assert_not_called()
         mock_post.assert_called_once_with(90, 100)
+
+
+@pytest.mark.gui
+class TestStrategyCorrectionMenu:
+    """The Barnes "Search strategy" cascade of the processing-reports context menu."""
+
+    @staticmethod
+    def _menu(tkinter_root, callbacks):
+        from tkinter import Menu as TkMenu
+
+        from zebtrack.ui.components.menu_manager import MenuManager
+
+        menu = TkMenu(tkinter_root, tearoff=0)
+        MenuManager._add_strategy_correction_menu(menu, "/p/a.mp4", callbacks)
+        return menu
+
+    @staticmethod
+    def _labels(menu):
+        end = menu.index("end")
+        if end is None:
+            return []
+        return [
+            menu.entrycget(i, "label")
+            for i in range(end + 1)
+            if menu.type(i) in {"command", "cascade"}
+        ]
+
+    def test_a_barnes_video_gets_a_cascade_marking_the_current_choice(self, tkinter_root):
+        from zebtrack.ui.components.project_views.report_tree_builder import StrategyChoice
+
+        chosen = []
+        callbacks = {
+            "strategy_choices": lambda path: [
+                StrategyChoice("Automatic", None, False),
+                StrategyChoice("Serial", "serial", True),
+            ],
+            "set_strategy": lambda path, value: chosen.append((path, value)),
+        }
+
+        menu = self._menu(tkinter_root, callbacks)
+
+        assert self._labels(menu) == ["🐀 Search strategy (Barnes)"]
+        submenu = tkinter_root.nametowidget(menu.entrycget(0, "menu"))
+        assert self._labels(submenu) == ["    Automatic", "✔ Serial"]
+        submenu.invoke(0)
+        submenu.invoke(1)
+        assert chosen == [("/p/a.mp4", None), ("/p/a.mp4", "serial")]
+
+    def test_nothing_is_added_without_choices_or_callbacks(self, tkinter_root):
+        assert self._labels(self._menu(tkinter_root, {})) == []
+        assert self._labels(self._menu(tkinter_root, {"strategy_choices": lambda p: []})) == []
+        only_choices = {"strategy_choices": lambda p: ["x"], "set_strategy": None}
+        assert self._labels(self._menu(tkinter_root, only_choices)) == []

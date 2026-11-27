@@ -143,6 +143,21 @@ class TestSchema:
         stored = ArtifactEvent.from_window_event(event)
         assert (stored.frame, stored.t_s, stored.reason) == (9, 0.9, "persist")
 
+    def test_burrow_entry_reason_is_stored_and_read_back(self, tmp_path: Path) -> None:
+        """#633: the new STOP reason is additive — written, read, and old files still load."""
+        stop = ArtifactEvent(frame=40, t_s=4.0, reason="burrow_entry")
+        artifact = _artifact(offline=OfflineWindow(status="complete", stop=stop, inputs={}))
+        path = tmp_path / "7_AnalysisWindow_x.json"
+
+        write_artifact(path, artifact)
+        reloaded = read_artifact(path)
+
+        assert reloaded is not None and reloaded.offline is not None
+        assert reloaded.offline.stop == stop
+        assert json.loads(path.read_text(encoding="utf-8"))["offline"]["stop"]["reason"] == (
+            "burrow_entry"
+        )
+
     def test_external_events_convert_from_the_engine_type(self) -> None:
         stored = ArtifactExternalEvent.from_event(
             ExternalEvent(source="manual", code=None, t_s=1.5)

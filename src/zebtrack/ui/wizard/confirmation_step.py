@@ -29,6 +29,7 @@ import structlog
 
 from zebtrack.i18n import _
 from zebtrack.ui.components.analysis_window_panel import describe_window_spec, load_window_spec
+from zebtrack.ui.terminology import term
 from zebtrack.ui.window_utils import create_scrollbar
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ImportAction, ProjectType, WizardStepID
@@ -446,7 +447,13 @@ class ConfirmationStep(WizardStep):
                 aquarium_weight = weight_assignments.get("aquarium")
                 animal_weight = weight_assignments.get("animal")
                 if aquarium_weight:
-                    lines.append(_("  • Aquarium weight: {weight}").format(weight=aquarium_weight))
+                    lines.append(
+                        term(
+                            "wizard.arena_weight_summary",
+                            self._animal_model(),
+                            weight=aquarium_weight,
+                        )
+                    )
                 if animal_weight:
                     lines.append(_("  • Animal weight: {weight}").format(weight=animal_weight))
             if detector_params:
@@ -529,7 +536,9 @@ class ConfirmationStep(WizardStep):
         if aquarium_method or animal_method:
             if aquarium_method:
                 aquarium_label = method_labels.get(aquarium_method, aquarium_method)
-                lines.append(_("  • Aquarium method: {method}").format(method=aquarium_label))
+                lines.append(
+                    term("wizard.arena_method_summary", self._animal_model(), method=aquarium_label)
+                )
             if animal_method:
                 animal_label = method_labels.get(animal_method, animal_method)
                 lines.append(_("  • Animal method: {method}").format(method=animal_label))
@@ -538,7 +547,11 @@ class ConfirmationStep(WizardStep):
             aquarium_weight = weight_assignments.get("aquarium")
             animal_weight = weight_assignments.get("animal")
             if aquarium_weight:
-                lines.append(_("  • Aquarium weight: {weight}").format(weight=aquarium_weight))
+                lines.append(
+                    term(
+                        "wizard.arena_weight_summary", self._animal_model(), weight=aquarium_weight
+                    )
+                )
             if animal_weight:
                 lines.append(_("  • Animal weight: {weight}").format(weight=animal_weight))
 
@@ -597,8 +610,10 @@ class ConfirmationStep(WizardStep):
         width = self.wizard_data.get("aquarium_width_cm", 10.0)
         height = self.wizard_data.get("aquarium_height_cm", 10.0)
 
-        lines.append(_("  • Aquariums: {count}").format(count=num_aquariums))
-        lines.append(_("  • Animals per aquarium: {count}").format(count=animals_per_aquarium))
+        lines.append(term("wizard.count_summary", self._animal_model(), count=num_aquariums))
+        lines.append(
+            term("wizard.animals_summary", self._animal_model(), count=animals_per_aquarium)
+        )
         lines.append(_("  • Dimensions: {width} x {height} cm").format(width=width, height=height))
 
     def _append_processing_plan(self, lines: list[str]) -> None:

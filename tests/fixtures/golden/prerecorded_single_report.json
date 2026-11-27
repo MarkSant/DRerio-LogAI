@@ -216,6 +216,9 @@
       "timestamp": 11.4
     }
   ],
+  "protocol_metrics": {
+    "status": "none"
+  },
   "validacao": {
     "avisos": [],
     "estatisticas": {
