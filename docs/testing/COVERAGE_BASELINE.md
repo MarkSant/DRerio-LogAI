@@ -22,19 +22,20 @@ Two things made the drift invisible:
 
 ## Current baseline
 
-Measured by CI on 2026-11-18 at `e2fbff4c` (PR #717, the TASK-087 coverage campaign, after the
-`core/recording`, UI, A2 and A8 fronts). Earlier in the same campaign: `008f3271` measured
-68.87 / 37.23 / 59.91 % and `ec86f146` 66.32 / 36.12 / 58.24 %; the baseline before the campaign,
-2026-08-19 at `e313a5ed`, was 58.19 / 33.18 / 51.92 %.
+Measured by CI on 2026-11-27 at `b94d95c5`, the tree that `main` holds after PR #737 (Barnes
+v8.1, #633) and PR #738 (3c time base): CI run 45920172087. Before them, 2026-11-18 at `e2fbff4c`
+(PR #717, the TASK-087 coverage campaign) measured 70.50 / 37.42 / 61.03 %; earlier in that
+campaign `008f3271` measured 68.87 / 37.23 / 59.91 % and `ec86f146` 66.32 / 36.12 / 58.24 %; the
+baseline before the campaign, 2026-08-19 at `e313a5ed`, was 58.19 / 33.18 / 51.92 %.
 
 | Suite            | CI command                                             | Measured | Gate    |
 | ---------------- | ------------------------------------------------------ | -------- | ------- |
-| core (Linux)     | `pytest -m "not gui"`                                  | 70.50 %  | 69.5 %  |
-| GUI (Linux)      | `pytest -m gui -n0`                                    | 37.42 %  | 36.5 %  |
-| core (Windows)   | `pytest -m "not gui" --ignore=tests/ui`                | 61.03 %  | 60.0 %  |
+| core (Linux)     | `pytest -m "not gui"`                                  | 71.18 %  | 70.0 %  |
+| GUI (Linux)      | `pytest -m gui -n0`                                    | 39.27 %  | 38.5 %  |
+| core (Windows)   | `pytest -m "not gui" --ignore=tests/ui`                | 61.76 %  | 60.5 %  |
 
-The GUI gate stays at 36.5 % on purpose: the final pass removed the never-built two-aquarium
-preview window, which the GUI suite covered well (about 0.4 point of the measurement).
+The Barnes work added about 35 000 lines with their own tests, which is what moved all three
+numbers; the GUI suite gained the most (Barnes assistant, profile combos, re-worded surfaces).
 
 The gate sits roughly one point below the measurement (0.7 pp for GUI, whose absolute headroom is
 smallest). That margin absorbs the platform differences between this measurement (Windows) and the

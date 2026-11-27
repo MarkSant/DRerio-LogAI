@@ -340,7 +340,7 @@ jobs:
       - name: "Run core tests (Linux - with xvfb)"
         if: runner.os == 'Linux' && matrix.suite == 'core'
         run: |
-          xvfb-run --auto-servernum poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=69.5 --timeout=300 --timeout-method=thread
+          xvfb-run --auto-servernum poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=70.0 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       # The gate above is one number for ~60 000 statements: a whole package can
@@ -398,14 +398,14 @@ jobs:
       - name: "Run GUI tests (Linux - with xvfb)"
         if: runner.os == 'Linux' && matrix.suite == 'gui'
         run: |
-          xvfb-run --auto-servernum poetry run pytest -m gui -n0 --reruns 2 --reruns-delay 1 --cov=zebtrack --cov-report=xml:coverage-gui.xml --cov-fail-under=36.5 --timeout=300 --timeout-method=thread
+          xvfb-run --auto-servernum poetry run pytest -m gui -n0 --reruns 2 --reruns-delay 1 --cov=zebtrack --cov-report=xml:coverage-gui.xml --cov-fail-under=38.5 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       - name: "Run tests (Windows)"
         if: runner.os == 'Windows' && matrix.suite == 'core'
         run: |
           $Env:ZEBTRACK_HEADLESS_TESTS = "1"
-          poetry run pytest -m "not gui" --ignore=tests/ui --ignore=tests/ui/test_aquarium_dialogs.py --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=60.0 --timeout=300 --timeout-method=thread
+          poetry run pytest -m "not gui" --ignore=tests/ui --ignore=tests/ui/test_aquarium_dialogs.py --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=60.5 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       - name: Upload Codecov core coverage (Linux)
